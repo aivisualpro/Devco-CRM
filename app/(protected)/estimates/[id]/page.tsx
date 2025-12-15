@@ -1,0 +1,793 @@
+'use client';
+
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useRouter, useParams } from 'next/navigation';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion } from '@/components/ui';
+import { useToast } from '@/hooks/useToast';
+import { useAddShortcut } from '@/hooks/useAddShortcut';
+import {
+    EstimateHeaderCard,
+    AccordionSection,
+    LineItemsTable,
+    AddItemModal,
+    LaborCalculationModal
+} from './components';
+import {
+    getLaborBreakdown,
+    calculateLaborTotal,
+    calculateEquipmentTotal,
+    calculateMaterialTotal,
+    calculateSimpleTotal,
+    calculateOverheadTotal,
+    getSectionColor,
+    parseNum,
+    type LaborBreakdown,
+    type FringeConstant
+} from '@/lib/estimateCalculations';
+
+const DRAFT_KEY_PREFIX = 'estimate_draft_';
+
+// Types
+interface Estimate {
+    _id: string;
+    estimate?: string;
+    date?: string;
+    customerName?: string;
+    proposalNo?: string;
+    bidMarkUp?: string | number;
+    status?: string;
+    fringe?: string;
+    directionalDrilling?: boolean;
+    excavationBackfill?: boolean;
+    hydroExcavation?: boolean;
+    potholingCoring?: boolean;
+    asphaltConcrete?: boolean;
+    labor?: LineItem[];
+    equipment?: LineItem[];
+    material?: LineItem[];
+    tools?: LineItem[];
+    overhead?: LineItem[];
+    subcontractor?: LineItem[];
+    disposal?: LineItem[];
+    miscellaneous?: LineItem[];
+    [key: string]: unknown;
+}
+
+interface LineItem {
+    _id?: string;
+    estimateId?: string;
+    total?: number;
+    [key: string]: unknown;
+}
+
+interface SectionConfig {
+    id: string;
+    title: string;
+    key: string;
+    headers: string[];
+    fields: string[];
+    formFields?: string[];
+    formHeaders?: string[];
+    editableFields: string[];
+    color: string;
+    items: LineItem[];
+}
+
+interface VersionEntry {
+    _id: string;
+    proposalNo?: string;
+    versionNumber?: number;
+    date?: string;
+    totalAmount?: number;
+}
+
+// Section configurations
+const baseSectionConfigs = [
+    {
+        id: 'Labor', title: 'Labor', key: 'labor',
+        headers: ['Labor', 'Classification', 'Sub Classification', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp', 'Payroll Tax', 'Total'],
+        fields: ['labor', 'classification', 'subClassification', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent', 'total'],
+        formFields: ['classification', 'subClassification', 'fringe', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent'],
+        formHeaders: ['Classification', 'Sub Classification', 'Fringe', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp %', 'Payroll Tax %'],
+        editableFields: ['quantity', 'days', 'otPd', 'basePay']
+    },
+    {
+        id: 'Equipment', title: 'Equipment', key: 'equipment',
+        headers: ['Equipment / Machine', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'Times', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Fuel', 'Total'],
+        fields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'total'],
+        editableFields: ['supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost']
+    },
+    {
+        id: 'Material', title: 'Material', key: 'material',
+        headers: ['Material', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'UOM', 'Cost', 'Taxes', 'Total'],
+        fields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'total'],
+        editableFields: ['classification', 'subClassification', 'supplier', 'uom', 'cost', 'taxes', 'quantity']
+    },
+    {
+        id: 'Tools', title: 'Tools', key: 'tools',
+        headers: ['Tool', 'Classification', 'Sub Classification', 'UOM', 'Supplier', 'Cost', 'Quantity', 'Taxes', 'Total'],
+        fields: ['tool', 'classification', 'subClassification', 'uom', 'supplier', 'cost', 'quantity', 'taxes', 'total'],
+        editableFields: ['quantity', 'cost']
+    },
+    {
+        id: 'Overhead', title: 'Overhead', key: 'overhead',
+        headers: ['Overhead', 'Classification', 'Sub Classification', 'Days', 'Hours', 'Hourly Rate', 'Daily Rate', 'Total'],
+        fields: ['overhead', 'classification', 'subClassification', 'days', 'hours', 'hourlyRate', 'dailyRate', 'total'],
+        formFields: ['overhead', 'classification', 'subClassification', 'hourlyRate', 'dailyRate'],
+        formHeaders: ['Overhead', 'Classification', 'Sub Classification', 'Hourly Cost', 'Daily Cost'],
+        editableFields: ['classification', 'subClassification', 'days', 'hourlyRate']
+    },
+    {
+        id: 'Subcontractor', title: 'Subcontractor', key: 'subcontractor',
+        headers: ['Classification', 'Sub Classification', 'Contractor', 'Qty', 'UOM', 'Cost', 'Total'],
+        fields: ['classification', 'subClassification', 'subcontractor', 'quantity', 'uom', 'cost', 'total'],
+        formFields: ['classification', 'subClassification', 'subcontractor', 'quantity', 'uom', 'cost'],
+        formHeaders: ['Classification', 'Sub Classification', 'Contractor', 'Qty', 'UOM', 'Cost'],
+        editableFields: ['classification', 'subClassification', 'subcontractor', 'quantity', 'uom', 'cost']
+    },
+    {
+        id: 'Disposal', title: 'Disposal', key: 'disposal',
+        headers: ['Disposal And Haul OFF', 'Classification', 'Sub Classification', 'UOM', 'Quantity', 'Cost', 'Total'],
+        fields: ['disposalAndHaulOff', 'classification', 'subClassification', 'uom', 'quantity', 'cost', 'total'],
+        formFields: ['disposalAndHaulOff', 'classification', 'subClassification', 'uom', 'quantity', 'cost'],
+        formHeaders: ['Disposal And Haul OFF', 'Classification', 'Sub Classification', 'UOM', 'Quantity', 'Cost'],
+        editableFields: ['classification', 'subClassification', 'uom', 'quantity', 'cost']
+    },
+    {
+        id: 'Miscellaneous', title: 'Miscellaneous', key: 'miscellaneous',
+        headers: ['Item', 'Classification', 'Quantity', 'UOM', 'Cost', 'Total'],
+        fields: ['item', 'classification', 'quantity', 'uom', 'cost', 'total'],
+        formFields: ['item', 'classification', 'uom', 'cost'],
+        formHeaders: ['Item', 'Classification', 'UOM', 'Cost'],
+        editableFields: ['classification', 'quantity', 'uom', 'cost']
+    }
+];
+
+export default function EstimateViewPage() {
+    const router = useRouter();
+    const params = useParams();
+    const id = params.id as string;
+    const { toasts, success, error: toastError, removeToast } = useToast();
+
+    // State
+    const [estimate, setEstimate] = useState<Estimate | null>(null);
+    const [formData, setFormData] = useState<Estimate | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [unsavedChanges, setUnsavedChanges] = useState(false);
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+    const [chartAnimate, setChartAnimate] = useState(false);
+
+    // Catalogs
+    const [laborCatalog, setLaborCatalog] = useState<LineItem[]>([]);
+    const [equipmentCatalog, setEquipmentCatalog] = useState<LineItem[]>([]);
+    const [materialCatalog, setMaterialCatalog] = useState<LineItem[]>([]);
+    const [overheadCatalog, setOverheadCatalog] = useState<LineItem[]>([]);
+    const [disposalCatalog, setDisposalCatalog] = useState<LineItem[]>([]);
+    const [subcontractorCatalog, setSubcontractorCatalog] = useState<LineItem[]>([]);
+    const [miscellaneousCatalog, setMiscellaneousCatalog] = useState<LineItem[]>([]);
+    const [fringeConstants, setFringeConstants] = useState<FringeConstant[]>([]);
+    const [catalogsLoaded, setCatalogsLoaded] = useState(false);
+    const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
+
+    // Modals
+    const [activeSection, setActiveSection] = useState<SectionConfig | null>(null);
+    const [explanationItem, setExplanationItem] = useState<LineItem | null>(null);
+    const [breakdownData, setBreakdownData] = useState<LaborBreakdown | null>(null);
+    const [confirmDeleteEstimate, setConfirmDeleteEstimate] = useState(false);
+    const [itemToDelete, setItemToDelete] = useState<{ section: SectionConfig; item: LineItem } | null>(null);
+
+    // Refs
+    const initialSortDone = useRef(false);
+
+    // API helpers
+    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
+        const res = await fetch('/api/webhook/devcoBackend', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, payload })
+        });
+        return res.json();
+    };
+
+    const toastShownRef = useRef<string | null>(null);
+
+    // Load estimate
+    const loadEstimate = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
+        try {
+            const result = await apiCall('getEstimateById', { id });
+            if (result.success && result.result) {
+                const data = result.result;
+                if (data.bidMarkUp) {
+                    data.bidMarkUp = String(data.bidMarkUp).replace(/[^0-9.]/g, '');
+                }
+                setEstimate(data);
+                setFormData(data);
+                setUnsavedChanges(false);
+
+                if (data.proposalNo) {
+                    loadVersionHistory(data.proposalNo);
+                }
+
+                // Check for local draft
+                const draftKey = `${DRAFT_KEY_PREFIX}${id}`;
+                const savedDraft = localStorage.getItem(draftKey);
+                if (savedDraft) {
+                    try {
+                        const draftData = JSON.parse(savedDraft);
+                        // Ensure we're applying draft to the correct estimate
+                        if (draftData.estimate._id === id) {
+                            setEstimate(draftData.estimate);
+                            setFormData(draftData.formData);
+                            setUnsavedChanges(true);
+
+                            // Prevent duplicate toasts in Strict Mode
+                            if (toastShownRef.current !== id) {
+                                toastShownRef.current = id;
+                                // Use timeout to ensure toast appears after render
+                                setTimeout(() => {
+                                    success('Restored unsaved changes from this browser');
+                                }, 500);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse draft', e);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error('Error loading estimate:', err);
+            toastError('Failed to load estimate');
+        }
+        if (!silent) setLoading(false);
+    }, [id, toastError, success]);
+
+    // Load catalogs - single batch request
+    const loadCatalogs = useCallback(async () => {
+        try {
+            const result = await apiCall('getAllCatalogueItems');
+            if (result.success && result.result) {
+                const {
+                    equipment,
+                    labor,
+                    material,
+                    overhead,
+                    subcontractor,
+                    disposal,
+                    miscellaneous,
+                    constant
+                } = result.result;
+
+                setEquipmentCatalog(equipment || []);
+                setLaborCatalog(labor || []);
+                setMaterialCatalog(material || []);
+                setOverheadCatalog(overhead || []);
+                setSubcontractorCatalog(subcontractor || []);
+                setDisposalCatalog(disposal || []);
+                setMiscellaneousCatalog(miscellaneous || []);
+                setFringeConstants((constant || []) as unknown as FringeConstant[]);
+            }
+        } catch (err) {
+            console.error('Error loading catalogs:', err);
+            toastError('Failed to load catalogs');
+        }
+        setCatalogsLoaded(true);
+    }, []);
+
+    // Load version history
+    const loadVersionHistory = async (proposalNo: string) => {
+        try {
+            const result = await apiCall('getEstimatesByProposal', { proposalNo });
+            if (result.success && result.result) {
+                const sorted = result.result.sort((a: VersionEntry, b: VersionEntry) =>
+                    (b.versionNumber || 0) - (a.versionNumber || 0)
+                );
+                setVersionHistory(sorted);
+            }
+        } catch (err) {
+            console.error('Error loading version history:', err);
+        }
+    };
+
+    // Load initial data
+    useEffect(() => {
+        if (id) {
+            loadEstimate();
+            loadCatalogs();
+        }
+    }, [id, loadEstimate, loadCatalogs]);
+
+    // Chart animation trigger
+    useEffect(() => {
+        if (estimate) {
+            setChartAnimate(false);
+            const timer = setTimeout(() => setChartAnimate(true), 500);
+            return () => clearTimeout(timer);
+        }
+    }, [estimate]);
+
+    // Save draft to local storage
+    useEffect(() => {
+        if (unsavedChanges && estimate && formData && id) {
+            const draftKey = `${DRAFT_KEY_PREFIX}${id}`;
+            const draftData = {
+                estimate,
+                formData,
+                timestamp: Date.now()
+            };
+            localStorage.setItem(draftKey, JSON.stringify(draftData));
+        }
+    }, [unsavedChanges, estimate, formData, id]);
+
+    // Calculate sections with totals
+    const sections: SectionConfig[] = useMemo(() => {
+        if (!estimate || !catalogsLoaded) return [];
+
+        const calculatedSections = baseSectionConfigs.map(config => {
+            const items = (estimate[config.key] as LineItem[] || []).map(item => {
+                let total = item.total;
+                if (total === undefined || total === null) {
+                    switch (config.id) {
+                        case 'Labor':
+                            total = calculateLaborTotal(item, fringeConstants);
+                            break;
+                        case 'Equipment':
+                            total = calculateEquipmentTotal(item);
+                            break;
+                        case 'Material':
+                            total = calculateMaterialTotal(item);
+                            break;
+                        case 'Overhead':
+                            total = calculateOverheadTotal(item);
+                            break;
+                        default:
+                            total = calculateSimpleTotal(item);
+                    }
+                }
+
+                // Add labor display field
+                if (config.id === 'Labor') {
+                    return {
+                        ...item,
+                        labor: item.labor || `${item.classification || ''}-${item.fringe || ''}`,
+                        total
+                    };
+                }
+
+                return { ...item, total };
+            });
+
+            return {
+                ...config,
+                color: getSectionColor(config.id, fringeConstants),
+                items
+            };
+        });
+
+        return calculatedSections.sort((a, b) => {
+            const totalA = a.items.reduce((sum, i) => sum + (i.total || 0), 0);
+            const totalB = b.items.reduce((sum, i) => sum + (i.total || 0), 0);
+            return totalB - totalA;
+        });
+    }, [estimate, fringeConstants, catalogsLoaded]);
+
+    // Chart data
+    const chartData = useMemo(() => {
+        if (!sections.length) return { slices: [], subTotal: 0, grandTotal: 0, markupPct: 0 };
+
+        const slices = sections.map(s => ({
+            id: s.id,
+            label: s.title,
+            value: s.items.reduce((sum, i) => sum + (i.total || 0), 0),
+            color: s.color
+        }));
+
+        const subTotal = slices.reduce((sum, s) => sum + s.value, 0);
+        const markupPct = parseNum(formData?.bidMarkUp || estimate?.bidMarkUp);
+        const grandTotal = subTotal * (1 + markupPct / 100);
+
+        return { slices, subTotal, grandTotal, markupPct };
+    }, [sections, formData?.bidMarkUp, estimate?.bidMarkUp]);
+
+    // Auto-expand sections with items on load
+    useEffect(() => {
+        if (sections.length && !initialSortDone.current) {
+            const newState: Record<string, boolean> = {};
+            sections.forEach(s => {
+                newState[s.id] = s.items.length > 0;
+            });
+            setOpenSections(newState);
+            initialSortDone.current = true;
+        }
+    }, [sections]);
+
+    // Handlers
+    const handleHeaderUpdate = (field: string, value: string | number) => {
+        setFormData(prev => prev ? { ...prev, [field]: value } : null);
+        setUnsavedChanges(true);
+    };
+
+    const handleServiceToggle = (serviceId: string) => {
+        if (!formData) return;
+        const newVal = !formData[serviceId];
+        setFormData(prev => prev ? { ...prev, [serviceId]: newVal } : null);
+        setUnsavedChanges(true);
+    };
+
+    const handleStatusToggle = () => {
+        if (!formData) return;
+        const newStatus = formData.status === 'confirmed' ? 'draft' : 'confirmed';
+        setFormData(prev => prev ? { ...prev, status: newStatus } : null);
+        setUnsavedChanges(true);
+        success(`Status set to ${newStatus}`);
+    };
+
+    const handleItemUpdate = (section: SectionConfig, item: LineItem, field: string, value: string | number) => {
+        if (!estimate) return;
+
+        setEstimate(prev => {
+            if (!prev) return null;
+            const items = (prev[section.key] as LineItem[]) || [];
+            const updatedItems = items.map(i => {
+                if (i._id !== item._id) return i;
+
+                const updatedItem = { ...i, [field]: value };
+
+                // Recalculate totals based on section
+                if (section.id === 'Equipment' && ['quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost'].includes(field)) {
+                    updatedItem.total = calculateEquipmentTotal(updatedItem);
+                } else if (section.id === 'Material' && ['quantity', 'cost', 'taxes'].includes(field)) {
+                    updatedItem.total = calculateMaterialTotal(updatedItem);
+                } else if (section.id === 'Overhead') {
+                    if (field === 'days') {
+                        const days = parseNum(value);
+                        updatedItem.hours = days * 8;
+                        updatedItem.total = (updatedItem.hours as number) * parseNum(updatedItem.hourlyRate);
+                        updatedItem.dailyRate = days > 0 ? (updatedItem.total as number) / days : 0;
+                    } else if (field === 'hourlyRate') {
+                        updatedItem.total = parseNum(updatedItem.hours) * parseNum(value);
+                        const days = parseNum(updatedItem.days);
+                        updatedItem.dailyRate = days > 0 ? (updatedItem.total as number) / days : 0;
+                    }
+                } else if (['Subcontractor', 'Disposal', 'Miscellaneous', 'Tools'].includes(section.id) && ['quantity', 'cost'].includes(field)) {
+                    updatedItem.total = calculateSimpleTotal(updatedItem);
+                }
+
+                return updatedItem;
+            });
+
+            return { ...prev, [section.key]: updatedItems };
+        });
+
+        setUnsavedChanges(true);
+    };
+
+    const handleAddItem = async (section: SectionConfig, data: Record<string, unknown>, isManual: boolean) => {
+        if (!estimate) return;
+
+        const processedData = { ...data };
+        processedData._id = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 9);
+        processedData.estimateId = estimate._id;
+
+        if (section.id === 'Labor') {
+            processedData.labor = `${processedData.classification || ''}-${processedData.fringe || ''}`;
+        }
+
+        setEstimate(prev => {
+            if (!prev) return null;
+            const items = (prev[section.key] as LineItem[]) || [];
+            return { ...prev, [section.key]: [...items, processedData as LineItem] };
+        });
+
+        setUnsavedChanges(true);
+        success('Item added (unsaved)');
+    };
+
+    const handleDeleteItem = (section: SectionConfig, item: LineItem) => {
+        setItemToDelete({ section, item });
+    };
+
+    const confirmDeleteItem = () => {
+        if (!itemToDelete) return;
+        const { section, item } = itemToDelete;
+
+        setEstimate(prev => {
+            if (!prev) return null;
+            const items = (prev[section.key] as LineItem[]) || [];
+            return { ...prev, [section.key]: items.filter(i => i._id !== item._id) };
+        });
+
+        setUnsavedChanges(true);
+        success('Item removed (unsaved)');
+        setItemToDelete(null);
+    };
+
+    const handleExplain = (item: LineItem) => {
+        const breakdown = getLaborBreakdown(item, fringeConstants);
+        setBreakdownData(breakdown);
+        setExplanationItem(item);
+    };
+
+    const handleGlobalSave = async () => {
+        if (!estimate || !formData) return;
+
+        setSaving(true);
+        try {
+            const payload = {
+                id: estimate._id,
+                ...formData,
+                bidMarkUp: String(formData.bidMarkUp).includes('%') ? formData.bidMarkUp : `${formData.bidMarkUp}%`,
+                subTotal: chartData.subTotal,
+                margin: chartData.grandTotal - chartData.subTotal,
+                grandTotal: chartData.grandTotal,
+                labor: estimate.labor,
+                equipment: estimate.equipment,
+                material: estimate.material,
+                tools: estimate.tools,
+                overhead: estimate.overhead,
+                subcontractor: estimate.subcontractor,
+                disposal: estimate.disposal,
+                miscellaneous: estimate.miscellaneous
+            };
+
+            const result = await apiCall('updateEstimate', payload);
+
+            if (!result.success) {
+                throw new Error(result.error || 'Save failed');
+            }
+
+            success('Estimate saved successfully');
+            localStorage.removeItem(`${DRAFT_KEY_PREFIX}${id}`);
+            setUnsavedChanges(false);
+            await loadEstimate(true);
+        } catch (err) {
+            console.error('Save error:', err);
+            toastError('Failed to save estimate');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleCreate = async () => {
+        setLoading(true);
+        try {
+            const result = await apiCall('createEstimate', {});
+            if (result.success && result.result) {
+                router.push(`/estimates/${result.result.id}`);
+            }
+        } catch (err) {
+            console.error('Create error:', err);
+            toastError('Failed to create estimate');
+            setLoading(false);
+        }
+    };
+
+    useAddShortcut(handleCreate);
+
+    const handleDelete = async () => {
+        setConfirmDeleteEstimate(true);
+    };
+
+    const performDeleteEstimate = async () => {
+        setLoading(true);
+        try {
+            await apiCall('deleteEstimate', { id });
+            router.push('/estimates');
+        } catch (err) {
+            console.error('Delete error:', err);
+            toastError('Failed to delete estimate');
+            setLoading(false);
+        }
+    };
+
+    const handleVersionClick = (versionId: string) => {
+        router.push(`/estimates/${versionId}`);
+    };
+
+    // Toggle all sections
+    const allExpanded = sections.every(s => openSections[s.id]);
+    const handleToggleAll = () => {
+        const newState: Record<string, boolean> = {};
+        sections.forEach(s => { newState[s.id] = !allExpanded; });
+        setOpenSections(newState);
+    };
+
+    // Get catalog for active section
+    const getActiveCatalog = (): LineItem[] => {
+        if (!activeSection) return [];
+        switch (activeSection.id) {
+            case 'Labor': return laborCatalog;
+            case 'Equipment': return equipmentCatalog;
+            case 'Material': return materialCatalog;
+            case 'Overhead': return overheadCatalog;
+            case 'Disposal': return disposalCatalog;
+            case 'Subcontractor': return subcontractorCatalog;
+            case 'Miscellaneous': return miscellaneousCatalog;
+            default: return [];
+        }
+    };
+
+    // Loading state
+    if (loading) {
+        return (
+            <>
+                <Header />
+                <main className="flex-1 overflow-y-auto">
+                    <div className="w-full px-8 py-6">
+                        <SkeletonEstimateHeader />
+                    </div>
+                    <div className="w-full space-y-4 pb-20 px-8">
+                        <SkeletonAccordion />
+                        <SkeletonAccordion />
+                        <SkeletonAccordion />
+                    </div>
+                </main>
+            </>
+        );
+    }
+
+    // Empty state
+    if (!estimate || !formData) {
+        return (
+            <>
+                <Header />
+                <div className="flex flex-col items-center justify-center flex-1 gap-4">
+                    <div className="text-6xl">🚫</div>
+                    <h3 className="text-xl font-bold text-gray-900">Estimate Not Found</h3>
+                    <p className="text-gray-500">The requested estimate could not be loaded.</p>
+                    <Button onClick={() => router.push('/estimates')}>Back to Estimates</Button>
+                </div>
+            </>
+        );
+    }
+
+
+
+    return (
+        <>
+            <Header
+                rightContent={
+                    <div className="flex items-center gap-2">
+                        {/* Save Button */}
+                        {unsavedChanges && (
+                            <button
+                                onClick={handleGlobalSave}
+                                disabled={saving}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-xs shadow-md disabled:opacity-50"
+                            >
+                                {saving ? (
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                    <Save className="w-3.5 h-3.5" />
+                                )}
+                                SAVE
+                            </button>
+                        )}
+
+                        {/* Toggle All */}
+                        <button
+                            onClick={handleToggleAll}
+                            className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title={allExpanded ? "Collapse All" : "Expand All"}
+                        >
+                            {allExpanded ? <ChevronsUp className="w-5 h-5" /> : <ChevronsDown className="w-5 h-5" />}
+                        </button>
+
+                        <div className="h-6 w-px bg-gray-200 mx-2" />
+
+                        {/* Refresh */}
+                        <button
+                            onClick={() => loadEstimate(true)}
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                            title="Refresh Data"
+                        >
+                            <RefreshCw className="w-5 h-5" />
+                        </button>
+
+                        {/* New */}
+                        <AddButton
+                            onClick={handleCreate}
+                            label="New"
+                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                        />
+
+                        {/* Delete */}
+                        <button
+                            onClick={handleDelete}
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            title="Delete Estimate"
+                        >
+                            <Trash2 className="w-5 h-5" />
+                        </button>
+                    </div>
+                }
+            />
+
+            <main className="flex-1 overflow-y-auto">
+                <div className="w-full px-8 py-6">
+                    {/* Header Card */}
+                    <EstimateHeaderCard
+                        formData={formData}
+                        chartData={chartData}
+                        versionHistory={versionHistory}
+                        currentEstimateId={id}
+                        chartAnimate={chartAnimate}
+                        onServiceToggle={handleServiceToggle}
+                        onStatusToggle={handleStatusToggle}
+                        onHeaderUpdate={handleHeaderUpdate}
+                        onVersionClick={handleVersionClick}
+                    />
+                </div>
+
+                {/* Accordion Sections */}
+                <div className="w-full space-y-4 pb-20 px-8">
+                    {sections.map(section => (
+                        <AccordionSection
+                            key={section.id}
+                            title={section.title}
+                            isOpen={openSections[section.id] || false}
+                            onToggle={() => setOpenSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                            itemCount={section.items.length}
+                            sectionTotal={section.items.reduce((sum, i) => sum + (i.total || 0), 0)}
+                            grandTotal={chartData.grandTotal}
+                            color={section.color}
+                            onAdd={() => setActiveSection(section)}
+                        >
+                            <LineItemsTable
+                                sectionId={section.id}
+                                headers={section.headers}
+                                items={section.items}
+                                fields={section.fields}
+                                editableFields={section.editableFields}
+                                onUpdateItem={(item, field, value) => handleItemUpdate(section, item, field, value)}
+                                onExplain={section.id === 'Labor' ? handleExplain : undefined}
+                                onDelete={(item) => handleDeleteItem(section, item)}
+                            />
+                        </AccordionSection>
+                    ))}
+                </div>
+            </main>
+
+            {/* Modals */}
+            <AddItemModal
+                isOpen={!!activeSection}
+                onClose={() => setActiveSection(null)}
+                section={activeSection as Parameters<typeof AddItemModal>[0]['section']}
+                existingItems={activeSection ? activeSection.items : []}
+                catalog={getActiveCatalog()}
+                fringe={formData.fringe}
+                onSave={handleAddItem as Parameters<typeof AddItemModal>[0]['onSave']}
+                fringeConstants={fringeConstants}
+            />
+
+            <LaborCalculationModal
+                isOpen={!!explanationItem}
+                onClose={() => setExplanationItem(null)}
+                item={explanationItem}
+                breakdown={breakdownData}
+            />
+
+            <ConfirmModal
+                isOpen={confirmDeleteEstimate}
+                onClose={() => setConfirmDeleteEstimate(false)}
+                onConfirm={performDeleteEstimate}
+                title="Delete Estimate"
+                message="Are you sure you want to delete this estimate? This action cannot be undone."
+                confirmText="Delete"
+            />
+
+            <ConfirmModal
+                isOpen={!!itemToDelete}
+                onClose={() => setItemToDelete(null)}
+                onConfirm={confirmDeleteItem}
+                title="Delete Item"
+                message="Are you sure you want to delete this item?"
+                confirmText="Delete Item"
+            />
+
+
+        </>
+    );
+}
