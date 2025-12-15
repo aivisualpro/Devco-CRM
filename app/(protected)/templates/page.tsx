@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge } from '@/components/ui';
+import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface Template {
@@ -107,9 +107,9 @@ export default function TemplatesPage() {
                 {/* Table */}
                 <div>
                     {loading ? (
-                        <Loading />
+                        <SkeletonTable rows={10} columns={4} />
                     ) : (
-                        <Table containerClassName="h-[calc(100vh-200px)] overflow-auto">
+                        <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
                             <TableHead>
                                 <TableRow>
                                     <TableHeader>Name</TableHeader>

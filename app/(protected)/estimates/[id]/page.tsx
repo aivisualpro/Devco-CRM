@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown } from 'lucide-react';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy } from 'lucide-react';
 import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -35,6 +35,7 @@ interface Estimate {
     date?: string;
     customerName?: string;
     proposalNo?: string;
+    versionNumber?: number;
     bidMarkUp?: string | number;
     status?: string;
     fringe?: string;
@@ -550,21 +551,23 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleCreate = async () => {
+    const handleClone = async () => {
         setLoading(true);
         try {
-            const result = await apiCall('createEstimate', {});
+            const result = await apiCall('cloneEstimate', { id });
             if (result.success && result.result) {
-                router.push(`/estimates/${result.result.id}`);
+                router.push(`/estimates/${result.result._id}`);
+                success('Estimate cloned (v' + result.result.versionNumber + ')');
+            } else {
+                toastError('Failed to clone estimate');
+                setLoading(false);
             }
         } catch (err) {
-            console.error('Create error:', err);
-            toastError('Failed to create estimate');
+            console.error('Clone error:', err);
+            toastError('Failed to clone estimate');
             setLoading(false);
         }
     };
-
-    useAddShortcut(handleCreate);
 
     const handleDelete = async () => {
         setConfirmDeleteEstimate(true);
@@ -594,7 +597,7 @@ export default function EstimateViewPage() {
         setOpenSections(newState);
     };
 
-    // Get catalog for active section
+    // Get active catalog (helper)
     const getActiveCatalog = (): LineItem[] => {
         if (!activeSection) return [];
         switch (activeSection.id) {
@@ -686,12 +689,15 @@ export default function EstimateViewPage() {
                             <RefreshCw className="w-5 h-5" />
                         </button>
 
-                        {/* New */}
-                        <AddButton
-                            onClick={handleCreate}
-                            label="New"
-                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                        />
+                        {/* Clone */}
+                        <button
+                            onClick={handleClone}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-xs shadow-md"
+                            title="Clone Estimate as Next Version"
+                        >
+                            <Copy className="w-3.5 h-3.5" />
+                            Clone v{(formData.versionNumber || 1) + 1}
+                        </button>
 
                         {/* Delete */}
                         <button

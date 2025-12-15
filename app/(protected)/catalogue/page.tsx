@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal } from '@/components/ui';
+import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 
@@ -410,7 +410,7 @@ export default function CataloguePage() {
                 {/* Table */}
                 <div>
                     {loading ? (
-                        <Loading />
+                        <SkeletonTable rows={10} columns={9} />
                     ) : (
                         <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
                             <TableHead>

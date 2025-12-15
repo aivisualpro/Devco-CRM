@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { ServiceIcon, servicesList, statusIcon } from './ServiceIcon';
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { VersionTimeline } from './VersionTimeline';
+import { CustomerSelector } from './CustomerSelector';
 
 interface FormData {
     customerName?: string;
@@ -63,6 +65,7 @@ export function EstimateHeaderCard({
     onHeaderUpdate,
     onVersionClick
 }: EstimateHeaderCardProps) {
+    const [isEditingCustomer, setIsEditingCustomer] = useState(false);
     const isConfirmed = formData.status === 'confirmed';
 
     return (
@@ -77,12 +80,23 @@ export function EstimateHeaderCard({
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">
                             Customer
                         </label>
-                        <div
-                            className="text-lg sm:text-xl lg:text-2xl font-black text-slate-800 tracking-tight truncate"
-                            title={formData.customerName || 'No Customer'}
-                        >
-                            {formData.customerName || 'No Customer'}
-                        </div>
+                        {formData.customerName && !isEditingCustomer ? (
+                            <div
+                                className="text-lg sm:text-xl lg:text-2xl font-black text-slate-800 tracking-tight truncate cursor-pointer hover:text-indigo-600 transition-colors"
+                                title="Double click to change customer"
+                                onDoubleClick={() => setIsEditingCustomer(true)}
+                            >
+                                {formData.customerName}
+                            </div>
+                        ) : (
+                            <CustomerSelector
+                                value={formData.customerName}
+                                onChange={(val: string) => {
+                                    onHeaderUpdate('customerName', val);
+                                    setIsEditingCustomer(false);
+                                }}
+                            />
+                        )}
                     </div>
 
                     {/* Services */}

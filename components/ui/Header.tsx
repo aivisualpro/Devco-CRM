@@ -22,9 +22,9 @@ const menuStructure: MenuItem[] = [
     {
         label: 'CRM',
         items: [
-            { label: 'Clients', href: '/crm/clients', icon: <Users className="w-5 h-5" />, description: 'Manage client relationships and data', colorClass: 'text-cyan-500' },
-            { label: 'Contacts', href: '/crm/contacts', icon: <Contact className="w-5 h-5" />, description: 'Directory of all business contacts', colorClass: 'text-purple-500' },
-            { label: 'Leads', href: '/crm/leads', icon: <Briefcase className="w-5 h-5" />, description: 'Track potential sales opportunities', colorClass: 'text-pink-500' },
+            { label: 'Clients', href: '/clients', icon: <Users className="w-5 h-5" />, description: 'Manage client relationships and data', colorClass: 'text-cyan-500' },
+            { label: 'Contacts', href: '/contacts', icon: <Contact className="w-5 h-5" />, description: 'Directory of all business contacts', colorClass: 'text-purple-500' },
+            { label: 'Leads', href: '/leads', icon: <Briefcase className="w-5 h-5" />, description: 'Track potential sales opportunities', colorClass: 'text-pink-500' },
         ]
     },
     {
@@ -121,7 +121,7 @@ export function Header({ rightContent }: HeaderProps) {
                                                 {group.items.map((item) => {
                                                     const isActive = pathname === item.href;
                                                     // Updated isImplemented check to be more aligned with what we actually have active
-                                                    const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants'].includes(item.href);
+                                                    const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/contacts'].includes(item.href);
 
                                                     const Content = () => (
                                                         <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group/item">

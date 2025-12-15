@@ -5,6 +5,7 @@ export { VersionTimeline } from './VersionTimeline';
 export { AccordionSection } from './AccordionSection';
 export { LineItemsTable } from './LineItemsTable';
 export { AddItemModal } from './AddItemModal';
+export { CustomerSelector } from './CustomerSelector';
 
 export { LaborCalculationModal } from './LaborCalculationModal';
 export { ServiceIcon, servicesList, statusIcon } from './ServiceIcon';

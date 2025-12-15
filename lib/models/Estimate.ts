@@ -30,6 +30,7 @@ export interface IEstimate extends Document {
     subTotal?: number;
     margin?: number;
     grandTotal?: number;
+    versionNumber?: number;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -65,6 +66,7 @@ const EstimateSchema = new Schema({
     subTotal: { type: Number, default: 0 },
     margin: { type: Number, default: 0 },
     grandTotal: { type: Number, default: 0 },
+    versionNumber: { type: Number, default: 1 },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 }, {

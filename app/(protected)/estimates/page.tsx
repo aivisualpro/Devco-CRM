@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge } from '@/components/ui';
+import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 
@@ -16,8 +16,16 @@ interface Estimate {
     customerName?: string;
     proposalNo?: string;
     status?: string;
-    bidMarkUp?: string;
+    bidMarkUp?: string | number;
     grandTotal?: number;
+    subTotal?: number;
+    marginDollar?: number;
+    versionNumber?: number;
+    directionalDrilling?: boolean;
+    excavationBackfill?: boolean;
+    hydroExcavation?: boolean;
+    potholingCoring?: boolean;
+    asphaltConcrete?: boolean;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -266,28 +274,38 @@ export default function EstimatesPage() {
                 {/* Table */}
                 <div>
                     {loading ? (
-                        <Loading />
+                        <SkeletonTable rows={10} columns={11} />
                     ) : (
                         <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
                             <TableHead>
                                 <TableRow>
                                     <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Estimate #{<SortIcon column="estimate" />}</div>
+                                        <div className="flex items-center">Estimate #<SortIcon column="estimate" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Customer{<SortIcon column="customerName" />}</div>
-                                    </TableHeader>
-                                    <TableHeader onClick={() => handleSort('proposalNo')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Proposal #{<SortIcon column="proposalNo" />}</div>
+                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100">
+                                        <div className="flex items-center">Version<SortIcon column="versionNumber" /></div>
                                     </TableHeader>
                                     <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Date{<SortIcon column="date" />}</div>
+                                        <div className="flex items-center">Date<SortIcon column="date" /></div>
+                                    </TableHeader>
+                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100">
+                                        <div className="flex items-center">Customer<SortIcon column="customerName" /></div>
+                                    </TableHeader>
+                                    <TableHeader>Services</TableHeader>
+                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-right">
+                                        <div className="flex items-center justify-end">Sub Total<SortIcon column="subTotal" /></div>
+                                    </TableHeader>
+                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-right">
+                                        <div className="flex items-center justify-end">Markup%<SortIcon column="bidMarkUp" /></div>
+                                    </TableHeader>
+                                    <TableHeader onClick={() => handleSort('marginDollar')} className="cursor-pointer hover:bg-gray-100 text-right">
+                                        <div className="flex items-center justify-end">Margin$<SortIcon column="marginDollar" /></div>
+                                    </TableHeader>
+                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-right">
+                                        <div className="flex items-center justify-end">Grand Total<SortIcon column="grandTotal" /></div>
                                     </TableHeader>
                                     <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Status{<SortIcon column="status" />}</div>
-                                    </TableHeader>
-                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Total{<SortIcon column="grandTotal" />}</div>
+                                        <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
                                     <TableHeader className="text-right">Actions</TableHeader>
                                 </TableRow>
@@ -295,7 +313,7 @@ export default function EstimatesPage() {
                             <TableBody>
                                 {paginatedEstimates.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={7}>
+                                        <TableCell className="text-center py-8 text-gray-500" colSpan={11}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No estimates found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Create your first estimate to get started.</p>
@@ -303,45 +321,86 @@ export default function EstimatesPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    paginatedEstimates.map((est) => (
-                                        <TableRow key={est._id}>
-                                            <TableCell className="font-medium text-indigo-600">
-                                                <Link href={`/estimates/${est._id}`} className="hover:underline">
-                                                    #{est.estimate}
-                                                </Link>
-                                            </TableCell>
-                                            <TableCell>{est.customerName || '-'}</TableCell>
-                                            <TableCell>{est.proposalNo || '-'}</TableCell>
-                                            <TableCell>
-                                                <div className="text-gray-500 text-xs">
-                                                    {est.date || '-'}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={est.status === 'confirmed' ? 'success' : 'warning'}>
-                                                    {est.status || 'draft'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="font-medium">{formatCurrency(est.grandTotal)}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div onClick={(e) => e.stopPropagation()} className="inline-flex">
-                                                    <button
-                                                        onClick={() => router.push(`/estimates/${est._id}`)}
-                                                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => confirmDelete(est._id)}
-                                                        className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 ml-1"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    paginatedEstimates.map((est) => {
+                                        const services = [
+                                            { key: 'directionalDrilling', label: 'DD', color: 'bg-blue-500' },
+                                            { key: 'excavationBackfill', label: 'EB', color: 'bg-green-500' },
+                                            { key: 'hydroExcavation', label: 'HE', color: 'bg-purple-500' },
+                                            { key: 'potholingCoring', label: 'PC', color: 'bg-orange-500' },
+                                            { key: 'asphaltConcrete', label: 'AC', color: 'bg-red-500' }
+                                        ].filter(s => est[s.key as keyof Estimate]);
+
+                                        return (
+                                            <TableRow key={est._id}>
+                                                <TableCell className="font-medium text-indigo-600">
+                                                    <Link href={`/estimates/${est._id}`} className="hover:underline">
+                                                        {est.estimate || '-'}
+                                                    </Link>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="text-xs font-medium text-gray-600">
+                                                        V.{est.versionNumber || 1}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="text-gray-500 text-xs">
+                                                        {est.date || '-'}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{est.customerName || '-'}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex gap-1">
+                                                        {services.length > 0 ? services.map(s => (
+                                                            <span
+                                                                key={s.key}
+                                                                className={`${s.color} text-white text-[10px] font-bold px-1.5 py-0.5 rounded`}
+                                                                title={s.label}
+                                                            >
+                                                                {s.label}
+                                                            </span>
+                                                        )) : <span className="text-gray-400 text-xs">-</span>}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right font-medium">
+                                                    {formatCurrency(est.subTotal)}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <span className="text-xs font-medium text-gray-600">
+                                                        {est.bidMarkUp ? `${est.bidMarkUp}%` : '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-right font-medium text-green-600">
+                                                    {formatCurrency(est.marginDollar)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-gray-900">
+                                                    {formatCurrency(est.grandTotal)}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant={est.status === 'confirmed' ? 'success' : 'warning'}>
+                                                        {est.status || 'draft'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div onClick={(e) => e.stopPropagation()} className="inline-flex">
+                                                        <button
+                                                            onClick={() => router.push(`/estimates/${est._id}`)}
+                                                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => confirmDelete(est._id)}
+                                                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 ml-1"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
                                 )}
+
                             </TableBody>
                         </Table>
                     )}

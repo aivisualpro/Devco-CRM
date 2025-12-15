@@ -9,3 +9,6 @@ export { default as DisposalItem, EstimateLineItemsDisposal } from './DisposalIt
 export { default as MiscellaneousItem, EstimateLineItemsMiscellaneous } from './MiscellaneousItem';
 export { default as ToolItem, EstimateLineItemsTools } from './ToolItem';
 export { default as Constant } from './Constant';
+export { default as Counter } from './Counter';
+export { default as Client } from './Client';
+export { default as Contact } from './Contact';

@@ -11,6 +11,9 @@ import {
     MiscellaneousItem,
     ToolItem,
     Constant,
+    Counter,
+    Client,
+    Contact,
     EstimateLineItemsEquipment,
     EstimateLineItemsLabor,
     EstimateLineItemsMaterial,
@@ -302,14 +305,60 @@ export async function POST(request: NextRequest) {
             }
 
             case 'createEstimate': {
+                // Get current year (last 2 digits)
+                const currentYear = new Date().getFullYear();
+                const yearSuffix = currentYear.toString().slice(-2);
+
+                // Atomically get and increment the counter
+                // We use findOneAndUpdate with upsert. If it doesn't exist, it creates it with the default year.
+                // We can't use $inc and $setOnInsert on the same field in a way that causes conflict.
+                // Better approach: ensure it exists first or handle the logic differently.
+
+                // First, try to increment an existing counter for the current year
+                let counter = await Counter.findOneAndUpdate(
+                    { _id: 'estimate_counter', year: currentYear },
+                    { $inc: { seq: 1 } },
+                    { new: true }
+                );
+
+                // If not found (either doesn't exist or year changed), we need to handle it
+                if (!counter) {
+                    // Check if it's a year change or a fresh init
+                    const existingCounter = await Counter.findById('estimate_counter');
+
+                    const startSeq = currentYear >= 2026 ? 1001 : 633;
+
+                    if (existingCounter) {
+                        // Year changed - reset
+                        counter = await Counter.findByIdAndUpdate(
+                            'estimate_counter',
+                            {
+                                year: currentYear,
+                                seq: startSeq
+                            },
+                            { new: true }
+                        );
+                    } else {
+                        // Fresh init - create new
+                        counter = await Counter.create({
+                            _id: 'estimate_counter',
+                            year: currentYear,
+                            seq: startSeq
+                        });
+                    }
+                }
+
+                const estimateNumber = `${yearSuffix}-${String(counter?.seq || 633).padStart(4, '0')}`;
+
                 const id = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 const estimateData = {
                     _id: id,
-                    estimate: payload?.estimate || `Estimate ${new Date().toLocaleDateString()}`,
+                    estimate: estimateNumber,
                     date: payload?.date || new Date().toLocaleDateString(),
                     customerName: payload?.customerName || '',
                     proposalNo: payload?.proposalNo || '',
                     status: 'draft',
+                    versionNumber: 1,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 };
@@ -318,6 +367,71 @@ export async function POST(request: NextRequest) {
                 // Non-blocking AppSheet sync for speed
                 updateAppSheet(estimateData).catch(err => console.error('Background AppSheet sync failed:', err));
                 return NextResponse.json({ success: true, result: est });
+            }
+
+            case 'cloneEstimate': {
+                const { id: sourceId } = payload || {};
+                if (!sourceId) return NextResponse.json({ success: false, error: 'Missing source id' }, { status: 400 });
+
+                // 1. Fetch Source Estimate
+                const sourceEst = await Estimate.findById(sourceId);
+                if (!sourceEst) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // 2. Determine Next Version
+                const versions = await Estimate.find({ estimate: sourceEst.estimate })
+                    .sort({ versionNumber: -1 })
+                    .limit(1);
+
+                const nextVersion = (versions[0]?.versionNumber || 1) + 1;
+
+                // 3. Create New Estimate Document
+                const newId = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                const newEstData = {
+                    ...sourceEst.toObject(),
+                    _id: newId,
+                    versionNumber: nextVersion,
+                    status: 'draft',
+                    date: new Date().toLocaleDateString(),
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    __v: 0
+                };
+
+                const newEst = await Estimate.create(newEstData);
+
+                // 4. Clone Line Items
+                const cloneSectionItems = async (model: any) => {
+                    const items = await model.find({ estimateId: sourceId });
+                    if (items.length > 0) {
+                        const newItems = items.map((item: any) => {
+                            const { _id, ...rest } = item.toObject();
+                            return {
+                                ...rest,
+                                estimateId: newId,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            };
+                        });
+                        await model.insertMany(newItems);
+                    }
+                };
+
+                await Promise.all([
+                    cloneSectionItems(EstimateLineItemsLabor),
+                    cloneSectionItems(EstimateLineItemsEquipment),
+                    cloneSectionItems(EstimateLineItemsMaterial),
+                    cloneSectionItems(EstimateLineItemsTools),
+                    cloneSectionItems(EstimateLineItemsOverhead),
+                    cloneSectionItems(EstimateLineItemsSubcontractor),
+                    cloneSectionItems(EstimateLineItemsDisposal),
+                    cloneSectionItems(EstimateLineItemsMiscellaneous),
+                ]);
+
+                // Sync to AppSheet
+                updateAppSheet(newEstData).catch(err => console.error('Clone sync error:', err));
+
+                return NextResponse.json({ success: true, result: newEst });
             }
 
             case 'updateEstimate': {
@@ -568,6 +682,126 @@ export async function POST(request: NextRequest) {
 
                 await Constant.findByIdAndDelete(constDelId);
                 return NextResponse.json({ success: true });
+            }
+
+
+            // ========== CLIENTS ==========
+            case 'getClients': {
+                const clients = await Client.find().sort({ name: 1 });
+                return NextResponse.json({ success: true, result: clients });
+            }
+
+            case 'addClient': {
+                const { item } = payload || {};
+                if (!item) return NextResponse.json({ success: false, error: 'Missing client data' }, { status: 400 });
+
+                // Ensure _id is set from recordId if provided, otherwise generate one
+                // If the user manually creates one, we might need to generate a recordId
+                const clientData = {
+                    ...item,
+                    _id: item.recordId || item._id || `C-${Date.now()}`
+                };
+
+                const newClient = await Client.create(clientData);
+                return NextResponse.json({ success: true, result: newClient });
+            }
+
+            case 'updateClient': {
+                const { id: clientId, item: clientItem } = payload || {};
+                if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const updated = await Client.findByIdAndUpdate(clientId, { ...clientItem, updatedAt: new Date() }, { new: true });
+                return NextResponse.json({ success: true, result: updated });
+            }
+
+            case 'deleteClient': {
+                const { id: clientDelId } = payload || {};
+                if (!clientDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                await Client.findByIdAndDelete(clientDelId);
+                return NextResponse.json({ success: true });
+            }
+
+            case 'importClients': {
+                const { clients } = payload || {};
+                if (!Array.isArray(clients)) return NextResponse.json({ success: false, error: 'Invalid clients array' }, { status: 400 });
+
+                const operations = clients.map((c: any) => ({
+                    updateOne: {
+                        filter: { _id: c.recordId || c._id },
+                        update: {
+                            $set: {
+                                ...c,
+                                _id: c.recordId || c._id, // Enforce recordId as _id
+                                updatedAt: new Date()
+                            },
+                            $setOnInsert: { createdAt: new Date() }
+                        },
+                        upsert: true
+                    }
+                }));
+
+                const result = await Client.bulkWrite(operations);
+                return NextResponse.json({ success: true, result });
+            }
+
+
+            // ========== CONTACTS ==========
+            case 'getContacts': {
+                const contacts = await Contact.find().sort({ fullName: 1 });
+                return NextResponse.json({ success: true, result: contacts });
+            }
+
+            case 'addContact': {
+                const { item } = payload || {};
+                if (!item) return NextResponse.json({ success: false, error: 'Missing contact data' }, { status: 400 });
+
+                const contactData = {
+                    ...item,
+                    _id: item.recordId || item._id || `CT-${Date.now()}`
+                };
+
+                const newContact = await Contact.create(contactData);
+                return NextResponse.json({ success: true, result: newContact });
+            }
+
+            case 'updateContact': {
+                const { id: contactId, item: contactItem } = payload || {};
+                if (!contactId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const updated = await Contact.findByIdAndUpdate(contactId, { ...contactItem, updatedAt: new Date() }, { new: true });
+                return NextResponse.json({ success: true, result: updated });
+            }
+
+            case 'deleteContact': {
+                const { id: contactDelId } = payload || {};
+                if (!contactDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                await Contact.findByIdAndDelete(contactDelId);
+                return NextResponse.json({ success: true });
+            }
+
+            case 'importContacts': {
+                const { contacts } = payload || {};
+                if (!Array.isArray(contacts)) return NextResponse.json({ success: false, error: 'Invalid contacts array' }, { status: 400 });
+
+                const operations = contacts.map((c: any) => ({
+                    updateOne: {
+                        filter: { _id: c.recordId || c._id },
+                        update: {
+                            $set: {
+                                ...c,
+                                _id: c.recordId || c._id,
+                                updatedAt: new Date()
+                            },
+                            $setOnInsert: { createdAt: new Date() }
+                        },
+                        upsert: true
+                    }
+                }));
+
+                const result = await Contact.bulkWrite(operations);
+                return NextResponse.json({ success: true, result });
             }
 
             default:

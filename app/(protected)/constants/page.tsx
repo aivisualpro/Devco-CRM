@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SearchableSelect } from '@/components/ui';
+import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SearchableSelect, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface ConstantItem {
@@ -198,9 +198,9 @@ export default function ConstantsPage() {
                 {/* Table */}
                 <div>
                     {loading ? (
-                        <Loading />
+                        <SkeletonTable rows={10} columns={5} />
                     ) : (
-                        <Table containerClassName="h-[calc(100vh-280px)] overflow-auto">
+                        <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
                             <TableHead>
                                 <TableRow>
                                     <TableHeader>Description</TableHeader>
