@@ -74,9 +74,11 @@ const menuStructure: MenuItem[] = [
 
 interface HeaderProps {
     rightContent?: React.ReactNode;
+    leftContent?: React.ReactNode;
+    centerContent?: React.ReactNode;
 }
 
-export function Header({ rightContent }: HeaderProps) {
+export function Header({ rightContent, leftContent, centerContent }: HeaderProps) {
     const pathname = usePathname();
 
     const isGroupActive = (items: SubItem[]) => {
@@ -87,82 +89,92 @@ export function Header({ rightContent }: HeaderProps) {
         <header className="sticky top-0 z-50 bg-[#f0f2f5] border-b border-gray-200">
             <div className="w-full px-6">
                 <div className="flex items-center justify-between h-16">
-                    {/* Navigation Menu */}
-                    <nav className="flex items-center gap-2">
-                        {menuStructure.map((group) => {
-                            const active = isGroupActive(group.items);
-                            const hasManyItems = group.items.length > 6;
+                    {/* Left Content + Navigation Menu */}
+                    <div className="flex items-center gap-4">
+                        {leftContent}
+                        <nav className="flex items-center gap-2">
+                            {menuStructure.map((group) => {
+                                const active = isGroupActive(group.items);
+                                const hasManyItems = group.items.length > 6;
 
-                            // Calculate width and grid cols based on item count
-                            let dropdownWidth = 'w-72';
-                            let gridCols = 'grid-cols-1';
+                                // Calculate width and grid cols based on item count
+                                let dropdownWidth = 'w-72';
+                                let gridCols = 'grid-cols-1';
 
-                            if (group.items.length > 8) {
-                                dropdownWidth = 'w-[800px]';
-                                gridCols = 'grid-cols-3';
-                            } else if (group.items.length > 4) {
-                                dropdownWidth = 'w-[500px]';
-                                gridCols = 'grid-cols-2';
-                            }
+                                if (group.items.length > 8) {
+                                    dropdownWidth = 'w-[800px]';
+                                    gridCols = 'grid-cols-3';
+                                } else if (group.items.length > 4) {
+                                    dropdownWidth = 'w-[500px]';
+                                    gridCols = 'grid-cols-2';
+                                }
 
-                            return (
-                                <div key={group.label} className="relative group">
-                                    <button
-                                        className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
-                                            }`}
-                                    >
-                                        {group.label}
-                                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? 'text-indigo-600' : 'text-gray-400'}`} />
-                                    </button>
+                                return (
+                                    <div key={group.label} className="relative group">
+                                        <button
+                                            className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                                }`}
+                                        >
+                                            {group.label}
+                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? 'text-indigo-600' : 'text-gray-400'}`} />
+                                        </button>
 
-                                    {/* Mega Dropdown */}
-                                    <div className={`absolute top-full left-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left z-50 ${dropdownWidth}`}>
-                                        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
-                                            <div className={`grid ${gridCols} gap-4`}>
-                                                {group.items.map((item) => {
-                                                    const isActive = pathname === item.href;
-                                                    // Updated isImplemented check to be more aligned with what we actually have active
-                                                    const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/contacts', '/employees'].includes(item.href);
+                                        {/* Mega Dropdown */}
+                                        <div className={`absolute top-full left-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left z-50 ${dropdownWidth}`}>
+                                            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
+                                                <div className={`grid ${gridCols} gap-4`}>
+                                                    {group.items.map((item) => {
+                                                        const isActive = pathname === item.href;
+                                                        // Updated isImplemented check to be more aligned with what we actually have active
+                                                        const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/contacts', '/employees'].includes(item.href);
 
-                                                    const Content = () => (
-                                                        <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group/item">
-                                                            <div className={`mt-1 bg-gray-50 p-2 rounded-lg group-hover/item:bg-white group-hover/item:shadow-sm transition-all ${item.colorClass && item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100').replace('700', '100')}`}>
-                                                                {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
-                                                                    className: `w-5 h-5 ${item.colorClass}`
-                                                                })}
-                                                            </div>
-                                                            <div>
-                                                                <h3 className={`font-bold text-base ${item.colorClass}`}>
-                                                                    {item.label}
-                                                                </h3>
-                                                                <p className="text-xs text-gray-400 font-medium leading-relaxed mt-0.5">
-                                                                    {item.description}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    );
-
-                                                    if (!isImplemented) {
-                                                        return (
-                                                            <div key={item.href} className="opacity-60 cursor-not-allowed grayscale">
-                                                                <Content />
+                                                        const Content = () => (
+                                                            <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group/item">
+                                                                <div className={`mt-1 bg-gray-50 p-2 rounded-lg group-hover/item:bg-white group-hover/item:shadow-sm transition-all ${item.colorClass && item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100').replace('700', '100')}`}>
+                                                                    {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
+                                                                        className: `w-5 h-5 ${item.colorClass}`
+                                                                    })}
+                                                                </div>
+                                                                <div>
+                                                                    <h3 className={`font-bold text-base ${item.colorClass}`}>
+                                                                        {item.label}
+                                                                    </h3>
+                                                                    <p className="text-xs text-gray-400 font-medium leading-relaxed mt-0.5">
+                                                                        {item.description}
+                                                                    </p>
+                                                                </div>
                                                             </div>
                                                         );
-                                                    }
 
-                                                    return (
-                                                        <Link key={item.href} href={item.href}>
-                                                            <Content />
-                                                        </Link>
-                                                    );
-                                                })}
+                                                        if (!isImplemented) {
+                                                            return (
+                                                                <div key={item.href} className="opacity-60 cursor-not-allowed grayscale">
+                                                                    <Content />
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <Link key={item.href} href={item.href}>
+                                                                <Content />
+                                                            </Link>
+                                                        );
+                                                    })}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </nav>
+                                );
+                            })}
+                        </nav>
+                    </div>
+
+                    {/* Center Content */}
+                    {centerContent && (
+                        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
+                            {centerContent}
+                        </div>
+                    )}
 
                     {/* Right Actions */}
                     {rightContent && (

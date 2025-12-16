@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
+import { resolveTemplate, resolveTemplateDocument } from '@/lib/templateResolver';
 import {
     Estimate,
     EquipmentItem,
@@ -15,6 +16,8 @@ import {
     Client,
     Contact,
     Employee,
+    Template,
+    GlobalCustomVariable,
 } from '@/lib/models';
 
 // AppSheet Configuration
@@ -803,6 +806,116 @@ export async function POST(request: NextRequest) {
 
                 await Contact.findByIdAndDelete(contactDelId);
                 return NextResponse.json({ success: true });
+            }
+
+            // ========== TEMPLATES ==========
+            case 'getTemplates': {
+                const items = await Template.find().sort({ createdAt: -1 });
+                return NextResponse.json({ success: true, result: items });
+            }
+
+            case 'addTemplate': {
+                const newTemplate = await Template.create(payload?.item || {});
+                return NextResponse.json({ success: true, result: newTemplate });
+            }
+
+            case 'updateTemplate': {
+                const { id: tempId, item: tempItem } = payload || {};
+                if (!tempId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const updated = await Template.findByIdAndUpdate(tempId, { ...tempItem, updatedAt: new Date() }, { new: true });
+                return NextResponse.json({ success: true, result: updated });
+            }
+
+            case 'deleteTemplate': {
+                const { id: tempDelId } = payload || {};
+                if (!tempDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                await Template.findByIdAndDelete(tempDelId);
+                return NextResponse.json({ success: true });
+            }
+
+            // ========== GLOBAL CUSTOM VARIABLES ==========
+            case 'getGlobalCustomVariables': {
+                const vars = await GlobalCustomVariable.find().sort({ createdAt: 1 });
+                return NextResponse.json({ success: true, result: vars });
+            }
+
+            case 'saveGlobalCustomVariables': {
+                const { variables } = payload || {};
+                if (!Array.isArray(variables)) {
+                    return NextResponse.json({ success: false, error: 'Invalid variables array' }, { status: 400 });
+                }
+
+                // Delete all existing and recreate (simple approach)
+                await GlobalCustomVariable.deleteMany({});
+                if (variables.length > 0) {
+                    await GlobalCustomVariable.insertMany(variables);
+                }
+                const updated = await GlobalCustomVariable.find().sort({ createdAt: 1 });
+                return NextResponse.json({ success: true, result: updated });
+            }
+
+            // ========== PROPOSALS ==========
+            case 'previewProposal': {
+                const { templateId, estimateId, editMode = true } = payload || {};
+                if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
+
+                const [template, estimate] = await Promise.all([
+                    Template.findById(templateId).lean(),
+                    Estimate.findById(estimateId).lean()
+                ]);
+
+                if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
+                if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                console.log('previewProposal estimate.customVariables:', (estimate as any).customVariables);
+
+                // Resolve with editMode flag
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const html = resolveTemplateDocument(template, estimate as any, editMode);
+                return NextResponse.json({ success: true, result: { html } });
+            }
+
+            case 'generateProposal': {
+                const { templateId, estimateId, customVariables = {} } = payload || {};
+                if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
+
+                const [template, estimate] = await Promise.all([
+                    Template.findById(templateId).lean(),
+                    Estimate.findById(estimateId) // Keep mongoose doc for saving
+                ]);
+
+                if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
+                if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // Save custom variables to estimate
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (estimate as any).customVariables = customVariables;
+                estimate.markModified('customVariables'); // Tell Mongoose the field changed
+
+                // Prepare estimate object for resolver
+                const estimateObj = estimate.toObject() as any;
+                estimateObj.customVariables = customVariables;
+
+                // Resolve template in view mode (false) - final output without inputs
+                const html = resolveTemplateDocument(template, estimateObj, false);
+
+                // Update Estimate with Snapshot
+                estimate.proposal = {
+                    templateId: String(template._id),
+                    templateVersion: template.version || 1,
+                    generatedAt: new Date(),
+                    htmlContent: html,
+                    pdfUrl: '' // PDF Generation would go here (Puppeteer)
+                };
+
+                // Set active template ID
+                estimate.templateId = String(template._id);
+
+                await estimate.save();
+
+                return NextResponse.json({ success: true, result: { html } });
             }
 
             case 'importContacts': {

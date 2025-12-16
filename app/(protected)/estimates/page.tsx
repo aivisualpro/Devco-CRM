@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle } from 'lucide-react';
 import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -41,6 +41,7 @@ export default function EstimatesPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
     const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
     const itemsPerPage = 15;
@@ -292,6 +293,13 @@ export default function EstimatesPage() {
                             placeholder="Search estimates..."
                         />
                         <AddButton onClick={handleCreate} disabled={isCreating} label={isCreating ? "Creating..." : "New Estimate"} />
+                        <button
+                            onClick={() => setShowKnowledgeBase(true)}
+                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            title="Template Knowledge Base"
+                        >
+                            <HelpCircle className="w-5 h-5" />
+                        </button>
                     </div>
                 }
             />
@@ -454,6 +462,85 @@ export default function EstimatesPage() {
                     message="Are you sure you want to delete this estimate? This action cannot be undone."
                     confirmText="Delete"
                 />
+
+                {/* Knowledge Base Modal */}
+                <Modal
+                    isOpen={showKnowledgeBase}
+                    onClose={() => setShowKnowledgeBase(false)}
+                    title="Template Knowledge Base"
+                >
+                    <div className="space-y-6">
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
+                            <h4 className="font-semibold text-blue-800 mb-2">How Templates Work</h4>
+                            <p className="text-sm text-blue-600">
+                                Templates allow you to generate proposal documents dynamically. Use the variables below in your template content, and they will be replaced with actual data from your estimate.
+                            </p>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                                Core Variables
+                            </h4>
+                            <div className="border border-gray-200 rounded-lg overflow-hidden">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-gray-50 text-gray-500 text-xs uppercase text-left">
+                                        <tr>
+                                            <th className="px-4 py-3 font-medium">Variable</th>
+                                            <th className="px-4 py-3 font-medium">Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 bg-white">
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{customerName}}`}</td><td className="px-4 py-2">Customer Name</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{projectTitle}}`}</td><td className="px-4 py-2">Project Title</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{date}}`}</td><td className="px-4 py-2">Estimate Date</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{proposalNo}}`}</td><td className="px-4 py-2">Proposal Number</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{aggregations.grandTotal}}`}</td><td className="px-4 py-2">Total Project Cost</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+                                Looping & Grouping
+                            </h4>
+                            <div className="space-y-4">
+                                <div className="p-4 bg-gray-900 text-gray-200 rounded-lg font-mono text-xs overflow-x-auto">
+                                    <div className="mb-2 text-gray-500">// Basic List</div>
+                                    {`<ul>`}
+                                    <br />
+                                    {`  {{#each lineItems.labor}}`}
+                                    <br />
+                                    {`    <li>{{classification}} - {{quantity}} days</li>`}
+                                    <br />
+                                    {`  {{/each}}`}
+                                    <br />
+                                    {`</ul>`}
+                                </div>
+                                <div className="p-4 bg-gray-900 text-gray-200 rounded-lg font-mono text-xs overflow-x-auto">
+                                    <div className="mb-2 text-gray-500">// Grouped by Category</div>
+                                    {`{{#each (groupBy lineItems.labor "classification")}}`}
+                                    <br />
+                                    {`  <h3>{{key}}</h3>`}
+                                    <br />
+                                    {`  <ul>`}
+                                    <br />
+                                    {`    {{#each this}}`}
+                                    <br />
+                                    {`      <li>{{subClassification}}: {{quantity}}</li>`}
+                                    <br />
+                                    {`    {{/each}}`}
+                                    <br />
+                                    {`  </ul>`}
+                                    <br />
+                                    {`{{/each}}`}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </>
     );

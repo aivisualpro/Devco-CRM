@@ -13,4 +13,5 @@ export { default as Counter } from './Counter';
 export { default as Client } from './Client';
 export { default as Contact } from './Contact';
 export { default as Employee } from './Employee';
-
+export { default as Template } from './Template';
+export { default as GlobalCustomVariable } from './GlobalCustomVariable';

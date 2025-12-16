@@ -1,33 +1,51 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
-import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SkeletonTable } from '@/components/ui';
+import { useRouter } from 'next/navigation';
+import { Plus, Pencil, Trash2, LayoutTemplate, Calendar } from 'lucide-react';
+import { Header, AddButton, SearchInput, Pagination, ConfirmModal, ToastContainer } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface Template {
     _id: string;
-    name: string;
-    description?: string;
-    category?: string;
+    title: string;
+    subTitle?: string;
+    subTitleDescription?: string;
+    content?: string;
+    pages?: { content: string }[];
     status?: string;
     createdAt?: string;
     updatedAt?: string;
 }
 
 export default function TemplatesPage() {
+    const router = useRouter();
     const { toasts, success, error: toastError, removeToast } = useToast();
 
+    // Data
     const [templates, setTemplates] = useState<Template[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editItem, setEditItem] = useState<Template | null>(null);
-    const [formData, setFormData] = useState<Record<string, unknown>>({});
+
+    // UI State
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const itemsPerPage = 15;
+
+    const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, payload })
+            });
+            return await res.json();
+        } catch (err) {
+            console.error('API Error:', err);
+            return { success: false, error: String(err) };
+        }
+    };
 
     useEffect(() => {
         fetchTemplates();
@@ -35,42 +53,21 @@ export default function TemplatesPage() {
 
     const fetchTemplates = async () => {
         setLoading(true);
-        // Templates API - for now return empty until backend has templates action
-        // In production, you'd call: /api/webhook/devcoBackend with action: 'getTemplates'
-        setTemplates([]);
+        const result = await apiCall('getTemplates');
+        if (result.success && result.result) {
+            setTemplates(result.result);
+        } else {
+            toastError('Failed to load templates');
+        }
         setLoading(false);
     };
 
-    const filteredTemplates = useMemo(() => {
-        if (!search) return templates;
-        const s = search.toLowerCase();
-        return templates.filter((t) =>
-            t.name.toLowerCase().includes(s) ||
-            (t.description || '').toLowerCase().includes(s) ||
-            (t.category || '').toLowerCase().includes(s)
-        );
-    }, [templates, search]);
-
-    const totalPages = Math.ceil(filteredTemplates.length / itemsPerPage);
-    const paginatedTemplates = filteredTemplates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-    const openAddModal = () => {
-        setEditItem(null);
-        setFormData({ name: '', description: '', category: '', status: 'draft' });
-        setIsModalOpen(true);
+    const handleCreate = () => {
+        router.push('/templates/new');
     };
 
-    const openEditModal = (item: Template) => {
-        setEditItem(item);
-        setFormData({ ...item });
-        setIsModalOpen(true);
-    };
-
-    const handleSave = async () => {
-        // Template save logic would go here
-        success(editItem ? 'Template updated' : 'Template created');
-        setIsModalOpen(false);
-        fetchTemplates();
+    const handleEdit = (item: Template) => {
+        router.push(`/templates/${item._id}`);
     };
 
     const confirmDelete = (id: string) => {
@@ -80,144 +77,153 @@ export default function TemplatesPage() {
 
     const handleDelete = async () => {
         if (!deleteId) return;
-        success('Template deleted');
-        setIsConfirmOpen(false);
-        setDeleteId(null);
-        fetchTemplates();
+        const result = await apiCall('deleteTemplate', { id: deleteId });
+        if (result.success) {
+            success('Template deleted');
+            setIsConfirmOpen(false);
+            setDeleteId(null);
+            fetchTemplates();
+        } else {
+            toastError('Failed to delete template');
+        }
     };
+
+    // Pagination Logic
+    const filteredTemplates = useMemo(() => {
+        if (!search) return templates;
+        const s = search.toLowerCase();
+        return templates.filter((t) =>
+            t.title.toLowerCase().includes(s) ||
+            (t.subTitle || '').toLowerCase().includes(s)
+        );
+    }, [templates, search]);
+
+    const totalPages = Math.ceil(filteredTemplates.length / itemsPerPage);
+    const paginatedTemplates = filteredTemplates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
         <>
-            <Header />
-            <div className="p-4">
-                <ToastContainer toasts={toasts} removeToast={removeToast} />
-
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Templates</h1>
-                        <p className="text-sm text-gray-500">Manage reusable proposal templates</p>
-                    </div>
+            <Header
+                rightContent={
                     <div className="flex items-center gap-3">
                         <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates..." />
-                        <AddButton onClick={openAddModal} label="New Template" />
+                        <AddButton onClick={handleCreate} label="New Template" />
                     </div>
-                </div>
+                }
+            />
+            <div className="p-6 bg-[#e0e5ec] min-h-screen">
+                <ToastContainer toasts={toasts} removeToast={removeToast} />
 
-                {/* Table */}
-                <div>
-                    {loading ? (
-                        <SkeletonTable rows={10} columns={4} />
-                    ) : (
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    <TableHeader>Name</TableHeader>
-                                    <TableHeader>Description</TableHeader>
-                                    <TableHeader>Category</TableHeader>
-                                    <TableHeader>Status</TableHeader>
-                                    <TableHeader className="text-right">Actions</TableHeader>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {paginatedTemplates.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={5}>
-                                            <div className="flex flex-col items-center justify-center">
-                                                <p className="text-base font-medium text-gray-900">No templates found</p>
-                                                <p className="text-sm text-gray-500 mt-1">Create your first template to streamline estimate creation.</p>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    paginatedTemplates.map((item) => (
-                                        <TableRow key={item._id}>
-                                            <TableCell className="font-medium text-gray-900">{item.name}</TableCell>
-                                            <TableCell>{item.description || '-'}</TableCell>
-                                            <TableCell>{item.category || '-'}</TableCell>
-                                            <TableCell>
-                                                <Badge variant={item.status === 'active' ? 'success' : 'warning'}>{item.status || 'draft'}</Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end whitespace-nowrap">
-                                                    <button onClick={() => openEditModal(item)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600">
-                                                        <Pencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => confirmDelete(item._id)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 ml-1">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    )}
-                    <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
-                </div>
-
-                {/* Add/Edit Modal */}
-                <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editItem ? 'Edit Template' : 'New Template'} footer={
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {[1, 2, 3].map(i => (
+                            <div
+                                key={i}
+                                className="h-72 rounded-[30px] animate-pulse"
+                                style={{ background: '#e0e5ec', boxShadow: '9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5)' }}
+                            />
+                        ))}
+                    </div>
+                ) : paginatedTemplates.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+                        <div
+                            className="w-24 h-24 rounded-full flex items-center justify-center mb-6 text-blue-500"
+                            style={{ background: '#e0e5ec', boxShadow: 'inset 8px 8px 16px #b8b9be, inset -8px -8px 16px #ffffff' }}
+                        >
+                            <LayoutTemplate className="w-12 h-12" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-700 mb-3">No templates found</h3>
+                        <p className="text-gray-500 max-w-md mb-8">Create your first template to get started with reusable proposals.</p>
+                        <button
+                            onClick={handleCreate}
+                            className="px-8 py-4 rounded-full font-bold text-white flex items-center gap-3 transition-all active:scale-[0.98]"
+                            style={{ background: 'linear-gradient(145deg, #5a9cf5, #4a8ce5)', boxShadow: '6px 6px 12px #b8b9be, -6px -6px 12px #ffffff' }}
+                        >
+                            <Plus className="w-5 h-5" />
+                            Create Template
+                        </button>
+                    </div>
+                ) : (
                     <>
-                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSave}>Save</Button>
-                    </>
-                }>
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                            <input
-                                type="text"
-                                value={String(formData.name || '')}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <textarea
-                                value={String(formData.description || '')}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                rows={3}
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                                <input
-                                    type="text"
-                                    value={String(formData.category || '')}
-                                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                                <select
-                                    value={String(formData.status || 'draft')}
-                                    onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                            {paginatedTemplates.map((item) => (
+                                <div
+                                    key={item._id}
+                                    className="group relative flex flex-col rounded-[30px] p-8 transition-all duration-300"
+                                    style={{
+                                        background: '#e0e5ec',
+                                        boxShadow: '9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5)'
+                                    }}
                                 >
-                                    <option value="draft">Draft</option>
-                                    <option value="active">Active</option>
-                                </select>
+                                    {/* Delete Button */}
+                                    <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); confirmDelete(item._id); }}
+                                            className="p-3 text-red-500 rounded-full transition-all active:scale-95"
+                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    {/* Icon */}
+                                    <div className="mb-6 flex justify-start">
+                                        <div
+                                            className="w-16 h-16 rounded-full flex items-center justify-center text-blue-600"
+                                            style={{ background: '#e0e5ec', boxShadow: 'inset 6px 6px 12px #b8b9be, inset -6px -6px 12px #ffffff' }}
+                                        >
+                                            <LayoutTemplate className="w-8 h-8" />
+                                        </div>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 mb-6">
+                                        <h3 className="text-xl font-bold text-gray-700 mb-2 truncate">{item.title}</h3>
+                                        <div
+                                            className="flex items-center gap-2 text-xs font-medium text-gray-500 mb-4 px-3 py-1.5 rounded-full w-fit"
+                                            style={{ boxShadow: 'inset 3px 3px 6px #b8b9be, inset -3px -3px 6px #ffffff' }}
+                                        >
+                                            <Calendar className="w-3 h-3" />
+                                            <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Unknown Date'}</span>
+                                        </div>
+                                        <p className="text-gray-500 text-sm leading-relaxed line-clamp-3">
+                                            {item.subTitleDescription || 'No description provided.'}
+                                        </p>
+                                    </div>
+
+                                    {/* Edit Button */}
+                                    <button
+                                        onClick={() => handleEdit(item)}
+                                        className="w-full py-4 rounded-xl font-bold text-gray-600 hover:text-blue-600 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+                                        style={{ background: '#e0e5ec', boxShadow: '6px 6px 12px #b8b9be, -6px -6px 12px #ffffff' }}
+                                    >
+                                        <Pencil className="w-4 h-4" /> Edit Template
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Pagination */}
+                        <div className="mt-10 flex justify-center">
+                            <div
+                                className="rounded-full px-2 py-2"
+                                style={{ background: '#e0e5ec', boxShadow: '6px 6px 12px #b8b9be, -6px -6px 12px #ffffff' }}
+                            >
+                                <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                             </div>
                         </div>
-                    </div>
-                </Modal>
-
-                {/* Confirm Delete Modal */}
-                <ConfirmModal
-                    isOpen={isConfirmOpen}
-                    onClose={() => setIsConfirmOpen(false)}
-                    onConfirm={handleDelete}
-                    title="Delete Template"
-                    message="Are you sure you want to delete this template?"
-                    confirmText="Delete"
-                />
+                    </>
+                )}
             </div>
+
+            <ConfirmModal
+                isOpen={isConfirmOpen}
+                onClose={() => setIsConfirmOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Template"
+                message="Are you sure you want to delete this template?"
+                confirmText="Delete"
+            />
         </>
     );
 }

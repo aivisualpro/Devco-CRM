@@ -2,10 +2,11 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText } from 'lucide-react';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate } from 'lucide-react';
 import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
+import 'react-quill-new/dist/quill.snow.css';
 import {
     EstimateHeaderCard,
     AccordionSection,
@@ -29,6 +30,11 @@ import {
 const DRAFT_KEY_PREFIX = 'estimate_draft_';
 
 // Types
+interface Template {
+    _id: string;
+    title: string;
+}
+
 interface Estimate {
     _id: string;
     estimate?: string;
@@ -52,6 +58,13 @@ interface Estimate {
     subcontractor?: LineItem[];
     disposal?: LineItem[];
     miscellaneous?: LineItem[];
+    proposal?: {
+        templateId: string;
+        templateVersion: number;
+        generatedAt: Date | string;
+        pdfUrl?: string;
+        htmlContent: string;
+    };
     [key: string]: unknown;
 }
 
@@ -155,6 +168,16 @@ export default function EstimateViewPage() {
     // State
     // State
     const [estimate, setEstimate] = useState<Estimate | null>(null);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+
+    // Proposal State
+    const [templates, setTemplates] = useState<Template[]>([]);
+    const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+    const [previewHtml, setPreviewHtml] = useState<string>('');
+    const [isEditingTemplate, setIsEditingTemplate] = useState(false);
+    const proposalRef = useRef<HTMLDivElement>(null);
+    const [showPdfPreview, setShowPdfPreview] = useState(false);
+    const [generatingProposal, setGeneratingProposal] = useState(false);
     const [formData, setFormData] = useState<Estimate | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -335,7 +358,21 @@ export default function EstimateViewPage() {
             loadEstimate();
             loadCatalogs();
         }
+        // Fetch templates
+        apiCall('getTemplates').then(res => {
+            if (res.success && res.result) {
+                setTemplates(res.result);
+                // Don't auto-select - let user choose
+            }
+        });
     }, [slug, loadEstimate, loadCatalogs]);
+
+    // Restore saved template selection when estimate loads
+    useEffect(() => {
+        if (estimate?.templateId && templates.length > 0) {
+            setSelectedTemplateId(String(estimate.templateId));
+        }
+    }, [estimate?.templateId, templates.length]);
 
     // Initial Sort & Expand Logic
     useEffect(() => {
@@ -442,6 +479,62 @@ export default function EstimateViewPage() {
     }, [chartData.grandTotal, estimate?._id]);
 
     // Handlers
+    const handlePreview = async (forceEditMode?: boolean) => {
+        if (!selectedTemplateId || !estimate) return;
+        setGeneratingProposal(true);
+        const editMode = forceEditMode !== undefined ? forceEditMode : isEditingTemplate;
+        const result = await apiCall('previewProposal', { templateId: selectedTemplateId, estimateId: estimate._id, editMode });
+        if (result.success && result.result) {
+            setPreviewHtml(result.result.html);
+        } else {
+            toastError('Failed to generate preview');
+        }
+        setGeneratingProposal(false);
+    };
+
+    const handleGenerateProposal = async () => {
+        if (!selectedTemplateId || !estimate) return;
+        setGeneratingProposal(true);
+
+        // Extract custom variable values from the DOM
+        const customVariables: Record<string, string> = {};
+        if (proposalRef.current) {
+            // Get all custom text inputs
+            proposalRef.current.querySelectorAll('.custom-var-text').forEach((input, idx) => {
+                customVariables[`customText_${idx}`] = (input as HTMLInputElement).value || '';
+            });
+            // Get all custom currency inputs
+            proposalRef.current.querySelectorAll('.custom-var-currency').forEach((input, idx) => {
+                customVariables[`customCurrency_${idx}`] = (input as HTMLInputElement).value || '';
+            });
+            // Get all custom number inputs
+            proposalRef.current.querySelectorAll('.custom-var-number').forEach((input, idx) => {
+                customVariables[`customNumber_${idx}`] = (input as HTMLInputElement).value || '';
+            });
+            // Get all line item selects
+            proposalRef.current.querySelectorAll('.line-item-select').forEach((select, idx) => {
+                const el = select as HTMLSelectElement;
+                const selectedOption = el.options[el.selectedIndex];
+                customVariables[`lineItem_${idx}`] = selectedOption?.text || '';
+            });
+        }
+
+        const result = await apiCall('generateProposal', {
+            templateId: selectedTemplateId,
+            estimateId: estimate._id,
+            customVariables
+        });
+        if (result.success && result.result) {
+            setPreviewHtml(result.result.html);
+            setIsEditingTemplate(false); // Exit edit mode after generating
+            success('Proposal generated and saved');
+            loadEstimate(); // Reload to get snapshot info
+        } else {
+            toastError('Failed to generate proposal');
+        }
+        setGeneratingProposal(false);
+    };
+
     const handleHeaderUpdate = (field: string, value: string | number) => {
         setFormData(prev => prev ? { ...prev, [field]: value } : null);
         setUnsavedChanges(true);
@@ -823,6 +916,82 @@ export default function EstimateViewPage() {
                             />
                         </AccordionSection>
                     ))}
+
+                    {/* Proposal Content Section */}
+                    {templates.length > 0 && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <LayoutTemplate className="w-5 h-5 text-blue-600" />
+                                    <h3 className="font-semibold text-gray-800">Proposal Content</h3>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <select
+                                        value={selectedTemplateId}
+                                        onChange={(e) => {
+                                            const newId = e.target.value;
+                                            setSelectedTemplateId(newId);
+                                            if (newId) {
+                                                // Auto-apply template when selected
+                                                setTimeout(() => handlePreview(false), 100);
+                                            } else {
+                                                setPreviewHtml('');
+                                            }
+                                        }}
+                                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                    >
+                                        <option value="">Select Template...</option>
+                                        {templates.map(t => (
+                                            <option key={t._id} value={t._id}>{t.title}</option>
+                                        ))}
+                                    </select>
+                                    <Button
+                                        onClick={async () => {
+                                            await handlePreview(false); // Get view mode preview
+                                            setShowPdfPreview(true);
+                                        }}
+                                        variant="secondary"
+                                        size="sm"
+                                        disabled={generatingProposal || !selectedTemplateId}
+                                    >
+                                        {generatingProposal ? 'Generating...' : 'Preview'}
+                                    </Button>
+                                    {(previewHtml || estimate?.proposal?.htmlContent) && (
+                                        <Button
+                                            onClick={() => {
+                                                if (isEditingTemplate) {
+                                                    handleGenerateProposal();
+                                                } else {
+                                                    setIsEditingTemplate(true);
+                                                    handlePreview(true);
+                                                }
+                                            }}
+                                            variant={isEditingTemplate ? 'primary' : 'secondary'}
+                                            size="sm"
+                                            disabled={generatingProposal}
+                                        >
+                                            {generatingProposal ? 'Saving...' : (isEditingTemplate ? 'Save' : 'Edit')}
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+
+                            {(previewHtml || (estimate?.proposal?.htmlContent)) ? (
+                                <div className="p-8 bg-gray-50 min-h-[400px] ql-snow">
+                                    <div
+                                        ref={proposalRef}
+                                        className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
+                                        dangerouslySetInnerHTML={{ __html: previewHtml || estimate?.proposal?.htmlContent || '' }}
+                                    />
+                                </div>
+                            ) : (
+                                <div className="p-12 text-center text-gray-400 bg-gray-50">
+                                    <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                    <p>Select a template and click Preview to see the proposal document.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </main>
 
@@ -833,7 +1002,7 @@ export default function EstimateViewPage() {
                 section={activeSection as Parameters<typeof AddItemModal>[0]['section']}
                 existingItems={activeSection ? activeSection.items : []}
                 catalog={getActiveCatalog()}
-                fringe={formData.fringe}
+                fringe={formData?.fringe}
                 onSave={handleAddItem as Parameters<typeof AddItemModal>[0]['onSave']}
                 fringeConstants={fringeConstants}
             />
@@ -862,6 +1031,64 @@ export default function EstimateViewPage() {
                 message="Are you sure you want to delete this item?"
                 confirmText="Delete Item"
             />
+
+            {/* PDF Preview Modal */}
+            {showPdfPreview && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+                        <div className="flex items-center justify-between p-4 border-b">
+                            <h3 className="text-lg font-semibold text-gray-800">Proposal Preview</h3>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => {
+                                        const printWindow = window.open('', '_blank');
+                                        if (printWindow) {
+                                            printWindow.document.write(`
+                                                <html>
+                                                <head>
+                                                    <title>Proposal - ${estimate?.proposalNo || 'Print'}</title>
+                                                    <style>
+                                                        body { font-family: 'Inter', sans-serif; padding: 40px; }
+                                                        @media print { body { padding: 0; } }
+                                                    </style>
+                                                </head>
+                                                <body>${previewHtml || estimate?.proposal?.htmlContent || ''}</body>
+                                                </html>
+                                            `);
+                                            printWindow.document.close();
+                                            printWindow.print();
+                                        }
+                                    }}
+                                >
+                                    <span className="flex items-center gap-1">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                        </svg>
+                                        Print / Save PDF
+                                    </span>
+                                </Button>
+                                <button
+                                    onClick={() => setShowPdfPreview(false)}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-auto p-6 bg-gray-100">
+                            <div
+                                className="bg-white shadow-lg mx-auto max-w-4xl p-12 min-h-[800px]"
+                                style={{ fontFamily: 'Inter, sans-serif' }}
+                                dangerouslySetInnerHTML={{ __html: previewHtml || estimate?.proposal?.htmlContent || '' }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
 
 
         </>

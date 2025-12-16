@@ -28,6 +28,18 @@ export interface IEstimate extends Document {
     versionNumber?: number;
     createdAt?: Date;
     updatedAt?: Date;
+
+    // Template & Proposal Support
+    templateId?: string;
+    proposal?: {
+        templateId: string;
+        templateVersion: number;
+        generatedAt: Date;
+        pdfUrl?: string;
+        htmlContent: string;
+    };
+    // Custom variable values filled by user
+    customVariables?: Record<string, string>;
 }
 
 const EstimateSchema = new Schema({
@@ -63,13 +75,29 @@ const EstimateSchema = new Schema({
     grandTotal: { type: Number, default: 0 },
     versionNumber: { type: Number, default: 1 },
     createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
+    updatedAt: { type: Date, default: Date.now },
+
+    // Template & Proposal fields
+    templateId: { type: String },
+    proposal: {
+        templateId: { type: String },
+        templateVersion: { type: Number },
+        generatedAt: { type: Date },
+        pdfUrl: { type: String },
+        htmlContent: { type: String }
+    },
+    customVariables: { type: Object, default: {} }
 }, {
     _id: false,
     timestamps: true,
     strict: false,  // Allow additional fields not in schema
     collection: 'estimatesdb'
 });
+
+// Force model recompilation in dev to apply schema changes
+if (process.env.NODE_ENV === 'development') {
+    delete mongoose.models.Estimate;
+}
 
 const Estimate: Model<IEstimate> = mongoose.models.Estimate || mongoose.model<IEstimate>('Estimate', EstimateSchema);
 

@@ -9,15 +9,21 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
+    "handlebars": "^4.7.8",
+    "lodash": "^4.17.21",
     "lucide-react": "^0.561.0",
     "mongoose": "^9.0.1",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "react-hot-toast": "^2.6.0"
+    "react-hot-toast": "^2.6.0",
+    "react-quill-new": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/handlebars": "^4.0.40",
+    "@types/lodash": "^4.17.21",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
