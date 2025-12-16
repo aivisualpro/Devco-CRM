@@ -96,7 +96,7 @@ export function AddSubcontractorCatalogueDialogue({
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                     <h2 className="text-lg font-bold text-gray-900">
-                        {isEditing ? 'Edit Subcontractor' : 'Add subcontractor manually'}
+                        {isEditing ? 'Edit Subcontractor' : 'Add New Subcontractor'}
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
                         <X className="w-5 h-5" />

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Upload, Pencil, Trash2 } from 'lucide-react';
-import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs } from '@/components/ui';
+import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface Client {
@@ -19,6 +19,19 @@ interface Client {
     status?: string;
 }
 
+const defaultClient: Partial<Client> = {
+    name: '',
+    businessAddress: '',
+    proposalWriter: '',
+    contactFullName: '',
+    email: '',
+    phone: '',
+    accountingContact: '',
+    accountingEmail: '',
+    agreementFile: '',
+    status: 'Active'
+};
+
 export default function ClientsPage() {
     const { success, error } = useToast();
     const [clients, setClients] = useState<Client[]>([]);
@@ -27,6 +40,12 @@ export default function ClientsPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [activeTab, setActiveTab] = useState('all');
     const itemsPerPage = 15;
+
+    // Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [currentClient, setCurrentClient] = useState<Partial<Client>>(defaultClient);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
     // Import state
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,15 +86,10 @@ export default function ClientsPage() {
                 const headers = rows[0].split(',').map(h => h.trim());
 
                 const parsedClients = rows.slice(1).filter(r => r.trim()).map(row => {
-                    // Simple CSV parsing (handles simple commas, assumes no commas in values for MVP or uses regex)
-                    // Better regex for CSV: /,(?=(?:(?:[^"]*"){2})*[^"]*$)/
+                    // Simple CSV parsing (associating headers to keys)
                     const values = row.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(v => v.trim().replace(/^"|"$/g, ''));
-
                     const client: any = {};
                     headers.forEach((h, i) => {
-                        // Map CSV headers to model fields (camelCase)
-                        // Expected headers: recordId, name, businessAddress, etc.
-                        // Or map known headers
                         const key = h.replace(/^"|"$/g, '');
                         if (key && values[i]) client[key] = values[i];
                     });
@@ -106,6 +120,80 @@ export default function ClientsPage() {
             }
         };
         reader.readAsText(file);
+    };
+
+    // CRUD Handlers
+    const openAddModal = () => {
+        setCurrentClient({ ...defaultClient });
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (client: Client) => {
+        setCurrentClient({ ...client });
+        setIsModalOpen(true);
+    };
+
+    const openDeleteModal = (client: Client) => {
+        setClientToDelete(client);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleSave = async () => {
+        if (!currentClient.name) {
+            error('Client Name is required');
+            return;
+        }
+
+        try {
+            const isEdit = !!currentClient._id;
+            const action = isEdit ? 'updateClient' : 'addClient';
+            const payload = isEdit
+                ? { id: currentClient._id, item: currentClient }
+                : { item: currentClient };
+
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, payload })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                success(isEdit ? 'Client updated successfully' : 'Client added successfully');
+                setIsModalOpen(false);
+                fetchClients();
+            } else {
+                error('Failed to save client: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Error saving client:', err);
+            error('An error occurred while saving');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!clientToDelete) return;
+
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deleteClient', payload: { id: clientToDelete._id } })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                success('Client deleted successfully');
+                fetchClients();
+            } else {
+                error('Failed to delete client');
+            }
+        } catch (err) {
+            console.error('Error deleting client:', err);
+            error('An error occurred while deleting');
+        }
+        setIsDeleteModalOpen(false);
+        setClientToDelete(null);
     };
 
     // Calculate tab counts
@@ -171,7 +259,7 @@ export default function ClientsPage() {
                             <Upload className="w-4 h-4 mr-2" />
                             {isImporting ? 'Importing...' : 'Import CSV'}
                         </Button>
-                        <AddButton onClick={() => { }} label="New Client" />
+                        <AddButton onClick={openAddModal} label="New Client" />
                     </div>
                 }
             />
@@ -189,7 +277,7 @@ export default function ClientsPage() {
                 {loading ? (
                     <SkeletonTable rows={10} columns={7} />
                 ) : (
-                    <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
+                    <Table>
                         <TableHead>
                             <TableRow>
                                 <TableHeader>Name</TableHeader>
@@ -230,10 +318,16 @@ export default function ClientsPage() {
                                         </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
-                                                <button className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                <button
+                                                    onClick={() => openEditModal(client)}
+                                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                >
                                                     <Pencil className="w-4 h-4" />
                                                 </button>
-                                                <button className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                <button
+                                                    onClick={() => openDeleteModal(client)}
+                                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
@@ -246,6 +340,126 @@ export default function ClientsPage() {
                 )}
                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
             </div>
+
+            {/* Add/Edit Modal */}
+            <Modal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title={currentClient._id ? 'Edit Client' : 'New Client'}
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSave}>Save Client</Button>
+                    </>
+                }
+            >
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+                        <Input
+                            value={currentClient.name || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, name: e.target.value })}
+                            placeholder="Enter company name"
+                        />
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Business Address</label>
+                        <Input
+                            value={currentClient.businessAddress || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, businessAddress: e.target.value })}
+                            placeholder="Full business address"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
+                        <Input
+                            value={currentClient.contactFullName || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, contactFullName: e.target.value })}
+                            placeholder="Primary contact"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Proposal Writer</label>
+                        <Input
+                            value={currentClient.proposalWriter || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, proposalWriter: e.target.value })}
+                            placeholder="Assigned writer"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <Input
+                            value={currentClient.email || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, email: e.target.value })}
+                            placeholder="contact@company.com"
+                            type="email"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <Input
+                            value={currentClient.phone || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, phone: e.target.value })}
+                            placeholder="(555) 123-4567"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Accounting Contact</label>
+                        <Input
+                            value={currentClient.accountingContact || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, accountingContact: e.target.value })}
+                            placeholder="Billing contact name"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Accounting Email</label>
+                        <Input
+                            value={currentClient.accountingEmail || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, accountingEmail: e.target.value })}
+                            placeholder="billing@company.com"
+                            type="email"
+                        />
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                        <select
+                            value={currentClient.status || 'Active'}
+                            onChange={(e) => setCurrentClient({ ...currentClient, status: e.target.value })}
+                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                        >
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Agreement File (URL/Ref)</label>
+                        <Input
+                            value={currentClient.agreementFile || ''}
+                            onChange={(e) => setCurrentClient({ ...currentClient, agreementFile: e.target.value })}
+                            placeholder="Link to agreement file"
+                        />
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <ConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Client"
+                message={`Are you sure you want to delete ${clientToDelete?.name}? This action cannot be undone.`}
+                confirmText="Delete Client"
+            />
         </>
     );
 }

@@ -109,7 +109,7 @@ export default function TemplatesPage() {
                     {loading ? (
                         <SkeletonTable rows={10} columns={4} />
                     ) : (
-                        <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
+                        <Table>
                             <TableHead>
                                 <TableRow>
                                     <TableHeader>Name</TableHeader>

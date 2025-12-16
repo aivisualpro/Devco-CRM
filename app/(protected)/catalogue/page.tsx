@@ -15,8 +15,8 @@ const categoryConfig: Record<string, { headers: string[]; fields: string[] }> = 
         fields: ['sno', 'classification', 'subClassification', 'equipmentMachine', 'uom', 'supplier', 'dailyCost', 'weeklyCost', 'monthlyCost']
     },
     labor: {
-        headers: ['S.NO', 'Labor', 'Classification', 'Sub Classification', 'Fringe', 'UOM', 'Cost', 'W Comp %', 'Payroll Tax %'],
-        fields: ['sno', 'labor', 'classification', 'subClassification', 'fringe', 'uom', 'cost', 'wCompPercent', 'payrollTaxesPercent']
+        headers: ['S.NO', 'Labor', 'Classification', 'Sub Classification', 'Fringe', 'Base Pay', 'W Comp %', 'Payroll Tax %'],
+        fields: ['sno', 'labor', 'classification', 'subClassification', 'fringe', 'basePay', 'wCompPercent', 'payrollTaxesPercent']
     },
     material: {
         headers: ['S.NO', 'Material', 'Classification', 'Sub Classification', 'Supplier', 'UOM', 'Cost', 'Taxes %'],
@@ -412,7 +412,7 @@ export default function CataloguePage() {
                     {loading ? (
                         <SkeletonTable rows={10} columns={9} />
                     ) : (
-                        <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
+                        <Table>
                             <TableHead>
                                 <TableRow>
                                     {config.headers.map((h, index) => {

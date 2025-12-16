@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Modal, Button } from '@/components/ui';
 import { Search } from 'lucide-react';
 import { AddSubcontractorCatalogueDialogue } from '@/app/(protected)/catalogue/components/AddSubcontractorCatalogueDialogue';
+import { useToast } from '@/hooks/useToast';
 
 interface SectionConfig {
     id: string;
@@ -45,6 +46,10 @@ export function AddSubcontractorEstimateDialogue({
     const [selectedItems, setSelectedItems] = useState<Set<CatalogItem>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [saving, setSaving] = useState(false);
+
+    // New state for Catalogue Add
+    const [isAddNewCatalogue, setIsAddNewCatalogue] = useState(false);
+    const { success, error: toastError } = useToast();
 
     useEffect(() => {
         if (isOpen) {
@@ -98,79 +103,99 @@ export function AddSubcontractorEstimateDialogue({
         onClose();
     };
 
-    const handleManualSave = async (data: any) => {
-        await onSave(section, data, true);
-        setMode('catalog');
+    const handleCatalogueSave = async (data: any) => {
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'addCatalogueItem',
+                    payload: { type: 'subcontractor', item: data }
+                })
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                success('Added to catalogue');
+                setIsAddNewCatalogue(false);
+            } else {
+                toastError('Failed to add to catalogue');
+            }
+        } catch (e) {
+            toastError('Error saving to catalogue');
+        }
     };
 
     const displayCols = ['subcontractor', 'classification', 'subClassification', 'uom', 'cost'];
 
-    if (mode === 'manual') {
-        return (
-            <AddSubcontractorCatalogueDialogue
-                isOpen={isOpen}
-                onClose={() => setMode('catalog')}
-                onSave={handleManualSave}
-                existingItems={catalog}
-            />
-        );
-    }
+    // Remove manual mode return block
 
     return (
-        <Modal
-            isOpen={isOpen}
-            onClose={onClose}
-            title="Add Subcontractor"
-            footer={(
-                <>
-                    <div className="flex-1 text-left text-sm text-gray-500">{selectedItems.size} selected</div>
-                    <Button onClick={() => setMode('manual')} variant="ghost">Manual Entry</Button>
-                    <Button onClick={onClose} variant="secondary">Cancel</Button>
-                    <Button onClick={handleAddSelected} disabled={selectedItems.size === 0 || saving}>{saving ? 'Adding...' : 'Add Selected'}</Button>
-                </>
+        <>
+            <Modal
+                isOpen={isOpen}
+                onClose={onClose}
+                title="Add Subcontractor"
+                footer={(
+                    <>
+                        <div className="flex-1 text-left text-sm text-gray-500">{selectedItems.size} selected</div>
+                        <Button onClick={() => setIsAddNewCatalogue(true)} variant="ghost">Add New</Button>
+                        <Button onClick={onClose} variant="secondary">Cancel</Button>
+                        <Button onClick={handleAddSelected} disabled={selectedItems.size === 0 || saving}>{saving ? 'Adding...' : 'Add Selected'}</Button>
+                    </>
+                )}
+            >
+                <div className="space-y-4">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            placeholder="Search subcontractor catalog..."
+                            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        />
+                        <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                    </div>
+                    <div className="max-h-[50vh] overflow-y-auto border border-gray-100 rounded-xl">
+                        <table className="w-full text-sm text-left">
+                            <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10">
+                                <tr>
+                                    <th className="p-3 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
+                                    {displayCols.map(col => <th key={col} className="p-3 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredCatalog.map((item, idx) => {
+                                    const isAdded = existingIdentifiers.has(getIdentifier(item));
+                                    return (
+                                        <tr
+                                            key={String(item._id) || idx}
+                                            className={`cursor-pointer transition-colors ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : selectedItems.has(item) ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}
+                                            onClick={() => !isAdded && toggleSelection(item)}
+                                        >
+                                            <td className="p-3"><input type="checkbox" checked={selectedItems.has(item) || isAdded} disabled className="rounded border-gray-300 pointer-events-none" /></td>
+                                            {displayCols.map((col) => (
+                                                <td key={col} className="p-3 text-gray-700">
+                                                    {['cost'].includes(col) ? `$${Number(item[col] || 0).toLocaleString()}` : String(item[col] || '')}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </Modal>
+
+            {isAddNewCatalogue && (
+                <AddSubcontractorCatalogueDialogue
+                    isOpen={isAddNewCatalogue}
+                    onClose={() => setIsAddNewCatalogue(false)}
+                    onSave={handleCatalogueSave}
+                    existingItems={catalog}
+                />
             )}
-        >
-            <div className="space-y-4">
-                <div className="relative">
-                    <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        placeholder="Search subcontractor catalog..."
-                        className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                    <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-                </div>
-                <div className="max-h-[50vh] overflow-y-auto border border-gray-100 rounded-xl">
-                    <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10">
-                            <tr>
-                                <th className="p-3 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
-                                {displayCols.map(col => <th key={col} className="p-3 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredCatalog.map((item, idx) => {
-                                const isAdded = existingIdentifiers.has(getIdentifier(item));
-                                return (
-                                    <tr
-                                        key={String(item._id) || idx}
-                                        className={`cursor-pointer transition-colors ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : selectedItems.has(item) ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}
-                                        onClick={() => !isAdded && toggleSelection(item)}
-                                    >
-                                        <td className="p-3"><input type="checkbox" checked={selectedItems.has(item) || isAdded} disabled className="rounded border-gray-300 pointer-events-none" /></td>
-                                        {displayCols.map((col) => (
-                                            <td key={col} className="p-3 text-gray-700">
-                                                {['cost'].includes(col) ? `$${Number(item[col] || 0).toLocaleString()}` : String(item[col] || '')}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </Modal>
+        </>
     );
 }

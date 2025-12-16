@@ -209,6 +209,7 @@ export function LineItemsTable({
                                                             : e.target.value;
                                                         onUpdateItem?.(item, field, newVal);
                                                     }}
+                                                    onFocus={(e) => e.target.select()}
                                                     className={`${inputWidth} bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-center`}
                                                 />
                                             </td>

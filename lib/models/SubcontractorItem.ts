@@ -26,31 +26,3 @@ const SubcontractorItem: Model<ISubcontractorItem> = mongoose.models.Subcontract
 
 export default SubcontractorItem;
 
-// Estimate Line Items Subcontractor Schema
-export interface IEstimateLineItemsSubcontractor extends Document {
-    estimateId: string;
-    subcontractor?: string;
-    classification?: string;
-    subClassification?: string;
-    uom?: string;
-    cost?: number;
-    quantity?: number;
-    total?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
-}
-
-const EstimateLineItemsSubcontractorSchema = new Schema<IEstimateLineItemsSubcontractor>({
-    estimateId: { type: String, required: true, index: true },
-    subcontractor: { type: String },
-    classification: { type: String },
-    subClassification: { type: String },
-    uom: { type: String },
-    cost: { type: Number, default: 0 },
-    quantity: { type: Number, default: 0 },
-    total: { type: Number, default: 0 },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
-}, { timestamps: true, collection: 'estimateLineItemsSubcontractor' });
-
-export const EstimateLineItemsSubcontractor: Model<IEstimateLineItemsSubcontractor> = mongoose.models.EstimateLineItemsSubcontractor || mongoose.model<IEstimateLineItemsSubcontractor>('EstimateLineItemsSubcontractor', EstimateLineItemsSubcontractorSchema);

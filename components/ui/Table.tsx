@@ -8,7 +8,7 @@ interface TableProps {
     containerClassName?: string;
 }
 
-export function Table({ children, className = '', containerClassName = '' }: TableProps) {
+export function Table({ children, className = '', containerClassName = 'h-[calc(100vh-190px)]' }: TableProps) {
     return (
         <div className={`rounded-xl border border-gray-200 bg-white overflow-auto ${containerClassName}`}>
             <table className={`w-full text-xs ${className}`}>
@@ -59,15 +59,37 @@ interface TableHeaderProps {
     children: React.ReactNode;
     className?: string;
     onClick?: () => void;
+    sortable?: boolean;
+    sortDirection?: 'asc' | 'desc' | null;
 }
 
-export function TableHeader({ children, className = '', onClick }: TableHeaderProps) {
+export function TableHeader({ children, className = '', onClick, sortable, sortDirection }: TableHeaderProps) {
     return (
         <th
-            className={`px-4 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick ? 'cursor-pointer hover:bg-white select-none transition-colors' : ''} ${className}`}
+            className={`px-4 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick || sortable ? 'cursor-pointer hover:bg-white select-none transition-colors group' : ''} ${className}`}
             onClick={onClick}
         >
-            {children}
+            <div className="flex items-center gap-1">
+                {children}
+                {(sortable || sortDirection) && (
+                    <span className="flex flex-col">
+                        {/* Up Arrow */}
+                        <svg
+                            className={`w-2 h-2 ${sortDirection === 'asc' ? 'text-indigo-600' : 'text-gray-300 group-hover:text-gray-400'}`}
+                            fill="currentColor" viewBox="0 0 24 24"
+                        >
+                            <path d="M7 14l5-5 5 5z" />
+                        </svg>
+                        {/* Down Arrow */}
+                        <svg
+                            className={`w-2 h-2 -mt-0.5 ${sortDirection === 'desc' ? 'text-indigo-600' : 'text-gray-300 group-hover:text-gray-400'}`}
+                            fill="currentColor" viewBox="0 0 24 24"
+                        >
+                            <path d="M7 10l5 5 5-5z" />
+                        </svg>
+                    </span>
+                )}
+            </div>
         </th>
     );
 }

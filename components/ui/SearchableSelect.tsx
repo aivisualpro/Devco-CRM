@@ -99,16 +99,46 @@ export function SearchableSelect({
         }
     }, [activeIndex, isOpen]);
 
+    const focusNextElement = () => {
+        // Find the next focusable element in the document relative to our container
+        // We do this BEFORE state update if possible, or right after.
+        // Best allows the dropdown to close, then we focus.
+        // But the input inside dropdown is gone. The trigger is back.
+        // So we scan for our container or trigger, then find next.
+
+        // Wait for close render
+        setTimeout(() => {
+            const allFocusable = Array.from(document.querySelectorAll('input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])'));
+            const visibleFocusable = allFocusable.filter(el => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true' && (el as HTMLElement).offsetParent !== null);
+
+            // The trigger (which is now visible/focused or available) is the reference point.
+            // If triggerRef.current is focusable (tabindex=0), it should be in the list.
+            const currentTrigger = triggerRef.current;
+
+            if (currentTrigger) {
+                const idx = visibleFocusable.indexOf(currentTrigger as any);
+                if (idx > -1 && idx < visibleFocusable.length - 1) {
+                    (visibleFocusable[idx + 1] as HTMLElement).focus();
+                } else {
+                    // Fallback: search by container position
+                    // Find first focusable AFTER container
+                    // ... implementation detail: simplified to trigger for now as it is the most reliable anchor
+                }
+            } else {
+                // If trigger ref is lost or not in list, find active element or container
+                // ...
+            }
+        }, 50);
+    };
+
     const handleSelect = (opt: string) => {
         onChange(opt);
         setSearchTerm('');
         setIsOpen(false);
-
         if (onNext) {
-            // Use setTimeout to allow state to settle before focusing next field
-            setTimeout(() => {
-                onNext();
-            }, 50);
+            setTimeout(onNext, 50);
+        } else {
+            focusNextElement();
         }
     };
 
@@ -117,11 +147,10 @@ export function SearchableSelect({
             onChange(searchTerm.trim());
             setSearchTerm('');
             setIsOpen(false);
-
             if (onNext) {
-                setTimeout(() => {
-                    onNext();
-                }, 50);
+                setTimeout(onNext, 50);
+            } else {
+                focusNextElement();
             }
         }
     };
@@ -186,12 +215,12 @@ export function SearchableSelect({
                         id={id}
                         tabIndex={0}
                         className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm cursor-pointer flex items-center justify-between transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                        onClick={handleTriggerClick}
+                        onClick={() => setIsOpen(true)}
                         onFocus={() => setIsOpen(true)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
+                            if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
                                 e.preventDefault();
-                                handleTriggerClick();
+                                setIsOpen(true);
                             }
                             if (onKeyDown) onKeyDown(e);
                         }}

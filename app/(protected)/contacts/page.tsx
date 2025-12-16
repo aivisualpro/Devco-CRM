@@ -182,7 +182,7 @@ export default function ContactsPage() {
                 {loading ? (
                     <SkeletonTable rows={10} columns={7} />
                 ) : (
-                    <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
+                    <Table>
                         <TableHead>
                             <TableRow>
                                 <TableHeader>Name</TableHeader>

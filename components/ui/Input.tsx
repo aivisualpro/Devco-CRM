@@ -7,11 +7,32 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export function Input({ label, className = '', ...props }: InputProps) {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const form = (e.target as HTMLElement).closest('form');
+            if (form) {
+                const index = Array.from(form).indexOf(e.target as Element);
+                (form.elements[index + 1] as HTMLElement)?.focus();
+            } else {
+                // Fallback if not in a form (e.g. modal divs)
+                const allFocusable = Array.from(document.querySelectorAll('input:not([type="hidden"]), select, textarea, [tabindex]:not([tabindex="-1"])'));
+                const visibleFocusable = allFocusable.filter(el => !el.hasAttribute('disabled') && el.getAttribute('aria-hidden') !== 'true');
+                const idx = visibleFocusable.indexOf(e.target as HTMLElement);
+                if (idx > -1 && idx < visibleFocusable.length - 1) {
+                    (visibleFocusable[idx + 1] as HTMLElement).focus();
+                }
+            }
+        }
+        if (props.onKeyDown) props.onKeyDown(e);
+    };
+
     return (
         <div className={className}>
             {label && <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>}
             <input
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all duration-300 bg-gray-50/50 hover:bg-white"
+                onKeyDown={handleKeyDown}
                 {...props}
             />
         </div>
@@ -32,9 +53,14 @@ export function SearchInput({ value, onChange, onEnter, placeholder = 'Search...
 
     React.useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+            // Cmd+Shift+F or Ctrl+Shift+F
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key.toLowerCase() === 'f' || e.code === 'KeyF')) {
                 e.preventDefault();
                 inputRef.current?.focus();
+            }
+            // Escape to blur
+            if (e.key === 'Escape') {
+                inputRef.current?.blur();
             }
         };
 

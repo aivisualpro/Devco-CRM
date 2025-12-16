@@ -69,7 +69,7 @@ export function EstimateHeaderCard({
     const isConfirmed = formData.status === 'confirmed';
 
     return (
-        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
+        <div className="bg-[#eef2f6] rounded-[40px] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
             {/* 4-Column Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
 
@@ -155,17 +155,16 @@ export function EstimateHeaderCard({
                     {/* Markup */}
                     <div>
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                            Markup
+                            Markup %
                         </label>
                         <div className="relative shadow-[inset_4px_4px_8px_#d1d9e6,inset_-4px_-4px_8px_#ffffff] rounded-2xl p-1 bg-[#eef2f6] h-12 flex items-center">
                             <input
                                 type="number"
                                 value={formData.bidMarkUp || ''}
                                 onChange={e => onHeaderUpdate('bidMarkUp', e.target.value)}
+                                onFocus={(e) => e.target.select()}
                                 className="w-full bg-transparent text-lg sm:text-xl font-bold text-slate-700 h-full px-4 outline-none text-left"
-                                placeholder="0"
                             />
-                            <span className="absolute right-4 text-lg font-bold text-slate-400">%</span>
                         </div>
                     </div>
 

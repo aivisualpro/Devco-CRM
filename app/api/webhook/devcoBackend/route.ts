@@ -14,14 +14,7 @@ import {
     Counter,
     Client,
     Contact,
-    EstimateLineItemsEquipment,
-    EstimateLineItemsLabor,
-    EstimateLineItemsMaterial,
-    EstimateLineItemsOverhead,
-    EstimateLineItemsSubcontractor,
-    EstimateLineItemsDisposal,
-    EstimateLineItemsMiscellaneous,
-    EstimateLineItemsTools,
+    Employee,
 } from '@/lib/models';
 
 // AppSheet Configuration
@@ -200,20 +193,6 @@ function getCatalogueModel(type: string) {
     return models[type];
 }
 
-function getLineItemModel(type: string) {
-    const models: Record<string, typeof EstimateLineItemsEquipment> = {
-        equipment: EstimateLineItemsEquipment,
-        labor: EstimateLineItemsLabor,
-        material: EstimateLineItemsMaterial,
-        overhead: EstimateLineItemsOverhead,
-        subcontractor: EstimateLineItemsSubcontractor,
-        disposal: EstimateLineItemsDisposal,
-        miscellaneous: EstimateLineItemsMiscellaneous,
-        tools: EstimateLineItemsTools
-    };
-    return models[type];
-}
-
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -264,38 +243,109 @@ export async function POST(request: NextRequest) {
                 const est = await Estimate.findById(id).lean();
                 if (!est) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
 
-                // Fetch all line items
-                const [labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous] = await Promise.all([
-                    EstimateLineItemsLabor.find({ estimateId: id }).lean(),
-                    EstimateLineItemsEquipment.find({ estimateId: id }).lean(),
-                    EstimateLineItemsMaterial.find({ estimateId: id }).lean(),
-                    EstimateLineItemsTools.find({ estimateId: id }).lean(),
-                    EstimateLineItemsOverhead.find({ estimateId: id }).lean(),
-                    EstimateLineItemsSubcontractor.find({ estimateId: id }).lean(),
-                    EstimateLineItemsDisposal.find({ estimateId: id }).lean(),
-                    EstimateLineItemsMiscellaneous.find({ estimateId: id }).lean()
-                ]);
+                // With embedded documents, we simply return the estimate
+                // Ensure arrays exist
+                const result = {
+                    ...est,
+                    labor: (est as any).labor || [],
+                    equipment: (est as any).equipment || [],
+                    material: (est as any).material || [],
+                    tools: (est as any).tools || [],
+                    overhead: (est as any).overhead || [],
+                    subcontractor: (est as any).subcontractor || [],
+                    disposal: (est as any).disposal || [],
+                    miscellaneous: (est as any).miscellaneous || []
+                };
 
-                return NextResponse.json({
-                    success: true,
-                    result: { ...est, labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous }
-                });
+                return NextResponse.json({ success: true, result });
+            }
+
+            case 'getEstimateBySlug': {
+                const { slug } = payload || {};
+                if (!slug) return NextResponse.json({ success: false, error: 'Missing slug' }, { status: 400 });
+
+                // Format: EstimateNumber-V[VersionNumber]
+                // Use lastIndexOf to handle potential '-V' in the estimate number itself safely
+                const lastIndex = slug.lastIndexOf('-V');
+                if (lastIndex === -1) return NextResponse.json({ success: false, error: 'Invalid slug format' }, { status: 400 });
+
+                const estimateNumber = slug.substring(0, lastIndex);
+                const versionStr = slug.substring(lastIndex + 2);
+                const versionNumber = parseInt(versionStr, 10);
+
+                if (isNaN(versionNumber)) return NextResponse.json({ success: false, error: 'Invalid version number' }, { status: 400 });
+
+                const est = await Estimate.findOne({ estimate: estimateNumber, versionNumber }).lean();
+
+                if (!est) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
+
+                // Ensure arrays exist
+                const result = {
+                    ...est,
+                    labor: (est as any).labor || [],
+                    equipment: (est as any).equipment || [],
+                    material: (est as any).material || [],
+                    tools: (est as any).tools || [],
+                    overhead: (est as any).overhead || [],
+                    subcontractor: (est as any).subcontractor || [],
+                    disposal: (est as any).disposal || [],
+                    miscellaneous: (est as any).miscellaneous || []
+                };
+
+                return NextResponse.json({ success: true, result });
             }
 
             case 'getEstimatesByProposal': {
-                const { proposalNo } = payload || {};
-                if (!proposalNo) return NextResponse.json({ success: false, error: 'Missing proposalNo' }, { status: 400 });
+                const { estimateNumber } = payload || {};
+                if (!estimateNumber) return NextResponse.json({ success: false, error: 'Missing estimateNumber' }, { status: 400 });
 
-                const estimates = await Estimate.find({ proposalNo }).sort({ createdAt: 1 }).lean();
+                const estimates = await Estimate.find({ estimate: estimateNumber }).sort({ createdAt: 1 }).lean();
 
                 // Add version numbers and calculate totals
                 const versioned = estimates.map((est, idx) => {
                     const e = est as unknown as Record<string, unknown>;
+
+                    let dateStr = '';
+
+                    // 1. Prefer explicit 'date' field from document (Historical/Manual Date)
+                    if (e.date) {
+                        const dateString = String(e.date);
+                        const d = new Date(dateString);
+
+                        if (!isNaN(d.getTime())) {
+                            // Standard parse success
+                            const day = String(d.getDate()).padStart(2, '0');
+                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                            const year = d.getFullYear();
+                            dateStr = `${month}/${day}/${year}`;
+                        } else {
+                            // Check for DD/MM/YYYY legacy manual format (e.g., 16/06/2025)
+                            const parts = dateString.split('/');
+                            if (parts.length === 3) {
+                                // Assume DD/MM/YYYY
+                                dateStr = `${parts[1]}/${parts[0]}/${parts[2]}`;
+                            } else {
+                                // Keep raw as fallback
+                                dateStr = dateString;
+                            }
+                        }
+                    }
+
+                    // 2. Fallback to 'createdAt' if date is missing
+                    if (!dateStr) {
+                        const created = e.createdAt ? new Date(e.createdAt as string | Date) : new Date();
+                        const day = String(created.getDate()).padStart(2, '0');
+                        const month = String(created.getMonth() + 1).padStart(2, '0');
+                        const year = created.getFullYear();
+                        dateStr = `${month}/${day}/${year}`;
+                    }
+
                     return {
                         _id: String(e._id),
+                        estimate: e.estimate,
                         proposalNo: e.proposalNo,
-                        versionNumber: idx + 1,
-                        date: e.date,
+                        versionNumber: (e.versionNumber as number) || (idx + 1),
+                        date: dateStr,
                         totalAmount: parseNum(e.grandTotal) || 0,
                         status: e.status
                     };
@@ -308,63 +358,60 @@ export async function POST(request: NextRequest) {
                 // Get current year (last 2 digits)
                 const currentYear = new Date().getFullYear();
                 const yearSuffix = currentYear.toString().slice(-2);
+                const startSeq = 633;
 
-                // Atomically get and increment the counter
-                // We use findOneAndUpdate with upsert. If it doesn't exist, it creates it with the default year.
-                // We can't use $inc and $setOnInsert on the same field in a way that causes conflict.
-                // Better approach: ensure it exists first or handle the logic differently.
+                // GAP FILLING LOGIC:
+                // Find already used sequences for this year to fill any gaps (e.g., if 634 is deleted, reuse it)
+                const regex = new RegExp(`^${yearSuffix}-`);
+                const existingEstimates = await Estimate.find({ estimate: { $regex: regex } })
+                    .select('estimate')
+                    .lean(); // Use lean for speed
 
-                // First, try to increment an existing counter for the current year
-                let counter = await Counter.findOneAndUpdate(
-                    { _id: 'estimate_counter', year: currentYear },
-                    { $inc: { seq: 1 } },
-                    { new: true }
-                );
-
-                // If not found (either doesn't exist or year changed), we need to handle it
-                if (!counter) {
-                    // Check if it's a year change or a fresh init
-                    const existingCounter = await Counter.findById('estimate_counter');
-
-                    const startSeq = currentYear >= 2026 ? 1001 : 633;
-
-                    if (existingCounter) {
-                        // Year changed - reset
-                        counter = await Counter.findByIdAndUpdate(
-                            'estimate_counter',
-                            {
-                                year: currentYear,
-                                seq: startSeq
-                            },
-                            { new: true }
-                        );
-                    } else {
-                        // Fresh init - create new
-                        counter = await Counter.create({
-                            _id: 'estimate_counter',
-                            year: currentYear,
-                            seq: startSeq
-                        });
+                const usedSequences = new Set<number>();
+                existingEstimates.forEach((doc: any) => {
+                    if (doc.estimate) {
+                        const parts = doc.estimate.split('-');
+                        if (parts.length === 2) {
+                            const seq = parseInt(parts[1], 10);
+                            if (!isNaN(seq)) {
+                                usedSequences.add(seq);
+                            }
+                        }
                     }
+                });
+
+                // Start from base 633 and find first one NOT in the set
+                let nextSeq = startSeq;
+                while (usedSequences.has(nextSeq)) {
+                    nextSeq++;
                 }
 
-                const estimateNumber = `${yearSuffix}-${String(counter?.seq || 633).padStart(4, '0')}`;
+                const estimateNumber = `${yearSuffix}-${String(nextSeq).padStart(4, '0')}`;
 
                 const id = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
                 const estimateData = {
                     _id: id,
                     estimate: estimateNumber,
                     date: payload?.date || new Date().toLocaleDateString(),
                     customerName: payload?.customerName || '',
-                    proposalNo: payload?.proposalNo || '',
+                    proposalNo: payload?.proposalNo || estimateNumber,
                     status: 'draft',
                     versionNumber: 1,
+                    // Initialize empty arrays
+                    labor: [],
+                    equipment: [],
+                    material: [],
+                    tools: [],
+                    overhead: [],
+                    subcontractor: [],
+                    disposal: [],
+                    miscellaneous: [],
                     createdAt: new Date(),
                     updatedAt: new Date()
                 };
 
                 const est = await Estimate.create(estimateData);
-                // Non-blocking AppSheet sync for speed
                 updateAppSheet(estimateData).catch(err => console.error('Background AppSheet sync failed:', err));
                 return NextResponse.json({ success: true, result: est });
             }
@@ -374,7 +421,7 @@ export async function POST(request: NextRequest) {
                 if (!sourceId) return NextResponse.json({ success: false, error: 'Missing source id' }, { status: 400 });
 
                 // 1. Fetch Source Estimate
-                const sourceEst = await Estimate.findById(sourceId);
+                const sourceEst = await Estimate.findById(sourceId).lean();
                 if (!sourceEst) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
 
                 // 2. Determine Next Version
@@ -387,49 +434,90 @@ export async function POST(request: NextRequest) {
                 // 3. Create New Estimate Document
                 const newId = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { _id, createdAt, updatedAt, __v, ...sourceData } = sourceEst as any;
+
                 const newEstData = {
-                    ...sourceEst.toObject(),
+                    ...sourceData,
                     _id: newId,
                     versionNumber: nextVersion,
                     status: 'draft',
                     date: new Date().toLocaleDateString(),
                     createdAt: new Date(),
-                    updatedAt: new Date(),
-                    __v: 0
+                    updatedAt: new Date()
                 };
 
                 const newEst = await Estimate.create(newEstData);
 
-                // 4. Clone Line Items
-                const cloneSectionItems = async (model: any) => {
-                    const items = await model.find({ estimateId: sourceId });
-                    if (items.length > 0) {
-                        const newItems = items.map((item: any) => {
-                            const { _id, ...rest } = item.toObject();
-                            return {
-                                ...rest,
-                                estimateId: newId,
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            };
-                        });
-                        await model.insertMany(newItems);
-                    }
-                };
-
-                await Promise.all([
-                    cloneSectionItems(EstimateLineItemsLabor),
-                    cloneSectionItems(EstimateLineItemsEquipment),
-                    cloneSectionItems(EstimateLineItemsMaterial),
-                    cloneSectionItems(EstimateLineItemsTools),
-                    cloneSectionItems(EstimateLineItemsOverhead),
-                    cloneSectionItems(EstimateLineItemsSubcontractor),
-                    cloneSectionItems(EstimateLineItemsDisposal),
-                    cloneSectionItems(EstimateLineItemsMiscellaneous),
-                ]);
-
                 // Sync to AppSheet
                 updateAppSheet(newEstData).catch(err => console.error('Clone sync error:', err));
+
+                return NextResponse.json({ success: true, result: newEst });
+            }
+
+            case 'copyEstimate': {
+                const { id: sourceId } = payload || {};
+                if (!sourceId) return NextResponse.json({ success: false, error: 'Missing source id' }, { status: 400 });
+
+                // 1. Fetch Source Estimate
+                const sourceEst = await Estimate.findById(sourceId).lean();
+                if (!sourceEst) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // 2. Generate New Estimate Number (Same logic as createEstimate)
+                const currentYear = new Date().getFullYear();
+                const yearSuffix = currentYear.toString().slice(-2);
+                const startSeq = 633;
+
+                const regex = new RegExp(`^${yearSuffix}-`);
+                const existingEstimates = await Estimate.find({ estimate: { $regex: regex } })
+                    .select('estimate')
+                    .lean();
+
+                const usedSequences = new Set<number>();
+                existingEstimates.forEach((doc: any) => {
+                    if (doc.estimate) {
+                        const parts = doc.estimate.split('-');
+                        if (parts.length === 2) {
+                            const seq = parseInt(parts[1], 10);
+                            if (!isNaN(seq)) {
+                                usedSequences.add(seq);
+                            }
+                        }
+                    }
+                });
+
+                let nextSeq = startSeq;
+                while (usedSequences.has(nextSeq)) {
+                    nextSeq++;
+                }
+
+                const estimateNumber = `${yearSuffix}-${String(nextSeq).padStart(4, '0')}`;
+
+                // 3. Create New Estimate Document
+                const newId = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                // Remove fields we don't want to copy or that need reset
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { _id, createdAt, updatedAt, __v, estimate, proposalNo, versionNumber, date, customerName, customerId, status, ...sourceData } = sourceEst as any;
+
+                const newEstData = {
+                    ...sourceData,
+                    _id: newId,
+                    estimate: estimateNumber,
+                    proposalNo: estimateNumber,
+                    versionNumber: 1,
+                    customerName: '',
+                    customerId: '',
+                    status: 'draft',
+                    date: new Date().toLocaleDateString(),
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+
+                const newEst = await Estimate.create(newEstData);
+
+                // Sync to AppSheet
+                updateAppSheet(newEstData).catch(err => console.error('Copy sync error:', err));
 
                 return NextResponse.json({ success: true, result: newEst });
             }
@@ -438,6 +526,7 @@ export async function POST(request: NextRequest) {
                 const { id: estId, ...updateData } = payload || {};
                 if (!estId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
+                // Directly update the document including all embedded arrays
                 const updated = await Estimate.findByIdAndUpdate(
                     estId,
                     { ...updateData, updatedAt: new Date() },
@@ -445,6 +534,7 @@ export async function POST(request: NextRequest) {
                 );
 
                 if (updated) {
+                    // Sync with AppSheet
                     await updateAppSheet(updated.toObject() as unknown as Record<string, unknown>);
                 }
                 return NextResponse.json({ success: true, result: updated });
@@ -454,19 +544,7 @@ export async function POST(request: NextRequest) {
                 const { id: deleteId } = payload || {};
                 if (!deleteId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                // Delete estimate and all related line items
-                await Promise.all([
-                    Estimate.findByIdAndDelete(deleteId),
-                    EstimateLineItemsLabor.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsEquipment.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsMaterial.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsTools.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsOverhead.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsSubcontractor.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsDisposal.deleteMany({ estimateId: deleteId }),
-                    EstimateLineItemsMiscellaneous.deleteMany({ estimateId: deleteId })
-                ]);
-
+                await Estimate.findByIdAndDelete(deleteId);
                 return NextResponse.json({ success: true });
             }
 
@@ -594,68 +672,14 @@ export async function POST(request: NextRequest) {
             }
 
             // ========== LINE ITEMS ==========
-            case 'addLineItem': {
-                const { estimateId, type, item } = payload || {};
-                if (!estimateId || !type || !item) {
-                    return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
-                }
-
-                const LineItemModel = getLineItemModel(type);
-                if (!LineItemModel) return NextResponse.json({ success: false, error: 'Invalid type' }, { status: 400 });
-
-                const newItem = await LineItemModel.create({ ...item, estimateId });
-
-                // Sync to AppSheet
-                const estimate = await Estimate.findById(estimateId).lean();
-                if (estimate) {
-                    const allItems = await fetchAllLineItems(estimateId);
-                    await updateAppSheet(estimate as unknown as Record<string, unknown>, allItems);
-                }
-
-                return NextResponse.json({ success: true, result: newItem });
-            }
-
-            case 'updateLineItem': {
-                const { estimateId: estLineId, type: lineType, id: lineId, item: lineItem } = payload || {};
-                if (!lineType || !lineId) return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
-
-                const LineItemModel = getLineItemModel(lineType);
-                if (!LineItemModel) return NextResponse.json({ success: false, error: 'Invalid type' }, { status: 400 });
-
-                const updated = await LineItemModel.findByIdAndUpdate(lineId, { ...lineItem, updatedAt: new Date() }, { new: true });
-
-                // Sync to AppSheet
-                if (estLineId) {
-                    const estimate = await Estimate.findById(estLineId).lean();
-                    if (estimate) {
-                        const allItems = await fetchAllLineItems(estLineId);
-                        await updateAppSheet(estimate as unknown as Record<string, unknown>, allItems);
-                    }
-                }
-
-                return NextResponse.json({ success: true, result: updated });
-            }
-
-            case 'deleteLineItem': {
-                const { estimateId: estDelId, type: delType, id: delId } = payload || {};
-                if (!delType || !delId) return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
-
-                const LineItemModel = getLineItemModel(delType);
-                if (!LineItemModel) return NextResponse.json({ success: false, error: 'Invalid type' }, { status: 400 });
-
-                await LineItemModel.findByIdAndDelete(delId);
-
-                // Sync to AppSheet
-                if (estDelId) {
-                    const estimate = await Estimate.findById(estDelId).lean();
-                    if (estimate) {
-                        const allItems = await fetchAllLineItems(estDelId);
-                        await updateAppSheet(estimate as unknown as Record<string, unknown>, allItems);
-                    }
-                }
-
-                return NextResponse.json({ success: true });
-            }
+            /*
+            // Line items are now handled directly within updateEstimate
+            // Keeping these cases as comments or removing entirely if confirmed dead
+            case 'addLineItem':
+            case 'updateLineItem':
+            case 'deleteLineItem':
+                return NextResponse.json({ success: false, error: 'Deprecated endpoint. Use updateEstimate.' }, { status: 410 });
+            */
 
             // ========== CONSTANTS ==========
             case 'getConstants': {
@@ -804,6 +828,98 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result });
             }
 
+            // ========== EMPLOYEES ==========
+            case 'getEmployees': {
+                const employees = await Employee.find().sort({ name: 1 });
+                return NextResponse.json({ success: true, result: employees });
+            }
+
+            case 'getEmployeeById': {
+                const { id } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+                const employee = await Employee.findById(id);
+                return NextResponse.json({ success: true, result: employee });
+            }
+
+            case 'addEmployee': {
+                const { item } = payload || {};
+                if (!item || !item.email) return NextResponse.json({ success: false, error: 'Missing employee data or email' }, { status: 400 });
+
+                // Use email as _id
+                const employeeData = {
+                    ...item,
+                    _id: item.email
+                };
+
+                const newEmployee = await Employee.create(employeeData);
+                return NextResponse.json({ success: true, result: newEmployee });
+            }
+
+            case 'updateEmployee': {
+                const { id: empId, item: empItem } = payload || {};
+                if (!empId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const updated = await Employee.findByIdAndUpdate(empId, { ...empItem, updatedAt: new Date() }, { new: true });
+                return NextResponse.json({ success: true, result: updated });
+            }
+
+            case 'deleteEmployee': {
+                const { id: empDelId } = payload || {};
+                if (!empDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                await Employee.findByIdAndDelete(empDelId);
+                return NextResponse.json({ success: true });
+            }
+
+            case 'importEmployees': {
+                const { employees } = payload || {};
+                if (!Array.isArray(employees)) return NextResponse.json({ success: false, error: 'Invalid employees array' }, { status: 400 });
+
+                const operations = employees.map((e: any) => {
+                    if (!e.email) return null; // Skip if no email
+
+                    // Parse boolean fields
+                    let scheduleActive = e.isScheduleActive;
+                    if (typeof scheduleActive === 'string') {
+                        const val = scheduleActive.trim().toUpperCase();
+                        scheduleActive = ['YES', 'Y', 'TRUE', '1'].includes(val);
+                    }
+
+                    // Parse currency fields
+                    const rateSite = e.hourlyRateSITE ? parseNum(e.hourlyRateSITE) : 0;
+                    const rateDrive = e.hourlyRateDrive ? parseNum(e.hourlyRateDrive) : 0;
+
+                    // Destructure to remove parsed fields from 'rest' so we don't duplicate or overwrite
+                    const { _id, isScheduleActive, hourlyRateSITE, hourlyRateDrive, ...rest } = e;
+
+                    const finalUpdate = {
+                        ...rest,
+                        isScheduleActive: scheduleActive, // Use parsed boolean
+                        hourlyRateSITE: rateSite,         // Use parsed number
+                        hourlyRateDrive: rateDrive,       // Use parsed number
+                        email: e.email,
+                        updatedAt: new Date()
+                    };
+
+                    return {
+                        updateOne: {
+                            filter: { _id: e.email },
+                            update: {
+                                $set: finalUpdate,
+                                $setOnInsert: {
+                                    _id: e.email,
+                                    createdAt: new Date()
+                                }
+                            },
+                            upsert: true
+                        }
+                    };
+                }).filter(Boolean); // Remove nulls
+
+                const result = await Employee.bulkWrite(operations as any); // Cast to any to avoid complex TS mapping issues with filtered nulls
+                return NextResponse.json({ success: true, result });
+            }
+
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
         }
@@ -811,20 +927,4 @@ export async function POST(request: NextRequest) {
         console.error('API Error:', error);
         return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
     }
-}
-
-// Helper to fetch all line items for an estimate
-async function fetchAllLineItems(estimateId: string) {
-    const [labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous] = await Promise.all([
-        EstimateLineItemsLabor.find({ estimateId }).lean(),
-        EstimateLineItemsEquipment.find({ estimateId }).lean(),
-        EstimateLineItemsMaterial.find({ estimateId }).lean(),
-        EstimateLineItemsTools.find({ estimateId }).lean(),
-        EstimateLineItemsOverhead.find({ estimateId }).lean(),
-        EstimateLineItemsSubcontractor.find({ estimateId }).lean(),
-        EstimateLineItemsDisposal.find({ estimateId }).lean(),
-        EstimateLineItemsMiscellaneous.find({ estimateId }).lean()
-    ]);
-
-    return { labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous };
 }

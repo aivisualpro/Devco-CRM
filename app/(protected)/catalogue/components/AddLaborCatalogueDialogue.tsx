@@ -42,7 +42,6 @@ export function AddLaborCatalogueDialogue({
                     classification: '-',
                     subClassification: '-',
                     fringe: '-',
-                    uom: 'Hourly',
                     wCompPercent: 12,
                     payrollTaxesPercent: 16
                 });
@@ -138,7 +137,7 @@ export function AddLaborCatalogueDialogue({
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                         <h2 className="text-lg font-bold text-gray-900">
-                            {isEditing ? 'Edit Labor' : 'Add a labor manually'}
+                            {isEditing ? 'Edit Labor' : 'Add New Labor'}
                         </h2>
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
                             <X className="w-5 h-5" />
@@ -184,7 +183,7 @@ export function AddLaborCatalogueDialogue({
                             </div>
 
                             <div className="col-span-1">
-                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Base Pay / Hourly Rate</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1.5">Base Pay</label>
                                 <input
                                     id="field-basePay"
                                     type="number"

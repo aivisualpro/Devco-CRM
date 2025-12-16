@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
@@ -19,7 +19,7 @@ interface Estimate {
     bidMarkUp?: string | number;
     grandTotal?: number;
     subTotal?: number;
-    marginDollar?: number;
+    margin?: number;
     versionNumber?: number;
     directionalDrilling?: boolean;
     excavationBackfill?: boolean;
@@ -42,25 +42,8 @@ export default function EstimatesPage() {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'updatedAt', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
     const itemsPerPage = 15;
-
-    useEffect(() => {
-        fetchEstimates();
-        checkDrafts();
-    }, []);
-
-    const checkDrafts = () => {
-        const drafts = new Set<string>();
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key?.startsWith('estimate_draft_')) {
-                const id = key.replace('estimate_draft_', '');
-                drafts.add(id);
-            }
-        }
-        setDraftIds(drafts);
-    };
 
     const fetchEstimates = async () => {
         setLoading(true);
@@ -73,32 +56,44 @@ export default function EstimatesPage() {
             const data = await res.json();
             if (data.success) {
                 setEstimates(data.result || []);
+            } else {
+                toastError('Failed to fetch estimates');
             }
         } catch (err) {
-            console.error('Error fetching estimates:', err);
+            console.error(err);
+            toastError('Failed to fetch estimates');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
-    // Filter helpers
-    const isThisMonth = (dateStr: string) => {
-        if (!dateStr) return false;
-        const parts = dateStr.split('/');
+    const isThisMonth = (d: string) => {
+        if (!d) return false;
+        const parts = d.split('/');
         if (parts.length !== 3) return false;
-        const estDate = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+        const date = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
         const now = new Date();
-        return estDate.getMonth() === now.getMonth() && estDate.getFullYear() === now.getFullYear();
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     };
 
-    const isLastMonth = (dateStr: string) => {
-        if (!dateStr) return false;
-        const parts = dateStr.split('/');
+    const isLastMonth = (d: string) => {
+        if (!d) return false;
+        const parts = d.split('/');
         if (parts.length !== 3) return false;
-        const estDate = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+        const date = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
         const now = new Date();
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        return estDate.getMonth() === lastMonth.getMonth() && estDate.getFullYear() === lastMonth.getFullYear();
+        return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
     };
+
+    useEffect(() => {
+        fetchEstimates();
+    }, []);
+
+    useEffect(() => {
+        const drafts = new Set(estimates.filter(e => e.status === 'draft').map(e => e._id));
+        setDraftIds(drafts);
+    }, [estimates]);
 
     // Filter and search
     const filteredEstimates = useMemo(() => {
@@ -125,7 +120,7 @@ export default function EstimatesPage() {
             );
         }
 
-        // Sort: Drafts first, then by user selection
+        // Sort: Drafts first, then by user selection (multi-level)
         filtered.sort((a, b) => {
             // 1. Draft priority
             const aIsDraft = draftIds.has(a._id);
@@ -135,29 +130,53 @@ export default function EstimatesPage() {
             if (!aIsDraft && bIsDraft) return 1;
 
             // 2. User selected sort
-            const key = sortConfig.key as keyof Estimate;
-            let aVal = a[key];
-            let bVal = b[key];
+            const { key, direction } = sortConfig;
 
-            // Handle specific field types
+            // Helper to get date value
+            const getDateVal = (d: string | undefined) => {
+                if (!d) return 0;
+                const p = d.split('/');
+                return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[0]) - 1, parseInt(p[1])).getTime() : 0;
+            };
+
+            // Multi-level sort logic
+            const compareValues = (key: string, dir: 'asc' | 'desc') => {
+                let valA, valB;
+
+                if (key === 'date') {
+                    valA = getDateVal(a.date);
+                    valB = getDateVal(b.date);
+                } else {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    valA = (a as any)[key];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    valB = (b as any)[key];
+
+                    if (typeof valA === 'string') valA = valA.toLowerCase();
+                    if (typeof valB === 'string') valB = (valB || '').toLowerCase();
+                }
+
+                if (valA === valB) return 0;
+
+                const comp = (valA || 0) > (valB || 0) ? 1 : -1;
+                return dir === 'asc' ? comp : -comp;
+            };
+
+            // Primary Sort
+            let result = compareValues(key, direction);
+            if (result !== 0) return result;
+
+            // Secondary Sorts (Only apply if primary is 'date')
             if (key === 'date') {
-                // Convert MM/DD/YYYY to timestamps for comparison
-                const getDate = (d: string | undefined) => {
-                    if (!d) return 0;
-                    const p = d.split('/');
-                    return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[0]) - 1, parseInt(p[1])).getTime() : 0;
-                };
-                aVal = getDate(a.date);
-                bVal = getDate(b.date);
-            } else if (typeof aVal === 'string') {
-                aVal = aVal.toLowerCase();
-                bVal = String(bVal || '').toLowerCase();
+                // Secondary: Customer Name (Ascending)
+                result = compareValues('customerName', 'asc');
+                if (result !== 0) return result;
+
+                // Tertiary: Version Number (Descending - newest version first)
+                result = compareValues('versionNumber', 'desc');
             }
 
-            if (aVal === bVal) return 0;
-
-            const comparison = (aVal || 0) > (bVal || 0) ? 1 : -1;
-            return sortConfig.direction === 'asc' ? comparison : -comparison;
+            return result;
         });
 
         return filtered;
@@ -188,7 +207,14 @@ export default function EstimatesPage() {
         { id: 'confirmed', label: 'Confirmed', count: estimates.filter((e) => e.status === 'confirmed').length }
     ];
 
+    const [isCreating, setIsCreating] = useState(false);
+    const creatingRef = useRef(false);
+
     const handleCreate = async () => {
+        if (creatingRef.current) return;
+        creatingRef.current = true;
+        setIsCreating(true);
+
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
@@ -197,13 +223,20 @@ export default function EstimatesPage() {
             });
             const data = await res.json();
             if (data.success && data.result?._id) {
+                // Keep locked during navigation
                 success('Estimate created');
-                router.push(`/estimates/${data.result._id}`);
+                const slug = data.result.estimate ? `${data.result.estimate}-V${data.result.versionNumber || 1}` : data.result._id;
+                router.push(`/estimates/${slug}`);
             } else {
                 toastError('Failed to create estimate');
+                creatingRef.current = false;
+                setIsCreating(false);
             }
         } catch (err) {
+            console.error(err);
             toastError('Failed to create estimate');
+            creatingRef.current = false;
+            setIsCreating(false);
         }
     };
 
@@ -251,12 +284,14 @@ export default function EstimatesPage() {
                             onChange={(e) => setSearch(e.target.value)}
                             onEnter={() => {
                                 if (filteredEstimates.length > 0) {
-                                    router.push(`/estimates/${filteredEstimates[0]._id}`);
+                                    const e = filteredEstimates[0];
+                                    const slug = e.estimate ? `${e.estimate}-V${e.versionNumber || 1}` : e._id;
+                                    router.push(`/estimates/${slug}`);
                                 }
                             }}
                             placeholder="Search estimates..."
                         />
-                        <AddButton onClick={handleCreate} label="New Estimate" />
+                        <AddButton onClick={handleCreate} disabled={isCreating} label={isCreating ? "Creating..." : "New Estimate"} />
                     </div>
                 }
             />
@@ -276,38 +311,38 @@ export default function EstimatesPage() {
                     {loading ? (
                         <SkeletonTable rows={10} columns={11} />
                     ) : (
-                        <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
+                        <Table>
                             <TableHead>
                                 <TableRow>
-                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100">
-                                        <div className="flex items-center">Estimate #<SortIcon column="estimate" /></div>
+                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 w-28 text-xs">
+                                        <div className="flex items-center">Estimate<SortIcon column="estimate" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100">
+                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-24 text-xs">
                                         <div className="flex items-center">Version<SortIcon column="versionNumber" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100">
+                                    <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Date<SortIcon column="date" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100">
+                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Customer<SortIcon column="customerName" /></div>
                                     </TableHeader>
-                                    <TableHeader>Services</TableHeader>
-                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-right">
-                                        <div className="flex items-center justify-end">Sub Total<SortIcon column="subTotal" /></div>
+                                    <TableHeader className="text-xs">Services</TableHeader>
+                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Sub Total<SortIcon column="subTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-right">
-                                        <div className="flex items-center justify-end">Markup%<SortIcon column="bidMarkUp" /></div>
+                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Markup%<SortIcon column="bidMarkUp" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('marginDollar')} className="cursor-pointer hover:bg-gray-100 text-right">
-                                        <div className="flex items-center justify-end">Margin$<SortIcon column="marginDollar" /></div>
+                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Margin$<SortIcon column="margin" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-right">
-                                        <div className="flex items-center justify-end">Grand Total<SortIcon column="grandTotal" /></div>
+                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Grand Total<SortIcon column="grandTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100">
+                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
-                                    <TableHeader className="text-right">Actions</TableHeader>
+                                    <TableHeader className="text-right text-xs">Actions</TableHeader>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -332,13 +367,13 @@ export default function EstimatesPage() {
 
                                         return (
                                             <TableRow key={est._id}>
-                                                <TableCell className="font-medium text-indigo-600">
-                                                    <Link href={`/estimates/${est._id}`} className="hover:underline">
+                                                <TableCell className="font-medium text-indigo-600 text-xs">
+                                                    <Link href={`/estimates/${est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id}`} className="hover:underline">
                                                         {est.estimate || '-'}
                                                     </Link>
                                                 </TableCell>
-                                                <TableCell>
-                                                    <span className="text-xs font-medium text-gray-600">
+                                                <TableCell className="text-xs">
+                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
                                                         V.{est.versionNumber || 1}
                                                     </span>
                                                 </TableCell>
@@ -347,7 +382,7 @@ export default function EstimatesPage() {
                                                         {est.date || '-'}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell>{est.customerName || '-'}</TableCell>
+                                                <TableCell className="text-xs">{est.customerName || '-'}</TableCell>
                                                 <TableCell>
                                                     <div className="flex gap-1">
                                                         {services.length > 0 ? services.map(s => (
@@ -361,18 +396,18 @@ export default function EstimatesPage() {
                                                         )) : <span className="text-gray-400 text-xs">-</span>}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-right font-medium">
+                                                <TableCell className="font-medium text-xs">
                                                     {formatCurrency(est.subTotal)}
                                                 </TableCell>
-                                                <TableCell className="text-right">
+                                                <TableCell>
                                                     <span className="text-xs font-medium text-gray-600">
-                                                        {est.bidMarkUp ? `${est.bidMarkUp}%` : '-'}
+                                                        {est.bidMarkUp ? String(est.bidMarkUp).replace('%', '') : '-'}
                                                     </span>
                                                 </TableCell>
-                                                <TableCell className="text-right font-medium text-green-600">
-                                                    {formatCurrency(est.marginDollar)}
+                                                <TableCell className="font-medium text-green-600 text-xs">
+                                                    {formatCurrency(est.margin)}
                                                 </TableCell>
-                                                <TableCell className="text-right font-bold text-gray-900">
+                                                <TableCell className="font-bold text-gray-900 text-xs">
                                                     {formatCurrency(est.grandTotal)}
                                                 </TableCell>
                                                 <TableCell>
@@ -383,7 +418,10 @@ export default function EstimatesPage() {
                                                 <TableCell className="text-right">
                                                     <div onClick={(e) => e.stopPropagation()} className="inline-flex">
                                                         <button
-                                                            onClick={() => router.push(`/estimates/${est._id}`)}
+                                                            onClick={() => {
+                                                                const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+                                                                router.push(`/estimates/${slug}`);
+                                                            }}
                                                             className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600"
                                                         >
                                                             <Eye className="w-4 h-4" />

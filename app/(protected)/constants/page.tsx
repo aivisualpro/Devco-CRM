@@ -200,7 +200,7 @@ export default function ConstantsPage() {
                     {loading ? (
                         <SkeletonTable rows={10} columns={5} />
                     ) : (
-                        <Table containerClassName="h-[calc(100vh-220px)] overflow-auto">
+                        <Table>
                             <TableHead>
                                 <TableRow>
                                     <TableHeader>Description</TableHeader>

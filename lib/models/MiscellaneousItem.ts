@@ -24,29 +24,3 @@ const MiscellaneousItem: Model<IMiscellaneousItem> = mongoose.models.Miscellaneo
 
 export default MiscellaneousItem;
 
-// Estimate Line Items Miscellaneous Schema
-export interface IEstimateLineItemsMiscellaneous extends Document {
-    estimateId: string;
-    item?: string;
-    classification?: string;
-    uom?: string;
-    cost?: number;
-    quantity?: number;
-    total?: number;
-    createdAt?: Date;
-    updatedAt?: Date;
-}
-
-const EstimateLineItemsMiscellaneousSchema = new Schema<IEstimateLineItemsMiscellaneous>({
-    estimateId: { type: String, required: true, index: true },
-    item: { type: String },
-    classification: { type: String },
-    uom: { type: String },
-    cost: { type: Number, default: 0 },
-    quantity: { type: Number, default: 0 },
-    total: { type: Number, default: 0 },
-    createdAt: { type: Date, default: Date.now },
-    updatedAt: { type: Date, default: Date.now }
-}, { timestamps: true, collection: 'estimateLineItemsMiscellaneous' });
-
-export const EstimateLineItemsMiscellaneous: Model<IEstimateLineItemsMiscellaneous> = mongoose.models.EstimateLineItemsMiscellaneous || mongoose.model<IEstimateLineItemsMiscellaneous>('EstimateLineItemsMiscellaneous', EstimateLineItemsMiscellaneousSchema);

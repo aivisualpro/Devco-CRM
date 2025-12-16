@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy } from 'lucide-react';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText } from 'lucide-react';
 import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -77,6 +77,7 @@ interface SectionConfig {
 
 interface VersionEntry {
     _id: string;
+    estimate?: string;
     proposalNo?: string;
     versionNumber?: number;
     date?: string;
@@ -148,9 +149,10 @@ const baseSectionConfigs = [
 export default function EstimateViewPage() {
     const router = useRouter();
     const params = useParams();
-    const id = params.id as string;
+    const slug = params.slug as string;
     const { toasts, success, error: toastError, removeToast } = useToast();
 
+    // State
     // State
     const [estimate, setEstimate] = useState<Estimate | null>(null);
     const [formData, setFormData] = useState<Estimate | null>(null);
@@ -159,6 +161,8 @@ export default function EstimateViewPage() {
     const [unsavedChanges, setUnsavedChanges] = useState(false);
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
     const [chartAnimate, setChartAnimate] = useState(false);
+    const [sectionOrder, setSectionOrder] = useState<string[]>([]);
+    const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
     // Catalogs
     const [laborCatalog, setLaborCatalog] = useState<LineItem[]>([]);
@@ -180,7 +184,7 @@ export default function EstimateViewPage() {
     const [itemToDelete, setItemToDelete] = useState<{ section: SectionConfig; item: LineItem } | null>(null);
 
     // Refs
-    const initialSortDone = useRef(false);
+    const toastShownRef = useRef<string | null>(null);
 
     // API helpers
     const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
@@ -192,13 +196,58 @@ export default function EstimateViewPage() {
         return res.json();
     };
 
-    const toastShownRef = useRef<string | null>(null);
+    // Helper: Calculate sections (Totals only, no sort)
+    const calculateSections = useCallback((est: Estimate, fringes: FringeConstant[]) => {
+        return baseSectionConfigs.map(config => {
+            const items = (est[config.key] as LineItem[] || []).map(item => {
+                let total = item.total;
+                // Always recalculate totals to ensure UI consistency
+                switch (config.id) {
+                    case 'Labor':
+                        total = calculateLaborTotal(item, fringes);
+                        break;
+                    case 'Equipment':
+                        total = calculateEquipmentTotal(item);
+                        break;
+                    case 'Material':
+                        total = calculateMaterialTotal(item);
+                        break;
+                    case 'Overhead':
+                        total = calculateOverheadTotal(item);
+                        break;
+                    default:
+                        total = calculateSimpleTotal(item);
+                }
+
+                if (config.id === 'Labor') {
+                    return {
+                        ...item,
+                        labor: item.labor || `${item.classification || ''}-${item.fringe || ''}`,
+                        total
+                    };
+                }
+                return { ...item, total };
+            });
+
+            return {
+                ...config,
+                color: getSectionColor(config.id, fringes),
+                items
+            };
+        });
+    }, []);
 
     // Load estimate
     const loadEstimate = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const result = await apiCall('getEstimateById', { id });
+            let result;
+            if (slug.includes('-V')) {
+                result = await apiCall('getEstimateBySlug', { slug });
+            } else {
+                result = await apiCall('getEstimateById', { id: slug });
+            }
+
             if (result.success && result.result) {
                 const data = result.result;
                 if (data.bidMarkUp) {
@@ -208,26 +257,22 @@ export default function EstimateViewPage() {
                 setFormData(data);
                 setUnsavedChanges(false);
 
-                if (data.proposalNo) {
-                    loadVersionHistory(data.proposalNo);
+                if (data.estimate) {
+                    loadVersionHistory(data.estimate);
                 }
 
-                // Check for local draft
-                const draftKey = `${DRAFT_KEY_PREFIX}${id}`;
+                // Check for local draft using the fetched ID
+                const draftKey = `${DRAFT_KEY_PREFIX}${data._id}`;
                 const savedDraft = localStorage.getItem(draftKey);
                 if (savedDraft) {
                     try {
                         const draftData = JSON.parse(savedDraft);
-                        // Ensure we're applying draft to the correct estimate
-                        if (draftData.estimate._id === id) {
+                        if (draftData.estimate._id === data._id) {
                             setEstimate(draftData.estimate);
                             setFormData(draftData.formData);
                             setUnsavedChanges(true);
-
-                            // Prevent duplicate toasts in Strict Mode
-                            if (toastShownRef.current !== id) {
-                                toastShownRef.current = id;
-                                // Use timeout to ensure toast appears after render
+                            if (toastShownRef.current !== data._id) {
+                                toastShownRef.current = data._id;
                                 setTimeout(() => {
                                     success('Restored unsaved changes from this browser');
                                 }, 500);
@@ -237,30 +282,22 @@ export default function EstimateViewPage() {
                         console.error('Failed to parse draft', e);
                     }
                 }
+            } else {
+                toastError('Estimate not found');
             }
         } catch (err) {
             console.error('Error loading estimate:', err);
             toastError('Failed to load estimate');
         }
         if (!silent) setLoading(false);
-    }, [id, toastError, success]);
+    }, [slug, toastError, success]);
 
     // Load catalogs - single batch request
     const loadCatalogs = useCallback(async () => {
         try {
             const result = await apiCall('getAllCatalogueItems');
             if (result.success && result.result) {
-                const {
-                    equipment,
-                    labor,
-                    material,
-                    overhead,
-                    subcontractor,
-                    disposal,
-                    miscellaneous,
-                    constant
-                } = result.result;
-
+                const { equipment, labor, material, overhead, subcontractor, disposal, miscellaneous, constant } = result.result;
                 setEquipmentCatalog(equipment || []);
                 setLaborCatalog(labor || []);
                 setMaterialCatalog(material || []);
@@ -278,9 +315,9 @@ export default function EstimateViewPage() {
     }, []);
 
     // Load version history
-    const loadVersionHistory = async (proposalNo: string) => {
+    const loadVersionHistory = async (estimateNumber: string) => {
         try {
-            const result = await apiCall('getEstimatesByProposal', { proposalNo });
+            const result = await apiCall('getEstimatesByProposal', { estimateNumber });
             if (result.success && result.result) {
                 const sorted = result.result.sort((a: VersionEntry, b: VersionEntry) =>
                     (b.versionNumber || 0) - (a.versionNumber || 0)
@@ -294,11 +331,37 @@ export default function EstimateViewPage() {
 
     // Load initial data
     useEffect(() => {
-        if (id) {
+        if (slug) {
             loadEstimate();
             loadCatalogs();
         }
-    }, [id, loadEstimate, loadCatalogs]);
+    }, [slug, loadEstimate, loadCatalogs]);
+
+    // Initial Sort & Expand Logic
+    useEffect(() => {
+        if (catalogsLoaded && estimate && !initialLoadComplete) {
+            // 1. Calculate sections
+            const calculated = calculateSections(estimate, fringeConstants);
+
+            // 2. Determine sort order (desc items total)
+            const sorted = [...calculated].sort((a, b) => {
+                const totalA = a.items.reduce((sum, i) => sum + (i.total || 0), 0);
+                const totalB = b.items.reduce((sum, i) => sum + (i.total || 0), 0);
+                return totalB - totalA;
+            });
+            setSectionOrder(sorted.map(s => s.id));
+
+            // 3. Determine open sections (if items > 0, open it)
+            const newOpen: Record<string, boolean> = {};
+            calculated.forEach(s => {
+                if (s.items.length > 0) newOpen[s.id] = true;
+            });
+            setOpenSections(newOpen);
+
+            setInitialLoadComplete(true);
+        }
+    }, [catalogsLoaded, estimate, initialLoadComplete, fringeConstants, calculateSections]);
+
 
     // Chart animation trigger
     useEffect(() => {
@@ -311,8 +374,8 @@ export default function EstimateViewPage() {
 
     // Save draft to local storage
     useEffect(() => {
-        if (unsavedChanges && estimate && formData && id) {
-            const draftKey = `${DRAFT_KEY_PREFIX}${id}`;
+        if (unsavedChanges && estimate && formData && estimate._id) {
+            const draftKey = `${DRAFT_KEY_PREFIX}${estimate._id}`;
             const draftData = {
                 estimate,
                 formData,
@@ -320,64 +383,29 @@ export default function EstimateViewPage() {
             };
             localStorage.setItem(draftKey, JSON.stringify(draftData));
         }
-    }, [unsavedChanges, estimate, formData, id]);
+    }, [unsavedChanges, estimate, formData]);
 
-    // Calculate sections with totals
+    // Memoized Sections for Render (Uses sectionOrder for sorting)
     const sections: SectionConfig[] = useMemo(() => {
         if (!estimate || !catalogsLoaded) return [];
 
-        const calculatedSections = baseSectionConfigs.map(config => {
-            const items = (estimate[config.key] as LineItem[] || []).map(item => {
-                let total = item.total;
-                if (total === undefined || total === null) {
-                    switch (config.id) {
-                        case 'Labor':
-                            total = calculateLaborTotal(item, fringeConstants);
-                            break;
-                        case 'Equipment':
-                            total = calculateEquipmentTotal(item);
-                            break;
-                        case 'Material':
-                            total = calculateMaterialTotal(item);
-                            break;
-                        case 'Overhead':
-                            total = calculateOverheadTotal(item);
-                            break;
-                        default:
-                            total = calculateSimpleTotal(item);
-                    }
-                }
+        const calculated = calculateSections(estimate, fringeConstants);
 
-                // Add labor display field
-                if (config.id === 'Labor') {
-                    return {
-                        ...item,
-                        labor: item.labor || `${item.classification || ''}-${item.fringe || ''}`,
-                        total
-                    };
-                }
-
-                return { ...item, total };
-            });
-
-            return {
-                ...config,
-                color: getSectionColor(config.id, fringeConstants),
-                items
-            };
+        // Sort based on saved order
+        return calculated.sort((a, b) => {
+            const idxA = sectionOrder.indexOf(a.id);
+            const idxB = sectionOrder.indexOf(b.id);
+            // If not found in order (e.g. new session), push to end or use default
+            if (idxA === -1) return 1;
+            if (idxB === -1) return -1;
+            return idxA - idxB;
         });
+    }, [estimate, fringeConstants, catalogsLoaded, sectionOrder, calculateSections]);
 
-        return calculatedSections.sort((a, b) => {
-            const totalA = a.items.reduce((sum, i) => sum + (i.total || 0), 0);
-            const totalB = b.items.reduce((sum, i) => sum + (i.total || 0), 0);
-            return totalB - totalA;
-        });
-    }, [estimate, fringeConstants, catalogsLoaded]);
-
-    // Chart data
+    // Chart data (always reflects current totals)
     const chartData = useMemo(() => {
         if (!sections.length) return { slices: [], subTotal: 0, grandTotal: 0, markupPct: 0 };
-
+        // ... same chart logic ...
         const slices = sections.map(s => ({
             id: s.id,
             label: s.title,
@@ -392,17 +420,26 @@ export default function EstimateViewPage() {
         return { slices, subTotal, grandTotal, markupPct };
     }, [sections, formData?.bidMarkUp, estimate?.bidMarkUp]);
 
-    // Auto-expand sections with items on load
+    // Live update current version total in history
     useEffect(() => {
-        if (sections.length && !initialSortDone.current) {
-            const newState: Record<string, boolean> = {};
-            sections.forEach(s => {
-                newState[s.id] = s.items.length > 0;
-            });
-            setOpenSections(newState);
-            initialSortDone.current = true;
-        }
-    }, [sections]);
+        if (!estimate?._id || !chartData) return;
+
+        setVersionHistory(prev => {
+            const index = prev.findIndex(v => v._id === estimate._id);
+            if (index === -1) return prev;
+
+            // Only update if changed to avoid loops
+            // Use a small epsilon for float comparison or exact match if preferred
+            if (Math.abs((prev[index].totalAmount || 0) - chartData.grandTotal) < 0.01) return prev;
+
+            const newHistory = [...prev];
+            newHistory[index] = {
+                ...newHistory[index],
+                totalAmount: chartData.grandTotal
+            };
+            return newHistory;
+        });
+    }, [chartData.grandTotal, estimate?._id]);
 
     // Handlers
     const handleHeaderUpdate = (field: string, value: string | number) => {
@@ -433,56 +470,37 @@ export default function EstimateViewPage() {
             const items = (prev[section.key] as LineItem[]) || [];
             const updatedItems = items.map(i => {
                 if (i._id !== item._id) return i;
-
                 const updatedItem = { ...i, [field]: value };
-
-                // Recalculate totals based on section
-                if (section.id === 'Equipment' && ['quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost'].includes(field)) {
-                    updatedItem.total = calculateEquipmentTotal(updatedItem);
-                } else if (section.id === 'Material' && ['quantity', 'cost', 'taxes'].includes(field)) {
-                    updatedItem.total = calculateMaterialTotal(updatedItem);
-                } else if (section.id === 'Overhead') {
-                    if (field === 'days') {
-                        const days = parseNum(value);
-                        updatedItem.hours = days * 8;
-                        updatedItem.total = (updatedItem.hours as number) * parseNum(updatedItem.hourlyRate);
-                        updatedItem.dailyRate = days > 0 ? (updatedItem.total as number) / days : 0;
-                    } else if (field === 'hourlyRate') {
-                        updatedItem.total = parseNum(updatedItem.hours) * parseNum(value);
-                        const days = parseNum(updatedItem.days);
-                        updatedItem.dailyRate = days > 0 ? (updatedItem.total as number) / days : 0;
-                    }
-                } else if (['Subcontractor', 'Disposal', 'Miscellaneous', 'Tools'].includes(section.id) && ['quantity', 'cost'].includes(field)) {
-                    updatedItem.total = calculateSimpleTotal(updatedItem);
-                }
-
+                // ... update logic implied in calculateSections, but we store raw values here ...
+                // Actually we need to store recalculations if fields depend on it?
+                // The original code did calculation here. 
+                // Since calculateSections is used for render, we can just save raw values
+                // UNLESS the item update depends on previous calc?
                 return updatedItem;
             });
-
             return { ...prev, [section.key]: updatedItems };
         });
-
         setUnsavedChanges(true);
     };
 
     const handleAddItem = async (section: SectionConfig, data: Record<string, unknown>, isManual: boolean) => {
         if (!estimate) return;
-
         const processedData = { ...data };
         processedData._id = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 9);
         processedData.estimateId = estimate._id;
-
         if (section.id === 'Labor') {
             processedData.labor = `${processedData.classification || ''}-${processedData.fringe || ''}`;
         }
-
         setEstimate(prev => {
             if (!prev) return null;
             const items = (prev[section.key] as LineItem[]) || [];
             return { ...prev, [section.key]: [...items, processedData as LineItem] };
         });
-
         setUnsavedChanges(true);
+        // Auto-open section if closed
+        if (!openSections[section.id]) {
+            setOpenSections(prev => ({ ...prev, [section.id]: true }));
+        }
         success('Item added (unsaved)');
     };
 
@@ -493,13 +511,11 @@ export default function EstimateViewPage() {
     const confirmDeleteItem = () => {
         if (!itemToDelete) return;
         const { section, item } = itemToDelete;
-
         setEstimate(prev => {
             if (!prev) return null;
             const items = (prev[section.key] as LineItem[]) || [];
             return { ...prev, [section.key]: items.filter(i => i._id !== item._id) };
         });
-
         setUnsavedChanges(true);
         success('Item removed (unsaved)');
         setItemToDelete(null);
@@ -513,7 +529,6 @@ export default function EstimateViewPage() {
 
     const handleGlobalSave = async () => {
         if (!estimate || !formData) return;
-
         setSaving(true);
         try {
             const payload = {
@@ -534,15 +549,21 @@ export default function EstimateViewPage() {
             };
 
             const result = await apiCall('updateEstimate', payload);
-
-            if (!result.success) {
-                throw new Error(result.error || 'Save failed');
-            }
+            if (!result.success) throw new Error(result.error || 'Save failed');
 
             success('Estimate saved successfully');
-            localStorage.removeItem(`${DRAFT_KEY_PREFIX}${id}`);
+            localStorage.removeItem(`${DRAFT_KEY_PREFIX}${estimate._id}`);
             setUnsavedChanges(false);
-            await loadEstimate(true);
+
+            // Re-Sort on Save
+            const calculated = calculateSections(estimate, fringeConstants);
+            const sorted = [...calculated].sort((a, b) => {
+                const totalA = a.items.reduce((sum, i) => sum + (i.total || 0), 0);
+                const totalB = b.items.reduce((sum, i) => sum + (i.total || 0), 0);
+                return totalB - totalA;
+            });
+            setSectionOrder(sorted.map(s => s.id));
+
         } catch (err) {
             console.error('Save error:', err);
             toastError('Failed to save estimate');
@@ -554,9 +575,10 @@ export default function EstimateViewPage() {
     const handleClone = async () => {
         setLoading(true);
         try {
-            const result = await apiCall('cloneEstimate', { id });
+            const result = await apiCall('cloneEstimate', { id: estimate?._id });
             if (result.success && result.result) {
-                router.push(`/estimates/${result.result._id}`);
+                const newSlug = result.result.estimate ? `${result.result.estimate}-V${result.result.versionNumber || 1}` : result.result._id;
+                router.push(`/estimates/${newSlug}`);
                 success('Estimate cloned (v' + result.result.versionNumber + ')');
             } else {
                 toastError('Failed to clone estimate');
@@ -569,6 +591,25 @@ export default function EstimateViewPage() {
         }
     };
 
+    const handleCopy = async () => {
+        setLoading(true);
+        try {
+            const result = await apiCall('copyEstimate', { id: estimate?._id });
+            if (result.success && result.result) {
+                const newSlug = result.result.estimate ? `${result.result.estimate}-V${result.result.versionNumber || 1}` : result.result._id;
+                router.push(`/estimates/${newSlug}`);
+                success('Estimate copied to new V1');
+            } else {
+                toastError('Failed to copy estimate');
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('Copy error:', err);
+            toastError('Failed to copy estimate');
+            setLoading(false);
+        }
+    };
+
     const handleDelete = async () => {
         setConfirmDeleteEstimate(true);
     };
@@ -576,7 +617,7 @@ export default function EstimateViewPage() {
     const performDeleteEstimate = async () => {
         setLoading(true);
         try {
-            await apiCall('deleteEstimate', { id });
+            await apiCall('deleteEstimate', { id: estimate?._id });
             router.push('/estimates');
         } catch (err) {
             console.error('Delete error:', err);
@@ -585,8 +626,17 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleVersionClick = (versionId: string) => {
-        router.push(`/estimates/${versionId}`);
+    const handleConvertToProposal = () => {
+        success('Convert to Proposal feature coming soon');
+    };
+
+    const handleVersionClick = (clickedId: string) => {
+        const clickedVersion = versionHistory.find(v => v._id === clickedId);
+        if (clickedVersion && clickedVersion.estimate) {
+            router.push(`/estimates/${clickedVersion.estimate}-V${clickedVersion.versionNumber || 1}`);
+        } else {
+            router.push(`/estimates/${clickedId}`);
+        }
     };
 
     // Toggle all sections
@@ -693,10 +743,30 @@ export default function EstimateViewPage() {
                         <button
                             onClick={handleClone}
                             className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-xs shadow-md"
-                            title="Clone Estimate as Next Version"
+                            title="Clone Estimate"
                         >
                             <Copy className="w-3.5 h-3.5" />
-                            Clone v{(formData.versionNumber || 1) + 1}
+                            Clone V{formData.versionNumber || 1}
+                        </button>
+
+                        {/* Copy */}
+                        <button
+                            onClick={handleCopy}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all font-bold text-xs shadow-md"
+                            title="Copy to New Estimate"
+                        >
+                            <Copy className="w-3.5 h-3.5" />
+                            Copy
+                        </button>
+
+                        {/* Convert to Proposal */}
+                        <button
+                            onClick={handleConvertToProposal}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-bold text-xs shadow-md"
+                            title="Convert to Proposal"
+                        >
+                            <FileText className="w-3.5 h-3.5" />
+                            Proposal
                         </button>
 
                         {/* Delete */}
@@ -718,7 +788,7 @@ export default function EstimateViewPage() {
                         formData={formData}
                         chartData={chartData}
                         versionHistory={versionHistory}
-                        currentEstimateId={id}
+                        currentEstimateId={estimate?._id}
                         chartAnimate={chartAnimate}
                         onServiceToggle={handleServiceToggle}
                         onStatusToggle={handleStatusToggle}

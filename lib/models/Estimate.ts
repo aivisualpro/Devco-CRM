@@ -12,7 +12,7 @@ export interface IEstimate extends Document {
     status?: string;
     notes?: string;
     fringe?: string;
-    markup?: number;
+
     bidMarkUp?: string;
     // Service flags
     directionalDrilling?: boolean;
@@ -20,11 +20,6 @@ export interface IEstimate extends Document {
     hydroExcavation?: boolean;
     potholingCoring?: boolean;
     asphaltConcrete?: boolean;
-    foundations?: boolean;
-    trafficLoops?: boolean;
-    splicing?: boolean;
-    roadBoring?: boolean;
-    streetLighting?: boolean;
     confirmed?: boolean;
     // Totals
     subTotal?: number;
@@ -48,7 +43,7 @@ const EstimateSchema = new Schema({
     status: { type: String },
     notes: { type: String },
     fringe: { type: String },
-    markup: { type: Number, default: 0 },
+
     bidMarkUp: { type: String },
     // Service flags
     directionalDrilling: { type: Boolean, default: false },
