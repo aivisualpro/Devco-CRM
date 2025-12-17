@@ -399,6 +399,7 @@ export async function POST(request: NextRequest) {
                     date: payload?.date || new Date().toLocaleDateString(),
                     customerName: payload?.customerName || '',
                     proposalNo: payload?.proposalNo || estimateNumber,
+                    bidMarkUp: '30%',
                     status: 'draft',
                     versionNumber: 1,
                     // Initialize empty arrays
@@ -773,6 +774,16 @@ export async function POST(request: NextRequest) {
             }
 
 
+            case 'getClientById': {
+                const { id: clientId } = payload || {};
+                if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const client = await Client.findById(clientId);
+                if (!client) return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 });
+
+                return NextResponse.json({ success: true, result: client });
+            }
+
             // ========== CONTACTS ==========
             case 'getContacts': {
                 const contacts = await Contact.find().sort({ fullName: 1 });
@@ -781,23 +792,97 @@ export async function POST(request: NextRequest) {
 
             case 'addContact': {
                 const { item } = payload || {};
+                console.log('[API] addContact payload:', item);
                 if (!item) return NextResponse.json({ success: false, error: 'Missing contact data' }, { status: 400 });
+
+                // Enforce single Key Contact per client
+                if (item.isKeyContact && item.clientId) {
+                    console.log('[API] Setting Key Contact, unsetting others for client:', item.clientId);
+                    await Contact.updateMany(
+                        { clientId: item.clientId },
+                        { $set: { isKeyContact: false } },
+                        { strict: false } // Bypass strict schema
+                    );
+                }
 
                 const contactData = {
                     ...item,
-                    _id: item.recordId || item._id || `CT-${Date.now()}`
+                    _id: item.recordId || item._id || `CT-${Date.now()}`,
+                    // Ensure defaults
+                    status: item.status || 'Active',
+                    isKeyContact: !!item.isKeyContact,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
                 };
 
-                const newContact = await Contact.create(contactData);
-                return NextResponse.json({ success: true, result: newContact });
+                // Use native collection insert to bypass potential Mongoose strict schema caching issues in dev
+                await Contact.collection.insertOne(contactData);
+
+                console.log('[API] Contact created (native):', contactData);
+                return NextResponse.json({ success: true, result: contactData });
             }
 
             case 'updateContact': {
                 const { id: contactId, item: contactItem } = payload || {};
+                console.log('[API] updateContact payload:', { contactId, contactItem });
                 if (!contactId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const updated = await Contact.findByIdAndUpdate(contactId, { ...contactItem, updatedAt: new Date() }, { new: true });
+                // Enforce single Key Contact per client
+                if (contactItem.isKeyContact) {
+                    let clientId = contactItem.clientId;
+                    if (!clientId) {
+                        const existingContact = await Contact.findById(contactId).lean();
+                        clientId = (existingContact as any)?.clientId;
+                        console.log('[API] Fetched existing clientId:', clientId);
+                    }
+
+                    if (clientId) {
+                        console.log('[API] Enforcing single Key Contact for client:', clientId);
+                        // Unset isKeyContact for all other contacts of this client
+                        await Contact.updateMany(
+                            { clientId: clientId, _id: { $ne: contactId } },
+                            { $set: { isKeyContact: false } },
+                            { strict: false }
+                        );
+                    } else {
+                        console.warn('[API] Warning: Setting Key Contact but no clientId found.');
+                    }
+                }
+
+                // Use strict: false to ensure fields not in cached Schema (like isKeyContact) are saved
+                const updated = await Contact.findByIdAndUpdate(
+                    contactId,
+                    { ...contactItem, updatedAt: new Date() },
+                    { new: true, strict: false }
+                );
+
+                console.log('[API] Contact updated result:', updated);
                 return NextResponse.json({ success: true, result: updated });
+            }
+
+            case 'importContacts': {
+                const { contacts } = payload || {};
+                if (!Array.isArray(contacts)) return NextResponse.json({ success: false, error: 'Invalid contacts array' }, { status: 400 });
+
+                // We'll use bulkWrite for efficiency and to handle upserts
+                const operations = contacts.map((c: any) => ({
+                    updateOne: {
+                        filter: { _id: c.recordId || c._id },
+                        update: {
+                            $set: {
+                                ...c,
+                                _id: c.recordId || c._id,
+                                isKeyContact: toBoolean(c.isKeyContact), // Ensure boolean conversion
+                                updatedAt: new Date()
+                            },
+                            $setOnInsert: { createdAt: new Date() }
+                        },
+                        upsert: true
+                    }
+                }));
+
+                const result = await Contact.bulkWrite(operations);
+                return NextResponse.json({ success: true, result });
             }
 
             case 'deleteContact': {
@@ -833,6 +918,27 @@ export async function POST(request: NextRequest) {
 
                 await Template.findByIdAndDelete(tempDelId);
                 return NextResponse.json({ success: true });
+            }
+
+            case 'cloneTemplate': {
+                const { id: cloneId } = payload || {};
+                if (!cloneId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const original = await Template.findById(cloneId).lean();
+                if (!original) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
+
+                // Create a copy without _id and with updated title
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const { _id, createdAt, updatedAt, ...rest } = original as any;
+
+                const newTemplate = await Template.create({
+                    ...rest,
+                    title: `${rest.title} (Copy)`,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                });
+
+                return NextResponse.json({ success: true, result: newTemplate });
             }
 
             // ========== GLOBAL CUSTOM VARIABLES ==========

@@ -9,6 +9,8 @@ export interface IContact {
     email?: string;
     phone?: string;
     status?: string;
+    isKeyContact?: boolean;
+    address?: string; // New field
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -21,7 +23,9 @@ const ContactSchema: Schema = new Schema({
     title: { type: String },
     email: { type: String },
     phone: { type: String },
+    address: { type: String }, // New field
     status: { type: String, default: 'Active' },
+    isKeyContact: { type: Boolean, default: false },
 }, { timestamps: true });
 
 // Prevent model overwrite in development

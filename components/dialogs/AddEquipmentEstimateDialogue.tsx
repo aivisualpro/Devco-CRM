@@ -97,7 +97,7 @@ export function AddEquipmentEstimateDialogue({
         for (const item of Array.from(selectedItems)) {
             if (existingIdentifiers.has(getIdentifier(item))) continue;
             const { _id, ...itemData } = item;
-            await onSave(section, { ...itemData, quantity: 1, times: item.times || 1 }, false);
+            await onSave(section, { ...itemData, quantity: 1, times: item.times || 1, deliveryPickup: item.deliveryPickup ?? 300 }, false);
         }
         setSaving(false);
         onClose();
@@ -149,6 +149,7 @@ export function AddEquipmentEstimateDialogue({
                     <div className="relative">
                         <input
                             type="text"
+                            autoFocus
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Search equipment catalog..."

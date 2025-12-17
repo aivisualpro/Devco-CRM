@@ -64,7 +64,8 @@ const prepareContext = (estimate: IEstimate) => {
         today: new Date(),
         // Helpers for common fields if they are missing at top level
         customerName: e.customerName || e.customer || 'Valued Customer',
-        projectTitle: e.projectTitle || 'Project Proposal'
+        projectTitle: e.projectTitle || e.projectName || 'Project Proposal',
+        projectName: e.projectName || e.projectTitle || ''
     };
 };
 

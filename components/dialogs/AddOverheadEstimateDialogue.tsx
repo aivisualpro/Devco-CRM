@@ -149,6 +149,7 @@ export function AddOverheadEstimateDialogue({
                     <div className="relative">
                         <input
                             type="text"
+                            autoFocus
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Search overhead catalog..."

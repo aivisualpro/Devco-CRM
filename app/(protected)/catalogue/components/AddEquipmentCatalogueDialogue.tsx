@@ -33,7 +33,8 @@ export function AddEquipmentCatalogueDialogue({
                 setFormData({
                     classification: '-',
                     subClassification: '-',
-                    supplier: '-'
+                    supplier: '-',
+                    deliveryPickup: 300
                 });
             }
         }
@@ -65,7 +66,7 @@ export function AddEquipmentCatalogueDialogue({
         setIsSaving(true);
         // Convert number fields
         const processedData = { ...formData };
-        ['dailyCost', 'weeklyCost', 'monthlyCost'].forEach(field => {
+        ['dailyCost', 'weeklyCost', 'monthlyCost', 'deliveryPickup'].forEach(field => {
             if (processedData[field]) {
                 processedData[field] = parseFloat(processedData[field]) || 0;
             }
@@ -83,7 +84,8 @@ export function AddEquipmentCatalogueDialogue({
             'field-supplier',
             'field-dailyCost',
             'field-weeklyCost',
-            'field-monthlyCost' // Last field
+            'field-monthlyCost',
+            'field-deliveryPickup' // Last field
         ];
 
         if (currentIndex === fieldIds.length - 1) {
@@ -202,7 +204,7 @@ export function AddEquipmentCatalogueDialogue({
                             />
                         </div>
 
-                        <div className="col-span-2">
+                        <div className="col-span-1">
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">Monthly Cost</label>
                             <input
                                 id="field-monthlyCost"
@@ -214,7 +216,25 @@ export function AddEquipmentCatalogueDialogue({
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault();
-                                        handleSave(); // Last field saves
+                                        focusNextField(6);
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        <div className="col-span-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Delivery & Pickup</label>
+                            <input
+                                id="field-deliveryPickup"
+                                type="number"
+                                value={formData.deliveryPickup !== undefined ? formData.deliveryPickup : 300}
+                                onChange={(e) => setFormData({ ...formData, deliveryPickup: e.target.value })}
+                                placeholder="Enter delivery & pickup cost"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleSave();
                                     }
                                 }}
                             />

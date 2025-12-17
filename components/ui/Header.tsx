@@ -91,6 +91,9 @@ export function Header({ rightContent, leftContent, centerContent }: HeaderProps
                 <div className="flex items-center justify-between h-16">
                     {/* Left Content + Navigation Menu */}
                     <div className="flex items-center gap-4">
+                        <Link href="/" className="font-extrabold text-2xl tracking-tight text-blue-600 hover:text-blue-700 transition-colors mr-2">
+                            DEVCO
+                        </Link>
                         {leftContent}
                         <nav className="flex items-center gap-2">
                             {menuStructure.map((group) => {

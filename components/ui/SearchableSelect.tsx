@@ -13,6 +13,7 @@ interface SearchableSelectProps {
     id?: string;
     onKeyDown?: (e: React.KeyboardEvent) => void;
     onNext?: () => void;
+    onAddNew?: (value: string) => void;
     className?: string;
 }
 
@@ -26,6 +27,7 @@ export function SearchableSelect({
     id,
     onKeyDown,
     onNext,
+    onAddNew,
     className = ''
 }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(autoFocus || false);
@@ -144,13 +146,19 @@ export function SearchableSelect({
 
     const handleAddNew = () => {
         if (searchTerm.trim()) {
-            onChange(searchTerm.trim());
-            setSearchTerm('');
-            setIsOpen(false);
-            if (onNext) {
-                setTimeout(onNext, 50);
+            if (onAddNew) {
+                onAddNew(searchTerm.trim());
+                setSearchTerm('');
+                setIsOpen(false);
             } else {
-                focusNextElement();
+                onChange(searchTerm.trim());
+                setSearchTerm('');
+                setIsOpen(false);
+                if (onNext) {
+                    setTimeout(onNext, 50);
+                } else {
+                    focusNextElement();
+                }
             }
         }
     };

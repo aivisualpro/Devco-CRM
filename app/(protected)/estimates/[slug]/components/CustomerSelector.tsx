@@ -6,11 +6,17 @@ import { useToast } from '@/hooks/useToast';
 
 interface CustomerSelectorProps {
     value?: string;
-    onChange: (val: string) => void;
+    onChange: (val: string, id?: string) => void;
+}
+
+interface ClientObj {
+    _id: string;
+    name: string;
 }
 
 export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
     const [clients, setClients] = useState<string[]>([]);
+    const [clientObjs, setClientObjs] = useState<ClientObj[]>([]);
     const { success, error } = useToast();
     const [loading, setLoading] = useState(true);
 
@@ -25,7 +31,9 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
                 const data = await res.json();
                 if (data.success) {
                     // Extract names and sort
-                    const names = data.result.map((c: any) => c.name).filter(Boolean).sort();
+                    const objs = data.result.map((c: any) => ({ name: c.name, _id: c._id || c.recordId }));
+                    setClientObjs(objs);
+                    const names = objs.map((c: ClientObj) => c.name).filter(Boolean).sort();
                     setClients(names);
                 }
             } catch (err) {
@@ -42,12 +50,11 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
         if (!newVal) return;
 
         // Check if existing
-        const exists = clients.some(c => c.toLowerCase() === newVal.toLowerCase());
+        const exists = clientObjs.find(c => c.name.toLowerCase() === newVal.toLowerCase());
 
         if (exists) {
             // Find exact case match if possible
-            const exactMatch = clients.find(c => c.toLowerCase() === newVal.toLowerCase()) || newVal;
-            onChange(exactMatch);
+            onChange(exists.name, exists._id);
         } else {
             // Create new client
             try {
@@ -62,8 +69,13 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
                 const data = await res.json();
                 if (data.success) {
                     success('New client added');
+                    const newClient = data.result;
+                    const newObj = { name: newClient.name, _id: newClient._id || newClient.recordId };
+
+                    setClientObjs(prev => [...prev, newObj]);
                     setClients(prev => [...prev, newVal].sort());
-                    onChange(newVal);
+
+                    onChange(newClient.name, newClient._id || newClient.recordId);
                 } else {
                     error('Failed to create client: ' + (data.error || 'Unknown error'));
                 }

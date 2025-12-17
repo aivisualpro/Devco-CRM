@@ -21,6 +21,7 @@ export interface LaborBreakdown {
 export interface FringeConstant {
     description: string;
     value: unknown;
+    color?: string;
 }
 
 /**
@@ -144,7 +145,14 @@ export function calculateEquipmentTotal(item: Record<string, unknown>): number {
     else if (uom === 'Monthly') cost = parseNum(item.monthlyCost);
     else cost = parseNum(item.dailyCost);
 
-    return cost * qty * times;
+    const fuel = parseNum(item.fuelAdditiveCost);
+    const delivery = parseNum(item.deliveryPickup);
+
+    const baseTotal = cost * qty * times;
+    const fuelTotal = qty * fuel;
+    const deliveryTotal = qty * delivery;
+
+    return baseTotal + fuelTotal + deliveryTotal;
 }
 
 /**
@@ -197,11 +205,30 @@ export function getSectionColor(
     sectionName: string,
     fringeConstants: FringeConstant[]
 ): string {
-    const constant = fringeConstants.find(
-        c => c.description === sectionName || c.description === `${sectionName} Color`
-    );
-    if (constant && typeof constant.value === 'string' && constant.value.startsWith('#')) {
-        return constant.value;
+    if (!Array.isArray(fringeConstants)) return sectionColors[sectionName] || '#cbd5e1';
+
+    // Normalize name for search
+    const norm = (s: string) => s.toLowerCase().trim();
+    const target = norm(sectionName);
+
+    // Handle specific mappings (e.g. Tools -> Tool)
+    const variations = [target, `${target} color`];
+    if (target === 'tools') {
+        variations.push('tool');
+        variations.push('tool color');
     }
+
+    const constant = fringeConstants.find(c => {
+        const desc = norm(c.description || '');
+        return variations.includes(desc);
+    });
+
+    if (constant) {
+        // Prefer 'color' field if available (from Catalogue type constants)
+        if (constant.color && constant.color.trim()) return constant.color.trim();
+        // Fallback to value field if it looks like a color
+        if (constant.value && String(constant.value).trim()) return String(constant.value).trim();
+    }
+
     return sectionColors[sectionName] || '#cbd5e1';
 }

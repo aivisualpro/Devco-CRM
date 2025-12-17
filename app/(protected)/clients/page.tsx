@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Upload, Pencil, Trash2 } from 'lucide-react';
 import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
@@ -33,6 +34,7 @@ const defaultClient: Partial<Client> = {
 };
 
 export default function ClientsPage() {
+    const router = useRouter();
     const { success, error } = useToast();
     const [clients, setClients] = useState<Client[]>([]);
     const [loading, setLoading] = useState(true);
@@ -302,7 +304,12 @@ export default function ClientsPage() {
                             ) : (
                                 paginatedClients.map((client) => (
                                     <TableRow key={client._id}>
-                                        <TableCell className="font-medium text-indigo-600">{client.name}</TableCell>
+                                        <TableCell
+                                            className="font-medium text-indigo-600 cursor-pointer hover:underline"
+                                            onClick={() => router.push(`/clients/${client._id}`)}
+                                        >
+                                            {client.name}
+                                        </TableCell>
                                         <TableCell>{client.contactFullName || '-'}</TableCell>
                                         <TableCell>{client.email || '-'}</TableCell>
                                         <TableCell>{client.phone || '-'}</TableCell>

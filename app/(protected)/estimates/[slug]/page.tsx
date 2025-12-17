@@ -40,6 +40,8 @@ interface Estimate {
     estimate?: string;
     date?: string;
     customerName?: string;
+    customerId?: string;
+    projectName?: string; // Added field
     proposalNo?: string;
     versionNumber?: number;
     bidMarkUp?: string | number;
@@ -109,9 +111,9 @@ const baseSectionConfigs = [
     },
     {
         id: 'Equipment', title: 'Equipment', key: 'equipment',
-        headers: ['Equipment / Machine', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'Times', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Fuel', 'Total'],
-        fields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'total'],
-        editableFields: ['supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost']
+        headers: ['Equipment / Machine', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'Times', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Fuel', 'Delivery & Pickup', 'Total'],
+        fields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup', 'total'],
+        editableFields: ['supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup']
     },
     {
         id: 'Material', title: 'Material', key: 'material',
@@ -236,6 +238,14 @@ export default function EstimateViewPage() {
                         total = calculateMaterialTotal(item);
                         break;
                     case 'Overhead':
+                        if (item.days !== undefined) {
+                            const days = parseNum(item.days);
+                            const hours = days * 8;
+                            const calculatedItem = { ...item, hours };
+                            total = calculateOverheadTotal(calculatedItem);
+                            // Return item with enforced hours
+                            return { ...item, hours, total };
+                        }
                         total = calculateOverheadTotal(item);
                         break;
                     default:
@@ -535,9 +545,48 @@ export default function EstimateViewPage() {
         setGeneratingProposal(false);
     };
 
-    const handleHeaderUpdate = (field: string, value: string | number) => {
+    const handleHeaderUpdate = async (field: string, value: string | number) => {
         setFormData(prev => prev ? { ...prev, [field]: value } : null);
         setUnsavedChanges(true);
+
+        // Auto-populate logic when Customer changes
+        if (field === 'customerId' && value) {
+            try {
+                // 1. Fetch Client Details to get Address
+                const clientRes = await apiCall('getClientById', { id: value });
+                let businessAddress = '';
+                if (clientRes.success && clientRes.result) {
+                    businessAddress = clientRes.result.businessAddress || '';
+                }
+
+                // 2. Fetch Contacts to find Key Contact
+                const contactsRes = await apiCall('getContacts');
+                if (contactsRes.success && contactsRes.result) {
+                    const contacts = contactsRes.result as any[];
+                    // Find Key Contact for this client
+                    const keyContact = contacts.find(c => c.clientId === value && c.isKeyContact);
+
+                    if (keyContact) {
+                        setFormData(prev => prev ? {
+                            ...prev,
+                            contactName: keyContact.fullName,
+                            contactId: keyContact._id,
+                            jobAddress: businessAddress // Default to client address per user request
+                        } : null);
+                    } else {
+                        // If no key contact, just set address if available
+                        setFormData(prev => prev ? {
+                            ...prev,
+                            contactName: '',
+                            contactId: '',
+                            jobAddress: businessAddress
+                        } : null);
+                    }
+                }
+            } catch (error) {
+                console.error('Error auto-populating client details:', error);
+            }
+        }
     };
 
     const handleServiceToggle = (serviceId: string) => {
@@ -569,6 +618,9 @@ export default function EstimateViewPage() {
                 // The original code did calculation here. 
                 // Since calculateSections is used for render, we can just save raw values
                 // UNLESS the item update depends on previous calc?
+                if (section.id === 'Overhead' && field === 'days') {
+                    updatedItem.hours = parseNum(value) * 8;
+                }
                 return updatedItem;
             });
             return { ...prev, [section.key]: updatedItems };
@@ -900,7 +952,7 @@ export default function EstimateViewPage() {
                             onToggle={() => setOpenSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
                             itemCount={section.items.length}
                             sectionTotal={section.items.reduce((sum, i) => sum + (i.total || 0), 0)}
-                            grandTotal={chartData.grandTotal}
+                            grandTotal={chartData.subTotal}
                             color={section.color}
                             onAdd={() => setActiveSection(section)}
                         >

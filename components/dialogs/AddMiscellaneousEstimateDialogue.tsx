@@ -148,6 +148,7 @@ export function AddMiscellaneousEstimateDialogue({
                     <div className="relative">
                         <input
                             type="text"
+                            autoFocus
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Search miscellaneous catalog..."

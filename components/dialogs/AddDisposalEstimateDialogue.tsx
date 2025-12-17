@@ -149,6 +149,7 @@ export function AddDisposalEstimateDialogue({
                     <div className="relative">
                         <input
                             type="text"
+                            autoFocus
                             value={searchTerm}
                             onChange={e => setSearchTerm(e.target.value)}
                             placeholder="Search disposal catalog..."

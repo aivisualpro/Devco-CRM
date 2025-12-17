@@ -7,6 +7,7 @@ export interface IEstimate extends Document {
     customerName?: string;
     customerId?: string;
     projectTitle?: string;
+    projectName?: string; // New field
     proposalNumber?: string;
     proposalNo?: string;
     status?: string;
@@ -50,6 +51,7 @@ const EstimateSchema = new Schema({
     customerName: { type: String },
     customerId: { type: String },
     projectTitle: { type: String },
+    projectName: { type: String }, // New field
     proposalNumber: { type: String },
     proposalNo: { type: String },
     status: { type: String },

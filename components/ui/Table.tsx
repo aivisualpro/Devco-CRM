@@ -94,19 +94,20 @@ export function TableHeader({ children, className = '', onClick, sortable, sortD
     );
 }
 
-interface TableCellProps {
+interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
     children: React.ReactNode;
     className?: string;
     colSpan?: number;
     rowSpan?: number;
 }
 
-export function TableCell({ children, className = '', colSpan, rowSpan }: TableCellProps) {
+export function TableCell({ children, className = '', colSpan, rowSpan, ...props }: TableCellProps) {
     return (
         <td
             colSpan={colSpan}
             rowSpan={rowSpan}
             className={`px-4 py-1.5 text-xs text-gray-600 whitespace-nowrap ${className}`}
+            {...props}
         >
             {children}
         </td>

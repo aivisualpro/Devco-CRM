@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Pencil, Trash2, LayoutTemplate, Calendar } from 'lucide-react';
+import { Plus, Pencil, Trash2, LayoutTemplate, Calendar, Copy } from 'lucide-react';
 import { Header, AddButton, SearchInput, Pagination, ConfirmModal, ToastContainer } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -31,6 +31,8 @@ export default function TemplatesPage() {
     // UI State
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [editingDescId, setEditingDescId] = useState<string | null>(null);
+    const [tempDesc, setTempDesc] = useState('');
     const itemsPerPage = 15;
 
     const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
@@ -85,6 +87,38 @@ export default function TemplatesPage() {
             fetchTemplates();
         } else {
             toastError('Failed to delete template');
+        }
+    };
+
+    const startEditingDesc = (item: Template) => {
+        setEditingDescId(item._id);
+        setTempDesc(item.subTitleDescription || '');
+    };
+
+    const saveDescription = async (id: string) => {
+        if (tempDesc !== (templates.find(t => t._id === id)?.subTitleDescription || '')) {
+            const result = await apiCall('updateTemplate', {
+                id: id,
+                item: { subTitleDescription: tempDesc }
+            });
+
+            if (result.success) {
+                setTemplates(prev => prev.map(t => t._id === id ? { ...t, subTitleDescription: tempDesc } : t));
+                success('Description updated');
+            } else {
+                toastError('Failed to update description');
+            }
+        }
+        setEditingDescId(null);
+    };
+
+    const handleClone = async (item: Template) => {
+        const result = await apiCall('cloneTemplate', { id: item._id });
+        if (result.success) {
+            success('Template cloned');
+            fetchTemplates();
+        } else {
+            toastError('Failed to clone template');
         }
     };
 
@@ -149,36 +183,43 @@ export default function TemplatesPage() {
                             {paginatedTemplates.map((item) => (
                                 <div
                                     key={item._id}
-                                    className="group relative flex flex-col rounded-[30px] p-8 transition-all duration-300"
+                                    className="group relative flex flex-col rounded-[30px] p-8 transition-all duration-300 min-h-[300px]"
                                     style={{
                                         background: '#e0e5ec',
                                         boxShadow: '9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5)'
                                     }}
                                 >
-                                    {/* Delete Button */}
-                                    <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                    {/* Action Buttons */}
+                                    <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleClone(item); }}
+                                            className="p-3 text-blue-500 rounded-full transition-all active:scale-95 hover:text-blue-600 cursor-pointer"
+                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                            title="Clone Template"
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
+                                            className="p-3 text-blue-600 rounded-full transition-all active:scale-95 hover:text-blue-700 cursor-pointer"
+                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                            title="Edit Template"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); confirmDelete(item._id); }}
-                                            className="p-3 text-red-500 rounded-full transition-all active:scale-95"
+                                            className="p-3 text-red-500 rounded-full transition-all active:scale-95 hover:text-red-600 cursor-pointer"
                                             style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                            title="Delete Template"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
 
-                                    {/* Icon */}
-                                    <div className="mb-6 flex justify-start">
-                                        <div
-                                            className="w-16 h-16 rounded-full flex items-center justify-center text-blue-600"
-                                            style={{ background: '#e0e5ec', boxShadow: 'inset 6px 6px 12px #b8b9be, inset -6px -6px 12px #ffffff' }}
-                                        >
-                                            <LayoutTemplate className="w-8 h-8" />
-                                        </div>
-                                    </div>
-
                                     {/* Content */}
-                                    <div className="flex-1 mb-6">
-                                        <h3 className="text-xl font-bold text-gray-700 mb-2 truncate">{item.title}</h3>
+                                    <div className="flex-1 mt-2">
+                                        <h3 className="text-xl font-bold text-gray-700 mb-2 truncate pr-16" title={item.title}>{item.title}</h3>
                                         <div
                                             className="flex items-center gap-2 text-xs font-medium text-gray-500 mb-4 px-3 py-1.5 rounded-full w-fit"
                                             style={{ boxShadow: 'inset 3px 3px 6px #b8b9be, inset -3px -3px 6px #ffffff' }}
@@ -186,19 +227,30 @@ export default function TemplatesPage() {
                                             <Calendar className="w-3 h-3" />
                                             <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Unknown Date'}</span>
                                         </div>
-                                        <p className="text-gray-500 text-sm leading-relaxed line-clamp-3">
-                                            {item.subTitleDescription || 'No description provided.'}
-                                        </p>
-                                    </div>
 
-                                    {/* Edit Button */}
-                                    <button
-                                        onClick={() => handleEdit(item)}
-                                        className="w-full py-4 rounded-xl font-bold text-gray-600 hover:text-blue-600 transition-all active:scale-[0.98] flex items-center justify-center gap-3"
-                                        style={{ background: '#e0e5ec', boxShadow: '6px 6px 12px #b8b9be, -6px -6px 12px #ffffff' }}
-                                    >
-                                        <Pencil className="w-4 h-4" /> Edit Template
-                                    </button>
+                                        {/* Description with Double Click Edit */}
+                                        {editingDescId === item._id ? (
+                                            <textarea
+                                                className="w-full text-sm text-gray-600 bg-transparent border-none focus:ring-2 focus:ring-blue-400 rounded-lg p-2 resize-none animate-in fade-in zoom-in-95 duration-200"
+                                                style={{ boxShadow: 'inset 2px 2px 5px #b8b9be, inset -2px -2px 5px #ffffff' }}
+                                                value={tempDesc}
+                                                onChange={(e) => setTempDesc(e.target.value)}
+                                                onBlur={() => saveDescription(item._id)}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveDescription(item._id); } }}
+                                                autoFocus
+                                                rows={3}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        ) : (
+                                            <p
+                                                className="text-gray-500 text-sm leading-relaxed line-clamp-3 cursor-pointer hover:text-gray-700 transition-colors select-none"
+                                                onDoubleClick={(e) => { e.stopPropagation(); startEditingDesc(item); }}
+                                                title="Double click to edit description"
+                                            >
+                                                {item.subTitleDescription || 'No description provided. Double click to add one.'}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>
