@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle } from 'lucide-react';
 import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
@@ -38,6 +37,7 @@ export default function EstimatesPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
+    const [showFinals, setShowFinals] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -96,9 +96,29 @@ export default function EstimatesPage() {
         setDraftIds(drafts);
     }, [estimates]);
 
-    // Filter and search
+    // Base filter: Finals (Latest Version) vs All
+    const visibleEstimates = useMemo(() => {
+        if (!showFinals) return estimates;
+
+        const latestVersions = new Map<string, Estimate>();
+        estimates.forEach(e => {
+            const key = e.estimate || e._id;
+            if (!latestVersions.has(key)) {
+                latestVersions.set(key, e);
+            } else {
+                const current = latestVersions.get(key)!;
+                if ((e.versionNumber || 0) > (current.versionNumber || 0)) {
+                    latestVersions.set(key, e);
+                }
+            }
+        });
+        const latestIds = new Set(Array.from(latestVersions.values()).map(e => e._id));
+        return estimates.filter(e => latestIds.has(e._id));
+    }, [estimates, showFinals]);
+
+    // Filter and search on top of visibleEstimates
     const filteredEstimates = useMemo(() => {
-        let filtered = [...estimates];
+        let filtered = [...visibleEstimates];
 
         // Apply date filter
         if (activeFilter === 'thisMonth') {
@@ -181,7 +201,7 @@ export default function EstimatesPage() {
         });
 
         return filtered;
-    }, [estimates, activeFilter, search, draftIds, sortConfig]);
+    }, [visibleEstimates, activeFilter, search, draftIds, sortConfig]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -201,11 +221,11 @@ export default function EstimatesPage() {
     const paginatedEstimates = filteredEstimates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const filterTabs = [
-        { id: 'all', label: 'All', count: estimates.length },
-        { id: 'thisMonth', label: 'This Month', count: estimates.filter((e) => isThisMonth(e.date || '')).length },
-        { id: 'lastMonth', label: 'Last Month', count: estimates.filter((e) => isLastMonth(e.date || '')).length },
-        { id: 'draft', label: 'Draft', count: estimates.filter((e) => e.status === 'draft').length },
-        { id: 'confirmed', label: 'Confirmed', count: estimates.filter((e) => e.status === 'confirmed').length }
+        { id: 'all', label: 'All', count: visibleEstimates.length },
+        { id: 'thisMonth', label: 'This Month', count: visibleEstimates.filter((e) => isThisMonth(e.date || '')).length },
+        { id: 'lastMonth', label: 'Last Month', count: visibleEstimates.filter((e) => isLastMonth(e.date || '')).length },
+        { id: 'draft', label: 'Draft', count: visibleEstimates.filter((e) => e.status === 'draft').length },
+        { id: 'confirmed', label: 'Confirmed', count: visibleEstimates.filter((e) => e.status === 'confirmed').length }
     ];
 
     const [isCreating, setIsCreating] = useState(false);
@@ -305,13 +325,23 @@ export default function EstimatesPage() {
             />
             <div className="p-4">
 
-                {/* Filter Tabs */}
-                <div className="flex justify-center mb-4">
+                {/* Filter Tabs & Toggle */}
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
                     <BadgeTabs
                         tabs={filterTabs}
                         activeTab={activeFilter}
                         onChange={(id) => { setActiveFilter(id); setCurrentPage(1); }}
                     />
+
+                    <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-full border border-gray-200 shadow-sm h-[42px]">
+                        <span className={`text-sm font-medium ${showFinals ? 'text-indigo-600' : 'text-gray-600'}`}>Finals</span>
+                        <button
+                            onClick={() => setShowFinals(!showFinals)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${showFinals ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                        >
+                            <span className={`${showFinals ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm`} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -374,11 +404,16 @@ export default function EstimatesPage() {
                                         ].filter(s => est[s.key as keyof Estimate]);
 
                                         return (
-                                            <TableRow key={est._id}>
+                                            <TableRow
+                                                key={est._id}
+                                                className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                                onClick={() => {
+                                                    const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+                                                    router.push(`/estimates/${slug}`);
+                                                }}
+                                            >
                                                 <TableCell className="font-medium text-indigo-600 text-xs">
-                                                    <Link href={`/estimates/${est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id}`} className="hover:underline">
-                                                        {est.estimate || '-'}
-                                                    </Link>
+                                                    {est.estimate || '-'}
                                                 </TableCell>
                                                 <TableCell className="text-xs">
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">

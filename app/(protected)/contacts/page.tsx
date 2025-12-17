@@ -357,7 +357,11 @@ export default function ContactsPage() {
                                 </TableRow>
                             ) : (
                                 paginatedContacts.map((contact) => (
-                                    <TableRow key={contact._id}>
+                                    <TableRow
+                                        key={contact._id}
+                                        className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                        onClick={() => openEditModal(contact)}
+                                    >
                                         <TableCell className="font-medium text-indigo-600">{contact.fullName}</TableCell>
                                         <TableCell>{contact.clientName || '-'}</TableCell>
                                         <TableCell>{contact.title || '-'}</TableCell>
@@ -370,7 +374,7 @@ export default function ContactsPage() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => openEditModal(contact)}
                                                     className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"

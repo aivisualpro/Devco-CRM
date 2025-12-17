@@ -33,7 +33,7 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Catalogue', href: '/catalogue', icon: <Package className="w-5 h-5" />, description: 'Manage resource and item library', colorClass: 'text-blue-500' },
             { label: 'Templates', href: '/templates', icon: <FileText className="w-5 h-5" />, description: 'Reusable proposal templates', colorClass: 'text-indigo-500' },
-            { label: 'Estimates', href: '/estimates', icon: <Calculator className="w-5 h-5" />, description: 'Create and manage cost estimates', colorClass: 'text-orange-500' },
+            { label: 'Estimates & Proposals', href: '/estimates', icon: <Calculator className="w-5 h-5" />, description: 'Create and manage cost estimates', colorClass: 'text-orange-500' },
             { label: 'Proposals', href: '/jobs/proposals', icon: <FileSpreadsheet className="w-5 h-5" />, description: 'Send professional proposals', colorClass: 'text-amber-500' },
             { label: 'Schedules', href: '/jobs/schedules', icon: <Calendar className="w-5 h-5" />, description: 'Project timelines and scheduling', colorClass: 'text-teal-500' },
             { label: 'Project Cost', href: '/jobs/project-cost', icon: <DollarSign className="w-5 h-5" />, description: 'Track actual vs estimated costs', colorClass: 'text-emerald-500' },

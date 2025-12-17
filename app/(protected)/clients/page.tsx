@@ -303,10 +303,13 @@ export default function ClientsPage() {
                                 </TableRow>
                             ) : (
                                 paginatedClients.map((client) => (
-                                    <TableRow key={client._id}>
+                                    <TableRow 
+                                        key={client._id}
+                                        className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                        onClick={() => router.push(`/clients/${client._id}`)}
+                                    >
                                         <TableCell
-                                            className="font-medium text-indigo-600 cursor-pointer hover:underline"
-                                            onClick={() => router.push(`/clients/${client._id}`)}
+                                            className="font-medium text-indigo-600"
                                         >
                                             {client.name}
                                         </TableCell>
@@ -324,7 +327,7 @@ export default function ClientsPage() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
+                                            <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                                 <button
                                                     onClick={() => openEditModal(client)}
                                                     className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"

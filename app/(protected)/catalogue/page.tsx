@@ -11,8 +11,8 @@ import { useAddShortcut } from '@/hooks/useAddShortcut';
 // Category configurations
 const categoryConfig: Record<string, { headers: string[]; fields: string[] }> = {
     equipment: {
-        headers: ['S.NO', 'Classification', 'Sub Classification', 'Equipment/Machine', 'UOM', 'Supplier', 'Daily Cost', 'Weekly Cost', 'Monthly Cost'],
-        fields: ['sno', 'classification', 'subClassification', 'equipmentMachine', 'uom', 'supplier', 'dailyCost', 'weeklyCost', 'monthlyCost']
+        headers: ['S.NO', 'Equipment/Machine', 'Classification', 'Sub Classification', 'Supplier', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Tax'],
+        fields: ['sno', 'equipmentMachine', 'classification', 'subClassification', 'supplier', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'tax']
     },
     labor: {
         headers: ['S.NO', 'Labor', 'Classification', 'Sub Classification', 'Fringe', 'Base Pay', 'W Comp %', 'Payroll Tax %'],

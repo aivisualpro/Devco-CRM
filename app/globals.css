@@ -357,3 +357,29 @@ thead.sticky {
   background: #FEE2E2;
   color: #DC2626;
 }
+
+/* Liquid Rise Animation for Markup Button */
+@keyframes liquidRise {
+  0% {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+
+  100% {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+}
+
+/* Gentle wave shimmer on liquid surface */
+@keyframes liquidShimmer {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 0.9;
+  }
+}

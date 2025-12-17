@@ -52,6 +52,8 @@ interface Estimate {
     hydroExcavation?: boolean;
     potholingCoring?: boolean;
     asphaltConcrete?: boolean;
+
+    services?: string[];
     labor?: LineItem[];
     equipment?: LineItem[];
     material?: LineItem[];
@@ -198,6 +200,9 @@ export default function EstimateViewPage() {
     const [subcontractorCatalog, setSubcontractorCatalog] = useState<LineItem[]>([]);
     const [miscellaneousCatalog, setMiscellaneousCatalog] = useState<LineItem[]>([]);
     const [fringeConstants, setFringeConstants] = useState<FringeConstant[]>([]);
+    const [statusOptions, setStatusOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [serviceOptions, setServiceOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [catalogsLoaded, setCatalogsLoaded] = useState(false);
     const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
 
@@ -338,7 +343,53 @@ export default function EstimateViewPage() {
                 setSubcontractorCatalog(subcontractor || []);
                 setDisposalCatalog(disposal || []);
                 setMiscellaneousCatalog(miscellaneous || []);
+                setMiscellaneousCatalog(miscellaneous || []);
                 setFringeConstants((constant || []) as unknown as FringeConstant[]);
+
+                console.log('Loaded Constants:', constant);
+
+                // Process Status Options
+                const statuses = (constant || [])
+                    .filter((c: any) => {
+                        const type = (c.type || c.category || '').toLowerCase();
+                        return type === 'estimate status' || type === 'status';
+                    })
+                    .map((c: any) => ({
+                        id: c._id,
+                        label: c.description || c.value,
+                        value: c.description || c.value,
+                        color: c.color
+                    }));
+                setStatusOptions(statuses);
+
+                // Process Service Options
+                const services = (constant || [])
+                    .filter((c: any) => {
+                        const type = (c.type || c.category || '').toLowerCase();
+                        return type === 'services' || type === 'service';
+                    })
+                    .map((c: any) => ({
+                        id: c._id,
+                        label: c.description || c.value,
+                        value: c.description || c.value,
+                        color: c.color
+                    }));
+                setServiceOptions(services);
+
+                // Process Fringe Options
+                const fringes = (constant || [])
+                    .filter((c: any) => {
+                        const type = (c.type || c.category || '').toLowerCase();
+                        return type === 'fringe';
+                    })
+                    .map((c: any) => ({
+                        id: c._id,
+                        label: c.description || c.value,
+                        value: (c.description || c.value || '').trim(), // Ensure trim
+                        color: c.color
+                    }));
+                console.log('Loaded Fringe Options:', fringes);
+                setFringeOptions(fringes);
             }
         } catch (err) {
             console.error('Error loading catalogs:', err);
@@ -577,6 +628,7 @@ export default function EstimateViewPage() {
     };
 
     const handleHeaderUpdate = async (field: string, value: string | number) => {
+        if (!formData) return;
         setFormData(prev => prev ? { ...prev, [field]: value } : null);
         setUnsavedChanges(true);
 
@@ -627,12 +679,23 @@ export default function EstimateViewPage() {
         setUnsavedChanges(true);
     };
 
-    const handleStatusToggle = () => {
+    const handleServicesChange = (newServices: string[]) => {
         if (!formData) return;
-        const newStatus = formData.status === 'confirmed' ? 'draft' : 'confirmed';
+        setFormData(prev => prev ? { ...prev, services: newServices } : null);
+        setUnsavedChanges(true);
+    };
+
+    const handleFringeChange = (newFringe: string) => {
+        if (!formData) return;
+        console.log('Fringe changed to:', newFringe);
+        setFormData(prev => prev ? { ...prev, fringe: newFringe } : null);
+        setUnsavedChanges(true);
+    };
+
+    const handleStatusChange = (newStatus: string) => {
+        if (!formData) return;
         setFormData(prev => prev ? { ...prev, status: newStatus } : null);
         setUnsavedChanges(true);
-        success(`Status set to ${newStatus}`);
     };
 
     const handleItemUpdate = (section: SectionConfig, item: LineItem, field: string, value: string | number) => {
@@ -710,6 +773,7 @@ export default function EstimateViewPage() {
             const payload = {
                 id: estimate._id,
                 ...formData,
+                fringe: formData.fringe,
                 bidMarkUp: String(formData.bidMarkUp).includes('%') ? formData.bidMarkUp : `${formData.bidMarkUp}%`,
                 subTotal: chartData.subTotal,
                 margin: chartData.grandTotal - chartData.subTotal,
@@ -967,9 +1031,20 @@ export default function EstimateViewPage() {
                         currentEstimateId={estimate?._id}
                         chartAnimate={chartAnimate}
                         onServiceToggle={handleServiceToggle}
-                        onStatusToggle={handleStatusToggle}
+                        onStatusChange={handleStatusChange}
+                        statusOptions={statusOptions}
+                        onServicesChange={handleServicesChange}
+                        serviceOptions={serviceOptions}
+                        fringeOptions={fringeOptions}
+                        onFringeChange={handleFringeChange}
                         onHeaderUpdate={handleHeaderUpdate}
-                        onVersionClick={handleVersionClick}
+                        onVersionClick={(id) => {
+                            const v = versionHistory.find(vh => vh._id === id);
+                            if (v) {
+                                const slug = v.estimate ? `${v.estimate}-V${v.versionNumber || 1}` : v._id;
+                                router.push(`/estimates/${slug}`);
+                            }
+                        }}
                     />
                 </div>
 

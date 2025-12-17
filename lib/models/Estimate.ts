@@ -65,12 +65,7 @@ const EstimateSchema = new Schema({
     hydroExcavation: { type: Boolean, default: false },
     potholingCoring: { type: Boolean, default: false },
     asphaltConcrete: { type: Boolean, default: false },
-    foundations: { type: Boolean, default: false },
-    trafficLoops: { type: Boolean, default: false },
-    splicing: { type: Boolean, default: false },
-    roadBoring: { type: Boolean, default: false },
-    streetLighting: { type: Boolean, default: false },
-    confirmed: { type: Boolean, default: false },
+    services: { type: [String], default: [] },
     // Totals
     subTotal: { type: Number, default: 0 },
     margin: { type: Number, default: 0 },

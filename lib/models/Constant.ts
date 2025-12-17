@@ -2,6 +2,7 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IConstant extends Document {
     category?: string;
+    type?: string;
     description?: string;
     value?: string;
     color?: string;
@@ -11,6 +12,7 @@ export interface IConstant extends Document {
 
 const ConstantSchema = new Schema<IConstant>({
     category: { type: String },
+    type: { type: String },
     description: { type: String },
     value: { type: String },
     color: { type: String },

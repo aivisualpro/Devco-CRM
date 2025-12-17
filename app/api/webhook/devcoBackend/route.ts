@@ -530,6 +530,9 @@ export async function POST(request: NextRequest) {
                 const { id: estId, ...updateData } = payload || {};
                 if (!estId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
+                // Debug: Log incoming fringe value
+                console.log('updateEstimate - fringe value:', updateData.fringe);
+
                 // Directly update the document including all embedded arrays
                 const updated = await Estimate.findByIdAndUpdate(
                     estId,
@@ -537,10 +540,10 @@ export async function POST(request: NextRequest) {
                     { new: true }
                 );
 
-                if (updated) {
-                    // Sync with AppSheet
-                    await updateAppSheet(updated.toObject() as unknown as Record<string, unknown>);
-                }
+                // AppSheet sync disabled temporarily
+                // if (updated) {
+                //     await updateAppSheet(updated.toObject() as unknown as Record<string, unknown>);
+                // }
                 return NextResponse.json({ success: true, result: updated });
             }
 

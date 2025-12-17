@@ -34,7 +34,7 @@ export function AddEquipmentCatalogueDialogue({
                     classification: '-',
                     subClassification: '-',
                     supplier: '-',
-                    deliveryPickup: 300
+                    tax: 8.75
                 });
             }
         }
@@ -66,7 +66,7 @@ export function AddEquipmentCatalogueDialogue({
         setIsSaving(true);
         // Convert number fields
         const processedData = { ...formData };
-        ['dailyCost', 'weeklyCost', 'monthlyCost', 'deliveryPickup'].forEach(field => {
+        ['dailyCost', 'weeklyCost', 'monthlyCost', 'tax'].forEach(field => {
             if (processedData[field]) {
                 processedData[field] = parseFloat(processedData[field]) || 0;
             }
@@ -85,7 +85,7 @@ export function AddEquipmentCatalogueDialogue({
             'field-dailyCost',
             'field-weeklyCost',
             'field-monthlyCost',
-            'field-deliveryPickup' // Last field
+            'field-tax' // Last field
         ];
 
         if (currentIndex === fieldIds.length - 1) {
@@ -223,13 +223,13 @@ export function AddEquipmentCatalogueDialogue({
                         </div>
 
                         <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Delivery & Pickup</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Tax %</label>
                             <input
-                                id="field-deliveryPickup"
+                                id="field-tax"
                                 type="number"
-                                value={formData.deliveryPickup !== undefined ? formData.deliveryPickup : 300}
-                                onChange={(e) => setFormData({ ...formData, deliveryPickup: e.target.value })}
-                                placeholder="Enter delivery & pickup cost"
+                                value={formData.tax || ''}
+                                onChange={(e) => setFormData({ ...formData, tax: e.target.value })}
+                                placeholder="0%"
                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
