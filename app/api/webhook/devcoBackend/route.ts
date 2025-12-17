@@ -964,18 +964,30 @@ export async function POST(request: NextRequest) {
 
             // ========== PROPOSALS ==========
             case 'previewProposal': {
-                const { templateId, estimateId, editMode = true } = payload || {};
+                const { templateId, estimateId, editMode = true, estimateData } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
 
-                const [template, estimate] = await Promise.all([
+                const [template, dbEstimate] = await Promise.all([
                     Template.findById(templateId).lean(),
                     Estimate.findById(estimateId).lean()
                 ]);
 
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
-                if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+                if (!dbEstimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // Use provided override data or DB data
+                // We merge override data ON TOP of DB data to ensure we have all fields but with latest updates
+                const estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
 
                 console.log('previewProposal estimate.customVariables:', (estimate as any).customVariables);
+
+                // Fetch Contact Details if contactId is present
+                if ((estimate as any).contactId) {
+                    const contact = await Contact.findById((estimate as any).contactId).lean();
+                    if (contact) {
+                        (estimate as any)._contact = contact;
+                    }
+                }
 
                 // Resolve with editMode flag
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1003,6 +1015,14 @@ export async function POST(request: NextRequest) {
                 // Prepare estimate object for resolver
                 const estimateObj = estimate.toObject() as any;
                 estimateObj.customVariables = customVariables;
+
+                // Fetch Contact Details if contactId is present
+                if (estimateObj.contactId) {
+                    const contact = await Contact.findById(estimateObj.contactId).lean();
+                    if (contact) {
+                        estimateObj._contact = contact;
+                    }
+                }
 
                 // Resolve template in view mode (false) - final output without inputs
                 const html = resolveTemplateDocument(template, estimateObj, false);

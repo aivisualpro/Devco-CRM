@@ -65,7 +65,19 @@ const prepareContext = (estimate: IEstimate) => {
         // Helpers for common fields if they are missing at top level
         customerName: e.customerName || e.customer || 'Valued Customer',
         projectTitle: e.projectTitle || e.projectName || 'Project Proposal',
-        projectName: e.projectName || e.projectTitle || ''
+        projectName: e.projectName || e.projectTitle || '',
+
+        // Customized Mappings per User Request
+        proposalNo: `${e.estimate || 'DRAFT'}-V${e.versionNumber || 1}`, // Proposal No (should bring estimate-V.versionNumber)
+        fullProposalId: `${e.estimate || 'DRAFT'}-V${e.versionNumber || 1}`, // Alias
+        jobAddress: e.jobAddress || '', // Job Address from Estimate jobAddress
+        clientName: e.contactName || e.customerName || '', // Client Name from contactName (fallback to customerName)
+        contactPerson: e.contactName || '', // Contact Person from contactName
+
+        // Contact Reference Mappings (fetched and attached in route.ts)
+        contactAddress: e._contact?.address || '',
+        contactPhone: e._contact?.phone || '',
+        contactEmail: e._contact?.email || ''
     };
 };
 

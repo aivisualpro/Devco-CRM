@@ -488,12 +488,40 @@ export default function EstimateViewPage() {
         });
     }, [chartData.grandTotal, estimate?._id]);
 
+    // Auto-refresh preview when data changes (debounce 1s)
+    useEffect(() => {
+        if (!previewHtml || isEditingTemplate || generatingProposal || !estimate) return;
+
+        const timer = setTimeout(() => {
+            handlePreview(false);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData, chartData]);
+
     // Handlers
-    const handlePreview = async (forceEditMode?: boolean) => {
-        if (!selectedTemplateId || !estimate) return;
+    const handlePreview = async (forceEditMode?: boolean, explicitTemplateId?: string) => {
+        const tid = explicitTemplateId || selectedTemplateId;
+        if (!tid || !estimate) return;
         setGeneratingProposal(true);
+
+        // Construct current estimate state (merging unsaved changes)
+        // We need to merge header form data + calculated totals + current line items
+        const currentEstimate = {
+            ...estimate,
+            ...formData, // Overwrite with header form data (Project Name, etc.)
+            ...chartData // Overwrite with calculated totals (Grand Total, etc.)
+        };
+
         const editMode = forceEditMode !== undefined ? forceEditMode : isEditingTemplate;
-        const result = await apiCall('previewProposal', { templateId: selectedTemplateId, estimateId: estimate._id, editMode });
+        const result = await apiCall('previewProposal', {
+            templateId: tid,
+            estimateId: estimate._id,
+            editMode,
+            estimateData: currentEstimate // Pass overrides
+        });
+
         if (result.success && result.result) {
             setPreviewHtml(result.result.html);
         } else {
@@ -502,13 +530,16 @@ export default function EstimateViewPage() {
         setGeneratingProposal(false);
     };
 
-    const handleGenerateProposal = async () => {
-        if (!selectedTemplateId || !estimate) return;
+    const handleGenerateProposal = async (explicitTemplateId?: string) => {
+        const tid = explicitTemplateId || selectedTemplateId;
+        if (!tid || !estimate) return;
         setGeneratingProposal(true);
 
         // Extract custom variable values from the DOM
         const customVariables: Record<string, string> = {};
-        if (proposalRef.current) {
+
+        // Only scrape if we are NOT switching templates (no explicit ID passed)
+        if (!explicitTemplateId && proposalRef.current) {
             // Get all custom text inputs
             proposalRef.current.querySelectorAll('.custom-var-text').forEach((input, idx) => {
                 customVariables[`customText_${idx}`] = (input as HTMLInputElement).value || '';
@@ -530,15 +561,15 @@ export default function EstimateViewPage() {
         }
 
         const result = await apiCall('generateProposal', {
-            templateId: selectedTemplateId,
+            templateId: tid,
             estimateId: estimate._id,
             customVariables
         });
         if (result.success && result.result) {
             setPreviewHtml(result.result.html);
             setIsEditingTemplate(false); // Exit edit mode after generating
-            success('Proposal generated and saved');
-            loadEstimate(); // Reload to get snapshot info
+            if (!explicitTemplateId) success('Proposal generated and saved');
+            loadEstimate(true); // Reload to get snapshot info
         } else {
             toastError('Failed to generate proposal');
         }
@@ -971,11 +1002,11 @@ export default function EstimateViewPage() {
 
                     {/* Proposal Content Section */}
                     {templates.length > 0 && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
-                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
+                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between sticky top-0 z-20 shadow-sm rounded-t-xl">
                                 <div className="flex items-center gap-2">
                                     <LayoutTemplate className="w-5 h-5 text-blue-600" />
-                                    <h3 className="font-semibold text-gray-800">Proposal Content</h3>
+                                    <h3 className="font-semibold text-gray-800">Proposal</h3>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <select
@@ -984,8 +1015,8 @@ export default function EstimateViewPage() {
                                             const newId = e.target.value;
                                             setSelectedTemplateId(newId);
                                             if (newId) {
-                                                // Auto-apply template when selected
-                                                setTimeout(() => handlePreview(false), 100);
+                                                // Auto-apply template when selected - Instant and explicitly passed
+                                                handleGenerateProposal(newId);
                                             } else {
                                                 setPreviewHtml('');
                                             }
@@ -1029,7 +1060,7 @@ export default function EstimateViewPage() {
                             </div>
 
                             {(previewHtml || (estimate?.proposal?.htmlContent)) ? (
-                                <div className="p-8 bg-gray-50 min-h-[400px] ql-snow">
+                                <div className="p-8 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
                                     <div
                                         ref={proposalRef}
                                         className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
@@ -1037,9 +1068,18 @@ export default function EstimateViewPage() {
                                     />
                                 </div>
                             ) : (
-                                <div className="p-12 text-center text-gray-400 bg-gray-50">
-                                    <FileText className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                                    <p>Select a template and click Preview to see the proposal document.</p>
+                                <div className="p-12 flex flex-col items-center justify-center text-center text-gray-400 bg-gray-50 min-h-[400px] rounded-b-xl">
+                                    <div className="relative mb-6 group">
+                                        <div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-20 duration-1000"></div>
+                                        <div className="relative bg-white p-4 rounded-full shadow-sm border border-gray-100">
+                                            <FileText className="w-12 h-12 text-blue-200 animate-pulse" />
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full border-2 border-white animate-bounce"></div>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-lg font-semibold text-gray-600 mb-2">Missing Proposal</h3>
+                                    <p className="text-sm max-w-sm mx-auto text-gray-500">
+                                        Select a template from the dropdown above to generate a professional proposal instantly.
+                                    </p>
                                 </div>
                             )}
                         </div>
@@ -1095,22 +1135,127 @@ export default function EstimateViewPage() {
                                     variant="secondary"
                                     size="sm"
                                     onClick={() => {
-                                        const printWindow = window.open('', '_blank');
-                                        if (printWindow) {
-                                            printWindow.document.write(`
+                                        // Use a hidden iframe to avoid opening a new tab (about:blank)
+                                        const iframe = document.createElement('iframe');
+                                        iframe.style.display = 'none';
+                                        iframe.style.position = 'fixed';
+                                        iframe.style.right = '0';
+                                        iframe.style.bottom = '0';
+                                        iframe.style.width = '0';
+                                        iframe.style.height = '0';
+                                        iframe.style.border = '0';
+                                        document.body.appendChild(iframe);
+
+                                        const content = (previewHtml || estimate?.proposal?.htmlContent || '')
+                                            .replace(/<div style="page-break-after: always;[^"]*"><\/div>/g, '<div class="page-break"></div>');
+
+                                        const doc = iframe.contentWindow?.document;
+                                        if (doc) {
+                                            doc.write(`
                                                 <html>
                                                 <head>
                                                     <title>Proposal - ${estimate?.proposalNo || 'Print'}</title>
+                                                    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css" rel="stylesheet" />
                                                     <style>
-                                                        body { font-family: 'Inter', sans-serif; padding: 40px; }
-                                                        @media print { body { padding: 0; } }
+                                                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+                                                        
+                                                        body { 
+                                                            font-family: 'Inter', sans-serif; 
+                                                            background: white;
+                                                            margin: 0;
+                                                            padding: 0;
+                                                        }
+                                                        
+                                                        .ql-container.ql-snow {
+                                                            border: none !important;
+                                                        }
+                                                        
+                                                        .ql-editor {
+                                                            padding: 0 !important;
+                                                            height: auto !important;
+                                                            overflow: visible !important;
+                                                        }
+
+                                                        /* Explicit Page Break */
+                                                        .page-break {
+                                                            page-break-after: always;
+                                                            break-after: page;
+                                                            height: 0;
+                                                            display: block;
+                                                            clear: both;
+                                                            margin: 0;
+                                                            border: none;
+                                                        }
+
+                                                        /* Ensure tables have borders */
+                                                        .ql-editor table td, .ql-editor table th {
+                                                            border: 1px solid #000 !important;
+                                                        }
+                                                        
+                                                        /* Table Sizing */
+                                                        .ql-editor table {
+                                                            width: 100% !important; /* Force full width */
+                                                            margin-bottom: 2px;
+                                                        }
+
+                                                        /* Print Settings */
+                                                        @media print {
+                                                            @page { 
+                                                                margin: 0;
+                                                                size: letter;
+                                                            }
+                                                            
+                                                            html, body { 
+                                                                margin: 0; 
+                                                                padding: 0;
+                                                                width: 100%;
+                                                                -webkit-print-color-adjust: exact;
+                                                                /* Scale down content to ensure it fits on the page */
+                                                                zoom: 0.85; 
+                                                            }
+                                                            
+                                                            .ql-editor {
+                                                                /* Minimized padding to maximize vertical space */
+                                                                padding: 30px !important; 
+                                                                width: 100% !important;
+                                                                margin: 0 !important;
+                                                            }
+                                                            
+                                                            /* Ensure page breaks work flawlessly */
+                                                            .page-break {
+                                                                break-after: page;
+                                                                page-break-after: always;
+                                                                height: 0;
+                                                                display: block;
+                                                                visibility: hidden;
+                                                            }
+                                                        }
                                                     </style>
                                                 </head>
-                                                <body>${previewHtml || estimate?.proposal?.htmlContent || ''}</body>
+                                                <body>
+                                                    <div class="ql-container ql-snow">
+                                                        <div class="ql-editor">
+                                                            ${content}
+                                                        </div>
+                                                    </div>
+                                                </body>
                                                 </html>
                                             `);
-                                            printWindow.document.close();
-                                            printWindow.print();
+                                            doc.close();
+
+                                            // Wait for resources (CSS/Font) to load then print
+                                            // The iframe needs to be loaded, but checking readystate is tricky with cross-origin cdn?
+                                            // A simple timeout is robust enough for this context.
+                                            setTimeout(() => {
+                                                iframe.contentWindow?.focus();
+                                                iframe.contentWindow?.print();
+                                                // Cleanup after print dialog allows execution to continue
+                                                // Note: 'print()' blocks in some browsers, but not all. 
+                                                // We clean up after a delay to ensure it launched.
+                                                setTimeout(() => {
+                                                    document.body.removeChild(iframe);
+                                                }, 1000);
+                                            }, 800);
                                         }
                                     }}
                                 >
@@ -1131,12 +1276,15 @@ export default function EstimateViewPage() {
                                 </button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-auto p-6 bg-gray-100">
-                            <div
-                                className="bg-white shadow-lg mx-auto max-w-4xl p-12 min-h-[800px]"
-                                style={{ fontFamily: 'Inter, sans-serif' }}
-                                dangerouslySetInnerHTML={{ __html: previewHtml || estimate?.proposal?.htmlContent || '' }}
-                            />
+                        <div className="flex-1 overflow-auto p-8 bg-gray-100 flex flex-col gap-8 items-center cursor-default">
+                            {(previewHtml || estimate?.proposal?.htmlContent || '').split('<div style="page-break-after: always; height: 1px; width: 100%; clear: both;"></div>').map((pageHtml, idx) => (
+                                <div
+                                    key={idx}
+                                    className="bg-white shadow-2xl mx-auto w-[850px] min-h-[1100px] p-12 proposal-content ql-editor"
+                                    style={{ fontFamily: 'Inter, sans-serif' }}
+                                    dangerouslySetInnerHTML={{ __html: pageHtml }}
+                                />
+                            ))}
                         </div>
                     </div>
                 </div>
