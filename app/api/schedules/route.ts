@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
             case 'createSchedule': {
                 const doc = await Schedule.create({
                     ...payload,
-                    _id: payload.recordId, // Using recordId as _id
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
@@ -51,36 +50,86 @@ export async function POST(request: NextRequest) {
                 const { schedules } = payload || {};
                 if (!Array.isArray(schedules)) return NextResponse.json({ success: false, error: 'Invalid array' });
 
-                const ops = schedules.map((item: any) => ({
-                    updateOne: {
-                        filter: { _id: item.recordId },
-                        update: {
-                            $set: { ...item, _id: item.recordId },
-                            $setOnInsert: { createdAt: new Date() }
-                        },
-                        upsert: true
-                    }
-                }));
+                const ops = schedules.map((item: any) => {
+                    // Extract recordId to use as _id, delete from item payload so it doesn't fail schema validation
+                    const { recordId, ...rest } = item;
+                    const idToUse = recordId || item._id;
+
+                    return {
+                        updateOne: {
+                            filter: { _id: idToUse },
+                            update: {
+                                $set: { ...rest, _id: idToUse },
+                                $setOnInsert: { createdAt: new Date() }
+                            },
+                            upsert: true
+                        }
+                    };
+                });
 
                 const result = await Schedule.bulkWrite(ops);
                 return NextResponse.json({ success: true, result });
             }
 
+            case 'getSchedulesPage': {
+                // Combined fetch for schedules + initial data (reduces API calls)
+                const [schedules, clients, employees, constants, estimates] = await Promise.all([
+                    Schedule.find().sort({ fromDate: 1 }).lean(),
+                    Client.find().select('name _id').sort({ name: 1 }).lean(),
+                    Employee.find().select('firstName lastName email profilePicture').lean(),
+                    Constant.find().lean(),
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId').lean()
+                ]);
+
+                // Process estimates to keep unique estimate numbers
+                const uniqueEstimates = new Map();
+                estimates
+                    .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                    .forEach((e: any) => {
+                        if (e.estimate && !uniqueEstimates.has(e.estimate)) {
+                            uniqueEstimates.set(e.estimate, { value: e.estimate, label: e.estimate, customerId: e.customerId });
+                        }
+                    });
+
+                return NextResponse.json({
+                    success: true,
+                    result: {
+                        schedules,
+                        initialData: {
+                            clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
+                            employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { value: e.email, label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, image: e.profilePicture }])).values()),
+                            constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
+                            estimates: Array.from(uniqueEstimates.values())
+                        }
+                    }
+                });
+            }
+
             case 'getInitialData': {
                 const [clients, employees, constants, estimates] = await Promise.all([
-                    Client.find().select('name _id').lean(),
-                    Employee.find().select('firstName lastName email').lean(),
+                    Client.find().select('name _id').sort({ name: 1 }).lean(),
+                    Employee.find().select('firstName lastName email profilePicture').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id').lean()
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId').lean()
                 ]);
+
+                // Process estimates to keep unique estimate numbers but preserve customerId (from latest version)
+                const uniqueEstimates = new Map();
+                estimates
+                    .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                    .forEach((e: any) => {
+                        if (e.estimate && !uniqueEstimates.has(e.estimate)) {
+                            uniqueEstimates.set(e.estimate, { value: e.estimate, label: e.estimate, customerId: e.customerId });
+                        }
+                    });
 
                 return NextResponse.json({
                     success: true,
                     result: {
                         clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
-                        employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { value: e.email, label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email }])).values()),
+                        employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { value: e.email, label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, image: e.profilePicture }])).values()),
                         constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
-                        estimates: Array.from(new Set(estimates.map(e => e.estimate).filter(Boolean))).sort().map(est => ({ value: est, label: est }))
+                        estimates: Array.from(uniqueEstimates.values())
                     }
                 });
             }

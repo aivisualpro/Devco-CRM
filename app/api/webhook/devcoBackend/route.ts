@@ -935,7 +935,15 @@ export async function POST(request: NextRequest) {
             }
 
             case 'addConstant': {
-                const newConst = await Constant.create(payload?.item || {});
+                const item = payload?.item || {};
+
+                // Handle Image Upload
+                if (item.image && item.image.startsWith('data:image')) {
+                    const uploaded = await uploadImage(item.image, `constant_${Date.now()}`);
+                    if (uploaded) item.image = uploaded;
+                }
+
+                const newConst = await Constant.create(item);
                 return NextResponse.json({ success: true, result: newConst });
             }
 
@@ -943,7 +951,15 @@ export async function POST(request: NextRequest) {
                 const { id: constId, item: constItem } = payload || {};
                 if (!constId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const updated = await Constant.findByIdAndUpdate(constId, { ...constItem, updatedAt: new Date() }, { new: true });
+                let updateData = { ...constItem };
+
+                // Handle Image Upload
+                if (updateData.image && updateData.image.startsWith('data:image')) {
+                    const uploaded = await uploadImage(updateData.image, `constant_${constId}_${Date.now()}`);
+                    if (uploaded) updateData.image = uploaded;
+                }
+
+                const updated = await Constant.findByIdAndUpdate(constId, { ...updateData, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
             }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Upload, X } from 'lucide-react';
 import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SearchableSelect, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -11,6 +11,7 @@ interface ConstantItem {
     description?: string;
     value?: string;
     color?: string;
+    image?: string;
 }
 
 
@@ -201,6 +202,7 @@ export default function ConstantsPage() {
                         <Table>
                             <TableHead>
                                 <TableRow>
+                                    <TableHeader>Image</TableHeader>
                                     <TableHeader>Description</TableHeader>
                                     <TableHeader>Type</TableHeader>
                                     <TableHeader>Value</TableHeader>
@@ -211,7 +213,7 @@ export default function ConstantsPage() {
                             <TableBody>
                                 {paginatedConstants.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={5}>
+                                        <TableCell className="text-center py-8 text-gray-500" colSpan={6}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No constants found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Add system constants to get started.</p>
@@ -221,6 +223,15 @@ export default function ConstantsPage() {
                                 ) : (
                                     paginatedConstants.map((item) => (
                                         <TableRow key={item._id}>
+                                            <TableCell>
+                                                {item.image ? (
+                                                    <img src={item.image} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                                                ) : (
+                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
+                                                        {item.description?.slice(0, 2).toUpperCase() || '??'}
+                                                    </div>
+                                                )}
+                                            </TableCell>
                                             <TableCell>{item.description || '-'}</TableCell>
                                             <TableCell>
                                                 <Badge variant="info">{item.type || '-'}</Badge>
@@ -263,49 +274,113 @@ export default function ConstantsPage() {
                     </>
                 }>
                     <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                            <input
-                                type="text"
-                                value={String(formData.description || '')}
-                                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                            <SearchableSelect
-                                value={String(formData.type || '')}
-                                onChange={(val) => setFormData({ ...formData, type: val })}
-                                options={typeOptions}
-                                placeholder="Select or type type..."
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
-                            <input
-                                type="text"
-                                value={String(formData.value || '')}
-                                onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Color (Optional)</label>
-                            <div className="flex items-center gap-3">
+                        {/* Row 1: Description and Type */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                                 <input
-                                    type="color"
-                                    value={String(formData.color || '#000000')}
-                                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                    className="w-12 h-10 rounded-lg border border-gray-200 cursor-pointer p-0.5"
-                                />
-                                <input
+                                    id="constDesc"
+                                    autoFocus
                                     type="text"
-                                    value={String(formData.color || '')}
-                                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                    placeholder="#000000"
-                                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 font-mono"
+                                    value={String(formData.description || '')}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('constType')?.focus(); } }}
+                                    className="w-full h-[46px] bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all"
                                 />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                                <SearchableSelect
+                                    id="constType"
+                                    value={String(formData.type || '')}
+                                    onChange={(val) => setFormData({ ...formData, type: val })}
+                                    onAddNew={(val) => setFormData({ ...formData, type: val })}
+                                    onNext={() => document.getElementById('constValue')?.focus()}
+                                    options={typeOptions}
+                                    placeholder="Select or type type..."
+                                />
+                            </div>
+                        </div>
+
+                        {/* Row 2: Value and Color */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Value</label>
+                                <input
+                                    id="constValue"
+                                    type="text"
+                                    value={String(formData.value || '')}
+                                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('constColor')?.focus(); } }}
+                                    className="w-full h-[46px] bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Color (Optional)</label>
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="color"
+                                        value={String(formData.color || '#000000')}
+                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                        className="w-14 h-[46px] rounded-xl border border-slate-200 cursor-pointer p-0.5"
+                                    />
+                                    <input
+                                        id="constColor"
+                                        type="text"
+                                        value={String(formData.color || '')}
+                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                                        placeholder="#000000"
+                                        className="flex-1 h-[46px] bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all font-mono"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Row 3: Image */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Image</label>
+                            <div className="flex items-center gap-4">
+                                {formData.image ? (
+                                    <div className="relative w-16 h-16 group">
+                                        <img src={formData.image as string} alt="Preview" className="w-full h-full object-cover rounded-lg border border-gray-200" />
+                                        <button
+                                            onClick={() => setFormData({ ...formData, image: '' })}
+                                            className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="w-16 h-16 rounded-lg bg-gray-50 border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400">
+                                        <Upload className="w-6 h-6" />
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        id="icon-upload"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setFormData({ ...formData, image: reader.result });
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                    <label
+                                        htmlFor="icon-upload"
+                                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 cursor-pointer"
+                                    >
+                                        <Upload className="w-4 h-4 mr-2" />
+                                        Upload Image
+                                    </label>
+                                    <p className="mt-1 text-xs text-gray-500">PNG, JPG, GIF up to 2MB</p>
+                                </div>
                             </div>
                         </div>
                     </div>

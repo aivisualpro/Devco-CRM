@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: "DevCo | Estimates Management",
   description: "DevCo Proposals and Estimates Management System",
   icons: {
-    icon: "/devco-logo-v3.png",
+    icon: "/api/favicon",
   },
 };
 

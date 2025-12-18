@@ -47,7 +47,10 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
     }, []);
 
     const handleChange = async (newVal: string) => {
-        if (!newVal) return;
+        if (!newVal) {
+            onChange('', '');
+            return;
+        }
 
         // Check if existing
         const exists = clientObjs.find(c => c.name.toLowerCase() === newVal.toLowerCase());

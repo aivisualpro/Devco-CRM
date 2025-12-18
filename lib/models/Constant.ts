@@ -6,6 +6,7 @@ export interface IConstant extends Document {
     description?: string;
     value?: string;
     color?: string;
+    image?: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -16,6 +17,7 @@ const ConstantSchema = new Schema<IConstant>({
     description: { type: String },
     value: { type: String },
     color: { type: String },
+    image: { type: String },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }
 }, { timestamps: true, collection: 'constantItems' });

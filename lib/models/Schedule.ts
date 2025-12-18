@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface ISchedule extends Document {
-    recordId: string;
+    // field removed
     title: string;
     fromDate: Date;
     toDate: Date;
@@ -18,15 +18,14 @@ export interface ISchedule extends Document {
     item: string;
     fringe: string;
     certifiedPayroll: string;
-    notifyAssignees: string[];
-    perDiem: boolean;
+    notifyAssignees: string;
+    perDiem: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
 
 const ScheduleSchema = new Schema({
-    _id: { type: String, required: true },
-    recordId: { type: String, required: true },
+    _id: { type: String },
     title: { type: String },
     fromDate: { type: Date },
     toDate: { type: Date },
@@ -43,10 +42,9 @@ const ScheduleSchema = new Schema({
     item: { type: String },
     fringe: { type: String },
     certifiedPayroll: { type: String },
-    notifyAssignees: { type: [String], default: [] },
-    perDiem: { type: Boolean, default: false }
+    notifyAssignees: { type: String, default: 'No' },
+    perDiem: { type: String, default: 'No' }
 }, {
-    _id: false,
     timestamps: true,
     collection: 'devcoschedules'
 });
