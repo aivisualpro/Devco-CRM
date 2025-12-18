@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "cloudinary": "^2.8.0",
     "dotenv": "^17.2.3",
     "handlebars": "^4.7.8",
     "lodash": "^4.17.21",

@@ -1,36 +1,31 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SearchableSelect, Modal, Button, Input } from '@/components/ui';
+import { SearchableSelect, Modal, Input, Button } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
-interface ContactSelectorProps {
-    value?: string;
-    customerId?: string;
-    onChange: (val: string, id?: string, address?: string) => void;
-}
-
-interface ContactObj {
-    _id: string;
-    fullName: string;
-    isKeyContact: boolean;
+interface ClientContact {
+    _id?: string;
+    name: string;
     email?: string;
     phone?: string;
-    address?: string; // Added field
+}
+
+interface ContactSelectorProps {
+    value?: string; // contactName
+    customerId?: string;
+    onChange: (name: string, id?: string, email?: string, phone?: string) => void;
 }
 
 export function ContactSelector({ value, customerId, onChange }: ContactSelectorProps) {
-    const [contacts, setContacts] = useState<ContactObj[]>([]);
+    const [contacts, setContacts] = useState<ClientContact[]>([]);
     const [options, setOptions] = useState<string[]>([]);
-    const { success, error } = useToast();
+    const { success, error: toastError } = useToast();
     const [loading, setLoading] = useState(false);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-    // New Contact Form State
-    const [newContactName, setNewContactName] = useState('');
-    const [newContactEmail, setNewContactEmail] = useState('');
-    const [newContactPhone, setNewContactPhone] = useState('');
-    const [newContactAddress, setNewContactAddress] = useState('');
+    // New Contact Modal State
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '' });
 
     useEffect(() => {
         if (!customerId) {
@@ -39,105 +34,86 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
             return;
         }
 
-        const fetchContacts = async () => {
+        const fetchClientContacts = async () => {
             setLoading(true);
             try {
                 const res = await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getContacts' })
+                    body: JSON.stringify({ action: 'getClientById', payload: { id: customerId } })
                 });
                 const data = await res.json();
-                if (data.success) {
-                    // Filter by customerId
-                    const relevantContacts = data.result.filter((c: any) => c.clientId === customerId);
-                    const mapped = relevantContacts.map((c: any) => ({
-                        _id: c._id || c.recordId,
-                        fullName: c.fullName,
-                        isKeyContact: !!c.isKeyContact,
-                        email: c.email,
-                        phone: c.phone,
-                        address: c.address // Map address
-                    }));
-                    setContacts(mapped);
-                    setOptions(mapped.map((c: ContactObj) => c.fullName).sort());
+                if (data.success && data.result) {
+                    const clientContacts = data.result.contacts || [];
+
+                    // Also include primary contact if available
+                    if (data.result.contactFullName) {
+                        const primaryExists = clientContacts.find((c: any) => c.name === data.result.contactFullName);
+                        if (!primaryExists) {
+                            clientContacts.unshift({
+                                name: data.result.contactFullName,
+                                email: data.result.email,
+                                phone: data.result.phone
+                            });
+                        }
+                    }
+
+                    setContacts(clientContacts);
+                    setOptions(clientContacts.map((c: ClientContact) => c.name));
                 }
             } catch (err) {
-                console.error('Failed to fetch contacts', err);
+                console.error('Failed to fetch client contacts', err);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchContacts();
+        fetchClientContacts();
     }, [customerId]);
 
     const handleChange = (newVal: string) => {
-        const contact = contacts.find(c => c.fullName.toLowerCase() === newVal.toLowerCase());
-        if (contact) {
-            onChange(contact.fullName, contact._id, contact.address);
-        } else {
-            // If strictly selecting from list, we might want to prevent custom text or treat as new
-            // For now, treat as just text if not found, or trigger add
-            onChange(newVal);
-        }
-    };
-
-    const handleAddNew = (val: string) => {
-        setNewContactName(val);
-        setIsAddModalOpen(true);
-    };
-
-    const submitNewContact = async () => {
-        if (!customerId) {
-            error('No customer selected');
+        if (!newVal) {
+            onChange('', '');
             return;
         }
+
+        const exists = contacts.find((c: ClientContact) => c.name.toLowerCase() === newVal.toLowerCase());
+        if (exists) {
+            onChange(exists.name, exists._id || exists.name, exists.email, exists.phone);
+        } else {
+
+            setNewContact({ name: newVal, email: '', phone: '' });
+            setIsModalOpen(true);
+        }
+    };
+
+    const handleSaveNewContact = async () => {
+        if (!customerId || !newContact.name) return;
+
         try {
+            const updatedContacts = [...contacts, newContact];
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    action: 'addContact',
-                    payload: {
-                        item: {
-                            fullName: newContactName,
-                            email: newContactEmail,
-                            phone: newContactPhone,
-                            address: newContactAddress,
-                            clientId: customerId,
-                            status: 'Active'
-                        }
-                    }
+                    action: 'updateClient',
+                    payload: { id: customerId, item: { contacts: updatedContacts } }
                 })
             });
             const data = await res.json();
             if (data.success) {
-                success('Contact added');
-                const newContact = data.result;
-                const newObj: ContactObj = {
-                    _id: newContact._id,
-                    fullName: newContact.fullName,
-                    isKeyContact: false, // Default false for manually added via this flow? or logic handles it
-                    email: newContact.email,
-                    phone: newContact.phone,
-                    address: newContact.address
-                };
-                setContacts(prev => [...prev, newObj]);
-                setOptions(prev => [...prev, newObj.fullName].sort());
-                onChange(newObj.fullName, newObj._id, newObj.address);
-                setIsAddModalOpen(false);
-                // Reset form
-                setNewContactName('');
-                setNewContactEmail('');
-                setNewContactPhone('');
-                setNewContactAddress('');
+                success('New contact added to client');
+                setContacts(updatedContacts);
+                setOptions(updatedContacts.map(c => c.name));
+                onChange(newContact.name, newContact.name, newContact.email, newContact.phone);
+                setIsModalOpen(false);
+
             } else {
-                error('Failed to add contact');
+                toastError('Failed to add contact');
             }
         } catch (e) {
             console.error(e);
-            error('Error adding contact');
+            toastError('Error updating client contacts');
         }
     };
 
@@ -148,48 +124,38 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
             <SearchableSelect
                 value={value || ''}
                 onChange={handleChange}
-                onAddNew={handleAddNew}
                 options={options}
-                placeholder={customerId ? "Select contact..." : "Select customer first"}
+                placeholder="Select or add contact..."
                 className="w-full"
-                autoFocus={true}
+                autoFocus={false}
             />
 
             <Modal
-                isOpen={isAddModalOpen}
-                onClose={() => setIsAddModalOpen(false)}
-                title="Add New Contact"
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title="Add New Contact to Client"
                 footer={
                     <>
-                        <Button variant="ghost" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
-                        <Button onClick={submitNewContact} disabled={!newContactName}>Save Contact</Button>
+                        <Button variant="ghost" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveNewContact}>Save Contact</Button>
                     </>
                 }
             >
                 <div className="flex flex-col gap-4">
                     <Input
                         label="Full Name"
-                        value={newContactName}
-                        onChange={e => setNewContactName(e.target.value)}
-                        placeholder="John Doe"
+                        value={newContact.name}
+                        onChange={e => setNewContact({ ...newContact, name: e.target.value })}
                     />
                     <Input
                         label="Email"
-                        value={newContactEmail}
-                        onChange={e => setNewContactEmail(e.target.value)}
-                        placeholder="john@example.com"
+                        value={newContact.email}
+                        onChange={e => setNewContact({ ...newContact, email: e.target.value })}
                     />
                     <Input
                         label="Phone"
-                        value={newContactPhone}
-                        onChange={e => setNewContactPhone(e.target.value)}
-                        placeholder="(555) 123-4567"
-                    />
-                    <Input
-                        label="Address"
-                        value={newContactAddress}
-                        onChange={e => setNewContactAddress(e.target.value)}
-                        placeholder="123 Main St"
+                        value={newContact.phone}
+                        onChange={e => setNewContact({ ...newContact, phone: e.target.value })}
                     />
                 </div>
             </Modal>

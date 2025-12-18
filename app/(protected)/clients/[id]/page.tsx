@@ -2,12 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil } from 'lucide-react';
+import { Save, RefreshCw, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin } from 'lucide-react';
+
 import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { ClientHeaderCard, AccordionCard, DetailRow } from './components';
 
 // Types (Mirrors Client Interface)
+interface ClientContact {
+    name: string;
+    email?: string;
+    phone?: string;
+}
+
 interface Client {
     _id: string; // recordId
     name: string;
@@ -20,30 +27,13 @@ interface Client {
     accountingEmail?: string;
     agreementFile?: string;
     status?: string;
+    contacts?: ClientContact[];
+    addresses?: string[];
     [key: string]: any;
 }
 
-interface Contact {
-    _id: string;
-    fullName: string;
-    clientName?: string;
-    clientId?: string;
-    title?: string;
-    email?: string;
-    phone?: string;
-    address?: string; // Added field
-    status?: string;
-    isKeyContact?: boolean;
-}
 
-const defaultContact: Partial<Contact> = {
-    fullName: '',
-    title: '',
-    email: '',
-    phone: '',
-    status: 'Active',
-    isKeyContact: false
-};
+
 
 export default function ClientViewPage() {
     const router = useRouter();
@@ -55,19 +45,22 @@ export default function ClientViewPage() {
     const [loading, setLoading] = useState(true);
     const [animate, setAnimate] = useState(false);
 
-    // Contacts State
-    const [contacts, setContacts] = useState<Contact[]>([]);
-    const [isContactModalOpen, setIsContactModalOpen] = useState(false);
-    const [currentContact, setCurrentContact] = useState<Partial<Contact>>(defaultContact);
-    const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
-    const [isDeleteContactModalOpen, setIsDeleteContactModalOpen] = useState(false);
+
 
     // Accordion State
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
         'company': true,
         'contacts': true,
+        'addresses': true,
         'documents': false
     });
+
+    const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
+    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '' });
+
+    const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
+    const [newAddress, setNewAddress] = useState('');
+
 
     const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -84,10 +77,8 @@ export default function ClientViewPage() {
     const loadClient = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const [clientRes, contactRes] = await Promise.all([
-                apiCall('getClientById', { id }),
-                apiCall('getContacts') // Ideally filter by ID backend-side, but client-side for now
-            ]);
+            const clientRes = await apiCall('getClientById', { id });
+
 
             if (clientRes.success && clientRes.result) {
                 setClient(clientRes.result);
@@ -98,12 +89,7 @@ export default function ClientViewPage() {
                 router.push('/clients');
             }
 
-            if (contactRes.success && contactRes.result && Array.isArray(contactRes.result)) {
-                // Filter contacts for this client
-                // ID matching handles both string and potentially mismatched types safely
-                const related = contactRes.result.filter((c: Contact) => c.clientId === id || c.clientName === clientRes.result?.name);
-                setContacts(related);
-            }
+
 
         } catch (err) {
             console.error('Error loading client:', err);
@@ -112,54 +98,7 @@ export default function ClientViewPage() {
         if (!silent) setLoading(false);
     };
 
-    // Contact CRUD
-    const openAddContactModal = () => {
-        setCurrentContact({
-            ...defaultContact,
-            clientName: client?.name,
-            clientId: client?._id
-        });
-        setIsContactModalOpen(true);
-    };
 
-    const openEditContactModal = (contact: Contact) => {
-        setCurrentContact({ ...contact });
-        setIsContactModalOpen(true);
-    };
-
-    const handleSaveContact = async () => {
-        if (!currentContact.fullName) return toastError('Name is required');
-
-        try {
-            const isEdit = !!currentContact._id;
-            const action = isEdit ? 'updateContact' : 'addContact';
-            const payload = isEdit ? { id: currentContact._id, item: currentContact } : { item: currentContact };
-
-            const res = await apiCall(action, payload);
-
-            if (res.success) {
-                success('Contact saved');
-                setIsContactModalOpen(false);
-                loadClient(true); // Reload to refresh list
-            } else {
-                toastError('Failed to save contact');
-            }
-        } catch (err) { toastError('Error saving contact'); }
-    };
-
-    const handleDeleteContact = async () => {
-        if (!contactToDelete) return;
-        try {
-            const res = await apiCall('deleteContact', { id: contactToDelete._id });
-            if (res.success) {
-                success('Contact deleted');
-                setIsDeleteContactModalOpen(false);
-                loadClient(true);
-            } else {
-                toastError('Failed to delete contact');
-            }
-        } catch (err) { toastError('Error deleting contact'); }
-    };
 
     useEffect(() => {
         if (id) {
@@ -170,6 +109,70 @@ export default function ClientViewPage() {
     const handleToggle = (section: string) => {
         setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
+
+    const handleAddContact = async () => {
+        if (!client || !newContact.name) return;
+        const updatedContacts = [...(client.contacts || []), newContact];
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
+            if (res.success) {
+                setClient(res.result);
+                setIsAddContactModalOpen(false);
+                setNewContact({ name: '', email: '', phone: '' });
+                success('Contact added');
+            } else {
+                toastError(res.error || 'Failed to add contact');
+            }
+        } catch (err) { toastError('Error adding contact'); }
+    };
+
+
+    const handleRemoveContact = async (index: number) => {
+        if (!client || !client.contacts) return;
+        const updatedContacts = client.contacts.filter((_, i) => i !== index);
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
+            if (res.success) {
+                setClient(res.result);
+                success('Contact removed');
+            } else {
+                toastError(res.error || 'Failed to remove contact');
+            }
+        } catch (err) { toastError('Error removing contact'); }
+    };
+
+
+    const handleAddAddress = async () => {
+        if (!client || !newAddress) return;
+        const updatedAddresses = [...(client.addresses || []), newAddress];
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { addresses: updatedAddresses } });
+            if (res.success) {
+                setClient(res.result);
+                setIsAddAddressModalOpen(false);
+                setNewAddress('');
+                success('Address added');
+            } else {
+                toastError(res.error || 'Failed to add address');
+            }
+        } catch (err) { toastError('Error adding address'); }
+    };
+
+
+    const handleRemoveAddress = async (index: number) => {
+        if (!client || !client.addresses) return;
+        const updatedAddresses = client.addresses.filter((_, i) => i !== index);
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { addresses: updatedAddresses } });
+            if (res.success) {
+                setClient(res.result);
+                success('Address removed');
+            } else {
+                toastError(res.error || 'Failed to remove address');
+            }
+        } catch (err) { toastError('Error removing address'); }
+    };
+
 
     const handleDelete = async () => {
         if (!client) return;
@@ -185,6 +188,7 @@ export default function ClientViewPage() {
             toastError('Error deleting client');
         }
     };
+
 
     if (loading) {
         return (
@@ -242,13 +246,14 @@ export default function ClientViewPage() {
                     {/* Hero Header Card */}
                     <ClientHeaderCard
                         client={client}
-                        activeContact={contacts.find(c => c.isKeyContact)}
                         onUpdate={() => { }}
                         animate={animate}
                     />
 
+
                     {/* Accordions Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+
 
                         {/* Company Info */}
                         <AccordionCard
@@ -258,74 +263,81 @@ export default function ClientViewPage() {
                             onToggle={() => handleToggle('company')}
                         >
                             <DetailRow label="Company Name" value={client.name} />
-                            <DetailRow label="Address" value={client.businessAddress} />
+                            <DetailRow label="Primary Address" value={client.businessAddress} />
                             <DetailRow label="Proposal Writer" value={client.proposalWriter} />
                             <DetailRow label="Status" value={client.status} />
                         </AccordionCard>
 
-                        {/* Related Contacts */}
-                        <div className="col-span-1">
-                            <AccordionCard
-                                title="Related Contacts"
-                                icon={User}
-                                isOpen={openSections['contacts']}
-                                onToggle={() => handleToggle('contacts')}
-                                rightElement={
-                                    <Button size="sm" onClick={(e) => { e.stopPropagation(); openAddContactModal(); }} className="gap-2 h-8">
-                                        <Plus className="w-4 h-4" /> Add Contact
-                                    </Button>
-                                }
-                            >
-                                {contacts.length === 0 ? (
-                                    <div className="text-center py-6 text-gray-500 text-sm">
-                                        No contacts found for this client.
-                                    </div>
+                        {/* Contacts Card */}
+                        <AccordionCard
+                            title="Contacts"
+                            icon={User}
+                            isOpen={openSections['contacts']}
+                            onToggle={() => handleToggle('contacts')}
+                            rightElement={
+                                <Button size="sm" onClick={(e) => { e.stopPropagation(); setIsAddContactModalOpen(true); }} className="h-8 w-8 !p-0 rounded-full">
+                                    <Plus className="w-4 h-4" />
+                                </Button>
+                            }
+                        >
+                            <div className="flex flex-col">
+                                {client.contacts && client.contacts.length > 0 ? (
+                                    client.contacts.map((c, i) => (
+                                        <div key={i} className="flex items-start justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 group">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="text-sm font-bold text-slate-700">{c.name}</div>
+                                                {c.email && <div className="text-xs text-slate-500 flex items-center gap-2"><Mail className="w-3 h-3 text-indigo-400" /> {c.email}</div>}
+                                                {c.phone && <div className="text-xs text-slate-500 flex items-center gap-2"><Phone className="w-3 h-3 text-emerald-400" /> {c.phone}</div>}
+                                            </div>
+                                            <button onClick={() => handleRemoveContact(i)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))
                                 ) : (
-                                    <Table containerClassName="h-[180px] overflow-y-auto custom-scrollbar text-sm">
-                                        <TableHead>
-                                            <TableRow>
-                                                <TableHeader>Name</TableHeader>
-                                                <TableHeader>Title</TableHeader>
-                                                <TableHeader>Email</TableHeader>
-                                                <TableHeader>Phone</TableHeader>
-
-                                                <TableHeader className="text-right">Actions</TableHeader>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {contacts.map((contact) => (
-                                                <TableRow key={contact._id}>
-                                                    <TableCell className="font-medium text-indigo-600">{contact.fullName}</TableCell>
-                                                    <TableCell>{contact.title || '-'}</TableCell>
-                                                    <TableCell>{contact.email || '-'}</TableCell>
-                                                    <TableCell>{contact.phone || '-'}</TableCell>
-
-                                                    <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <button
-                                                                onClick={() => openEditContactModal(contact)}
-                                                                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200"
-                                                            >
-                                                                <Pencil className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => { setContactToDelete(contact); setIsDeleteContactModalOpen(true); }}
-                                                                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                    <div className="p-8 text-center text-sm text-slate-400 italic">No additional contacts</div>
                                 )}
-                            </AccordionCard>
-                        </div>
+                            </div>
+                        </AccordionCard>
+
+                        {/* Addresses Card */}
+                        <AccordionCard
+                            title="Addresses"
+                            icon={MapPin}
+                            isOpen={openSections['addresses']}
+                            onToggle={() => handleToggle('addresses')}
+                            rightElement={
+                                <Button size="sm" onClick={(e) => { e.stopPropagation(); setIsAddAddressModalOpen(true); }} className="h-8 w-8 !p-0 rounded-full">
+                                    <Plus className="w-4 h-4" />
+                                </Button>
+                            }
+                        >
+                            <div className="flex flex-col">
+                                {client.addresses && client.addresses.length > 0 ? (
+                                    client.addresses.map((addr, i) => (
+                                        <div key={i} className="flex items-start justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 group">
+                                            <div className="flex items-start gap-3 flex-1">
+                                                <MapPin className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+                                                <span className="text-sm font-medium text-slate-600 leading-snug">{addr}</span>
+                                            </div>
+                                            <button onClick={() => handleRemoveAddress(i)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="p-8 text-center text-sm text-slate-400 italic">No additional addresses</div>
+                                )}
+                            </div>
+                        </AccordionCard>
+
+
+
 
                         {/* Documents & Agreements */}
-                        <div className="col-span-1 xl:col-span-2">
+                        <div className="col-span-1 md:col-span-2 xl:col-span-3">
+
+
                             <AccordionCard
                                 title="Documents & Agreements"
                                 icon={FileText}
@@ -357,105 +369,63 @@ export default function ClientViewPage() {
                 confirmText="Delete Client"
             />
 
-            {/* Add/Edit Contact Modal */}
+
+            {/* Add Contact Modal */}
             <Modal
-                isOpen={isContactModalOpen}
-                onClose={() => setIsContactModalOpen(false)}
-                title={currentContact._id ? 'Edit Contact' : 'New Contact'}
+                isOpen={isAddContactModalOpen}
+                onClose={() => setIsAddContactModalOpen(false)}
+                title="Add New Contact"
                 footer={
                     <>
-                        <Button variant="secondary" onClick={() => setIsContactModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSaveContact}>Save Contact</Button>
+                        <Button variant="ghost" onClick={() => setIsAddContactModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleAddContact} disabled={!newContact.name}>Add Contact</Button>
                     </>
                 }
             >
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                        <Input
-                            value={currentContact.fullName || ''}
-                            onChange={(e) => setCurrentContact({ ...currentContact, fullName: e.target.value })}
-                            placeholder="John Doe"
-                        />
-                    </div>
-
-                    {/* Client Name is readonly/pre-filled */}
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Client</label>
-                        <Input value={client?.name || ''} disabled className="bg-gray-100" />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                        <Input
-                            value={currentContact.title || ''}
-                            onChange={(e) => setCurrentContact({ ...currentContact, title: e.target.value })}
-                            placeholder="Role/Title"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <Input
-                            value={currentContact.email || ''}
-                            onChange={(e) => setCurrentContact({ ...currentContact, email: e.target.value })}
-                            type="email"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                        <Input
-                            value={currentContact.phone || ''}
-                            onChange={(e) => setCurrentContact({ ...currentContact, phone: e.target.value })}
-                        />
-                    </div>
-
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                        <Input
-                            value={currentContact.address || ''}
-                            onChange={(e) => setCurrentContact({ ...currentContact, address: e.target.value })}
-                            placeholder="123 Main St, City, State ZIP"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select
-                            value={currentContact.status || 'Active'}
-                            onChange={(e) => setCurrentContact({ ...currentContact, status: e.target.value })}
-                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                        >
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
-
-                    <div className="col-span-2 flex items-center gap-2 mt-2">
-                        <input
-                            type="checkbox"
-                            id="isKeyContactClient"
-                            checked={currentContact.isKeyContact || false}
-                            onChange={(e) => setCurrentContact({ ...currentContact, isKeyContact: e.target.checked })}
-                            className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                        />
-                        <label htmlFor="isKeyContactClient" className="text-sm font-medium text-gray-700">
-                            Set as Key Contact
-                        </label>
-                    </div>
+                <div className="flex flex-col gap-4">
+                    <Input
+                        label="Full Name *"
+                        value={newContact.name}
+                        onChange={e => setNewContact({ ...newContact, name: e.target.value })}
+                        placeholder="John Doe"
+                    />
+                    <Input
+                        label="Email"
+                        value={newContact.email}
+                        onChange={e => setNewContact({ ...newContact, email: e.target.value })}
+                        placeholder="john@example.com"
+                    />
+                    <Input
+                        label="Phone"
+                        value={newContact.phone}
+                        onChange={e => setNewContact({ ...newContact, phone: e.target.value })}
+                        placeholder="(555) 123-4567"
+                    />
                 </div>
             </Modal>
 
-            {/* Delete Contact Confirmation */}
-            <ConfirmModal
-                isOpen={isDeleteContactModalOpen}
-                onClose={() => setIsDeleteContactModalOpen(false)}
-                onConfirm={handleDeleteContact}
-                title="Delete Contact"
-                message={`Are you sure you want to delete ${contactToDelete?.fullName}?`}
-                confirmText="Delete"
-            />
+            {/* Add Address Modal */}
+            <Modal
+                isOpen={isAddAddressModalOpen}
+                onClose={() => setIsAddAddressModalOpen(false)}
+                title="Add New Address"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setIsAddAddressModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleAddAddress} disabled={!newAddress}>Add Address</Button>
+                    </>
+                }
+            >
+                <div className="flex flex-col gap-4">
+                    <Input
+                        label="Address Line"
+                        value={newAddress}
+                        onChange={e => setNewAddress(e.target.value)}
+                        placeholder="123 Main St, City, State ZIP"
+                    />
+                </div>
+            </Modal>
         </>
+
     );
 }

@@ -61,23 +61,19 @@ const prepareContext = (estimate: IEstimate) => {
         ...e, // Spread raw estimate properties (customerName, etc.)
         lineItems, // Explicitly grouped line items
         aggregations,
-        today: new Date(),
-        // Helpers for common fields if they are missing at top level
+        // Mappings for template variables
+        proposalNo: `${e.estimate || 'DRAFT'}-V${e.versionNumber || 1}`,
+        fullProposalId: `${e.estimate || 'DRAFT'}-V${e.versionNumber || 1}`,
+        jobAddress: e.jobAddress || '',
         customerName: e.customerName || e.customer || 'Valued Customer',
-        projectTitle: e.projectTitle || e.projectName || 'Project Proposal',
+        clientName: e.customerName || e.customer || 'Valued Customer',
         projectName: e.projectName || e.projectTitle || '',
-
-        // Customized Mappings per User Request
-        proposalNo: `${e.estimate || 'DRAFT'}-V${e.versionNumber || 1}`, // Proposal No (should bring estimate-V.versionNumber)
-        fullProposalId: `${e.estimate || 'DRAFT'}-V${e.versionNumber || 1}`, // Alias
-        jobAddress: e.jobAddress || '', // Job Address from Estimate jobAddress
-        clientName: e.contactName || e.customerName || '', // Client Name from contactName (fallback to customerName)
-        contactPerson: e.contactName || '', // Contact Person from contactName
-
-        // Contact Reference Mappings (fetched and attached in route.ts)
-        contactAddress: e._contact?.address || '',
-        contactPhone: e._contact?.phone || '',
-        contactEmail: e._contact?.email || ''
+        projectTitle: e.projectTitle || e.projectName || 'Project Proposal',
+        contactName: e.contactName || '',
+        contactPerson: e.contactName || '',
+        contactPhone: e.contactPhone || '',
+        contactEmail: e.contactEmail || '',
+        today: new Date(),
     };
 };
 
@@ -301,7 +297,7 @@ export const resolveTemplateDocument = (template: any, estimate: IEstimate, edit
 
     let html: string;
     if (template.pages && Array.isArray(template.pages) && template.pages.length > 0) {
-        html = template.pages.map((page: any) => resolveString(page.content, context)).join('<div style="page-break-after: always; height: 1px; width: 100%; clear: both;"></div>');
+        html = template.pages.map((page: any) => resolveString(page.content, context)).join('___PAGE_BREAK___');
     } else {
         // Fallback to single content
         html = resolveString(template.content || '', context);

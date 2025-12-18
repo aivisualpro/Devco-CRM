@@ -6,6 +6,12 @@ export interface IEstimate extends Document {
     customer?: string;
     customerName?: string;
     customerId?: string;
+    contactName?: string;
+    contactId?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    jobAddress?: string;
+
     projectTitle?: string;
     projectName?: string; // New field
     proposalNumber?: string;
@@ -15,13 +21,13 @@ export interface IEstimate extends Document {
     fringe?: string;
 
     bidMarkUp?: string;
-    // Service flags
-    directionalDrilling?: boolean;
-    excavationBackfill?: boolean;
-    hydroExcavation?: boolean;
-    potholingCoring?: boolean;
-    asphaltConcrete?: boolean;
     confirmed?: boolean;
+
+    proposalWriter?: string;
+    certifiedPayroll?: string;
+
+
+
     // Totals
     subTotal?: number;
     margin?: number;
@@ -50,6 +56,12 @@ const EstimateSchema = new Schema({
     customer: { type: String },
     customerName: { type: String },
     customerId: { type: String },
+    contactName: { type: String },
+    contactId: { type: String },
+    contactEmail: { type: String },
+    contactPhone: { type: String },
+    jobAddress: { type: String },
+
     projectTitle: { type: String },
     projectName: { type: String }, // New field
     proposalNumber: { type: String },
@@ -59,12 +71,13 @@ const EstimateSchema = new Schema({
     fringe: { type: String },
 
     bidMarkUp: { type: String },
-    // Service flags
-    directionalDrilling: { type: Boolean, default: false },
-    excavationBackfill: { type: Boolean, default: false },
-    hydroExcavation: { type: Boolean, default: false },
-    potholingCoring: { type: Boolean, default: false },
-    asphaltConcrete: { type: Boolean, default: false },
+
+    proposalWriter: { type: String },
+    certifiedPayroll: { type: String },
+
+
+
+
     services: { type: [String], default: [] },
     // Totals
     subTotal: { type: Number, default: 0 },

@@ -11,7 +11,9 @@ export { default as ToolItem } from './ToolItem';
 export { default as Constant } from './Constant';
 export { default as Counter } from './Counter';
 export { default as Client } from './Client';
-export { default as Contact } from './Contact';
+
 export { default as Employee } from './Employee';
 export { default as Template } from './Template';
 export { default as GlobalCustomVariable } from './GlobalCustomVariable';
+export { default as Message } from './Communication';
+export { default as Channel } from './Channel';

@@ -1,12 +1,35 @@
-## Current Version: V.0.31
-**Date:** December 17, 2025
+## Current Version: V.0.49
+
+#### V.0.49 - Estimates Table Overhaul & Import Optimization
+*   **Estimates Table Overhaul**:
+    *   **Strategic Reordering**: Reordered columns for better workflow flow: Estimate, Version, Date, Customer, Writer, Fringe, CP, Services, Sub, %, Margin, Total, Status, Actions.
+    *   **Brevity & Names**: Shortened headers (e.g., "Grand Total" $\rightarrow$ "Total", "Markup%" $\rightarrow$ "%") for better visibility on smaller screens.
+    *   **Natural Sorting**: Implemented natural sort for estimate numbers and robust date parsing logic.
+    *   **Visual Consistency**: Status, Fringe, and CP badges now pull hex colors directly from system constants, matching the Estimate Detail view.
+    *   **Proposal Writer Profiles**: Displaying employee profile pictures or initials directly in the table for quick identification.
+*   **CSV Import Enhancements**:
+    *   **Robust FSM Parser**: New parser handles multi-line fields, escaped quotes, and commas within fields accurately.
+    *   **Advanced Data Sync**: 
+        *   Supports new fields: Fringe, CP, and Proposal Writer.
+        *   Composite key upserts (Estimate + Version) ensure historical accuracy.
+        *   Optimized backend client sync using concurrent fetching and bulk operations.
+*   **UI/UX Improvements**:
+    *   **Integrated Constants**: Moved Search and "Add Constant" buttons to the global header, streamlining the Constants management workspace.
+    - **Actions Cleanup**: Removed redundant eye icon; clicking a row remains the primary navigation.
+    *   **Currency Alignment**: Consistent right-alignment for all financial columns.
+
+
+
+**Date:** December 18, 2025
+
 
 ### Overview
 DevCo CRM is a comprehensive web application designed to streamline the estimation and proposal process for construction and service projects. Built on a modern stack (Next.js 15, MongoDB, TailwindCSS), it replaces legacy workflows with a fast, interactive, and integrated experience.
 
 ---
 
-### Modules & Functionalities (V.0.31)
+### Modules & Functionalities (V.0.41)
+
 
 #### 1. Estimates Management
 The core engine of the CRM, allowing for detailed project costing and tracking.
@@ -22,6 +45,11 @@ The core engine of the CRM, allowing for detailed project costing and tracking.
   - **Markup Control**: Adjustable bid markup percentage (Default: 30%) that dynamically updates the total margin.
   - **Service Flags**: Checkbox interface to define project scope (Directional Drilling, Potholing, etc.) which saves to the estimate metadata.
   - **Quick Add**: Search fields in "Add Item" modals now **auto-focus** for immediate typing.
+- **Dynamic Header Buttons** (NEW):
+  - **Services**: Shows count of selected services on a blue (#0066FF) background with white text.
+  - **Status**: Icon turns white on reference color background when status is selected.
+  - **Markup %**: Displays percentage with liquid fill animation that rises based on value, with color gradient from light blue to dark navy.
+  - **Fringe Rate**: Icon turns white on reference color background when rate is selected.
 - **Legacy Sync**: Built-in compatibility layer that synchronizes changes to the existing AppSheet backend to ensure data consistency across platforms.
 
 #### 2. Proposal & Template Engine
@@ -46,17 +74,88 @@ Centralized database for all cost items.
 - **Categorization**: Dedicated tabs for Labor, Equipment, Materials, Tools, Overhead, Subcontractors, Disposal, Miscellaneous.
 - **Search**: Instant filtering to quickly find and manage line items.
 
-#### 4. Clients & Contacts Module
-- **Client Dashboard**: View all client details, including a new **Related Contacts** section.
-- **Contact Management**: Add/Edit contacts directly from the Client view.
-- **Key Contacts**: Mark specific contacts as "Key Contact" to prioritize them during estimate auto-population.
+#### 4. Clients Management
+- **Client Dashboard**: View all client details, business addresses, and contact persons.
+- **Unified Profile**: All essential client data (Email, Phone, Address) is managed directly within the client profile.
+
 
 #### 5. Constants & Settings
 - Global configuration for essential calculations (e.g., Fringe Rates) ensuring consistent pricing across all estimates.
 
+#### 6. Devco Communication (NEW)
+A real-time internal communication system tailored for Devco CRM.
+- **Chat Widget**: A floating, interactive entry point accessible from any page within the application.
+- **Unified Chat Modal**:
+    - **Proposals Chat**: Automatically generated chat rooms for every estimate/proposal to discuss project-specific details.
+    - **Global Channels**: Pre-seeded channels (`General`, `Projects`, `Urgent`) and the ability for users to create new custom channels.
+    - **Direct Messaging**: Direct communication lines with all active employees.
+- **System Integration**: Fetches live data from Estimates and Employees to keep the sidebar up-to-date.
+- **Rich Interaction**: Supports search across conversations, message history, and UI placeholders for mentions and attachments.
+- **Data Persistence**: All messages are stored in a dedicated MongoDB collection with timestamps and sender attribution.
+
+
 ---
 
 ### Changelog
+
+#### V.0.41 - Profile Pictures & Employee Enhancements
+
+*   **Employee Profile Pictures**:
+    *   **Cloudinary Integration**: Implemented secure image storage using Cloudinary.
+    *   **Smart Uploads**: Employees can now upload profile pictures which are automatically cropped (face-gravity), resized to 500x500px, and optimized for web performance.
+    *   **Fallback Avatar**: System automatically generates a colored "Initials Avatar" (e.g., "JD" for John Doe) if no picture is uploaded.
+*   **Employee List Improvements**:
+    *   **Visual Roster**: Added profile picture/avatar column to the main Employee List table.
+    *   **Pagination Fix**: Resolved issue where search filters would return empty results if not on Page 1. Filters now auto-reset pagination.
+    *   **Interaction Fix**: Fixed "Edit" and "Delete" actions mistakenly triggering row navigation.
+*   **Estimate Header Enhancements**:
+    *   **Visual Proposal Writer**:
+        *   Selecting a "Proposal Writer" now replaces the generic icon with the employee's specific Profile Picture or Initials Avatar.
+        *   Dropdown list upgraded to show employee faces/avatars for easier selection.
+
+#### V.0.38 - System Simplification & Optimization
+*   **Module Removal**: 
+    *   **Contacts Module Retired**: Completely removed the standalone Contacts module. Contact information is now unified within the Clients module for a more streamlined CRM experience.
+    *   **UI Cleanup**: Removed Contacts from global navigation, Estimate headers, and Client dashboards.
+    *   **Codebase Optimization**: Deleted `Contact` database models, API controllers, and associated UI components to reduce system complexity.
+*   **Searchable Select Improvements**: 
+    *   Enhanced z-index management and layout persistence for dropdowns to prevent overlapping in the estimate header.
+    *   Refined auto-focus behavior to prevent accidental triggering of multiple selects.
+
+#### V.0.37 - Devco Communication System
+
+*   **Devco Communication Infrastructure**:
+    *   **Core API**: Implemented `/api/communication` to handle message retrieval, sending, channel creation, and sidebar data fetching.
+    *   **Database Integration**: Created `Message`, `Channel`, and `DevcoCommunicationDb` structure in MongoDB.
+*   **Chat Components**:
+    *   **ChatWidget**: Added a sleek, animated floating button with notification pulse.
+    *   **ChatModal**: A comprehensive communication center featuring:
+        *   **Dynamic Sidebar**: Searchable lists of Estimates, Channels, and Employees.
+        *   **Message Interface**: Responsive chat window with bubble-style messages, sender labels, and timestamps.
+        *   **Channel Management**: Built-in functionality to create new channels via the UI.
+    *   **Rich UI Aesthetics**: used Glassmorphism effects, Indigo theme consistency, and auto-scrolling message lists.
+*   **Data Models**:
+    *   Defined robust schemas for `Message` and `Channel` including sender mapping and target categorization (proposal, channel, direct).
+
+#### V.0.32 - Estimate Header UI Overhaul
+
+*   **Dynamic Header Buttons**:
+    *   **Services Button**: Now shows the count of selected services (white text) on a solid #0066FF blue background instead of an icon.
+    *   **Status Button**: Background fills with the reference color from constants; icon turns white when a status is selected.
+    *   **Markup % Button**: 
+        *   Replaced inline input with an icon button that opens a neumorphic popup.
+        *   Displays percentage value with **liquid fill animation** that rises from the bottom.
+        *   Dynamic color gradient based on percentage (10% increments from #CCE0FF to #001433).
+    *   **Fringe Rate Button**: Background fills with reference color; icon turns white when selected.
+*   **Fringe Rate Fix**: 
+    *   Fixed critical bug where Fringe Rate selection was not saving to MongoDB.
+    *   Issue was caused by click-outside handler interfering with dropdown selection.
+    *   Implemented dedicated `handleFringeChange` handler for reliable state updates.
+*   **AppSheet Sync**: Temporarily disabled AppSheet synchronization on estimate updates to prevent timeout errors.
+*   **UI Polish**:
+    *   Added `Percent` and `HardHat` icons from lucide-react.
+    *   Aligned all header buttons (Services, Status, Markup, Fringe) in a consistent 2x2 grid.
+    *   Added CSS keyframe animation `liquidRise` for smooth fill effect.
 
 #### V.0.31 - Feature Release
 *   **Estimate Enhancements**:

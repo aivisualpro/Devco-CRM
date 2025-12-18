@@ -49,7 +49,9 @@ interface Employee {
     autoInsurance?: string;
     veriforce?: string;
     unionPaperwork1184?: string;
+    profilePicture?: string;
 }
+
 
 const defaultEmployee: Partial<Employee> = {
     firstName: '',
@@ -86,8 +88,11 @@ const defaultEmployee: Partial<Employee> = {
     edd: '',
     autoInsurance: '',
     veriforce: '',
-    unionPaperwork1184: ''
+
+    unionPaperwork1184: '',
+    profilePicture: ''
 };
+
 
 import { useRouter } from 'next/navigation';
 
@@ -110,6 +115,10 @@ export default function EmployeesPage() {
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
 
+    const [selectedPosition, setSelectedPosition] = useState('All');
+    const [selectedDesignation, setSelectedDesignation] = useState('All');
+
+
     // Import state
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
@@ -117,6 +126,13 @@ export default function EmployeesPage() {
     useEffect(() => {
         fetchEmployees();
     }, []);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, activeTab, selectedPosition, selectedDesignation]);
+
+
 
     const fetchEmployees = async () => {
         setLoading(true);
@@ -281,8 +297,6 @@ export default function EmployeesPage() {
         setEmployeeToDelete(null);
     };
 
-    const [selectedPosition, setSelectedPosition] = useState('All');
-    const [selectedDesignation, setSelectedDesignation] = useState('All');
 
     // Calculate tab counts (basic status counts)
     const counts = useMemo(() => {
@@ -479,14 +493,25 @@ export default function EmployeesPage() {
                                         className="cursor-pointer hover:bg-gray-50/80 transition-colors"
                                     >
                                         <TableCell className="font-medium text-gray-900">
-                                            {emp.firstName} {emp.lastName}
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold overflow-hidden border border-indigo-200 shadow-sm">
+                                                    {emp.profilePicture ? (
+                                                        <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
+                                                    )}
+                                                </div>
+                                                <span>{emp.firstName} {emp.lastName}</span>
+                                            </div>
                                         </TableCell>
+
                                         <TableCell>{emp.companyPosition || '-'}</TableCell>
                                         <TableCell>{emp.email}</TableCell>
                                         <TableCell>
                                             <a href={`tel:${emp.mobile || emp.phone}`} className="hover:text-indigo-600 hover:underline">
-                                                {(emp.mobile || emp.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3')}
+                                                {(emp.mobile || emp.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}
                                             </a>
+
                                         </TableCell>
                                         <TableCell>{emp.appRole || '-'}</TableCell>
                                         <TableCell>
@@ -497,17 +522,25 @@ export default function EmployeesPage() {
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
-                                                    onClick={() => openEditModal(emp)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openEditModal(emp);
+                                                    }}
                                                     className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
                                                 >
                                                     <Pencil className="w-4 h-4" />
                                                 </button>
+
                                                 <button
-                                                    onClick={() => openDeleteModal(emp)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openDeleteModal(emp);
+                                                    }}
                                                     className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
+
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -539,9 +572,50 @@ export default function EmployeesPage() {
                     />
                 </div>
 
+
+
                 <div className="pb-4">
                     {modalTab === 'personal' && (
                         <div className="grid grid-cols-12 gap-4">
+                            {/* Profile Picture Upload */}
+                            <div className="col-span-12 flex flex-col items-center justify-center mb-4">
+                                <div className="relative group cursor-pointer">
+                                    <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shadow-lg border-2 border-white">
+                                        {currentEmployee.profilePicture ? (
+                                            <img
+                                                src={currentEmployee.profilePicture}
+                                                alt="Profile"
+                                                className="w-full h-full object-cover"
+                                            />
+                                        ) : (
+                                            <div className="text-2xl font-bold text-gray-400">
+                                                {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
+                                            </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Pencil className="w-6 h-6 text-white" />
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setCurrentEmployee({ ...currentEmployee, profilePicture: reader.result as string });
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <span className="text-xs text-gray-500 mt-2">Click to upload photo</span>
+                            </div>
+
+
                             <div className="col-span-12 md:col-span-4">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                                 <Input
@@ -769,12 +843,13 @@ export default function EmployeesPage() {
                         </div>
                     )}
                 </div>
-            </Modal>
+            </Modal >
 
             {/* Delete Confirmation Modal */}
-            <ConfirmModal
+            < ConfirmModal
                 isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
+                onClose={() => setIsDeleteModalOpen(false)
+                }
                 onConfirm={handleDelete}
                 title="Delete Employee"
                 message={`Are you sure you want to delete ${employeeToDelete?.firstName} ${employeeToDelete?.lastName}? This action cannot be undone.`}

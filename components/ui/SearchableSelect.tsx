@@ -212,33 +212,35 @@ export function SearchableSelect({
     };
 
     return (
-        <div className={`${className}`} ref={containerRef}>
+        <div className={`${className} ${isOpen ? 'relative z-[100]' : ''}`} ref={containerRef}>
+
             {label && <label className="block text-sm font-medium text-gray-700 mb-1.5">{label}</label>}
 
             <div className="relative">
-                {/* Closed State - Trigger */}
-                {!isOpen && (
-                    <div
-                        ref={triggerRef}
-                        id={id}
-                        tabIndex={0}
-                        className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm cursor-pointer flex items-center justify-between transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                        onClick={() => setIsOpen(true)}
-                        onFocus={() => setIsOpen(true)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
-                                e.preventDefault();
-                                setIsOpen(true);
-                            }
-                            if (onKeyDown) onKeyDown(e);
-                        }}
-                    >
-                        <span className={value ? 'text-gray-900' : 'text-gray-400'}>
-                            {value || placeholder}
-                        </span>
-                        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
-                    </div>
-                )}
+                {/* Closed State - Trigger (Always render to maintain space) */}
+                <div
+                    style={isOpen ? { visibility: 'hidden', pointerEvents: 'none' } : {}}
+                    ref={triggerRef}
+
+                    id={id}
+                    tabIndex={0}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm cursor-pointer flex items-center justify-between transition-all duration-200 bg-gray-50/50 hover:bg-white hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    onClick={() => setIsOpen(true)}
+                    onFocus={() => setIsOpen(true)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setIsOpen(true);
+                        }
+                        if (onKeyDown) onKeyDown(e);
+                    }}
+                >
+                    <span className={value ? 'text-gray-900' : 'text-gray-400'}>
+                        {value || placeholder}
+                    </span>
+                    <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 ml-2" />
+                </div>
+
 
                 {/* Open State - Dropdown Panel (replaces trigger) */}
                 {isOpen && (

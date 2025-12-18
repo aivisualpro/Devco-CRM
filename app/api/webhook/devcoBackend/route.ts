@@ -14,11 +14,42 @@ import {
     Constant,
     Counter,
     Client,
-    Contact,
+
     Employee,
     Template,
     GlobalCustomVariable,
 } from '@/lib/models';
+
+import { v2 as cloudinary } from 'cloudinary';
+
+// Cloudinary Configuration
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+async function uploadImage(imageString: string, publicId: string): Promise<string | null> {
+    if (!imageString || !imageString.startsWith('data:image')) return imageString;
+
+    try {
+        // Sanitize publicId
+        const safeId = publicId.replace(/[^a-zA-Z0-9]/g, '_');
+        const uploadResult = await cloudinary.uploader.upload(imageString, {
+            public_id: `employees/${safeId}`,
+            overwrite: true,
+            transformation: [
+                { width: 500, height: 500, crop: "fill", gravity: "face" },
+                { quality: "auto", fetch_format: "auto" }
+            ]
+        });
+        return uploadResult.secure_url;
+    } catch (error) {
+        console.error('Cloudinary Upload Error:', error);
+        return null;
+    }
+}
+
 
 // AppSheet Configuration
 const APPSHEET_APP_ID = process.env.DEVCOAPPSHEET_APP_ID;
@@ -41,7 +72,9 @@ function parseNum(val: unknown): number {
 
 // AppSheet sync helper
 async function updateAppSheet(data: Record<string, unknown>, lineItems: Record<string, unknown[]> | null = null) {
+    return { skipped: true }; // Force disable sync
     if (!APPSHEET_APP_ID || !APPSHEET_API_KEY) {
+
         console.log("AppSheet credentials not configured, skipping sync");
         return { skipped: true, reason: "No AppSheet credentials" };
     }
@@ -127,7 +160,7 @@ async function updateAppSheet(data: Record<string, unknown>, lineItems: Record<s
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const miscellaneousTotal = simpleSum(items.miscellaneous as any[]);
 
-    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(APPSHEET_APP_ID)}/tables/${encodeURIComponent(APPSHEET_TABLE_NAME)}/Action`;
+    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(APPSHEET_APP_ID || "")}/tables/${encodeURIComponent(APPSHEET_TABLE_NAME)}/Action`;
 
     const appSheetRow = {
         "Record_Id": String(data._id || ""),
@@ -136,11 +169,12 @@ async function updateAppSheet(data: Record<string, unknown>, lineItems: Record<s
         "Customer": String(data.customerId || ""),
         "Proposal No": String(data.proposalNo || ""),
         "Bid Mark UP Percentage": String(data.bidMarkUp || ""),
-        "Directional Drilling": toYN(Boolean(data.directionalDrilling)),
-        "Excavation & Backfill": toYN(Boolean(data.excavationBackfill)),
-        "Hydro-excavation": toYN(Boolean(data.hydroExcavation)),
-        "Potholing & Coring": toYN(Boolean(data.potholingCoring)),
-        "Asphalt & Concrete": toYN(Boolean(data.asphaltConcrete)),
+        "Directional Drilling": toYN((data.services as string[])?.includes("Directional Drilling")),
+        "Excavation & Backfill": toYN((data.services as string[])?.includes("Excavation & Backfill")),
+        "Hydro-excavation": toYN((data.services as string[])?.includes("Hydro Excavation")),
+        "Potholing & Coring": toYN((data.services as string[])?.includes("Potholing & Coring")),
+        "Asphalt & Concrete": toYN((data.services as string[])?.includes("Asphalt & Concrete")),
+
         "Fringe": String(data.fringe || ""),
         "Labor": String(laborTotal.toFixed(2)),
         "Equipment": String(equipmentTotal.toFixed(2)),
@@ -160,7 +194,7 @@ async function updateAppSheet(data: Record<string, unknown>, lineItems: Record<s
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "ApplicationAccessKey": APPSHEET_API_KEY
+                "ApplicationAccessKey": APPSHEET_API_KEY || ""
             },
             body: JSON.stringify({
                 Action: "Edit",
@@ -198,7 +232,11 @@ function getCatalogueModel(type: string) {
 
 export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const text = await request.text();
+        if (!text) {
+            return NextResponse.json({ success: false, error: 'Empty body' }, { status: 400 });
+        }
+        const body = JSON.parse(text);
         const { action, payload, Data } = body;
 
         await connectToDatabase();
@@ -213,11 +251,7 @@ export async function POST(request: NextRequest) {
                 customerName: Data.customerName,
                 proposalNo: Data.proposalNo,
                 bidMarkUp: Data.bidMarkUp,
-                directionalDrilling: toBoolean(Data.directionalDrilling),
-                excavationBackfill: toBoolean(Data.excavationBackfill),
-                hydroExcavation: toBoolean(Data.hydroExcavation),
-                potholingCoring: toBoolean(Data.potholingCoring),
-                asphaltConcrete: toBoolean(Data.asphaltConcrete),
+
                 fringe: Data.fringe,
                 updatedAt: new Date()
             };
@@ -411,12 +445,14 @@ export async function POST(request: NextRequest) {
                     subcontractor: [],
                     disposal: [],
                     miscellaneous: [],
+
                     createdAt: new Date(),
                     updatedAt: new Date()
                 };
 
                 const est = await Estimate.create(estimateData);
-                updateAppSheet(estimateData).catch(err => console.error('Background AppSheet sync failed:', err));
+                // updateAppSheet(estimateData).catch(err => console.error('Background AppSheet sync failed:', err));
+
                 return NextResponse.json({ success: true, result: est });
             }
 
@@ -446,6 +482,7 @@ export async function POST(request: NextRequest) {
                     _id: newId,
                     versionNumber: nextVersion,
                     status: 'draft',
+
                     date: new Date().toLocaleDateString(),
                     createdAt: new Date(),
                     updatedAt: new Date()
@@ -454,7 +491,8 @@ export async function POST(request: NextRequest) {
                 const newEst = await Estimate.create(newEstData);
 
                 // Sync to AppSheet
-                updateAppSheet(newEstData).catch(err => console.error('Clone sync error:', err));
+                // updateAppSheet(newEstData).catch(err => console.error('Clone sync error:', err));
+
 
                 return NextResponse.json({ success: true, result: newEst });
             }
@@ -502,7 +540,14 @@ export async function POST(request: NextRequest) {
 
                 // Remove fields we don't want to copy or that need reset
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { _id, createdAt, updatedAt, __v, estimate, proposalNo, versionNumber, date, customerName, customerId, status, ...sourceData } = sourceEst as any;
+                const {
+                    _id, createdAt, updatedAt, __v,
+                    estimate, proposalNo, versionNumber, date,
+                    customerName, customerId,
+                    contactName, contactId, contactEmail, contactPhone,
+                    jobAddress,
+                    status, ...sourceData
+                } = sourceEst as any;
 
                 const newEstData = {
                     ...sourceData,
@@ -512,7 +557,13 @@ export async function POST(request: NextRequest) {
                     versionNumber: 1,
                     customerName: '',
                     customerId: '',
+                    contactName: '',
+                    contactId: '',
+                    contactEmail: '',
+                    contactPhone: '',
+                    jobAddress: '',
                     status: 'draft',
+
                     date: new Date().toLocaleDateString(),
                     createdAt: new Date(),
                     updatedAt: new Date()
@@ -521,7 +572,8 @@ export async function POST(request: NextRequest) {
                 const newEst = await Estimate.create(newEstData);
 
                 // Sync to AppSheet
-                updateAppSheet(newEstData).catch(err => console.error('Copy sync error:', err));
+                // updateAppSheet(newEstData).catch(err => console.error('Copy sync error:', err));
+
 
                 return NextResponse.json({ success: true, result: newEst });
             }
@@ -554,6 +606,202 @@ export async function POST(request: NextRequest) {
                 await Estimate.findByIdAndDelete(deleteId);
                 return NextResponse.json({ success: true });
             }
+
+            case 'importEstimates': {
+                const { estimates } = payload || {};
+                if (!Array.isArray(estimates)) return NextResponse.json({ success: false, error: 'Invalid estimates array' }, { status: 400 });
+
+                // 1. Prepare Estimate Upsert Operations
+                const estimateOps = estimates.map((e: any) => {
+                    const identifier = e._id || e.Record_Id;
+                    const estimateNum = e.estimate || e['Estimate #'];
+                    if (!identifier && !estimateNum) return null;
+
+                    const parseVal = (v: any) => {
+                        if (typeof v === 'number') return v;
+                        return parseFloat(String(v).replace(/[^0-9.-]+/g, "")) || 0;
+                    };
+
+                    const cleanData = { ...e };
+                    if (e['Estimate #']) cleanData.estimate = e['Estimate #'];
+                    if (e['Customer']) cleanData.customerName = e['Customer'];
+                    if (e['Date']) cleanData.date = e['Date'];
+                    if (e['Status']) cleanData.status = e['Status']?.toLowerCase();
+                    if (e['Proposal Writer']) cleanData.proposalWriter = e['Proposal Writer'];
+                    if (e['Fringe']) cleanData.fringe = e['Fringe'];
+                    if (e['Certified Payroll']) cleanData.certifiedPayroll = e['Certified Payroll'];
+
+                    // Header Mapping for Totals
+                    if (cleanData['Grand Total']) cleanData.grandTotal = cleanData['Grand Total'];
+                    if (cleanData['Sub Total']) cleanData.subTotal = cleanData['Sub Total'];
+                    if (cleanData['Margin']) cleanData.margin = cleanData['Margin'];
+
+                    // Parse Numbers
+                    if (cleanData.grandTotal !== undefined) cleanData.grandTotal = parseVal(cleanData.grandTotal);
+                    if (cleanData.subTotal !== undefined) cleanData.subTotal = parseVal(cleanData.subTotal);
+                    if (cleanData.margin !== undefined) cleanData.margin = parseVal(cleanData.margin);
+
+                    if (cleanData.versionNumber) {
+                        const vn = parseInt(String(cleanData.versionNumber).replace(/[^0-9]/g, ''));
+                        // If it's a valid number, keep it. Otherwise delete it so it falls back to 1 (new) or existing (update)
+                        if (!isNaN(vn)) cleanData.versionNumber = vn;
+                        else delete cleanData.versionNumber;
+                    } else {
+                        delete cleanData.versionNumber;
+                    }
+
+                    const newId = identifier || `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+                    // Prune empty fields so we don't overwrite existing data with empty strings
+                    // and also so we don't trigger conflict with setOnInsert defaults if the field is effectively missing
+                    if (!cleanData.status) delete cleanData.status;
+                    if (!cleanData.date) delete cleanData.date;
+                    if (!cleanData.customerName) delete cleanData.customerName;
+
+                    const updateSet = { ...cleanData, updatedAt: new Date() };
+
+                    // Ensure no overlap between $set and $setOnInsert
+                    const setOnInsert: any = {
+                        _id: newId,
+                        createdAt: new Date(),
+                        status: 'draft',
+                        labor: [],
+                        equipment: [],
+                        material: [],
+                        miscellaneous: [{
+                            item: "Old",
+                            quantity: 1,
+                            cost: cleanData.grandTotal || 0,
+                            unit: "Each",
+                            total: cleanData.grandTotal || 0
+                        }]
+                    };
+
+                    // If request has versionNumber, it's in $set. If not, default to 1 in $setOnInsert.
+                    if (typeof cleanData.versionNumber === 'number') {
+                        delete setOnInsert.versionNumber;
+                    } else {
+                        setOnInsert.versionNumber = 1;
+                    }
+
+                    // Similarly for status, etc. to avoid conflicts
+                    // If key exists in updateSet, remove from setOnInsert
+                    if (updateSet.status !== undefined) delete setOnInsert.status;
+                    if (updateSet.date !== undefined) delete setOnInsert.date;
+                    if (updateSet.customerName !== undefined) delete setOnInsert.customerName;
+
+                    // construct query filter based on identifier OR (estimate + version)
+                    const versionForQuery = typeof cleanData.versionNumber === 'number' ? cleanData.versionNumber : 1;
+                    const filter = identifier
+                        ? { _id: identifier }
+                        : { estimate: estimateNum, versionNumber: versionForQuery };
+
+                    return {
+                        updateOne: {
+                            filter: filter,
+                            update: {
+                                $set: updateSet,
+                                $setOnInsert: setOnInsert
+                            },
+                            upsert: true
+                        }
+                    };
+                }).filter(Boolean);
+
+                // 2. Client Sync Logic (Contacts & Addresses) - Optimized
+                // Use a Set to find unique customerIds involved in this import to avoid redundant lookups
+                const customerIds = new Set(estimates.map((e: any) => e.customerId).filter(Boolean));
+
+                // Fetch all relevant clients in one go
+                // Fetch all relevant clients in one go and type as any to allow dynamic property addition
+                const clients = await Client.find({ _id: { $in: Array.from(customerIds) } }).lean();
+                // We use lean() to get POJOs that we can easily mutate, though we lose save() which we aren't using (we use bulkWrite)
+                const clientMap = new Map(clients.map((c: any) => [String(c._id), c]));
+
+                // Prepare bulk updates for Clients
+                const clientUpdates: any[] = [];
+
+                for (const e of estimates) {
+                    if (!e.customerId) continue;
+
+                    const client: any = clientMap.get(String(e.customerId));
+                    if (!client) continue;
+
+                    let updated = false;
+                    // Initialize updates object for this client if not already processing
+                    // Note: To truly bulk update clients safely if multiple rows affect the same client, 
+                    // we would need more complex logic. For simplicity and correctness with potentially multiple rows per client
+                    // we will still process update logic per row but collect operations.
+                    // However, MongoDB bulkWrite for same document with $push might conflict or create race conditions if not careful.
+                    // A safer simple optimizations is to just run them in parallel with a concurrency limit or just Promise.all
+                    // But since we need to read state (is contact existing?), we really should process serially per client or update our in-memory client state.
+
+                    if (!client._updatedInMemory) {
+                        client._updatedInMemory = true; // markers for our logic
+                        client.activeUpdates = { $push: {} };
+                    }
+
+                    // Helper to check in-memory state (original + pending updates)
+                    const currentContacts = [...(client.contacts || []), ...(client.activeUpdates?.$push?.contacts || [])];
+                    const currentAddresses = [...(client.addresses || []), ...(client.activeUpdates?.$push?.addresses || [])]; // addresses is array of strings
+
+                    // Check Contact
+                    const contactExists = currentContacts.some((c: any) =>
+                        (e.contactId && c._id === e.contactId) ||
+                        (c.email && c.email === e.contactEmail) ||
+                        (c.name === e.contactName)
+                    );
+
+                    if (!contactExists && (e.contactName || e.contactEmail)) {
+                        if (!client.activeUpdates.$push.contacts) client.activeUpdates.$push.contacts = [];
+                        client.activeUpdates.$push.contacts.push({
+                            name: e.contactName || 'Unknown',
+                            email: e.contactEmail,
+                            phone: e.contactPhone
+                        });
+                        updated = true;
+                    }
+
+                    // Check Address
+                    const addressExists = currentAddresses.includes(e.jobAddress);
+                    if (!addressExists && e.jobAddress) {
+                        if (!client.activeUpdates.$push.addresses) client.activeUpdates.$push.addresses = [];
+                        if (Array.isArray(client.activeUpdates.$push.addresses)) {
+                            client.activeUpdates.$push.addresses.push(e.jobAddress);
+                        } else {
+                            // Should be an array based on initialization above but typescript safety
+                            client.activeUpdates.$push.addresses = [e.jobAddress];
+                        }
+                        updated = true;
+                    }
+                }
+
+                // Execute Client Updates
+                const clientBulkOps = Array.from(clientMap.values())
+                    .filter((c: any) => c.activeUpdates && (c.activeUpdates.$push?.contacts?.length || c.activeUpdates.$push?.addresses?.length))
+                    .map((c: any) => ({
+                        updateOne: {
+                            filter: { _id: c._id },
+                            update: {
+                                $push: {
+                                    ...(c.activeUpdates.$push.contacts?.length ? { contacts: { $each: c.activeUpdates.$push.contacts } } : {}),
+                                    ...(c.activeUpdates.$push.addresses?.length ? { addresses: { $each: c.activeUpdates.$push.addresses } } : {})
+                                }
+                            }
+                        }
+                    }));
+
+                if (clientBulkOps.length > 0) {
+                    await Client.bulkWrite(clientBulkOps);
+                }
+
+                if (estimateOps.length === 0) return NextResponse.json({ success: false, error: 'No valid records to import' });
+
+                const result = await Estimate.bulkWrite(estimateOps as any);
+                return NextResponse.json({ success: true, result });
+            }
+
+
 
             // ========== CATALOGUE ==========
             case 'getCatalogueItems': {
@@ -739,9 +987,15 @@ export async function POST(request: NextRequest) {
 
             case 'updateClient': {
                 const { id: clientId, item: clientItem } = payload || {};
+                console.log('[API] updateClient payload:', { clientId, clientItem });
                 if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const updated = await Client.findByIdAndUpdate(clientId, { ...clientItem, updatedAt: new Date() }, { new: true });
+                const updated = await Client.findByIdAndUpdate(
+                    clientId,
+                    { ...clientItem, updatedAt: new Date() },
+                    { new: true, strict: false }
+                );
+                console.log('[API] updateClient updated result:', updated);
                 return NextResponse.json({ success: true, result: updated });
             }
 
@@ -757,20 +1011,38 @@ export async function POST(request: NextRequest) {
                 const { clients } = payload || {};
                 if (!Array.isArray(clients)) return NextResponse.json({ success: false, error: 'Invalid clients array' }, { status: 400 });
 
-                const operations = clients.map((c: any) => ({
-                    updateOne: {
-                        filter: { _id: c.recordId || c._id },
-                        update: {
-                            $set: {
-                                ...c,
-                                _id: c.recordId || c._id, // Enforce recordId as _id
-                                updatedAt: new Date()
-                            },
-                            $setOnInsert: { createdAt: new Date() }
-                        },
-                        upsert: true
+                const operations = clients.map((c: any) => {
+                    const updateData: any = {
+                        ...c,
+                        _id: c.recordId || c._id,
+                        updatedAt: new Date()
+                    };
+
+                    // Map legacy single address to addresses array if not already present
+                    if (c.businessAddress) {
+                        updateData.addresses = [c.businessAddress];
                     }
-                }));
+
+                    // Map legacy contact info to contacts array
+                    if (c.contactFullName || c.email || c.phone) {
+                        updateData.contacts = [{
+                            name: c.contactFullName || 'Primary Contact',
+                            email: c.email || '',
+                            phone: c.phone || ''
+                        }];
+                    }
+
+                    return {
+                        updateOne: {
+                            filter: { _id: c.recordId || c._id },
+                            update: {
+                                $set: updateData,
+                                $setOnInsert: { createdAt: new Date() }
+                            },
+                            upsert: true
+                        }
+                    };
+                });
 
                 const result = await Client.bulkWrite(operations);
                 return NextResponse.json({ success: true, result });
@@ -787,114 +1059,6 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: client });
             }
 
-            // ========== CONTACTS ==========
-            case 'getContacts': {
-                const contacts = await Contact.find().sort({ fullName: 1 });
-                return NextResponse.json({ success: true, result: contacts });
-            }
-
-            case 'addContact': {
-                const { item } = payload || {};
-                console.log('[API] addContact payload:', item);
-                if (!item) return NextResponse.json({ success: false, error: 'Missing contact data' }, { status: 400 });
-
-                // Enforce single Key Contact per client
-                if (item.isKeyContact && item.clientId) {
-                    console.log('[API] Setting Key Contact, unsetting others for client:', item.clientId);
-                    await Contact.updateMany(
-                        { clientId: item.clientId },
-                        { $set: { isKeyContact: false } },
-                        { strict: false } // Bypass strict schema
-                    );
-                }
-
-                const contactData = {
-                    ...item,
-                    _id: item.recordId || item._id || `CT-${Date.now()}`,
-                    // Ensure defaults
-                    status: item.status || 'Active',
-                    isKeyContact: !!item.isKeyContact,
-                    createdAt: new Date(),
-                    updatedAt: new Date()
-                };
-
-                // Use native collection insert to bypass potential Mongoose strict schema caching issues in dev
-                await Contact.collection.insertOne(contactData);
-
-                console.log('[API] Contact created (native):', contactData);
-                return NextResponse.json({ success: true, result: contactData });
-            }
-
-            case 'updateContact': {
-                const { id: contactId, item: contactItem } = payload || {};
-                console.log('[API] updateContact payload:', { contactId, contactItem });
-                if (!contactId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
-                // Enforce single Key Contact per client
-                if (contactItem.isKeyContact) {
-                    let clientId = contactItem.clientId;
-                    if (!clientId) {
-                        const existingContact = await Contact.findById(contactId).lean();
-                        clientId = (existingContact as any)?.clientId;
-                        console.log('[API] Fetched existing clientId:', clientId);
-                    }
-
-                    if (clientId) {
-                        console.log('[API] Enforcing single Key Contact for client:', clientId);
-                        // Unset isKeyContact for all other contacts of this client
-                        await Contact.updateMany(
-                            { clientId: clientId, _id: { $ne: contactId } },
-                            { $set: { isKeyContact: false } },
-                            { strict: false }
-                        );
-                    } else {
-                        console.warn('[API] Warning: Setting Key Contact but no clientId found.');
-                    }
-                }
-
-                // Use strict: false to ensure fields not in cached Schema (like isKeyContact) are saved
-                const updated = await Contact.findByIdAndUpdate(
-                    contactId,
-                    { ...contactItem, updatedAt: new Date() },
-                    { new: true, strict: false }
-                );
-
-                console.log('[API] Contact updated result:', updated);
-                return NextResponse.json({ success: true, result: updated });
-            }
-
-            case 'importContacts': {
-                const { contacts } = payload || {};
-                if (!Array.isArray(contacts)) return NextResponse.json({ success: false, error: 'Invalid contacts array' }, { status: 400 });
-
-                // We'll use bulkWrite for efficiency and to handle upserts
-                const operations = contacts.map((c: any) => ({
-                    updateOne: {
-                        filter: { _id: c.recordId || c._id },
-                        update: {
-                            $set: {
-                                ...c,
-                                _id: c.recordId || c._id,
-                                isKeyContact: toBoolean(c.isKeyContact), // Ensure boolean conversion
-                                updatedAt: new Date()
-                            },
-                            $setOnInsert: { createdAt: new Date() }
-                        },
-                        upsert: true
-                    }
-                }));
-
-                const result = await Contact.bulkWrite(operations);
-                return NextResponse.json({ success: true, result });
-            }
-
-            case 'deleteContact': {
-                const { id: contactDelId } = payload || {};
-                if (!contactDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
-                await Contact.findByIdAndDelete(contactDelId);
-                return NextResponse.json({ success: true });
-            }
 
             // ========== TEMPLATES ==========
             case 'getTemplates': {
@@ -984,13 +1148,6 @@ export async function POST(request: NextRequest) {
 
                 console.log('previewProposal estimate.customVariables:', (estimate as any).customVariables);
 
-                // Fetch Contact Details if contactId is present
-                if ((estimate as any).contactId) {
-                    const contact = await Contact.findById((estimate as any).contactId).lean();
-                    if (contact) {
-                        (estimate as any)._contact = contact;
-                    }
-                }
 
                 // Resolve with editMode flag
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1019,13 +1176,6 @@ export async function POST(request: NextRequest) {
                 const estimateObj = estimate.toObject() as any;
                 estimateObj.customVariables = customVariables;
 
-                // Fetch Contact Details if contactId is present
-                if (estimateObj.contactId) {
-                    const contact = await Contact.findById(estimateObj.contactId).lean();
-                    if (contact) {
-                        estimateObj._contact = contact;
-                    }
-                }
 
                 // Resolve template in view mode (false) - final output without inputs
                 const html = resolveTemplateDocument(template, estimateObj, false);
@@ -1047,28 +1197,6 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: { html } });
             }
 
-            case 'importContacts': {
-                const { contacts } = payload || {};
-                if (!Array.isArray(contacts)) return NextResponse.json({ success: false, error: 'Invalid contacts array' }, { status: 400 });
-
-                const operations = contacts.map((c: any) => ({
-                    updateOne: {
-                        filter: { _id: c.recordId || c._id },
-                        update: {
-                            $set: {
-                                ...c,
-                                _id: c.recordId || c._id,
-                                updatedAt: new Date()
-                            },
-                            $setOnInsert: { createdAt: new Date() }
-                        },
-                        upsert: true
-                    }
-                }));
-
-                const result = await Contact.bulkWrite(operations);
-                return NextResponse.json({ success: true, result });
-            }
 
             // ========== EMPLOYEES ==========
             case 'getEmployees': {
@@ -1088,10 +1216,18 @@ export async function POST(request: NextRequest) {
                 if (!item || !item.email) return NextResponse.json({ success: false, error: 'Missing employee data or email' }, { status: 400 });
 
                 // Use email as _id
+                let profilePictureUrl = item.profilePicture;
+                if (item.profilePicture) {
+                    const uploaded = await uploadImage(item.profilePicture, item.email);
+                    if (uploaded) profilePictureUrl = uploaded;
+                }
+
                 const employeeData = {
                     ...item,
-                    _id: item.email
+                    _id: item.email,
+                    profilePicture: profilePictureUrl
                 };
+
 
                 const newEmployee = await Employee.create(employeeData);
                 return NextResponse.json({ success: true, result: newEmployee });
@@ -1101,9 +1237,20 @@ export async function POST(request: NextRequest) {
                 const { id: empId, item: empItem } = payload || {};
                 if (!empId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const updated = await Employee.findByIdAndUpdate(empId, { ...empItem, updatedAt: new Date() }, { new: true });
+                let updateData = { ...empItem };
+
+                // Handle Profile Picture Upload
+                if (empItem.profilePicture && empItem.profilePicture.startsWith('data:image')) {
+                    const uploaded = await uploadImage(empItem.profilePicture, empId);
+                    if (uploaded) {
+                        updateData.profilePicture = uploaded;
+                    }
+                }
+
+                const updated = await Employee.findByIdAndUpdate(empId, { ...updateData, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
             }
+
 
             case 'deleteEmployee': {
                 const { id: empDelId } = payload || {};

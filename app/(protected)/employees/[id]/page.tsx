@@ -48,6 +48,8 @@ interface Employee {
     autoInsurance?: string;
     veriforce?: string;
     unionPaperwork1184?: string;
+    profilePicture?: string;
+
     [key: string]: any;
 }
 

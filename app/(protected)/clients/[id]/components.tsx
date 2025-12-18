@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Building, FileSpreadsheet } from 'lucide-react';
 
+interface ClientContact {
+    name: string;
+    email?: string;
+    phone?: string;
+}
+
 interface Client {
     _id: string; // recordId
     name: string;
@@ -15,17 +21,20 @@ interface Client {
     accountingEmail?: string;
     agreementFile?: string;
     status?: string;
+    contacts?: ClientContact[];
+    addresses?: string[];
     [key: string]: any;
 }
 
 interface ClientHeaderCardProps {
     client: Client;
-    activeContact?: any; // Using any to avoid strict definition mismatch temporarily, or define separate interface
     onUpdate: (field: string, value: any) => void;
     animate: boolean;
 }
 
-export function ClientHeaderCard({ client, activeContact, onUpdate, animate }: ClientHeaderCardProps) {
+
+export function ClientHeaderCard({ client, onUpdate, animate }: ClientHeaderCardProps) {
+
 
     return (
         <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
@@ -45,8 +54,9 @@ export function ClientHeaderCard({ client, activeContact, onUpdate, animate }: C
                                 {client.name}
                             </div>
                             <div className="text-sm font-medium text-indigo-600 truncate">
-                                {activeContact ? activeContact.fullName : (client.contactFullName || 'No Primary Contact')}
+                                {client.contactFullName || 'No Primary Contact'}
                             </div>
+
                         </div>
                     </div>
                 </div>
@@ -58,21 +68,24 @@ export function ClientHeaderCard({ client, activeContact, onUpdate, animate }: C
                     </label>
                     <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
                         <Mail className="w-4 h-4 text-indigo-400" />
-                        <a href={`mailto:${activeContact?.email || client.email}`} className="hover:text-indigo-600 truncate">
-                            {activeContact?.email || client.email || 'No Email'}
+                        <a href={`mailto:${client.email}`} className="hover:text-indigo-600 truncate">
+                            {client.email || 'No Email'}
                         </a>
+
                     </div>
                     <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
                         <Phone className="w-4 h-4 text-emerald-400" />
-                        <a href={`tel:${activeContact?.phone || client.phone}`} className="hover:text-emerald-600">
-                            {((activeContact?.phone || client.phone) || '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') || 'No Phone'}
+                        <a href={`tel:${client.phone}`} className="hover:text-emerald-600">
+                            {(client.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') || 'No Phone'}
                         </a>
+
                     </div>
                     <div className="flex items-start gap-3 text-sm font-medium text-slate-600">
                         <MapPin className="w-4 h-4 text-rose-400 mt-0.5" />
                         <span className="leading-snug line-clamp-2">
-                            {activeContact?.address || client.businessAddress || 'No Address'}
+                            {client.businessAddress || 'No Address'}
                         </span>
+
                     </div>
                 </div>
 

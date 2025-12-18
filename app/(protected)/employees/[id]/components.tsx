@@ -21,7 +21,9 @@ interface Employee {
     city?: string;
     state?: string;
     zip?: string;
+    profilePicture?: string;
     [key: string]: any;
+
 }
 
 interface EmployeeHeaderCardProps {
@@ -42,10 +44,19 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                 {/* PART 1: Identity */}
                 <div className="flex flex-col gap-4 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg transform rotate-3">
-                            {employee.firstName?.[0]}{employee.lastName?.[0]}
-                        </div>
+                        {employee.profilePicture ? (
+                            <img
+                                src={employee.profilePicture}
+                                alt={`${employee.firstName} ${employee.lastName}`}
+                                className="w-16 h-16 rounded-2xl object-cover shadow-lg transform rotate-3"
+                            />
+                        ) : (
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg transform rotate-3">
+                                {employee.firstName?.[0]}{employee.lastName?.[0]}
+                            </div>
+                        )}
                         <div className="flex-1 min-w-0">
+
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">
                                 Employee
                             </label>
@@ -75,8 +86,9 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                     <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
                         <Phone className="w-4 h-4 text-emerald-400" />
                         <a href={`tel:${employee.mobile || employee.phone}`} className="hover:text-emerald-600">
-                            {(employee.mobile || employee.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') || '-'}
+                            {(employee.mobile || employee.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3') || '-'}
                         </a>
+
                     </div>
                     <div className="flex items-start gap-3 text-sm font-medium text-slate-600">
                         <MapPin className="w-4 h-4 text-rose-400 mt-0.5" />
@@ -93,8 +105,8 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                             Status
                         </label>
                         <div className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${employee.status === 'Active'
-                                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
                             }`}>
                             {employee.status}
                         </div>

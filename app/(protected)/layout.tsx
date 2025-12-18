@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import ChatWidget from '@/components/Chat/ChatWidget';
+
 export default function ProtectedLayout({
     children,
 }: {
@@ -30,8 +32,9 @@ export default function ProtectedLayout({
     }
 
     return (
-        <div className="h-screen flex flex-col overflow-hidden" style={{ background: '#f0f2f5' }}>
+        <div className="min-h-screen flex flex-col relative" style={{ background: '#f0f2f5' }}>
             {children}
+            <ChatWidget />
         </div>
     );
 }

@@ -44,6 +44,8 @@ export interface IEmployee extends Omit<Document, '_id'> {
     autoInsurance?: string;
     veriforce?: string;
     unionPaperwork1184?: string;
+    profilePicture?: string;
+
 
     createdAt?: Date;
     updatedAt?: Date;
@@ -91,6 +93,8 @@ const EmployeeSchema: Schema = new Schema({
     autoInsurance: { type: String },
     veriforce: { type: String },
     unionPaperwork1184: { type: String },
+    profilePicture: { type: String },
+
 
 }, {
     timestamps: true,

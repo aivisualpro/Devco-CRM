@@ -39,7 +39,7 @@ export function CostBreakdownChart({
             </label>
 
             {/* Semi-Circle Arc Chart */}
-            <div className="relative w-full flex justify-center items-start" style={{ height: '120px' }}>
+            <div className="relative w-full flex justify-center items-start" style={{ height: '130px' }}>
                 <svg viewBox="0 0 200 105" className="w-full max-w-[220px]" style={{ overflow: 'visible' }}>
                     {sortedSlices.length === 0 ? (
                         <path
@@ -106,28 +106,28 @@ export function CostBreakdownChart({
 
                 {/* Center Total */}
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
-                    <div className="text-xs text-blue-500 font-bold mb-0">Total</div>
+
                     <div className="text-2xl font-black text-slate-800 tracking-tight leading-none">
                         {formatMoney(grandTotal)}
                     </div>
-                    <div className="text-xs font-bold text-slate-400 mt-[-2px]">
+                    <div className="text-xs font-bold text-slate-400 ">
                         {formatMoney(subTotal)}
                     </div>
                 </div>
             </div>
 
             {/* Legend */}
-            <div className="w-full mt-2 space-y-1 flex-1 overflow-y-auto max-h-[120px]">
-                {sortedSlices.slice(0, 6).map(slice => {
+            <div className="w-full mt-2 space-y-1 flex-1 overflow-y-auto max-h-[140px]">
+                {sortedSlices.map(slice => {
                     const percent = subTotal > 0 ? ((slice.value / subTotal) * 100).toFixed(1) : '0';
                     const marginedValue = slice.value * (1 + markupPct / 100);
 
                     return (
                         <div
                             key={slice.id}
-                            className="flex items-center justify-between py-1 px-1 hover:bg-white/50 rounded transition-colors group"
+                            className="flex items-center justify-between py-0 px-0 hover:bg-white/50 rounded transition-colors group"
                         >
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-1 min-w-0">
                                 <div
                                     className="w-2.5 h-2.5 rounded-sm shrink-0"
                                     style={{ backgroundColor: slice.color }}

@@ -96,7 +96,8 @@ export function CustomerSelector({ value, onChange }: CustomerSelectorProps) {
                 options={clients}
                 placeholder="Select or add customer..."
                 className="w-full"
-                autoFocus={true}
+                autoFocus={false}
+
             />
         </div>
     );

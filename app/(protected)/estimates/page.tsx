@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle } from 'lucide-react';
+import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
+
 import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -20,11 +21,10 @@ interface Estimate {
     subTotal?: number;
     margin?: number;
     versionNumber?: number;
-    directionalDrilling?: boolean;
-    excavationBackfill?: boolean;
-    hydroExcavation?: boolean;
-    potholingCoring?: boolean;
-    asphaltConcrete?: boolean;
+    services?: string[];
+    fringe?: string;
+    certifiedPayroll?: string;
+    proposalWriter?: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -42,17 +42,23 @@ export default function EstimatesPage() {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
+    const [isImporting, setIsImporting] = useState(false);
+    const [constants, setConstants] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<any[]>([]);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
     const itemsPerPage = 15;
 
-    const fetchEstimates = async () => {
+    const fetchEstimates = async (signal?: AbortSignal) => {
         setLoading(true);
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEstimates' })
+                body: JSON.stringify({ action: 'getEstimates' }),
+                signal
             });
             const data = await res.json();
             if (data.success) {
@@ -60,11 +66,14 @@ export default function EstimatesPage() {
             } else {
                 toastError('Failed to fetch estimates');
             }
-        } catch (err) {
+        } catch (err: any) {
+            if (err.name === 'AbortError') return;
             console.error(err);
             toastError('Failed to fetch estimates');
         } finally {
-            setLoading(false);
+            if (!signal?.aborted) {
+                setLoading(false);
+            }
         }
     };
 
@@ -88,8 +97,76 @@ export default function EstimatesPage() {
     };
 
     useEffect(() => {
-        fetchEstimates();
+        const controller = new AbortController();
+        fetchEstimates(controller.signal);
+
+        // Fetch supporting data
+        const fetchSupportingData = async () => {
+            try {
+                const [constRes, empRes] = await Promise.all([
+                    fetch('/api/webhook/devcoBackend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'getConstants' })
+                    }),
+                    fetch('/api/webhook/devcoBackend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'getEmployees' })
+                    })
+                ]);
+                const constData = await constRes.json();
+                const empData = await empRes.json();
+                if (constData.success) setConstants(constData.result);
+                if (empData.success) setEmployees(empData.result);
+            } catch (err) {
+                console.error('Failed to fetch supporting data', err);
+            }
+        };
+
+        fetchSupportingData();
+
+        return () => controller.abort();
     }, []);
+
+    const getBadgeProps = (category: string, value: string | undefined) => {
+        if (!value) return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
+
+        const constant = constants.find(c => {
+            const type = (c.type || c.category || '').toLowerCase();
+            const searchCat = category.toLowerCase();
+            return (type === searchCat || type.includes(searchCat)) &&
+                (c.value?.toLowerCase() === value.toLowerCase() || c.description?.toLowerCase() === value.toLowerCase());
+        });
+
+        if (constant?.color) {
+            return {
+                style: { backgroundColor: constant.color, color: 'white', border: 'none' },
+                className: 'shadow-sm'
+            };
+        }
+
+        // Fallbacks if no constant color found
+        const val = value.toLowerCase();
+        if (category === 'Status') {
+            switch (val) {
+                case 'confirmed':
+                case 'won': return { className: 'bg-green-100 text-green-800 border-green-200' };
+                case 'pending': return { className: 'bg-orange-100 text-orange-800 border-orange-200' };
+                case 'lost': return { className: 'bg-red-100 text-red-800 border-red-200' };
+                case 'draft': return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
+            }
+        }
+        if (category === 'Fringe' || category === 'Certified Payroll') {
+            if (val === 'yes') return { className: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+        }
+
+        return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
+    };
+
+    const getEmployee = (email: string) => {
+        return employees.find(e => e.email === email);
+    };
 
     useEffect(() => {
         const drafts = new Set(estimates.filter(e => e.status === 'draft').map(e => e._id));
@@ -97,6 +174,8 @@ export default function EstimatesPage() {
     }, [estimates]);
 
     // Base filter: Finals (Latest Version) vs All
+    // If showFinals is TRUE: only show latest version of each estimate.
+    // If showFinals is FALSE: show ALL history.
     const visibleEstimates = useMemo(() => {
         if (!showFinals) return estimates;
 
@@ -112,8 +191,8 @@ export default function EstimatesPage() {
                 }
             }
         });
-        const latestIds = new Set(Array.from(latestVersions.values()).map(e => e._id));
-        return estimates.filter(e => latestIds.has(e._id));
+
+        return Array.from(latestVersions.values());
     }, [estimates, showFinals]);
 
     // Filter and search on top of visibleEstimates
@@ -141,45 +220,46 @@ export default function EstimatesPage() {
             );
         }
 
-        // Sort: Drafts first, then by user selection (multi-level)
+        // Sort strictly by user selection (multi-level)
         filtered.sort((a, b) => {
-            // 1. Draft priority
-            const aIsDraft = draftIds.has(a._id);
-            const bIsDraft = draftIds.has(b._id);
-
-            if (aIsDraft && !bIsDraft) return -1;
-            if (!aIsDraft && bIsDraft) return 1;
-
-            // 2. User selected sort
+            // 1. User selected sort
             const { key, direction } = sortConfig;
 
             // Helper to get date value
-            const getDateVal = (d: string | undefined) => {
+            // Helper to get date value
+            const getDateVal = (d: string | undefined): number => {
                 if (!d) return 0;
-                const p = d.split('/');
-                return p.length === 3 ? new Date(parseInt(p[2]), parseInt(p[0]) - 1, parseInt(p[1])).getTime() : 0;
+                const t = Date.parse(d);
+                if (!isNaN(t)) return t;
+                const p = d.split(/[/.-]/);
+                if (p.length === 3) {
+                    let m = parseInt(p[0]);
+                    let dy = parseInt(p[1]);
+                    let yr = parseInt(p[2]);
+                    if (yr < 100) yr += 2000;
+                    return new Date(yr, m - 1, dy).getTime();
+                }
+                return 0;
             };
 
-            // Multi-level sort logic
+            // Natural sort comp
             const compareValues = (key: string, dir: 'asc' | 'desc') => {
-                let valA, valB;
+                const valA = (a as any)[key];
+                const valB = (b as any)[key];
 
                 if (key === 'date') {
-                    valA = getDateVal(a.date);
-                    valB = getDateVal(b.date);
-                } else {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    valA = (a as any)[key];
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    valB = (b as any)[key];
-
-                    if (typeof valA === 'string') valA = valA.toLowerCase();
-                    if (typeof valB === 'string') valB = (valB || '').toLowerCase();
+                    const timeA = getDateVal(valA);
+                    const timeB = getDateVal(valB);
+                    if (timeA === timeB) return 0;
+                    return dir === 'asc' ? (timeA > timeB ? 1 : -1) : (timeA > timeB ? -1 : 1);
                 }
 
-                if (valA === valB) return 0;
+                // String / Number sorting
+                const strA = String(valA || '').toLowerCase();
+                const strB = String(valB || '').toLowerCase();
 
-                const comp = (valA || 0) > (valB || 0) ? 1 : -1;
+                // Use localeCompare with numeric: true for natural sort (e.g. "2" < "10")
+                const comp = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
                 return dir === 'asc' ? comp : -comp;
             };
 
@@ -190,11 +270,13 @@ export default function EstimatesPage() {
             // Secondary Sorts (Only apply if primary is 'date')
             if (key === 'date') {
                 // Secondary: Customer Name (Ascending)
-                result = compareValues('customerName', 'asc');
-                if (result !== 0) return result;
+                const sec = compareValues('customerName', 'asc');
+                if (sec !== 0) return sec;
 
                 // Tertiary: Version Number (Descending - newest version first)
-                result = compareValues('versionNumber', 'desc');
+                const vA = (a.versionNumber || 0);
+                const vB = (b.versionNumber || 0);
+                return vB - vA;
             }
 
             return result;
@@ -290,7 +372,99 @@ export default function EstimatesPage() {
         setDeleteId(null);
     };
 
+    const parseCSV = (text: string) => {
+        const rows: any[] = [];
+        let currentRow: string[] = [];
+        let currentField = '';
+        let insideQuotes = false;
+
+        // Normalize line endings to \n to simplify
+        const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+        for (let i = 0; i < normalized.length; i++) {
+            const char = normalized[i];
+            const nextChar = normalized[i + 1];
+
+            if (char === '"') {
+                if (insideQuotes && nextChar === '"') {
+                    currentField += '"';
+                    i++; // Skip escape quote
+                } else {
+                    insideQuotes = !insideQuotes;
+                }
+            } else if (char === ',' && !insideQuotes) {
+                currentRow.push(currentField.trim());
+                currentField = '';
+            } else if (char === '\n' && !insideQuotes) {
+                currentRow.push(currentField.trim());
+                if (currentRow.some(c => c)) rows.push(currentRow); // Only push non-empty rows
+                currentRow = [];
+                currentField = '';
+            } else {
+                currentField += char;
+            }
+        }
+        // Push last row if exists
+        if (currentField || currentRow.length > 0) {
+            currentRow.push(currentField.trim());
+            if (currentRow.some(c => c)) rows.push(currentRow);
+        }
+        return rows;
+    };
+
+    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsedRows = parseCSV(text);
+
+                if (parsedRows.length < 2) throw new Error("Invalid CSV format or empty file");
+
+                const headers = parsedRows[0].map((h: string) => h.replace(/^"|"$/g, '').trim());
+
+                const estimatesData = parsedRows.slice(1).map(values => {
+                    const item: any = {};
+                    headers.forEach((h: string, i: number) => {
+                        const key = h;
+                        if (key && values[i] !== undefined) item[key] = values[i].replace(/^"|"$/g, '');
+                    });
+                    return item;
+                });
+
+                if (estimatesData.length === 0) throw new Error("No data found");
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importEstimates', payload: { estimates: estimatesData } })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    success(`Successfully imported/updated ${estimatesData.length} records`);
+                    fetchEstimates();
+                } else {
+                    toastError('Import failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError('Error importing file: ' + err.message);
+            } finally {
+                setIsImporting(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+
     const formatCurrency = (val: number | undefined) => {
+
         if (val === undefined || val === null) return '-';
         return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} `;
     };
@@ -320,6 +494,23 @@ export default function EstimatesPage() {
                         >
                             <HelpCircle className="w-5 h-5" />
                         </button>
+
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isImporting}
+                            className={`p-2 rounded-lg transition-colors border ${isImporting ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 border-gray-200 hover:border-indigo-100'}`}
+                            title="Import from CSV"
+                        >
+                            <Upload className={`w-5 h-5 ${isImporting ? 'animate-pulse' : ''}`} />
+                        </button>
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleImport}
+                            accept=".csv"
+                            className="hidden"
+                        />
+
                     </div>
                 }
             />
@@ -347,16 +538,16 @@ export default function EstimatesPage() {
                 {/* Table */}
                 <div>
                     {loading ? (
-                        <SkeletonTable rows={10} columns={11} />
+                        <SkeletonTable rows={10} columns={14} />
                     ) : (
                         <Table>
                             <TableHead>
                                 <TableRow>
-                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 w-28 text-xs">
+                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Estimate<SortIcon column="estimate" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-24 text-xs">
-                                        <div className="flex items-center">Version<SortIcon column="versionNumber" /></div>
+                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-16 text-xs text-center">
+                                        <div className="flex items-center justify-center">V.<SortIcon column="versionNumber" /></div>
                                     </TableHeader>
                                     <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Date<SortIcon column="date" /></div>
@@ -364,21 +555,30 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Customer<SortIcon column="customerName" /></div>
                                     </TableHeader>
+                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                        Writer
+                                    </TableHeader>
+                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                        Fringe
+                                    </TableHeader>
+                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                        CP
+                                    </TableHeader>
                                     <TableHeader className="text-xs">Services</TableHeader>
-                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
-                                        <div className="flex items-center">Sub Total<SortIcon column="subTotal" /></div>
+                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-xs text-right">
+                                        <div className="flex items-center justify-end">Sub<SortIcon column="subTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-xs">
-                                        <div className="flex items-center">Markup%<SortIcon column="bidMarkUp" /></div>
+                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                        <div className="flex items-center justify-center">%<SortIcon column="bidMarkUp" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-xs">
-                                        <div className="flex items-center">Margin$<SortIcon column="margin" /></div>
+                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-xs text-right">
+                                        <div className="flex items-center justify-end">Margin<SortIcon column="margin" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
-                                        <div className="flex items-center">Grand Total<SortIcon column="grandTotal" /></div>
+                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-xs text-right">
+                                        <div className="flex items-center justify-end">Total<SortIcon column="grandTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
-                                        <div className="flex items-center">Status<SortIcon column="status" /></div>
+                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                        <div className="flex items-center justify-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
                                     <TableHeader className="text-right text-xs">Actions</TableHeader>
                                 </TableRow>
@@ -386,7 +586,7 @@ export default function EstimatesPage() {
                             <TableBody>
                                 {paginatedEstimates.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={11}>
+                                        <TableCell className="text-center py-8 text-gray-500" colSpan={14}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No estimates found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Create your first estimate to get started.</p>
@@ -396,12 +596,13 @@ export default function EstimatesPage() {
                                 ) : (
                                     paginatedEstimates.map((est) => {
                                         const services = [
-                                            { key: 'directionalDrilling', label: 'DD', color: 'bg-blue-500' },
-                                            { key: 'excavationBackfill', label: 'EB', color: 'bg-green-500' },
-                                            { key: 'hydroExcavation', label: 'HE', color: 'bg-purple-500' },
-                                            { key: 'potholingCoring', label: 'PC', color: 'bg-orange-500' },
-                                            { key: 'asphaltConcrete', label: 'AC', color: 'bg-red-500' }
-                                        ].filter(s => est[s.key as keyof Estimate]);
+                                            { value: 'Directional Drilling', label: 'DD', color: 'bg-blue-500' },
+                                            { value: 'Excavation & Backfill', label: 'EB', color: 'bg-green-500' },
+                                            { value: 'Hydro-excavation', label: 'HE', color: 'bg-purple-500' },
+                                            { value: 'Potholing & Coring', label: 'PC', color: 'bg-orange-500' },
+                                            { value: 'Asphalt & Concrete', label: 'AC', color: 'bg-red-500' }
+                                        ].filter(s => est.services?.includes(s.value));
+
 
                                         return (
                                             <TableRow
@@ -412,10 +613,10 @@ export default function EstimatesPage() {
                                                     router.push(`/estimates/${slug}`);
                                                 }}
                                             >
-                                                <TableCell className="font-medium text-indigo-600 text-xs">
+                                                <TableCell className="font-medium text-gray-900 text-xs">
                                                     {est.estimate || '-'}
                                                 </TableCell>
-                                                <TableCell className="text-xs">
+                                                <TableCell className="text-center">
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
                                                         V.{est.versionNumber || 1}
                                                     </span>
@@ -426,11 +627,48 @@ export default function EstimatesPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-xs">{est.customerName || '-'}</TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex justify-center">
+                                                        {est.proposalWriter ? (
+                                                            getEmployee(est.proposalWriter)?.profilePicture ? (
+                                                                <img
+                                                                    src={getEmployee(est.proposalWriter)!.profilePicture}
+                                                                    alt={est.proposalWriter}
+                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                                                                    title={est.proposalWriter}
+                                                                />
+                                                            ) : (
+                                                                <div
+                                                                    className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 border border-gray-200"
+                                                                    title={est.proposalWriter}
+                                                                >
+                                                                    {est.proposalWriter.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            )
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {est.fringe && (
+                                                        <Badge {...getBadgeProps('Fringe', est.fringe)}>
+                                                            {est.fringe}
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {est.certifiedPayroll && (
+                                                        <Badge {...getBadgeProps('Certified Payroll', est.certifiedPayroll)}>
+                                                            {est.certifiedPayroll}
+                                                        </Badge>
+                                                    )}
+                                                </TableCell>
                                                 <TableCell>
                                                     <div className="flex gap-1">
                                                         {services.length > 0 ? services.map(s => (
                                                             <span
-                                                                key={s.key}
+                                                                key={s.value}
                                                                 className={`${s.color} text-white text-[10px] font-bold px-1.5 py-0.5 rounded`}
                                                                 title={s.label}
                                                             >
@@ -439,36 +677,27 @@ export default function EstimatesPage() {
                                                         )) : <span className="text-gray-400 text-xs">-</span>}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-xs">
+                                                <TableCell className="font-medium text-xs text-right">
                                                     {formatCurrency(est.subTotal)}
                                                 </TableCell>
-                                                <TableCell>
+                                                <TableCell className="text-center">
                                                     <span className="text-xs font-medium text-gray-600">
                                                         {est.bidMarkUp ? String(est.bidMarkUp).replace('%', '') : '-'}
                                                     </span>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-green-600 text-xs">
+                                                <TableCell className="font-medium text-green-600 text-xs text-right">
                                                     {formatCurrency(est.margin)}
                                                 </TableCell>
-                                                <TableCell className="font-bold text-gray-900 text-xs">
+                                                <TableCell className="font-bold text-gray-900 text-xs text-right">
                                                     {formatCurrency(est.grandTotal)}
                                                 </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={est.status === 'confirmed' ? 'success' : 'warning'}>
+                                                <TableCell className="text-center">
+                                                    <Badge {...getBadgeProps('Status', est.status || 'draft')}>
                                                         {est.status || 'draft'}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div onClick={(e) => e.stopPropagation()} className="inline-flex">
-                                                        <button
-                                                            onClick={() => {
-                                                                const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
-                                                                router.push(`/estimates/${slug}`);
-                                                            }}
-                                                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600"
-                                                        >
-                                                            <Eye className="w-4 h-4" />
-                                                        </button>
                                                         <button
                                                             onClick={() => confirmDelete(est._id)}
                                                             className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 ml-1"

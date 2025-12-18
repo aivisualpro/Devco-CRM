@@ -41,20 +41,24 @@ interface Estimate {
     date?: string;
     customerName?: string;
     customerId?: string;
+    contactName?: string;
+    contactId?: string;
+    contactEmail?: string;
+    contactPhone?: string;
+    jobAddress?: string;
     projectName?: string; // Added field
     proposalNo?: string;
     versionNumber?: number;
     bidMarkUp?: string | number;
     status?: string;
     fringe?: string;
-    directionalDrilling?: boolean;
-    excavationBackfill?: boolean;
-    hydroExcavation?: boolean;
-    potholingCoring?: boolean;
-    asphaltConcrete?: boolean;
 
     services?: string[];
+    proposalWriter?: string;
+    certifiedPayroll?: string;
+    oldOrNew?: string;
     labor?: LineItem[];
+
     equipment?: LineItem[];
     material?: LineItem[];
     tools?: LineItem[];
@@ -199,11 +203,16 @@ export default function EstimateViewPage() {
     const [disposalCatalog, setDisposalCatalog] = useState<LineItem[]>([]);
     const [subcontractorCatalog, setSubcontractorCatalog] = useState<LineItem[]>([]);
     const [miscellaneousCatalog, setMiscellaneousCatalog] = useState<LineItem[]>([]);
+    const [toolsCatalog, setToolsCatalog] = useState<LineItem[]>([]);
     const [fringeConstants, setFringeConstants] = useState<FringeConstant[]>([]);
     const [statusOptions, setStatusOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [serviceOptions, setServiceOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [certifiedPayrollOptions, setCertifiedPayrollOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [catalogsLoaded, setCatalogsLoaded] = useState(false);
+
+
     const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
 
     // Modals
@@ -335,7 +344,7 @@ export default function EstimateViewPage() {
         try {
             const result = await apiCall('getAllCatalogueItems');
             if (result.success && result.result) {
-                const { equipment, labor, material, overhead, subcontractor, disposal, miscellaneous, constant } = result.result;
+                const { equipment, labor, material, overhead, subcontractor, disposal, miscellaneous, tools, constant } = result.result;
                 setEquipmentCatalog(equipment || []);
                 setLaborCatalog(labor || []);
                 setMaterialCatalog(material || []);
@@ -343,6 +352,7 @@ export default function EstimateViewPage() {
                 setSubcontractorCatalog(subcontractor || []);
                 setDisposalCatalog(disposal || []);
                 setMiscellaneousCatalog(miscellaneous || []);
+                setToolsCatalog(tools || []);
                 setMiscellaneousCatalog(miscellaneous || []);
                 setFringeConstants((constant || []) as unknown as FringeConstant[]);
 
@@ -390,6 +400,38 @@ export default function EstimateViewPage() {
                     }));
                 console.log('Loaded Fringe Options:', fringes);
                 setFringeOptions(fringes);
+
+                // Process Certified Payroll Options
+                const certifiedPayroll = (constant || [])
+                    .filter((c: any) => {
+                        const type = (c.type || c.category || '').toLowerCase();
+                        return type === 'certified payroll';
+                    })
+                    .map((c: any) => ({
+                        id: c._id,
+                        label: c.description || c.value,
+                        value: (c.description || c.value || '').trim(),
+                        color: c.color
+                    }));
+                console.log('Loaded Certified Payroll Options:', certifiedPayroll);
+                setCertifiedPayrollOptions(certifiedPayroll);
+
+                // Fetch Employees for Proposal Writer
+                const employeeRes = await apiCall('getEmployees');
+                if (employeeRes.success && employeeRes.result) {
+                    const employees = employeeRes.result
+                        .filter((emp: any) => emp.appRole === 'Admin')
+                        .map((emp: any) => ({
+                            id: emp._id,
+                            label: `${emp.firstName} ${emp.lastName}`,
+                            value: emp._id,
+                            profilePicture: emp.profilePicture
+                        }));
+
+                    setEmployeeOptions(employees);
+                }
+
+
             }
         } catch (err) {
             console.error('Error loading catalogs:', err);
@@ -540,8 +582,10 @@ export default function EstimateViewPage() {
     }, [chartData.grandTotal, estimate?._id]);
 
     // Auto-refresh preview when data changes (debounce 1s)
+    // Auto-refresh preview when data changes (debounce 1s)
     useEffect(() => {
-        if (!previewHtml || isEditingTemplate || generatingProposal || !estimate) return;
+        // Run if we have a template selected and not in manual edit mode
+        if (!selectedTemplateId || isEditingTemplate || generatingProposal || !estimate) return;
 
         const timer = setTimeout(() => {
             handlePreview(false);
@@ -549,7 +593,7 @@ export default function EstimateViewPage() {
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData, chartData]);
+    }, [formData, chartData, estimate, selectedTemplateId]);
 
     // Handlers
     const handlePreview = async (forceEditMode?: boolean, explicitTemplateId?: string) => {
@@ -627,7 +671,7 @@ export default function EstimateViewPage() {
         setGeneratingProposal(false);
     };
 
-    const handleHeaderUpdate = async (field: string, value: string | number) => {
+    const handleHeaderUpdate = async (field: string, value: string | number | boolean) => {
         if (!formData) return;
         setFormData(prev => prev ? { ...prev, [field]: value } : null);
         setUnsavedChanges(true);
@@ -635,36 +679,23 @@ export default function EstimateViewPage() {
         // Auto-populate logic when Customer changes
         if (field === 'customerId' && value) {
             try {
-                // 1. Fetch Client Details to get Address
+                // Fetch Client Details (has both addresses and contacts now)
                 const clientRes = await apiCall('getClientById', { id: value });
-                let businessAddress = '';
                 if (clientRes.success && clientRes.result) {
-                    businessAddress = clientRes.result.businessAddress || '';
-                }
+                    const client = clientRes.result;
 
-                // 2. Fetch Contacts to find Key Contact
-                const contactsRes = await apiCall('getContacts');
-                if (contactsRes.success && contactsRes.result) {
-                    const contacts = contactsRes.result as any[];
-                    // Find Key Contact for this client
-                    const keyContact = contacts.find(c => c.clientId === value && c.isKeyContact);
+                    const firstAddress = client.addresses?.[0] || client.businessAddress || '';
+                    const firstContact = client.contacts?.[0] || { name: client.contactFullName, email: client.email, phone: client.phone };
 
-                    if (keyContact) {
-                        setFormData(prev => prev ? {
-                            ...prev,
-                            contactName: keyContact.fullName,
-                            contactId: keyContact._id,
-                            jobAddress: businessAddress // Default to client address per user request
-                        } : null);
-                    } else {
-                        // If no key contact, just set address if available
-                        setFormData(prev => prev ? {
-                            ...prev,
-                            contactName: '',
-                            contactId: '',
-                            jobAddress: businessAddress
-                        } : null);
-                    }
+                    setFormData(prev => prev ? {
+                        ...prev,
+                        jobAddress: firstAddress,
+                        contactName: firstContact.name || '',
+                        contactId: firstContact.name || '',
+                        contactEmail: firstContact.email || '',
+                        contactPhone: firstContact.phone || ''
+                    } : null);
+
                 }
             } catch (error) {
                 console.error('Error auto-populating client details:', error);
@@ -672,12 +703,6 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleServiceToggle = (serviceId: string) => {
-        if (!formData) return;
-        const newVal = !formData[serviceId];
-        setFormData(prev => prev ? { ...prev, [serviceId]: newVal } : null);
-        setUnsavedChanges(true);
-    };
 
     const handleServicesChange = (newServices: string[]) => {
         if (!formData) return;
@@ -778,6 +803,10 @@ export default function EstimateViewPage() {
                 subTotal: chartData.subTotal,
                 margin: chartData.grandTotal - chartData.subTotal,
                 grandTotal: chartData.grandTotal,
+                contactEmail: formData.contactEmail,
+                contactPhone: formData.contactPhone,
+                jobAddress: formData.jobAddress,
+
                 labor: estimate.labor,
                 equipment: estimate.equipment,
                 material: estimate.material,
@@ -866,9 +895,6 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleConvertToProposal = () => {
-        success('Convert to Proposal feature coming soon');
-    };
 
     const handleVersionClick = (clickedId: string) => {
         const clickedVersion = versionHistory.find(v => v._id === clickedId);
@@ -897,6 +923,7 @@ export default function EstimateViewPage() {
             case 'Overhead': return overheadCatalog;
             case 'Disposal': return disposalCatalog;
             case 'Subcontractor': return subcontractorCatalog;
+            case 'Tools': return toolsCatalog;
             case 'Miscellaneous': return miscellaneousCatalog;
             default: return [];
         }
@@ -999,15 +1026,6 @@ export default function EstimateViewPage() {
                             Copy
                         </button>
 
-                        {/* Convert to Proposal */}
-                        <button
-                            onClick={handleConvertToProposal}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-bold text-xs shadow-md"
-                            title="Convert to Proposal"
-                        >
-                            <FileText className="w-3.5 h-3.5" />
-                            Proposal
-                        </button>
 
                         {/* Delete */}
                         <button
@@ -1021,7 +1039,7 @@ export default function EstimateViewPage() {
                 }
             />
 
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1">
                 <div className="w-full px-8 py-6">
                     {/* Header Card */}
                     <EstimateHeaderCard
@@ -1030,14 +1048,17 @@ export default function EstimateViewPage() {
                         versionHistory={versionHistory}
                         currentEstimateId={estimate?._id}
                         chartAnimate={chartAnimate}
-                        onServiceToggle={handleServiceToggle}
+
                         onStatusChange={handleStatusChange}
                         statusOptions={statusOptions}
                         onServicesChange={handleServicesChange}
                         serviceOptions={serviceOptions}
                         fringeOptions={fringeOptions}
                         onFringeChange={handleFringeChange}
+                        certifiedPayrollOptions={certifiedPayrollOptions}
+                        employeeOptions={employeeOptions}
                         onHeaderUpdate={handleHeaderUpdate}
+
                         onVersionClick={(id) => {
                             const v = versionHistory.find(vh => vh._id === id);
                             if (v) {
@@ -1078,7 +1099,7 @@ export default function EstimateViewPage() {
                     {/* Proposal Content Section */}
                     {templates.length > 0 && (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
-                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between sticky top-0 z-20 shadow-sm rounded-t-xl">
+                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between sticky top-[64px] z-20 shadow-sm rounded-t-xl transition-all">
                                 <div className="flex items-center gap-2">
                                     <LayoutTemplate className="w-5 h-5 text-blue-600" />
                                     <h3 className="font-semibold text-gray-800">Proposal</h3>
@@ -1136,11 +1157,39 @@ export default function EstimateViewPage() {
 
                             {(previewHtml || (estimate?.proposal?.htmlContent)) ? (
                                 <div className="p-8 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
-                                    <div
-                                        ref={proposalRef}
-                                        className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
-                                        dangerouslySetInnerHTML={{ __html: previewHtml || estimate?.proposal?.htmlContent || '' }}
-                                    />
+                                    {isEditingTemplate ? (
+                                        <div
+                                            ref={proposalRef}
+                                            className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
+                                            dangerouslySetInnerHTML={{ __html: previewHtml || estimate?.proposal?.htmlContent || '' }}
+                                        />
+                                    ) : (
+                                        <div className="flex flex-col gap-8 items-center w-full">
+                                            {(() => {
+                                                const rawHtml = previewHtml || estimate?.proposal?.htmlContent || '';
+                                                const pageContentArray = rawHtml
+                                                    .split('___PAGE_BREAK___')
+                                                    .flatMap(p => p.split(/(?:<!-- PAGEBREAK -->|<div style="page-break-after: always;[^"]*"><\/div>)/));
+
+                                                return pageContentArray.map((pageHtml, idx) => (
+                                                    <div key={idx} className="flex flex-col items-center w-full">
+                                                        {idx > 0 && (
+                                                            <div className="w-full max-w-[850px] flex items-center gap-4 py-6 select-none opacity-40">
+                                                                <div className="h-px bg-slate-400 flex-1"></div>
+                                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Page {idx + 1}</span>
+                                                                <div className="h-px bg-slate-400 flex-1"></div>
+                                                            </div>
+                                                        )}
+                                                        <div
+                                                            className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
+                                                            style={{ fontFamily: 'Inter, sans-serif' }}
+                                                            dangerouslySetInnerHTML={{ __html: pageHtml }}
+                                                        />
+                                                    </div>
+                                                ));
+                                            })()}
+                                        </div>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="p-12 flex flex-col items-center justify-center text-center text-gray-400 bg-gray-50 min-h-[400px] rounded-b-xl">
@@ -1222,7 +1271,8 @@ export default function EstimateViewPage() {
                                         document.body.appendChild(iframe);
 
                                         const content = (previewHtml || estimate?.proposal?.htmlContent || '')
-                                            .replace(/<div style="page-break-after: always;[^"]*"><\/div>/g, '<div class="page-break"></div>');
+                                            .replace(/___PAGE_BREAK___/g, '<div class="page-break"></div>')
+                                            .replace(/(?:<!-- PAGEBREAK -->|<div style="page-break-after: always;[^"]*"><\/div>)/g, '<div class="page-break"></div>');
 
                                         const doc = iframe.contentWindow?.document;
                                         if (doc) {
@@ -1351,15 +1401,36 @@ export default function EstimateViewPage() {
                                 </button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-auto p-8 bg-gray-100 flex flex-col gap-8 items-center cursor-default">
-                            {(previewHtml || estimate?.proposal?.htmlContent || '').split('<div style="page-break-after: always; height: 1px; width: 100%; clear: both;"></div>').map((pageHtml, idx) => (
-                                <div
-                                    key={idx}
-                                    className="bg-white shadow-2xl mx-auto w-[850px] min-h-[1100px] p-12 proposal-content ql-editor"
-                                    style={{ fontFamily: 'Inter, sans-serif' }}
-                                    dangerouslySetInnerHTML={{ __html: pageHtml }}
-                                />
-                            ))}
+                        <div className="flex-1 overflow-auto p-8 bg-gray-100 flex flex-col gap-8 items-center cursor-default relative">
+                            {generatingProposal && (
+                                <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                                </div>
+                            )}
+                            {(() => {
+                                const rawHtml = previewHtml || estimate?.proposal?.htmlContent || '';
+                                // Robust split: First by the explicit new text marker, then by legacy markers
+                                const pageContentArray = rawHtml
+                                    .split('___PAGE_BREAK___')
+                                    .flatMap(p => p.split(/(?:<!-- PAGEBREAK -->|<div style="page-break-after: always;[^"]*"><\/div>)/));
+
+                                return pageContentArray.map((pageHtml, idx) => (
+                                    <div key={idx} className="flex flex-col items-center w-full">
+                                        {idx > 0 && (
+                                            <div className="w-full max-w-[850px] flex items-center gap-4 py-6 select-none opacity-40">
+                                                <div className="h-px bg-slate-400 flex-1"></div>
+                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Page {idx + 1}</span>
+                                                <div className="h-px bg-slate-400 flex-1"></div>
+                                            </div>
+                                        )}
+                                        <div
+                                            className="bg-white shadow-2xl mx-auto w-[850px] min-h-[1100px] p-12 proposal-content ql-editor"
+                                            style={{ fontFamily: 'Inter, sans-serif' }}
+                                            dangerouslySetInnerHTML={{ __html: pageHtml }}
+                                        />
+                                    </div>
+                                ));
+                            })()}
                         </div>
                     </div>
                 </div>

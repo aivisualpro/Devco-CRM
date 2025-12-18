@@ -61,7 +61,9 @@ export function AddToolsEstimateDialogue({
 
     const getIdentifier = (item: CatalogItem): string => {
         const normalize = (val: unknown) => String(val || '').toLowerCase().trim();
-        return `tool|${normalize(item.tool)}|${normalize(item.classification)}`;
+        const toolName = item.tool || item.Tool;
+        const className = item.classification || item.Classification;
+        return `tool|${normalize(toolName)}|${normalize(className)}`;
     };
 
     const existingIdentifiers = useMemo(() => new Set(existingItems.map(getIdentifier)), [existingItems]);
@@ -175,11 +177,15 @@ export function AddToolsEstimateDialogue({
                                             onClick={() => !isAdded && toggleSelection(item)}
                                         >
                                             <td className="p-3"><input type="checkbox" checked={selectedItems.has(item) || isAdded} disabled className="rounded border-gray-300 pointer-events-none" /></td>
-                                            {displayCols.map((col) => (
-                                                <td key={col} className="p-3 text-gray-700">
-                                                    {['cost'].includes(col) ? `$${Number(item[col] || 0).toLocaleString()}` : String(item[col] || '')}
-                                                </td>
-                                            ))}
+                                            {displayCols.map((col) => {
+                                                // Handle potential capitalization mismatch (tool vs Tool)
+                                                const val = item[col] || item[col.charAt(0).toUpperCase() + col.slice(1)];
+                                                return (
+                                                    <td key={col} className="p-3 text-gray-700">
+                                                        {['cost'].includes(col) ? `$${Number(val || 0).toLocaleString()}` : String(val || '')}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     );
                                 })}

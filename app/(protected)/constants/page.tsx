@@ -170,21 +170,19 @@ export default function ConstantsPage() {
 
     return (
         <>
-            <Header />
+            <Header rightContent={
+                <div className="flex items-center gap-3">
+                    <SearchInput
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="Search constants..."
+                        className="w-48 sm:w-64"
+                    />
+                    <AddButton onClick={openAddModal} label="Add Constant" />
+                </div>
+            } />
             <div className="p-4">
                 <ToastContainer toasts={toasts} removeToast={removeToast} />
-
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Constants</h1>
-                        <p className="text-sm text-gray-500">Manage system constants and configuration values</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search constants..." />
-                        <AddButton onClick={openAddModal} label="Add Constant" />
-                    </div>
-                </div>
 
                 {/* Tabs */}
                 <div className="flex justify-center mb-4">

@@ -11,13 +11,12 @@ export interface Estimate {
     notes?: string;
     fringe?: string;
     markup?: number;
-    directionalDrilling?: boolean;
-    foundations?: boolean;
-    trafficLoops?: boolean;
-    splicing?: boolean;
-    roadBoring?: boolean;
-    streetLighting?: boolean;
     confirmed?: boolean;
+    oldOrNew?: string;
+    proposalWriter?: string;
+    certifiedPayroll?: string;
+
+
     createdAt?: Date;
     updatedAt?: Date;
     // Line items - populated on fetch

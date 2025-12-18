@@ -8,7 +8,7 @@ import {
     Clock, MoreHorizontal, Briefcase, FileSpreadsheet,
     Calendar, DollarSign, ClipboardCheck, AlertTriangle,
     Settings, BarChart3, FileCheck, Shield, Plus, Sparkles,
-    ChevronRight, Bell, Search, Filter, RefreshCw
+    ChevronRight
 } from 'lucide-react';
 import { Header } from '@/components/ui';
 
@@ -203,7 +203,7 @@ export default function DashboardPage() {
 
     return (
         <>
-            <Header />
+            <Header showDashboardActions={true} />
             <div className="min-h-screen bg-[#f8fafc]">
                 <div className="max-w-[1600px] mx-auto px-6 py-6">
 
@@ -214,24 +214,6 @@ export default function DashboardPage() {
                                 {greeting}! 👋
                             </h1>
                             <p className="text-slate-500">{currentDate}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            {/* Search */}
-                            <div className="relative">
-                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <input
-                                    type="text"
-                                    placeholder="Search..."
-                                    className="pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#0066FF] focus:ring-4 focus:ring-[#0066FF]/10 w-64 transition-all"
-                                />
-                            </div>
-                            <button className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors relative">
-                                <Bell size={18} className="text-slate-600" />
-                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#0066FF] rounded-full text-[10px] text-white flex items-center justify-center font-medium">3</span>
-                            </button>
-                            <button onClick={() => loadStats()} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-                                <RefreshCw size={18} className={`text-slate-600 ${loading ? 'animate-spin' : ''}`} />
-                            </button>
                         </div>
                     </div>
 

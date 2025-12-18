@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command } from 'lucide-react';
 
 interface SubItem {
     label: string;
@@ -23,8 +23,8 @@ const menuStructure: MenuItem[] = [
         label: 'CRM',
         items: [
             { label: 'Clients', href: '/clients', icon: <Users className="w-5 h-5" />, description: 'Manage client relationships and data', colorClass: 'text-cyan-500' },
-            { label: 'Contacts', href: '/contacts', icon: <Contact className="w-5 h-5" />, description: 'Directory of all business contacts', colorClass: 'text-purple-500' },
             { label: 'Employees', href: '/employees', icon: <Briefcase className="w-5 h-5" />, description: 'Manage company employees', colorClass: 'text-green-500' },
+
             { label: 'Leads', href: '/leads', icon: <Briefcase className="w-5 h-5" />, description: 'Track potential sales opportunities', colorClass: 'text-pink-500' },
         ]
     },
@@ -72,122 +72,248 @@ const menuStructure: MenuItem[] = [
     }
 ];
 
+const CURRENT_VERSION = 'V.0.49';
+
+
 interface HeaderProps {
     rightContent?: React.ReactNode;
     leftContent?: React.ReactNode;
     centerContent?: React.ReactNode;
+    showDashboardActions?: boolean;
 }
 
-export function Header({ rightContent, leftContent, centerContent }: HeaderProps) {
+export function Header({ rightContent, leftContent, centerContent, showDashboardActions }: HeaderProps) {
     const pathname = usePathname();
+    const [searchOpen, setSearchOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    // Keyboard shortcut for search
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setSearchOpen(true);
+            }
+            if (e.key === 'Escape') {
+                setSearchOpen(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
+
+    // Focus input when search opens
+    useEffect(() => {
+        if (searchOpen && searchInputRef.current) {
+            searchInputRef.current.focus();
+        }
+    }, [searchOpen]);
 
     const isGroupActive = (items: SubItem[]) => {
         return items.some(item => pathname.startsWith(item.href));
     };
 
+    // All searchable items
+    const allItems = menuStructure.flatMap(group =>
+        group.items.map(item => ({ ...item, group: group.label }))
+    );
+    const filteredItems = searchQuery
+        ? allItems.filter(item =>
+            item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.description.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        : [];
+
     return (
-        <header className="sticky top-0 z-50 bg-[#f0f2f5] border-b border-gray-200">
-            <div className="w-full px-6">
-                <div className="flex items-center justify-between h-16">
-                    {/* Left Content + Navigation Menu */}
-                    <div className="flex items-center gap-4">
-                        <Link href="/" className="font-extrabold text-2xl tracking-tight text-blue-600 hover:text-blue-700 transition-colors mr-2">
-                            DEVCO
-                        </Link>
-                        {leftContent}
-                        <nav className="flex items-center gap-2">
-                            {menuStructure.map((group) => {
-                                const active = isGroupActive(group.items);
-                                const hasManyItems = group.items.length > 6;
+        <>
+            <header className="sticky top-0 z-50 bg-[#f0f2f5] border-b border-gray-200">
+                <div className="w-full px-6">
+                    <div className="flex items-center justify-between h-16">
+                        {/* Left Content + Navigation Menu */}
+                        <div className="flex items-center gap-4">
+                            <Link href="/" className="font-extrabold text-2xl tracking-tight text-blue-600 hover:text-blue-700 transition-colors mr-2">
+                                DEVCO
+                            </Link>
+                            {leftContent}
+                            <nav className="flex items-center gap-2">
+                                {menuStructure.map((group) => {
+                                    const active = isGroupActive(group.items);
 
-                                // Calculate width and grid cols based on item count
-                                let dropdownWidth = 'w-72';
-                                let gridCols = 'grid-cols-1';
+                                    let dropdownWidth = 'w-72';
+                                    let gridCols = 'grid-cols-1';
 
-                                if (group.items.length > 8) {
-                                    dropdownWidth = 'w-[800px]';
-                                    gridCols = 'grid-cols-3';
-                                } else if (group.items.length > 4) {
-                                    dropdownWidth = 'w-[500px]';
-                                    gridCols = 'grid-cols-2';
-                                }
+                                    if (group.items.length > 8) {
+                                        dropdownWidth = 'w-[800px]';
+                                        gridCols = 'grid-cols-3';
+                                    } else if (group.items.length > 4) {
+                                        dropdownWidth = 'w-[500px]';
+                                        gridCols = 'grid-cols-2';
+                                    }
 
-                                return (
-                                    <div key={group.label} className="relative group">
-                                        <button
-                                            className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
-                                                }`}
-                                        >
-                                            {group.label}
-                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? 'text-indigo-600' : 'text-gray-400'}`} />
-                                        </button>
+                                    return (
+                                        <div key={group.label} className="relative group">
+                                            <button
+                                                className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                                    }`}
+                                            >
+                                                {group.label}
+                                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? 'text-indigo-600' : 'text-gray-400'}`} />
+                                            </button>
 
-                                        {/* Mega Dropdown */}
-                                        <div className={`absolute top-full left-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left z-50 ${dropdownWidth}`}>
-                                            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
-                                                <div className={`grid ${gridCols} gap-4`}>
-                                                    {group.items.map((item) => {
-                                                        const isActive = pathname === item.href;
-                                                        // Updated isImplemented check to be more aligned with what we actually have active
-                                                        const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/contacts', '/employees'].includes(item.href);
+                                            {/* Mega Dropdown */}
+                                            <div className={`absolute top-full left-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left z-50 ${dropdownWidth}`}>
+                                                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
+                                                    <div className={`grid ${gridCols} gap-4`}>
+                                                        {group.items.map((item) => {
+                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase'].includes(item.href);
 
-                                                        const Content = () => (
-                                                            <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group/item">
-                                                                <div className={`mt-1 bg-gray-50 p-2 rounded-lg group-hover/item:bg-white group-hover/item:shadow-sm transition-all ${item.colorClass && item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100').replace('700', '100')}`}>
-                                                                    {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
-                                                                        className: `w-5 h-5 ${item.colorClass}`
-                                                                    })}
-                                                                </div>
-                                                                <div>
-                                                                    <h3 className={`font-bold text-base ${item.colorClass}`}>
-                                                                        {item.label}
-                                                                    </h3>
-                                                                    <p className="text-xs text-gray-400 font-medium leading-relaxed mt-0.5">
-                                                                        {item.description}
-                                                                    </p>
-                                                                </div>
-                                                            </div>
-                                                        );
 
-                                                        if (!isImplemented) {
-                                                            return (
-                                                                <div key={item.href} className="opacity-60 cursor-not-allowed grayscale">
-                                                                    <Content />
+                                                            const Content = () => (
+                                                                <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group/item">
+                                                                    <div className={`mt-1 bg-gray-50 p-2 rounded-lg group-hover/item:bg-white group-hover/item:shadow-sm transition-all ${item.colorClass && item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100').replace('700', '100')}`}>
+                                                                        {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
+                                                                            className: `w-5 h-5 ${item.colorClass}`
+                                                                        })}
+                                                                    </div>
+                                                                    <div>
+                                                                        <h3 className={`font-bold text-base ${item.colorClass}`}>
+                                                                            {item.label}
+                                                                        </h3>
+                                                                        <p className="text-xs text-gray-400 font-medium leading-relaxed mt-0.5">
+                                                                            {item.description}
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
                                                             );
-                                                        }
 
-                                                        return (
-                                                            <Link key={item.href} href={item.href}>
-                                                                <Content />
-                                                            </Link>
-                                                        );
-                                                    })}
+                                                            if (!isImplemented) {
+                                                                return (
+                                                                    <div key={item.href} className="opacity-60 cursor-not-allowed grayscale">
+                                                                        <Content />
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <Link key={item.href} href={item.href}>
+                                                                    <Content />
+                                                                </Link>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </nav>
-                    </div>
-
-                    {/* Center Content */}
-                    {centerContent && (
-                        <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
-                            {centerContent}
+                                    );
+                                })}
+                            </nav>
                         </div>
-                    )}
 
-                    {/* Right Actions */}
-                    {rightContent && (
-                        <div className="flex items-center gap-4">
+                        {/* Center Content */}
+                        {centerContent && (
+                            <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
+                                {centerContent}
+                            </div>
+                        )}
+
+                        {/* Right Actions - Default Header Actions */}
+                        <div className="flex items-center gap-3">
+                            {showDashboardActions && (
+                                <>
+                                    {/* Search Button with Shortcut */}
+                                    <button
+                                        onClick={() => setSearchOpen(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-500 hover:border-[#0066FF] hover:text-[#0066FF] transition-all w-64 shadow-sm group"
+                                    >
+                                        <Search size={18} className="group-hover:scale-110 transition-transform" />
+                                        <span className="flex-1 text-left font-medium">Search...</span>
+                                        <kbd className="hidden sm:flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 border border-slate-200">
+                                            <Command size={10} />K
+                                        </kbd>
+                                    </button>
+
+                                    {/* Notifications */}
+                                    <button className="p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-[#0066FF] transition-all relative group shadow-sm">
+                                        <Bell size={20} className="text-slate-600 group-hover:text-[#0066FF] group-hover:rotate-12 transition-all" />
+                                        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#0066FF] rounded-full text-[11px] text-white flex items-center justify-center font-bold border-2 border-white">3</span>
+                                    </button>
+
+                                    {/* Version Badge - Links to Knowledgebase */}
+                                    <Link
+                                        href="/knowledgebase"
+                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0066FF] to-[#3385FF] text-white rounded-full text-sm font-bold hover:from-[#0052CC] hover:to-[#0066FF] transition-all shadow-lg shadow-[#0066FF]/20 group hover:-translate-y-0.5"
+                                    >
+                                        <BookOpen size={18} className="group-hover:rotate-12 transition-transform" />
+                                        <span>{CURRENT_VERSION}</span>
+                                    </Link>
+                                </>
+                            )}
+
+                            {/* Additional right content if provided */}
                             {rightContent}
                         </div>
-                    )}
+                    </div>
                 </div>
-            </div>
-        </header>
+            </header>
+
+            {/* Search Modal Overlay */}
+            {searchOpen && (
+                <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-start justify-center pt-[15vh]" onClick={() => setSearchOpen(false)}>
+                    <div
+                        className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-scale-in"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        {/* Search Input */}
+                        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100">
+                            <Search size={20} className="text-slate-400" />
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder="Search pages, features, and more..."
+                                className="flex-1 text-lg outline-none placeholder-slate-400"
+                            />
+                            <kbd className="px-2 py-1 bg-slate-100 rounded text-xs font-medium text-slate-400">ESC</kbd>
+                        </div>
+
+                        {/* Search Results */}
+                        <div className="max-h-[400px] overflow-y-auto">
+                            {searchQuery && filteredItems.length === 0 && (
+                                <div className="p-8 text-center text-slate-400">
+                                    No results found for &quot;{searchQuery}&quot;
+                                </div>
+                            )}
+                            {filteredItems.map((item) => (
+                                <Link
+                                    key={item.href}
+                                    href={item.href}
+                                    onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+                                    className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50 transition-colors group"
+                                >
+                                    <div className={`p-2 rounded-lg bg-slate-100 group-hover:bg-white group-hover:shadow-sm transition-all`}>
+                                        {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
+                                            className: `w-5 h-5 ${item.colorClass}`
+                                        })}
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-slate-800 group-hover:text-[#0066FF]">{item.label}</p>
+                                        <p className="text-sm text-slate-400">{item.description}</p>
+                                    </div>
+                                    <span className="text-xs text-slate-300 font-medium">{item.group}</span>
+                                </Link>
+                            ))}
+                            {!searchQuery && (
+                                <div className="p-6 text-center text-slate-400 text-sm">
+                                    Start typing to search...
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
