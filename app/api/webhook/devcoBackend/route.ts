@@ -425,7 +425,7 @@ export async function POST(request: NextRequest) {
 
                 const estimateNumber = `${yearSuffix}-${String(nextSeq).padStart(4, '0')}`;
 
-                const id = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const id = `${estimateNumber}-V1`;
 
                 const estimateData = {
                     _id: id,
@@ -472,7 +472,7 @@ export async function POST(request: NextRequest) {
                 const nextVersion = (versions[0]?.versionNumber || 1) + 1;
 
                 // 3. Create New Estimate Document
-                const newId = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const newId = `${sourceEst.estimate}-V${nextVersion}`;
 
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { _id, createdAt, updatedAt, __v, ...sourceData } = sourceEst as any;
@@ -536,7 +536,7 @@ export async function POST(request: NextRequest) {
                 const estimateNumber = `${yearSuffix}-${String(nextSeq).padStart(4, '0')}`;
 
                 // 3. Create New Estimate Document
-                const newId = `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                const newId = `${estimateNumber}-V1`;
 
                 // Remove fields we don't want to copy or that need reset
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -617,6 +617,16 @@ export async function POST(request: NextRequest) {
                     const estimateNum = e.estimate || e['Estimate #'];
                     if (!identifier && !estimateNum) return null;
 
+                    // 1. Extract and sanitize versionNumber early for ID generation
+                    const rawVersion = e.versionNumber || e['Version Number'] || e['Version'];
+                    let vn = 1;
+                    if (rawVersion) {
+                        const parsed = parseInt(String(rawVersion).replace(/[^0-9]/g, ''));
+                        if (!isNaN(parsed)) vn = parsed;
+                    }
+
+                    const concatenatedId = `${estimateNum}-V${vn}`;
+
                     const parseVal = (v: any) => {
                         if (typeof v === 'number') return v;
                         return parseFloat(String(v).replace(/[^0-9.-]+/g, "")) || 0;
@@ -641,19 +651,10 @@ export async function POST(request: NextRequest) {
                     if (cleanData.subTotal !== undefined) cleanData.subTotal = parseVal(cleanData.subTotal);
                     if (cleanData.margin !== undefined) cleanData.margin = parseVal(cleanData.margin);
 
-                    if (cleanData.versionNumber) {
-                        const vn = parseInt(String(cleanData.versionNumber).replace(/[^0-9]/g, ''));
-                        // If it's a valid number, keep it. Otherwise delete it so it falls back to 1 (new) or existing (update)
-                        if (!isNaN(vn)) cleanData.versionNumber = vn;
-                        else delete cleanData.versionNumber;
-                    } else {
-                        delete cleanData.versionNumber;
-                    }
-
-                    const newId = identifier || `EST-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+                    // Ensure versionNumber is correct in cleanData
+                    cleanData.versionNumber = vn;
 
                     // Prune empty fields so we don't overwrite existing data with empty strings
-                    // and also so we don't trigger conflict with setOnInsert defaults if the field is effectively missing
                     if (!cleanData.status) delete cleanData.status;
                     if (!cleanData.date) delete cleanData.date;
                     if (!cleanData.customerName) delete cleanData.customerName;
@@ -662,7 +663,7 @@ export async function POST(request: NextRequest) {
 
                     // Ensure no overlap between $set and $setOnInsert
                     const setOnInsert: any = {
-                        _id: newId,
+                        _id: concatenatedId,
                         createdAt: new Date(),
                         status: 'draft',
                         labor: [],
@@ -677,28 +678,19 @@ export async function POST(request: NextRequest) {
                         }]
                     };
 
-                    // If request has versionNumber, it's in $set. If not, default to 1 in $setOnInsert.
-                    if (typeof cleanData.versionNumber === 'number') {
-                        delete setOnInsert.versionNumber;
-                    } else {
-                        setOnInsert.versionNumber = 1;
-                    }
-
-                    // Similarly for status, etc. to avoid conflicts
-                    // If key exists in updateSet, remove from setOnInsert
+                    // Handle status/date/customer overlap
                     if (updateSet.status !== undefined) delete setOnInsert.status;
                     if (updateSet.date !== undefined) delete setOnInsert.date;
                     if (updateSet.customerName !== undefined) delete setOnInsert.customerName;
 
-                    // construct query filter based on identifier OR (estimate + version)
-                    const versionForQuery = typeof cleanData.versionNumber === 'number' ? cleanData.versionNumber : 1;
-                    const filter = identifier
-                        ? { _id: identifier }
-                        : { estimate: estimateNum, versionNumber: versionForQuery };
+                    // Already have version in updateSet
+                    delete setOnInsert.versionNumber;
+
+                    const filter = { _id: concatenatedId };
 
                     return {
                         updateOne: {
-                            filter: filter,
+                            filter: { _id: concatenatedId },
                             update: {
                                 $set: updateSet,
                                 $setOnInsert: setOnInsert

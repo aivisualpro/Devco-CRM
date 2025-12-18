@@ -6,6 +6,7 @@ import {
     User, Send, Paperclip, Image as ImageIcon,
     FileText, Video, AtSign
 } from 'lucide-react';
+import Pusher from 'pusher-js';
 const HashIcon = Hash;
 
 
@@ -23,6 +24,9 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
     const [inputText, setInputText] = useState('');
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+    const myEmail = typeof window !== 'undefined' ? localStorage.getItem('user_email') || 'system@devcocrm.com' : 'system@devcocrm.com';
 
     useEffect(() => {
         const fetchData = async () => {
@@ -41,6 +45,11 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
         fetchData();
     }, []);
 
+    // Auto-scroll to bottom
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
     useEffect(() => {
         if (selectedChat) {
             const fetchMessages = async () => {
@@ -55,6 +64,28 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                 }
             };
             fetchMessages();
+
+            // Pusher Subscription
+            const isDev = process.env.NODE_ENV === 'development';
+            const pusherKey = isDev ? process.env.NEXT_PUBLIC_DEV_PUSHER_KEY : process.env.NEXT_PUBLIC_PUSHER_KEY;
+            const pusherCluster = isDev ? process.env.NEXT_PUBLIC_DEV_PUSHER_CLUSTER : process.env.NEXT_PUBLIC_PUSHER_CLUSTER;
+
+            const pusher = new Pusher(pusherKey!, {
+                cluster: pusherCluster!,
+            });
+
+            const channel = pusher.subscribe(`${selectedChat.type}-${selectedChat.id}`);
+            channel.bind('new-message', (newMessage: any) => {
+                setMessages((prev) => {
+                    // Avoid duplicate if sent by us and already in state
+                    if (prev.find(m => m._id === newMessage._id)) return prev;
+                    return [...prev, newMessage];
+                });
+            });
+
+            return () => {
+                pusher.unsubscribe(`${selectedChat.type}-${selectedChat.id}`);
+            };
         }
     }, [selectedChat]);
 
@@ -133,7 +164,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                     <button
                                         key={est._id}
                                         onClick={() => setSelectedChat({ type: 'proposal', id: est.estimate, name: `Prop: ${est.estimate}` })}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === est.estimate ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'hover:bg-indigo-50 text-gray-700'}`}
+                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === est.estimate ? 'bg-[#0066FF] text-white shadow-md shadow-blue-200' : 'hover:bg-blue-50 text-gray-700'}`}
                                     >
                                         <HashIcon size={16} className={selectedChat?.id === est.estimate ? 'text-indigo-200' : 'text-indigo-500'} />
                                         <div className="text-left truncate">
@@ -190,7 +221,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                     <button
                                         key={ch._id}
                                         onClick={() => setSelectedChat({ type: 'channel', id: ch._id, name: ch.name })}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === ch._id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'hover:bg-indigo-50 text-gray-700'}`}
+                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === ch._id ? 'bg-[#0066FF] text-white shadow-md shadow-blue-200' : 'hover:bg-blue-50 text-gray-700'}`}
                                     >
                                         <div className={`w-2 h-2 rounded-full ${selectedChat?.id === ch._id ? 'bg-white' : 'bg-green-500'}`}></div>
                                         <span className="text-sm font-semibold truncate">{ch.name}</span>
@@ -210,7 +241,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                     <button
                                         key={e._id}
                                         onClick={() => setSelectedChat({ type: 'direct', id: e.email, name: `${e.firstName} ${e.lastName}` })}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === e.email ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'hover:bg-indigo-50 text-gray-700'}`}
+                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === e.email ? 'bg-[#0066FF] text-white shadow-md shadow-blue-200' : 'hover:bg-blue-50 text-gray-700'}`}
                                     >
                                         <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs ring-2 ring-white">
                                             {e.firstName[0]}{e.lastName[0]}
@@ -235,7 +266,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                             {/* Chat Header */}
                             <div className="p-4 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10 shadow-sm">
                                 <div className="flex items-center space-x-3">
-                                    <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-100">
+                                    <div className="w-10 h-10 rounded-xl bg-[#0066FF] flex items-center justify-center text-white font-bold shadow-lg shadow-blue-100">
                                         {selectedChat.type === 'proposal' ? <Briefcase size={20} /> : selectedChat.type === 'channel' ? <Hash size={20} /> : <User size={20} />}
                                     </div>
                                     <div>
@@ -258,20 +289,68 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
 
                             {/* Messages List */}
                             <div className="flex-1 overflow-y-auto p-4 space-y-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-fixed">
-                                {messages.map((m, idx) => {
-                                    const isMe = m.senderId === (localStorage.getItem('user_email') || 'system@devcocrm.com');
-                                    return (
-                                        <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-[80%] p-4 rounded-2xl shadow-sm ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-gray-800 rounded-tl-none border border-gray-100'}`}>
-                                                {!isMe && <div className="text-[10px] font-bold text-indigo-500 mb-1 uppercase tracking-wider">{m.senderId}</div>}
-                                                <div className="text-sm leading-relaxed whitespace-pre-wrap">{m.text}</div>
-                                                <div className={`text-[10px] mt-2 font-medium ${isMe ? 'text-indigo-200 text-right' : 'text-gray-400'}`}>
-                                                    {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                {messages.length > 0 && (
+                                    <div className="flex justify-center mb-6">
+                                        <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-tighter">Today {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                )}
+                                {(() => {
+                                    // Find last message sent by ME for the 'Read' receipt
+                                    const lastMeIndex = [...messages].reverse().findIndex(m => m.senderId === myEmail);
+                                    const actualLastMeIndex = lastMeIndex !== -1 ? messages.length - 1 - lastMeIndex : -1;
+
+                                    return messages.map((m, idx) => {
+                                        const isMe = m.senderId === myEmail;
+                                        const prevMessage = messages[idx - 1];
+                                        const nextMessage = messages[idx + 1];
+
+                                        const isLastInGroup = !nextMessage || nextMessage.senderId !== m.senderId;
+                                        const isFirstInGroup = !prevMessage || prevMessage.senderId !== m.senderId;
+
+                                        // iMessage-accurate bubble radii logic
+                                        // Top of group: fully rounded except bottom outer corner
+                                        // Middle: flatter outer corners
+                                        // Bottom: fully rounded except tail corner
+                                        const br = 20;
+                                        const sm = 4;
+                                        const borderRadius = isMe
+                                            ? `${br}px ${isFirstInGroup ? br : sm}px ${isLastInGroup ? sm : sm}px ${br}px`
+                                            : `${isFirstInGroup ? br : sm}px ${br}px ${br}px ${isLastInGroup ? sm : sm}px`;
+
+                                        return (
+                                            <div key={m._id || idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${isLastInGroup ? 'mb-4' : 'mb-[2px]'}`}>
+                                                <div
+                                                    className={`relative max-w-[75%] px-3.5 py-2 text-[15.5px] leading-[1.35] ${isMe
+                                                        ? 'bg-gradient-to-b from-[#007DFF] to-[#0066FF] text-white shadow-sm'
+                                                        : 'bg-[#E9E9EB] text-black'
+                                                        }`}
+                                                    style={{ borderRadius }}
+                                                >
+                                                    <div className="whitespace-pre-wrap font-[450] tracking-tight">{m.text}</div>
+
+                                                    {/* iMessage Tail - Only on the last message of a sequence */}
+                                                    {isLastInGroup && (
+                                                        <div className={`absolute bottom-0 ${isMe ? '-right-[7px]' : '-left-[7px]'} w-[18px] h-[18px]`}>
+                                                            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className={isMe ? '' : 'scale-x-[-1]'}>
+                                                                <path
+                                                                    d="M20 20H0C8 20 12 18 16 11C18 8 19 4 19 0V20H20Z"
+                                                                    fill={isMe ? "#0066FF" : "#E9E9EB"}
+                                                                />
+                                                            </svg>
+                                                        </div>
+                                                    )}
                                                 </div>
+                                                {isMe && idx === actualLastMeIndex && (
+                                                    <div className="text-[10px] text-gray-400 mt-1 font-semibold mr-1.5 opacity-80 animate-fade-in">
+                                                        Read {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    });
+                                })()}
+                                <div ref={messagesEndRef} />
+
                                 {messages.length === 0 && (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
                                         <MessageCircle size={64} className="mb-4 text-indigo-200" />
@@ -296,7 +375,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                             value={inputText}
                                             onChange={(e) => setInputText(e.target.value)}
                                             placeholder={`Message ${selectedChat.name}...`}
-                                            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all resize-none min-h-[44px] max-h-32"
+                                            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:bg-white transition-all resize-none min-h-[44px] max-h-32"
                                             rows={1}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -308,7 +387,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                         <button
                                             type="submit"
                                             disabled={!inputText.trim()}
-                                            className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-indigo-100 flex-shrink-0"
+                                            className="p-3 bg-[#0066FF] text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-blue-100 flex-shrink-0"
                                         >
                                             <Send size={20} />
                                         </button>
@@ -319,7 +398,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50">
                             <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6 animate-bounce">
-                                <MessageCircle size={48} className="text-indigo-600" />
+                                <MessageCircle size={48} className="text-[#0066FF]" />
                             </div>
                             <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Devco Communications</h2>
                             <p className="text-gray-500 text-center max-w-sm">

@@ -77,6 +77,19 @@ export async function POST(request: NextRequest) {
                 createdAt: new Date(),
                 updatedAt: new Date()
             });
+
+            // Trigger real-time update via Pusher
+            try {
+                const { pusherServer } = await import('@/lib/pusher');
+                await pusherServer.trigger(
+                    `${payload.type}-${payload.targetId}`,
+                    'new-message',
+                    newMessage
+                );
+            } catch (err) {
+                console.error('Pusher Trigger Error:', err);
+            }
+
             return NextResponse.json({ success: true, result: newMessage });
         }
 

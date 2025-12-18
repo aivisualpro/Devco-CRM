@@ -47,7 +47,7 @@ export default function EstimatesPage() {
     const [employees, setEmployees] = useState<any[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
+
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
     const itemsPerPage = 15;
 
@@ -168,10 +168,7 @@ export default function EstimatesPage() {
         return employees.find(e => e.email === email);
     };
 
-    useEffect(() => {
-        const drafts = new Set(estimates.filter(e => e.status === 'draft').map(e => e._id));
-        setDraftIds(drafts);
-    }, [estimates]);
+
 
     // Base filter: Finals (Latest Version) vs All
     // If showFinals is TRUE: only show latest version of each estimate.
@@ -204,10 +201,10 @@ export default function EstimatesPage() {
             filtered = filtered.filter((e) => isThisMonth(e.date || ''));
         } else if (activeFilter === 'lastMonth') {
             filtered = filtered.filter((e) => isLastMonth(e.date || ''));
-        } else if (activeFilter === 'draft') {
-            filtered = filtered.filter((e) => e.status === 'draft');
-        } else if (activeFilter === 'confirmed') {
-            filtered = filtered.filter((e) => e.status === 'confirmed');
+        } else if (activeFilter === 'lost') {
+            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'lost');
+        } else if (activeFilter === 'won') {
+            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'won' || (e.status || '').toLowerCase() === 'confirmed');
         }
 
         // Apply search
@@ -283,7 +280,7 @@ export default function EstimatesPage() {
         });
 
         return filtered;
-    }, [visibleEstimates, activeFilter, search, draftIds, sortConfig]);
+    }, [visibleEstimates, activeFilter, search, sortConfig]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -306,8 +303,8 @@ export default function EstimatesPage() {
         { id: 'all', label: 'All', count: visibleEstimates.length },
         { id: 'thisMonth', label: 'This Month', count: visibleEstimates.filter((e) => isThisMonth(e.date || '')).length },
         { id: 'lastMonth', label: 'Last Month', count: visibleEstimates.filter((e) => isLastMonth(e.date || '')).length },
-        { id: 'draft', label: 'Draft', count: visibleEstimates.filter((e) => e.status === 'draft').length },
-        { id: 'confirmed', label: 'Confirmed', count: visibleEstimates.filter((e) => e.status === 'confirmed').length }
+        { id: 'lost', label: 'Lost', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'lost').length },
+        { id: 'won', label: 'Won', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'won' || (e.status || '').toLowerCase() === 'confirmed').length }
     ];
 
     const [isCreating, setIsCreating] = useState(false);
@@ -546,8 +543,8 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Estimate<SortIcon column="estimate" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-16 text-xs text-center">
-                                        <div className="flex items-center justify-center">V.<SortIcon column="versionNumber" /></div>
+                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-16 text-xs">
+                                        <div className="flex items-center">V.<SortIcon column="versionNumber" /></div>
                                     </TableHeader>
                                     <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Date<SortIcon column="date" /></div>
@@ -555,32 +552,32 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Customer<SortIcon column="customerName" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         Writer
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         Fringe
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
+                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         CP
                                     </TableHeader>
                                     <TableHeader className="text-xs">Services</TableHeader>
-                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-xs text-right">
-                                        <div className="flex items-center justify-end">Sub<SortIcon column="subTotal" /></div>
+                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Sub<SortIcon column="subTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
-                                        <div className="flex items-center justify-center">%<SortIcon column="bidMarkUp" /></div>
+                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">%<SortIcon column="bidMarkUp" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-xs text-right">
-                                        <div className="flex items-center justify-end">Margin<SortIcon column="margin" /></div>
+                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Margin<SortIcon column="margin" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-xs text-right">
-                                        <div className="flex items-center justify-end">Total<SortIcon column="grandTotal" /></div>
+                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Total<SortIcon column="grandTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs text-center">
-                                        <div className="flex items-center justify-center">Status<SortIcon column="status" /></div>
+                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                        <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
-                                    <TableHeader className="text-right text-xs">Actions</TableHeader>
+                                    <TableHeader className="text-left text-xs">Actions</TableHeader>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -616,7 +613,7 @@ export default function EstimatesPage() {
                                                 <TableCell className="font-medium text-gray-900 text-xs">
                                                     {est.estimate || '-'}
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell>
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
                                                         V.{est.versionNumber || 1}
                                                     </span>
@@ -627,8 +624,8 @@ export default function EstimatesPage() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-xs">{est.customerName || '-'}</TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex justify-center">
+                                                <TableCell>
+                                                    <div className="flex">
                                                         {est.proposalWriter ? (
                                                             getEmployee(est.proposalWriter)?.profilePicture ? (
                                                                 <img
@@ -650,14 +647,14 @@ export default function EstimatesPage() {
                                                         )}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell>
                                                     {est.fringe && (
                                                         <Badge {...getBadgeProps('Fringe', est.fringe)}>
                                                             {est.fringe}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell>
                                                     {est.certifiedPayroll && (
                                                         <Badge {...getBadgeProps('Certified Payroll', est.certifiedPayroll)}>
                                                             {est.certifiedPayroll}
@@ -677,26 +674,26 @@ export default function EstimatesPage() {
                                                         )) : <span className="text-gray-400 text-xs">-</span>}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-xs text-right">
+                                                <TableCell className="font-medium text-xs">
                                                     {formatCurrency(est.subTotal)}
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell>
                                                     <span className="text-xs font-medium text-gray-600">
                                                         {est.bidMarkUp ? String(est.bidMarkUp).replace('%', '') : '-'}
                                                     </span>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-green-600 text-xs text-right">
+                                                <TableCell className="font-medium text-green-600 text-xs">
                                                     {formatCurrency(est.margin)}
                                                 </TableCell>
-                                                <TableCell className="font-bold text-gray-900 text-xs text-right">
+                                                <TableCell className="font-bold text-gray-900 text-xs">
                                                     {formatCurrency(est.grandTotal)}
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell>
                                                     <Badge {...getBadgeProps('Status', est.status || 'draft')}>
                                                         {est.status || 'draft'}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="text-right">
+                                                <TableCell className="text-left">
                                                     <div onClick={(e) => e.stopPropagation()} className="inline-flex">
                                                         <button
                                                             onClick={() => confirmDelete(est._id)}
