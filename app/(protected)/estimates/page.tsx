@@ -158,7 +158,7 @@ export default function EstimatesPage() {
             }
         }
         if (category === 'Fringe' || category === 'Certified Payroll') {
-            if (val === 'yes') return { className: 'bg-indigo-100 text-indigo-800 border-indigo-200' };
+            if (val === 'yes') return { className: 'bg-[#0F4C75]/10 text-[#0F4C75] border-[#0F4C75]/20' };
         }
 
         return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
@@ -292,8 +292,8 @@ export default function EstimatesPage() {
     const SortIcon = ({ column }: { column: string }) => {
         if (sortConfig.key !== column) return <ArrowUpDown className="w-3 h-3 text-gray-400 ml-1" />;
         return sortConfig.direction === 'asc'
-            ? <ArrowUp className="w-3 h-3 text-indigo-600 ml-1" />
-            : <ArrowDown className="w-3 h-3 text-indigo-600 ml-1" />;
+            ? <ArrowUp className="w-3 h-3 text-[#0F4C75] ml-1" />
+            : <ArrowDown className="w-3 h-3 text-[#0F4C75] ml-1" />;
     };
 
     const totalPages = Math.ceil(filteredEstimates.length / itemsPerPage);
@@ -486,7 +486,7 @@ export default function EstimatesPage() {
                         <AddButton onClick={handleCreate} disabled={isCreating} label={isCreating ? "Creating..." : "New Estimate"} />
                         <button
                             onClick={() => setShowKnowledgeBase(true)}
-                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                            className="p-2 text-gray-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 rounded-lg transition-colors"
                             title="Template Knowledge Base"
                         >
                             <HelpCircle className="w-5 h-5" />
@@ -495,7 +495,7 @@ export default function EstimatesPage() {
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             disabled={isImporting}
-                            className={`p-2 rounded-lg transition-colors border ${isImporting ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 border-gray-200 hover:border-indigo-100'}`}
+                            className={`p-2 rounded-lg transition-colors border ${isImporting ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-gray-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 border-gray-200 hover:border-[#0F4C75]/30'}`}
                             title="Import from CSV"
                         >
                             <Upload className={`w-5 h-5 ${isImporting ? 'animate-pulse' : ''}`} />
@@ -522,10 +522,10 @@ export default function EstimatesPage() {
                     />
 
                     <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-full border border-gray-200 shadow-sm h-[42px]">
-                        <span className={`text-sm font-medium ${showFinals ? 'text-indigo-600' : 'text-gray-600'}`}>Finals</span>
+                        <span className={`text-sm font-medium ${showFinals ? 'text-[#0F4C75]' : 'text-gray-600'}`}>Finals</span>
                         <button
                             onClick={() => setShowFinals(!showFinals)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${showFinals ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:ring-offset-2 ${showFinals ? 'bg-[#0F4C75]' : 'bg-gray-200'}`}
                         >
                             <span className={`${showFinals ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm`} />
                         </button>
@@ -740,7 +740,7 @@ export default function EstimatesPage() {
 
                         <div>
                             <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
+                                <span className="bg-[#0F4C75]/10 text-[#0F4C75] w-6 h-6 rounded-full flex items-center justify-center text-xs">1</span>
                                 Core Variables
                             </h4>
                             <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -752,11 +752,11 @@ export default function EstimatesPage() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 bg-white">
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{customerName}}`}</td><td className="px-4 py-2">Customer Name</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{projectTitle}}`}</td><td className="px-4 py-2">Project Title</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{date}}`}</td><td className="px-4 py-2">Estimate Date</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{proposalNo}}`}</td><td className="px-4 py-2">Proposal Number</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-indigo-600">{`{{aggregations.grandTotal}}`}</td><td className="px-4 py-2">Total Project Cost</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{customerName}}`}</td><td className="px-4 py-2">Customer Name</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{projectTitle}}`}</td><td className="px-4 py-2">Project Title</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{date}}`}</td><td className="px-4 py-2">Estimate Date</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{proposalNo}}`}</td><td className="px-4 py-2">Proposal Number</td></tr>
+                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{aggregations.grandTotal}}`}</td><td className="px-4 py-2">Total Project Cost</td></tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -764,7 +764,7 @@ export default function EstimatesPage() {
 
                         <div>
                             <h4 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                <span className="bg-indigo-100 text-indigo-700 w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
+                                <span className="bg-[#0F4C75]/10 text-[#0F4C75] w-6 h-6 rounded-full flex items-center justify-center text-xs">2</span>
                                 Looping & Grouping
                             </h4>
                             <div className="space-y-4">

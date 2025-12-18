@@ -72,7 +72,7 @@ const menuStructure: MenuItem[] = [
     }
 ];
 
-const CURRENT_VERSION = 'V.0.49';
+const CURRENT_VERSION = 'V.0.55';
 
 
 interface HeaderProps {
@@ -132,7 +132,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                     <div className="flex items-center justify-between h-16">
                         {/* Left Content + Navigation Menu */}
                         <div className="flex items-center gap-4">
-                            <Link href="/" className="font-extrabold text-2xl tracking-tight text-blue-600 hover:text-blue-700 transition-colors mr-2">
+                            <Link href="/" className="text-2xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                 DEVCO
                             </Link>
                             {leftContent}
@@ -158,7 +158,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                     }`}
                                             >
                                                 {group.label}
-                                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? 'text-indigo-600' : 'text-gray-400'}`} />
+                                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? '' : 'text-gray-400'}`} style={active ? { color: '#0F4C75' } : {}} />
                                             </button>
 
                                             {/* Mega Dropdown */}
@@ -166,7 +166,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
                                                     <div className={`grid ${gridCols} gap-4`}>
                                                         {group.items.map((item) => {
-                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase'].includes(item.href);
+                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase', '/jobs/schedules'].includes(item.href);
 
 
                                                             const Content = () => (
@@ -224,9 +224,10 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Search Button with Shortcut */}
                                     <button
                                         onClick={() => setSearchOpen(true)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-500 hover:border-[#0066FF] hover:text-[#0066FF] transition-all w-64 shadow-sm group"
+                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-500 transition-all w-64 shadow-sm group"
+                                        style={{ border: searchOpen ? '1px solid #0F4C75' : '' }}
                                     >
-                                        <Search size={18} className="group-hover:scale-110 transition-transform" />
+                                        <Search size={18} className="group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
                                         <span className="flex-1 text-left font-medium">Search...</span>
                                         <kbd className="hidden sm:flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 border border-slate-200">
                                             <Command size={10} />K
@@ -234,15 +235,16 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     </button>
 
                                     {/* Notifications */}
-                                    <button className="p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 hover:border-[#0066FF] transition-all relative group shadow-sm">
-                                        <Bell size={20} className="text-slate-600 group-hover:text-[#0066FF] group-hover:rotate-12 transition-all" />
-                                        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 bg-[#0066FF] rounded-full text-[11px] text-white flex items-center justify-center font-bold border-2 border-white">3</span>
+                                    <button className="p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all relative group shadow-sm hover:border-[#0F4C75]">
+                                        <Bell size={20} className="text-slate-600 group-hover:rotate-12 transition-all group-hover:text-[#0F4C75]" />
+                                        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full text-[11px] text-white flex items-center justify-center font-bold border-2 border-white" style={{ backgroundColor: '#0F4C75' }}>3</span>
                                     </button>
 
                                     {/* Version Badge - Links to Knowledgebase */}
                                     <Link
                                         href="/knowledgebase"
-                                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#0066FF] to-[#3385FF] text-white rounded-full text-sm font-bold hover:from-[#0052CC] hover:to-[#0066FF] transition-all shadow-lg shadow-[#0066FF]/20 group hover:-translate-y-0.5"
+                                        className="flex items-center gap-2 px-4 py-2 text-white rounded-full text-sm font-bold transition-all shadow-lg group hover:-translate-y-0.5"
+                                        style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
                                     >
                                         <BookOpen size={18} className="group-hover:rotate-12 transition-transform" />
                                         <span>{CURRENT_VERSION}</span>
@@ -298,7 +300,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         })}
                                     </div>
                                     <div className="flex-1">
-                                        <p className="font-semibold text-slate-800 group-hover:text-[#0066FF]">{item.label}</p>
+                                        <p className="font-semibold text-slate-800 group-hover:text-[#0F4C75]">{item.label}</p>
                                         <p className="text-sm text-slate-400">{item.description}</p>
                                     </div>
                                     <span className="text-xs text-slate-300 font-medium">{item.group}</span>

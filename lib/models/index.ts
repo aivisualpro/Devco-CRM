@@ -17,3 +17,4 @@ export { default as Template } from './Template';
 export { default as GlobalCustomVariable } from './GlobalCustomVariable';
 export { default as Message } from './Communication';
 export { default as Channel } from './Channel';
+export { default as Schedule } from './Schedule';

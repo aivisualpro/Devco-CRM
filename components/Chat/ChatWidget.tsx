@@ -13,7 +13,7 @@ const ChatWidget = () => {
                 onClick={() => setIsOpen(true)}
                 className="fixed bottom-6 right-6 w-16 h-16 text-white shadow-2xl transition-all duration-500 flex items-center justify-center z-50 group hover:scale-110 active:scale-95 animate-pulse-glow"
                 style={{
-                    backgroundColor: '#0066FF',
+                    background: 'linear-gradient(to right, #0F4C75, #3282B8)',
                     borderRadius: '24px', // Squircle effect
                 }}
                 title="Open Devco Communication"

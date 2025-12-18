@@ -66,7 +66,7 @@ const EstimateSchema = new Schema({
     projectName: { type: String }, // New field
     proposalNumber: { type: String },
     proposalNo: { type: String },
-    status: { type: String },
+    status: { type: String, default: 'pending' },
     notes: { type: String },
     fringe: { type: String },
 

@@ -149,7 +149,8 @@ export function EstimateHeaderCard({
                         </label>
                         {formData.customerName && !isEditingCustomer ? (
                             <div
-                                className="text-base sm:text-lg font-bold text-slate-800 tracking-tight truncate cursor-pointer hover:text-indigo-600 transition-colors"
+                                className="text-base sm:text-lg font-bold text-slate-800 tracking-tight truncate cursor-pointer hover:opacity-70 transition-colors"
+                                style={{ color: '#0F4C75' }}
                                 title="Double click to change customer"
                                 onDoubleClick={() => setIsEditingCustomer(true)}
                             >
@@ -176,7 +177,8 @@ export function EstimateHeaderCard({
                         </label>
                         {formData.contactName && !isEditingContact ? (
                             <div
-                                className="text-sm font-medium text-indigo-600 truncate cursor-pointer hover:text-indigo-800 transition-colors"
+                                className="text-sm font-medium truncate cursor-pointer hover:opacity-70 transition-colors"
+                                style={{ color: '#0F4C75' }}
                                 onDoubleClick={() => setIsEditingContact(true)}
                                 title="Double click to change contact"
                             >
@@ -207,7 +209,8 @@ export function EstimateHeaderCard({
                         </label>
                         {formData.jobAddress && !isEditingAddress ? (
                             <div
-                                className="text-sm text-slate-600 cursor-pointer hover:text-indigo-600 transition-colors leading-snug"
+                                className="text-sm text-slate-600 cursor-pointer transition-colors leading-snug"
+                                style={{ color: '#0F4C75' }}
                                 onDoubleClick={() => setIsEditingAddress(true)}
                                 title="Double click to change address"
                             >
@@ -234,7 +237,8 @@ export function EstimateHeaderCard({
                         {isEditingProjectName ? (
                             <input
                                 autoFocus
-                                className="w-full bg-transparent border-b border-indigo-300 focus:border-indigo-600 outline-none text-base font-bold text-slate-700 py-1"
+                                className="w-full bg-transparent border-b outline-none text-base font-bold text-slate-700 py-1"
+                                style={{ borderColor: '#0F4C75' }}
                                 value={formData.projectName || ''}
                                 onChange={e => onHeaderUpdate('projectName', e.target.value)}
                                 onBlur={() => setIsEditingProjectName(false)}
@@ -279,7 +283,7 @@ export function EstimateHeaderCard({
                         </div>
                     </div>
 
-                    {/* Dropdown Container - ref for click-outside handling */}
+                    {/* Dropdown Container-ref for click-outside handling */}
                     <div ref={dropdownRef}>
                         {/* Row 2: Fringe Rate & Certified Payroll */}
                         <div className="flex gap-4 mb-4">
@@ -461,11 +465,10 @@ export function EstimateHeaderCard({
                                             className={`
                                                 w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
                                                 ${isOpen
-                                                    ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
-                                                    : hasSelection
-                                                        ? 'shadow-[4px_4px_10px_rgba(0,102,255,0.4),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white bg-[#0066FF]'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'}
+                                                    ? 'shadow-[4px_4px_10px_rgba(15,76,117,0.4),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white'
+                                                    : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'}
                                             `}
+                                            style={hasSelection ? { backgroundColor: '#0F4C75' } : {}}
                                         >
                                             {hasSelection ? (
                                                 <span className="font-bold text-lg">{selectedCount}</span>
@@ -493,16 +496,17 @@ export function EstimateHeaderCard({
                                                         group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
                                                         ${isActive
                                                                 ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
-                                                                : 'hover:bg-white/50'}
-                                                    `}
+                                                                : 'hover:bg-white/50'
+                                                            }
+                                    `}
                                                     >
                                                         <div className={`
-                                                        w-4 h-4 rounded border flex items-center justify-center transition-colors
-                                                        ${isActive ? 'bg-indigo-500 border-indigo-500' : 'border-slate-400 group-hover:border-indigo-400'}
-                                                    `}>
+                                                            w-4 h-4 rounded border flex items-center justify-center transition-colors
+                                                            ${isActive ? 'bg-[#0F4C75] border-[#0F4C75]' : 'border-slate-400 group-hover:border-[#0F4C75]'}
+                                                        `}>
                                                             {isActive && <ChevronDown className="w-3 h-3 text-white" />}
                                                         </div>
-                                                        <span className={`text-sm font-medium ${isActive ? 'text-indigo-700' : 'text-slate-600'}`}>
+                                                        <span className={`text-sm font-medium ${isActive ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
                                                             {opt.label}
                                                         </span>
                                                     </div>
@@ -534,8 +538,8 @@ export function EstimateHeaderCard({
                                     else if (markupValue >= 81) { fillColor = '#001433'; textColor = 'text-white'; }
                                     else if (markupValue >= 71) { fillColor = '#003D99'; textColor = 'text-white'; }
                                     else if (markupValue >= 61) { fillColor = '#003D99'; textColor = 'text-white'; }
-                                    else if (markupValue >= 51) { fillColor = '#0066FF'; textColor = 'text-white'; }
-                                    else if (markupValue >= 41) { fillColor = '#0066FF'; textColor = 'text-slate-800'; }
+                                    else if (markupValue >= 51) { fillColor = '#0F4C75'; textColor = 'text-white'; }
+                                    else if (markupValue >= 41) { fillColor = '#0F4C75'; textColor = 'text-slate-800'; }
                                     else if (markupValue >= 31) { fillColor = '#66A3FF'; textColor = 'text-slate-800'; }
                                     else if (markupValue >= 21) { fillColor = '#66A3FF'; textColor = 'text-slate-800'; }
                                     else if (markupValue >= 11) { fillColor = '#CCE0FF'; textColor = 'text-slate-800'; }
@@ -548,13 +552,14 @@ export function EstimateHeaderCard({
                                         <div
                                             onClick={() => setActiveDropdown(activeDropdown === 'markup' ? null : 'markup')}
                                             className={`
-                                                w-12 h-12 rounded-full flex items-center justify-center cursor-pointer relative overflow-hidden bg-[#eef2f6]
+                                    w-12 h-12 rounded-full flex items-center justify-center cursor-pointer relative overflow-hidden bg-[#eef2f6]
                                                 ${isDropdownOpen
                                                     ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                     : hasValue
                                                         ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)]'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5'}
-                                            `}
+                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5'
+                                                }
+                                    `}
                                         >
                                             {hasValue && (
                                                 <div
@@ -567,7 +572,7 @@ export function EstimateHeaderCard({
                                                 />
                                             )}
                                             {/* Content */}
-                                            <span className={`relative z-10 font-bold text-xs ${hasValue ? textColor : 'text-slate-400'}`}>
+                                            <span className={`relative z-10 font-bold text-xs ${hasValue ? textColor : 'text-slate-400'} `}>
                                                 {hasValue ? `${markupValue}%` : <Percent className="w-5 h-5" />}
                                             </span>
                                         </div>
@@ -623,13 +628,14 @@ export function EstimateHeaderCard({
                                         <div
                                             onClick={() => setActiveDropdown(isOpen ? null : 'proposalWriter')}
                                             className={`
-                                                w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
+                                    w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
                                                 ${isOpen
                                                     ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                     : hasValue
                                                         ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)]'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'}
-                                            `}
+                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'
+                                                }
+                                    `}
                                         >
                                             {hasValue && writerPic ? (
                                                 <img
@@ -638,7 +644,7 @@ export function EstimateHeaderCard({
                                                     className="w-full h-full object-cover"
                                                 />
                                             ) : hasValue ? (
-                                                <div className="w-full h-full flex items-center justify-center bg-indigo-500 text-white text-xs font-bold">
+                                                <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-white text-xs font-bold">
                                                     {writerLabel.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                                                 </div>
                                             ) : (
@@ -663,8 +669,9 @@ export function EstimateHeaderCard({
                                                 flex items-center justify-center p-2 rounded-lg cursor-pointer transition-all duration-200
                                                 ${!formData.proposalWriter
                                                         ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-slate-800'
-                                                        : 'hover:bg-white/50 text-slate-500'}
-                                            `}
+                                                        : 'hover:bg-white/50 text-slate-500'
+                                                    }
+                                    `}
                                             >
                                                 <span className="text-sm font-bold">None</span>
                                             </div>
@@ -681,11 +688,12 @@ export function EstimateHeaderCard({
                                                         className={`
                                                         flex items-center gap-2 p-2.5 rounded-xl cursor-pointer transition-all duration-200
                                                         ${isSelected
-                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-indigo-700'
-                                                                : 'hover:bg-white/50 text-slate-600'}
-                                                    `}
+                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-[#0F4C75]'
+                                                                : 'hover:bg-white/50 text-slate-600'
+                                                            }
+                                    `}
                                                     >
-                                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-indigo-500 border border-indigo-100 shadow-sm overflow-hidden">
+                                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-100 shadow-sm overflow-hidden" style={{ borderColor: '#0F4C75' }}>
                                                             {emp.profilePicture ? (
                                                                 <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
                                                             ) : (
@@ -719,13 +727,14 @@ export function EstimateHeaderCard({
                                         <div
                                             onClick={() => setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
                                             className={`
-                                            w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
+                                    w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
                                             ${isDropdownOpen
                                                     ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                     : hasValue
                                                         ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'}
-                                        `}
+                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'
+                                                }
+                                    `}
                                             style={hasValue ? { backgroundColor: activeColor } : {}}
                                         >
                                             <Activity className="w-5 h-5" />
@@ -754,14 +763,15 @@ export function EstimateHeaderCard({
                                                         flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all duration-200
                                                         ${isSelected
                                                                 ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
-                                                                : 'hover:bg-white/50'}
-                                                    `}
+                                                                : 'hover:bg-white/50'
+                                                            }
+                                    `}
                                                     >
                                                         <div className="w-2 h-2 rounded-full bg-current" style={{ color: opt.color || '#64748b' }} />
-                                                        <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>
+                                                        <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'} `}>
                                                             {opt.label}
                                                         </span>
-                                                        {isSelected && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-500" />}
+                                                        {isSelected && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#0F4C75]" />}
                                                     </div>
                                                 );
                                             })}

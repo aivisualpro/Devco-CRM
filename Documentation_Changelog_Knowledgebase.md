@@ -1,4 +1,28 @@
-## Current Version: V.0.49
+## Current Version: V.0.55
+
+#### V.0.55 - Integrated Job Scheduling Module
+*   **Module Launch: Job Schedules**:
+    *   Launched a high-performance **Schedule Page** (`/jobs/schedules`) with premium neumorphic design.
+    *   Implemented full CRUD (Create, Read, Update, Delete) with optimized MongoDB operations.
+    *   **Intelligent Import**: Developed a custom CSV parser with automated header detection and data type casting (Boolean, Array).
+    *   **System Integration**: Real-time linking with Clients, Estimates, Employees, and Job Constants.
+    *   **Interactive UI**: Card-based timeline layout with team assignee visualization and keyboard shortcuts (`Cmd/Ctrl + Shift + A`).
+    *   **Data Integrity**: Server-side de-duplication of lookup data for PMs, Foremen, and Estimates.
+
+#### V.0.50 - Brand Refresh & Identity Overhaul
+*   **New Brand Identity**:
+    *   **Primary Brand Color**: Shifted to a sophisticated dark navy blue `#0F4C75`, replacing generic Indigo/Blue-600 references.
+    *   **Custom Typography**: Integrated the **'BBH Hegarty'** Google Font specifically for the DEVCO logo in the global header.
+    *   **Premium Gradients**: Applied new brand gradients (`#0F4C75` $\rightarrow$ `#3282B8`) to all primary buttons (Add, Send, Clone, Save) and high-visibility UI components.
+*   **UI/UX Refinements**:
+    *   **Tab System Overhaul**: Updated `BadgeTabs`, `PillTabs`, and `UnderlineTabs` to use the brand color and gradient for active states, including refined shadows and count badges.
+    *   **Communication Refresh**: 
+        *   Updated the **Chat Widget** and **Chat Modal** with the brand theme.
+        *   Refined outgoing message bubbles with brand gradients.
+        *   Sidebar active states now feature consistent brand gradients and shadows.
+    *   **Search & Navigation**: Search result hover states and dropdown indicators updated to brand color.
+    *   **Search & Navigation**: Search result hover states and dropdown indicators updated to brand color.
+
 
 #### V.0.49 - Estimates Table Overhaul & Import Optimization
 *   **Estimates Table Overhaul**:

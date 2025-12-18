@@ -434,7 +434,7 @@ export async function POST(request: NextRequest) {
                     customerName: payload?.customerName || '',
                     proposalNo: payload?.proposalNo || estimateNumber,
                     bidMarkUp: '30%',
-                    status: 'draft',
+                    status: 'pending',
                     versionNumber: 1,
                     // Initialize empty arrays
                     labor: [],
@@ -481,7 +481,7 @@ export async function POST(request: NextRequest) {
                     ...sourceData,
                     _id: newId,
                     versionNumber: nextVersion,
-                    status: 'draft',
+                    status: 'pending',
 
                     date: new Date().toLocaleDateString(),
                     createdAt: new Date(),
@@ -562,7 +562,7 @@ export async function POST(request: NextRequest) {
                     contactEmail: '',
                     contactPhone: '',
                     jobAddress: '',
-                    status: 'draft',
+                    status: 'pending',
 
                     date: new Date().toLocaleDateString(),
                     createdAt: new Date(),
@@ -665,7 +665,7 @@ export async function POST(request: NextRequest) {
                     const setOnInsert: any = {
                         _id: concatenatedId,
                         createdAt: new Date(),
-                        status: 'draft',
+                        status: 'pending',
                         labor: [],
                         equipment: [],
                         material: [],

@@ -24,8 +24,8 @@ export function Tabs({ tabs, activeTab, onChange }: TabsProps) {
                     onClick={() => onChange(tab.id)}
                     className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-300
             ${activeTab === tab.id
-                            ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/25'
-                            : 'bg-white text-gray-600 border-2 border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
+                            ? 'bg-gradient-to-r from-[#0F4C75] to-[#3282B8] text-white shadow-lg shadow-[#0F4C75]/25'
+                            : 'bg-white text-gray-600 border-2 border-gray-200 hover:border-[#0F4C75]/30 hover:text-[#0F4C75]'
                         }`}
                 >
                     {tab.icon && <span>{tab.icon}</span>}
@@ -85,7 +85,7 @@ export function StatusTabs({ tabs, activeTab, onChange }: StatusTabsProps) {
         >
             {/* Sliding Indicator - the animated pill */}
             <div
-                className="absolute top-1.5 bottom-1.5 bg-white rounded-xl shadow-md border-2 border-[#0066FF]"
+                className="absolute top-1.5 bottom-1.5 bg-white rounded-xl shadow-md border-2 border-[#0F4C75]"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,
@@ -101,8 +101,8 @@ export function StatusTabs({ tabs, activeTab, onChange }: StatusTabsProps) {
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
                     className={`relative z-10 px-6 py-2.5 text-sm font-semibold whitespace-nowrap rounded-xl transition-colors duration-200 ${activeTab === tab.id
-                            ? 'text-slate-900'
-                            : 'text-slate-500 hover:text-slate-700'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     {tab.label}
@@ -166,7 +166,7 @@ export function BadgeTabs({ tabs, activeTab, onChange, size = 'md' }: BadgeTabsP
         >
             {/* Sliding Blue Pill Indicator */}
             <div
-                className="absolute top-1 bottom-1 bg-[#0066FF] rounded-full shadow-lg shadow-[#0066FF]/30"
+                className="absolute top-1 bottom-1 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] rounded-full shadow-lg shadow-[#0F4C75]/30"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,
@@ -182,13 +182,13 @@ export function BadgeTabs({ tabs, activeTab, onChange, size = 'md' }: BadgeTabsP
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
                     className={`relative z-10 ${sizeClasses[size]} font-medium whitespace-nowrap rounded-full transition-colors duration-200 ${activeTab === tab.id
-                            ? 'text-white'
-                            : 'text-slate-600 hover:text-slate-900'
+                        ? 'text-white'
+                        : 'text-slate-600 hover:text-slate-900'
                         }`}
                 >
                     {tab.label}
                     {tab.count !== undefined && (
-                        <span className={`ml-1 ${activeTab === tab.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                        <span className={`ml-1 ${activeTab === tab.id ? 'text-[#e0f2fe]' : 'text-slate-400'}`}>
                             ({tab.count})
                         </span>
                     )}
@@ -247,7 +247,7 @@ export function PillTabs({ tabs, activeTab, onChange, size = 'md' }: PillTabsPro
         >
             {/* Sliding Gradient Pill */}
             <div
-                className="absolute top-1 bottom-1 bg-gradient-to-r from-[#0066FF] to-[#3385FF] rounded-full shadow-lg shadow-[#0066FF]/25"
+                className="absolute top-1 bottom-1 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] rounded-full shadow-lg shadow-[#0F4C75]/25"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,
@@ -263,13 +263,13 @@ export function PillTabs({ tabs, activeTab, onChange, size = 'md' }: PillTabsPro
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
                     className={`relative z-10 ${sizeClasses[size]} font-medium whitespace-nowrap rounded-full transition-colors duration-200 ${activeTab === tab.id
-                            ? 'text-white'
-                            : 'text-slate-600 hover:text-slate-900'
+                        ? 'text-white'
+                        : 'text-slate-600 hover:text-slate-900'
                         }`}
                 >
                     {tab.label}
                     {tab.count !== undefined && (
-                        <span className={`ml-1 ${activeTab === tab.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                        <span className={`ml-1 ${activeTab === tab.id ? 'text-[#e0f2fe]' : 'text-slate-400'}`}>
                             ({tab.count})
                         </span>
                     )}
@@ -321,7 +321,7 @@ export function UnderlineTabs({ tabs, activeTab, onChange }: UnderlineTabsProps)
         >
             {/* Sliding Underline */}
             <div
-                className="absolute bottom-0 h-0.5 bg-[#0066FF] rounded-full"
+                className="absolute bottom-0 h-0.5 bg-[#0F4C75] rounded-full"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,
@@ -337,15 +337,15 @@ export function UnderlineTabs({ tabs, activeTab, onChange }: UnderlineTabsProps)
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
                     className={`relative px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors duration-200 ${activeTab === tab.id
-                            ? 'text-[#0066FF]'
-                            : 'text-slate-500 hover:text-slate-700'
+                        ? 'text-[#0F4C75]'
+                        : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     {tab.label}
                     {tab.count !== undefined && (
                         <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-xs ${activeTab === tab.id
-                                ? 'bg-[#E5F0FF] text-[#0066FF]'
-                                : 'bg-slate-100 text-slate-400'
+                            ? 'bg-[#f0f9ff] text-[#0F4C75]'
+                            : 'bg-slate-100 text-slate-400'
                             }`}>
                             {tab.count}
                         </span>
@@ -415,8 +415,8 @@ export function SegmentedControl({ tabs, activeTab, onChange, fullWidth = false 
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
                     className={`relative z-10 flex-1 px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg text-center transition-colors duration-200 ${activeTab === tab.id
-                            ? 'text-slate-900'
-                            : 'text-slate-500 hover:text-slate-700'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     {tab.label}
@@ -468,7 +468,7 @@ export function OutlinedTabs({ tabs, activeTab, onChange }: OutlinedTabsProps) {
         >
             {/* Sliding Outlined Indicator - bouncy spring animation */}
             <div
-                className="absolute top-1.5 bottom-1.5 bg-white rounded-xl border-2 border-[#0066FF] shadow-sm"
+                className="absolute top-1.5 bottom-1.5 bg-white rounded-xl border-2 border-[#0F4C75] shadow-sm"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,
@@ -484,8 +484,8 @@ export function OutlinedTabs({ tabs, activeTab, onChange }: OutlinedTabsProps) {
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
                     className={`relative z-10 px-8 py-3 text-sm font-semibold whitespace-nowrap rounded-xl transition-colors duration-200 ${activeTab === tab.id
-                            ? 'text-slate-900'
-                            : 'text-slate-500 hover:text-slate-700'
+                        ? 'text-slate-900'
+                        : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
                     {tab.label}

@@ -10,7 +10,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-    primary: 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 shadow-lg shadow-indigo-500/25',
+    primary: 'text-white shadow-lg transition-all duration-300',
     secondary: 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 shadow-sm',
     danger: 'bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-600 hover:to-rose-600 shadow-lg shadow-red-500/25',
     ghost: 'text-gray-600 hover:bg-gray-100'
@@ -36,6 +36,10 @@ export function Button({
             onClick={onClick}
             disabled={disabled}
             className={`inline-flex items-center gap-2 font-semibold rounded-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 ${variants[variant]} ${sizes[size]} ${className}`}
+            style={variant === 'primary' ? {
+                background: 'linear-gradient(to right, #0F4C75, #3282B8)',
+                boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.3)'
+            } : {}}
             {...props}
         >
             {children}

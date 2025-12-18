@@ -13,6 +13,64 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.55',
+        date: 'December 18, 2025',
+        time: '12:30 PKT',
+        type: 'New Module',
+        color: 'from-blue-600 to-cyan-500',
+        highlights: [
+            'Full Job Schedules Module',
+            'Interactive Card UI',
+            'Smart CSV Import (Auto-Casting)',
+            'Advanced Data De-duplication'
+        ],
+        changes: [
+            {
+                category: 'Job Schedules',
+                items: [
+                    'Built premium neumorphic schedule management interface',
+                    'Integrated real-time lookups for Clients, Estimates, and Team members',
+                    'Developed robust CSV importer handling boolean and array data types',
+                    'Implemented keyboard shortcuts for accelerated workflow (Ctrl+Shift+A)',
+                    'Enhanced backend API with fail-safe data de-duplication'
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.50',
+        date: 'December 18, 2025',
+        time: '11:45 PKT',
+        type: 'Brand & Identity',
+        color: 'from-[#0F4C75] to-[#3282B8]',
+        highlights: [
+            'New Brand Identity (#0F4C75)',
+            'BBH Hegarty Logo Font',
+            'Premium Component Gradients',
+            'Refreshed Communication UI'
+        ],
+        changes: [
+            {
+                category: 'Brand Identity',
+                items: [
+                    'Transitioned primary brand color to #0F4C75 across all modules',
+                    "Applied 'BBH Hegarty' custom typography to the DEVCO logo",
+                    'Implemented sophisticated gradients (#0F4C75 to #3282B8) for primary actions',
+                    'Standardized brand shadows for depth and premium feel'
+                ]
+            },
+            {
+                category: 'Component Refinement',
+                items: [
+                    'Overhauled BadgeTabs, PillTabs, and UnderlineTabs with brand colors',
+                    'Updated ChatWidget and message bubble aesthetics with 3D gradients',
+                    'Refined sidebar active states for unified visual language',
+                    'Updated brand-accented hover and focus states system-wide'
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.49',
         date: 'December 18, 2025',
         time: '08:30 PKT',
@@ -135,7 +193,7 @@ const changelog = [
         date: 'December 17, 2025',
         time: '20:00 PKT',
         type: 'UI Overhaul',
-        color: 'from-[#0066FF] to-[#3385FF]',
+        color: 'from-[#0F4C75] to-[#3282B8]',
         highlights: [
             'Dynamic Header Buttons with visual feedback',
             'Liquid fill animation for Markup %',
@@ -146,7 +204,7 @@ const changelog = [
             {
                 category: 'Dynamic Header Buttons',
                 items: [
-                    'Services Button: Shows count of selected services on #0066FF blue background',
+                    'Services Button: Shows count of selected services on #0F4C75 blue background',
                     'Status Button: Background fills with reference color; icon turns white',
                     'Markup % Button: Displays percentage with liquid fill animation',
                     'Fringe Rate Button: Background fills with reference color when selected'
@@ -175,7 +233,7 @@ const changelog = [
         date: 'December 17, 2025',
         time: '14:30 PKT',
         type: 'Feature Release',
-        color: 'from-[#0052CC] to-[#0066FF]',
+        color: 'from-[#0F4C75] to-[#0F4C75]',
         highlights: [
             'Project Name field added',
             'Auto-populate client information',
@@ -236,7 +294,7 @@ const modules = [
         name: 'Catalogue System',
         icon: Package,
         description: 'Centralized database for all cost items',
-        color: 'text-blue-500',
+        color: 'text-[#f0f9ff]0',
         bgColor: 'bg-blue-50',
         features: ['CRUD Support', 'Categorization', 'Instant Search', 'Bulk Import']
     },
@@ -276,7 +334,7 @@ export default function KnowledgebasePage() {
                 <div className="max-w-[1400px] mx-auto px-6 py-8">
 
                     {/* Hero Section */}
-                    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0066FF] via-[#3385FF] to-[#0052CC] p-8 md:p-12 mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+                    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F4C75] via-[#3282B8] to-[#0F4C75] p-8 md:p-12 mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
                         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                         <div className="absolute bottom-0 left-0 w-64 h-64 bg-[#002966]/30 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
@@ -290,10 +348,10 @@ export default function KnowledgebasePage() {
                                         <h1 className="text-3xl md:text-4xl font-bold text-white">
                                             Knowledgebase & Documentation
                                         </h1>
-                                        <p className="text-blue-100 mt-1">DevCo CRM - Complete System Reference</p>
+                                        <p className="text-[#e0f2fe] mt-1">DevCo CRM - Complete System Reference</p>
                                     </div>
                                 </div>
-                                <p className="text-blue-100 max-w-2xl">
+                                <p className="text-[#e0f2fe] max-w-2xl">
                                     Everything you need to know about the DevCo CRM system. Browse modules, explore features,
                                     and track all changes through our detailed changelog.
                                 </p>
@@ -301,7 +359,7 @@ export default function KnowledgebasePage() {
                             <div className="flex items-center gap-4">
                                 <div className="text-center px-6 py-4 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20">
                                     <p className="text-4xl font-bold text-white">{changelog[0].version}</p>
-                                    <p className="text-blue-100 text-sm mt-1">Current Version</p>
+                                    <p className="text-[#e0f2fe] text-sm mt-1">Current Version</p>
                                 </div>
                             </div>
                         </div>
@@ -310,8 +368,8 @@ export default function KnowledgebasePage() {
                     {/* Module Overview */}
                     <div className={`mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '100ms' }}>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-[#E5F0FF] rounded-lg">
-                                <Layers className="w-5 h-5 text-[#0066FF]" />
+                            <div className="p-2 bg-[#f0f9ff] rounded-lg">
+                                <Layers className="w-5 h-5 text-[#0F4C75]" />
                             </div>
                             <h2 className="text-xl font-bold text-slate-900">Modules & Functionalities</h2>
                         </div>
@@ -340,8 +398,8 @@ export default function KnowledgebasePage() {
                     {/* Changelog Section */}
                     <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '300ms' }}>
                         <div className="flex items-center gap-3 mb-6">
-                            <div className="p-2 bg-[#E5F0FF] rounded-lg">
-                                <History className="w-5 h-5 text-[#0066FF]" />
+                            <div className="p-2 bg-[#f0f9ff] rounded-lg">
+                                <History className="w-5 h-5 text-[#0F4C75]" />
                             </div>
                             <h2 className="text-xl font-bold text-slate-900">Changelog</h2>
                         </div>
@@ -357,16 +415,16 @@ export default function KnowledgebasePage() {
                                                 key={entry.version}
                                                 onClick={() => setActiveVersion(entry.version)}
                                                 className={`w-full text-left p-3 rounded-xl transition-all ${activeVersion === entry.version
-                                                    ? 'bg-gradient-to-r from-[#E5F0FF] to-[#CCE0FF] border border-[#99C2FF]'
+                                                    ? 'bg-gradient-to-r from-[#f0f9ff] to-[#e0f2fe] border border-[#0F4C75]/20'
                                                     : 'hover:bg-slate-50'
                                                     }`}
                                             >
                                                 <div className="flex items-center justify-between">
-                                                    <span className={`font-bold ${activeVersion === entry.version ? 'text-[#0066FF]' : 'text-slate-700'}`}>
+                                                    <span className={`font-bold ${activeVersion === entry.version ? 'text-[#0F4C75]' : 'text-slate-700'}`}>
                                                         {entry.version}
                                                     </span>
                                                     <span className={`text-xs px-2 py-0.5 rounded-full ${activeVersion === entry.version
-                                                        ? 'bg-[#0066FF] text-white'
+                                                        ? 'bg-[#0F4C75] text-white'
                                                         : 'bg-slate-100 text-slate-500'
                                                         }`}>
                                                         {entry.type}
@@ -395,7 +453,7 @@ export default function KnowledgebasePage() {
                                                         {activeChangelog.type}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-4 mt-2 text-blue-100">
+                                                <div className="flex items-center gap-4 mt-2 text-[#f0f9ff]">
                                                     <span className="flex items-center gap-1">
                                                         <Calendar size={14} /> {activeChangelog.date}
                                                     </span>
@@ -423,13 +481,13 @@ export default function KnowledgebasePage() {
                                             {activeChangelog.changes.map((section, i) => (
                                                 <div key={i}>
                                                     <div className="flex items-center gap-2 mb-3">
-                                                        <div className="w-2 h-2 rounded-full bg-[#0066FF]" />
+                                                        <div className="w-2 h-2 rounded-full bg-[#0F4C75]" />
                                                         <h4 className="font-bold text-slate-800">{section.category}</h4>
                                                     </div>
                                                     <ul className="space-y-2 pl-4">
                                                         {section.items.map((item, j) => (
                                                             <li key={j} className="flex items-start gap-3 text-sm text-slate-600">
-                                                                <CheckCircle size={16} className="text-emerald-500 mt-0.5 flex-shrink-0" />
+                                                                <CheckCircle size={16} className="text-[#0F4C75] mt-0.5 flex-shrink-0" />
                                                                 <span>{item}</span>
                                                             </li>
                                                         ))}
@@ -450,8 +508,8 @@ export default function KnowledgebasePage() {
                         </p>
                     </div>
 
-                </div>
-            </div>
+                </div >
+            </div >
         </>
     );
 }

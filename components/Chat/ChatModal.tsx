@@ -144,7 +144,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                 placeholder="Search..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
+                                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all font-medium"
                             />
                         </div>
                     </div>
@@ -164,12 +164,12 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                     <button
                                         key={est._id}
                                         onClick={() => setSelectedChat({ type: 'proposal', id: est.estimate, name: `Prop: ${est.estimate}` })}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === est.estimate ? 'bg-[#0066FF] text-white shadow-md shadow-blue-200' : 'hover:bg-blue-50 text-gray-700'}`}
+                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === est.estimate ? 'bg-gradient-to-r from-[#0F4C75] to-[#3282B8] text-white shadow-md shadow-[#0F4C75]/20' : 'hover:bg-[#0F4C75]/5 text-gray-700'}`}
                                     >
-                                        <HashIcon size={16} className={selectedChat?.id === est.estimate ? 'text-indigo-200' : 'text-indigo-500'} />
+                                        <HashIcon size={16} className={selectedChat?.id === est.estimate ? 'text-[#e0f2fe]' : 'text-[#0F4C75]'} />
                                         <div className="text-left truncate">
                                             <div className="text-sm font-semibold">{est.estimate}</div>
-                                            <div className={`text-[11px] truncate ${selectedChat?.id === est.estimate ? 'text-indigo-100' : 'text-gray-500'}`}>
+                                            <div className={`text-[11px] truncate ${selectedChat?.id === est.estimate ? 'text-[#e0f2fe]' : 'text-gray-500'}`}>
                                                 {est.projectName || 'No Project Name'}
                                             </div>
                                         </div>
@@ -210,7 +210,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                             }
                                         }
                                     }}
-                                    className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-indigo-600 transition-colors"
+                                    className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-[#0F4C75] transition-colors"
                                     title="Create New Channel"
                                 >
                                     <X size={14} className="rotate-45" />
@@ -221,7 +221,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                     <button
                                         key={ch._id}
                                         onClick={() => setSelectedChat({ type: 'channel', id: ch._id, name: ch.name })}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === ch._id ? 'bg-[#0066FF] text-white shadow-md shadow-blue-200' : 'hover:bg-blue-50 text-gray-700'}`}
+                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === ch._id ? 'bg-gradient-to-r from-[#0F4C75] to-[#3282B8] text-white shadow-md shadow-[#0F4C75]/20' : 'hover:bg-[#0F4C75]/5 text-gray-700'}`}
                                     >
                                         <div className={`w-2 h-2 rounded-full ${selectedChat?.id === ch._id ? 'bg-white' : 'bg-green-500'}`}></div>
                                         <span className="text-sm font-semibold truncate">{ch.name}</span>
@@ -241,14 +241,14 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                     <button
                                         key={e._id}
                                         onClick={() => setSelectedChat({ type: 'direct', id: e.email, name: `${e.firstName} ${e.lastName}` })}
-                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === e.email ? 'bg-[#0066FF] text-white shadow-md shadow-blue-200' : 'hover:bg-blue-50 text-gray-700'}`}
+                                        className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition-all duration-200 ${selectedChat?.id === e.email ? 'bg-gradient-to-r from-[#0F4C75] to-[#3282B8] text-white shadow-md shadow-[#0F4C75]/20' : 'hover:bg-[#0F4C75]/5 text-gray-700'}`}
                                     >
-                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-xs ring-2 ring-white">
+                                        <div className="w-8 h-8 rounded-full bg-[#f0f9ff] flex items-center justify-center text-[#0F4C75] font-bold text-xs ring-2 ring-white">
                                             {e.firstName[0]}{e.lastName[0]}
                                         </div>
                                         <div className="text-left">
                                             <div className="text-sm font-semibold truncate">{e.firstName} {e.lastName}</div>
-                                            <div className={`text-[11px] truncate ${selectedChat?.id === e.email ? 'text-indigo-100' : 'text-gray-500'}`}>
+                                            <div className={`text-[11px] truncate ${selectedChat?.id === e.email ? 'text-[#e0f2fe]' : 'text-gray-500'}`}>
                                                 {e.email}
                                             </div>
                                         </div>
@@ -266,7 +266,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                             {/* Chat Header */}
                             <div className="p-4 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10 shadow-sm">
                                 <div className="flex items-center space-x-3">
-                                    <div className="w-10 h-10 rounded-xl bg-[#0066FF] flex items-center justify-center text-white font-bold shadow-lg shadow-blue-100">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-[#0F4C75] to-[#3282B8] flex items-center justify-center text-white font-bold shadow-lg shadow-[#0F4C75]/10">
                                         {selectedChat.type === 'proposal' ? <Briefcase size={20} /> : selectedChat.type === 'channel' ? <Hash size={20} /> : <User size={20} />}
                                     </div>
                                     <div>
@@ -321,7 +321,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                             <div key={m._id || idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} ${isLastInGroup ? 'mb-4' : 'mb-[2px]'}`}>
                                                 <div
                                                     className={`relative max-w-[75%] px-3.5 py-2 text-[15.5px] leading-[1.35] ${isMe
-                                                        ? 'bg-gradient-to-b from-[#007DFF] to-[#0066FF] text-white shadow-sm'
+                                                        ? 'bg-gradient-to-b from-[#3282B8] to-[#0F4C75] text-white shadow-sm'
                                                         : 'bg-[#E9E9EB] text-black'
                                                         }`}
                                                     style={{ borderRadius }}
@@ -334,7 +334,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                                             <svg width="20" height="20" viewBox="0 0 20 20" fill="none" className={isMe ? '' : 'scale-x-[-1]'}>
                                                                 <path
                                                                     d="M20 20H0C8 20 12 18 16 11C18 8 19 4 19 0V20H20Z"
-                                                                    fill={isMe ? "#0066FF" : "#E9E9EB"}
+                                                                    fill={isMe ? "#0F4C75" : "#E9E9EB"}
                                                                 />
                                                             </svg>
                                                         </div>
@@ -353,7 +353,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
 
                                 {messages.length === 0 && (
                                     <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-60">
-                                        <MessageCircle size={64} className="mb-4 text-indigo-200" />
+                                        <MessageCircle size={64} className="mb-4 text-[#e0f2fe]" />
                                         <p className="font-medium">No messages yet. Start the conversation!</p>
                                     </div>
                                 )}
@@ -363,19 +363,19 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                             <div className="p-4 bg-white border-t border-gray-200">
                                 <form onSubmit={handleSendMessage} className="flex flex-col space-y-3">
                                     <div className="flex items-center space-x-2 text-gray-400 px-1">
-                                        <button type="button" className="p-1.5 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"><ImageIcon size={18} /></button>
-                                        <button type="button" className="p-1.5 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"><FileText size={18} /></button>
-                                        <button type="button" className="p-1.5 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"><Video size={18} /></button>
-                                        <button type="button" className="p-1.5 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all"><AtSign size={18} /></button>
+                                        <button type="button" className="p-1.5 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 rounded transition-all"><ImageIcon size={18} /></button>
+                                        <button type="button" className="p-1.5 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 rounded transition-all"><FileText size={18} /></button>
+                                        <button type="button" className="p-1.5 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 rounded transition-all"><Video size={18} /></button>
+                                        <button type="button" className="p-1.5 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 rounded transition-all"><AtSign size={18} /></button>
                                         <div className="h-4 w-[1px] bg-gray-200 mx-1"></div>
-                                        <button type="button" className="text-xs font-bold hover:text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded transition-all">REF#</button>
+                                        <button type="button" className="text-xs font-bold hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 px-2 py-1 rounded transition-all">REF#</button>
                                     </div>
                                     <div className="flex items-end space-x-2">
                                         <textarea
                                             value={inputText}
                                             onChange={(e) => setInputText(e.target.value)}
                                             placeholder={`Message ${selectedChat.name}...`}
-                                            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0066FF] focus:bg-white transition-all resize-none min-h-[44px] max-h-32"
+                                            className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:bg-white transition-all resize-none min-h-[44px] max-h-32"
                                             rows={1}
                                             onKeyDown={(e) => {
                                                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -387,7 +387,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                                         <button
                                             type="submit"
                                             disabled={!inputText.trim()}
-                                            className="p-3 bg-[#0066FF] text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-blue-100 flex-shrink-0"
+                                            className="p-3 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:grayscale transition-all shadow-lg shadow-[#0F4C75]/10 flex-shrink-0"
                                         >
                                             <Send size={20} />
                                         </button>
@@ -397,8 +397,8 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                         </>
                     ) : (
                         <div className="flex-1 flex flex-col items-center justify-center p-8 bg-slate-50">
-                            <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6 animate-bounce">
-                                <MessageCircle size={48} className="text-[#0066FF]" />
+                            <div className="w-24 h-24 bg-[#0F4C75]/10 rounded-full flex items-center justify-center mb-6 animate-bounce">
+                                <MessageCircle size={48} className="text-[#0F4C75]" />
                             </div>
                             <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome to Devco Communications</h2>
                             <p className="text-gray-500 text-center max-w-sm">
@@ -406,11 +406,11 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                             </p>
                             <div className="grid grid-cols-2 gap-4 mt-12 w-full max-w-md">
                                 <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
-                                    <HashIcon className="text-indigo-500 mb-2" size={24} />
+                                    <HashIcon className="text-[#0F4C75] mb-2" size={24} />
                                     <span className="text-xs font-bold text-gray-700">Tag Estimates</span>
                                 </div>
                                 <div className="p-4 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center text-center">
-                                    <AtSign className="text-indigo-500 mb-2" size={24} />
+                                    <AtSign className="text-[#0F4C75] mb-2" size={24} />
                                     <span className="text-xs font-bold text-gray-700">Mention Team</span>
                                 </div>
                             </div>

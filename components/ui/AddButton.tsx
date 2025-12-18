@@ -11,7 +11,7 @@ interface AddButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants = {
-    primary: 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 shadow-md hover:shadow-lg',
+    primary: 'text-white shadow-md hover:shadow-lg transition-all duration-300',
     outline: 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm'
 };
 
@@ -71,6 +71,10 @@ export function AddButton({
                 ${sizes[size]}
                 ${className}
             `}
+            style={variant === 'primary' ? {
+                background: 'linear-gradient(to right, #0F4C75, #3282B8)',
+                boxShadow: '0 8px 12px -3px rgba(15, 76, 117, 0.25)'
+            } : {}}
             {...props}
         >
             <Plus className={`${iconSizes[size]} ${variant === 'primary' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
