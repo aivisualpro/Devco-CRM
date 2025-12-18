@@ -1,4 +1,31 @@
-## Current Version: V.0.55
+## Current Version: V.0.56
+
+#### V.0.56 - Schedule Cards Redesign & Dynamic Favicon
+*Timestamp: December 19, 2025 00:06 PKT*
+
+*   **Schedule Page Enhancements**:
+    *   **Day-of-Week Filter Tabs**: Added BadgeTabs above schedule cards with "All", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" options. Each tab shows the count of schedules for that day. Selecting a day filters the displayed cards.
+    *   **Timezone Fix**: Resolved critical bug where dates were shifted by one day due to UTC conversion. Now uses local timezone consistently for date display and day-of-week calculations.
+    *   **Schedule Card Redesign**:
+        *   **Row 1**: Tag icon (from Constants with image/color/letter priority) + Full customer name (wraps instead of truncating).
+        *   **Row 2**: Title with reduced font size (`text-sm sm:text-base`).
+        *   **Row 3**: Job Location.
+        *   **Row 4**: Estimate # (blue pill badge) + Description snippet.
+        *   **Row 5**: Left - Assignees avatars (profile images or initials). Right - Service/Fringe/CP/NA/PD badges from Constants.
+        *   **Row 6**: Left - Clock icon + Date (no label). Right - PM/Foreman/SD avatars with profile images or role labels.
+    *   **Tag/Attribute Badges**: All badges (Service, Fringe, Certified Payroll, Notify Assignees, Per Diem) now look up their images/colors from Constants by description.
+    *   **Edit Modal Layout**: Reorganized Description & Scope (2/3 width left) with PM/Foreman/SD stacked vertically (1/3 width right). Added proper spacing to Service/Tag row.
+
+*   **Dynamic Favicon**:
+    *   Created `/api/favicon` endpoint that fetches "SITE Favicon" from Constants collection.
+    *   Supports base64 data URLs and external image URLs.
+    *   Falls back to default `devco-logo-v3.png` if constant not found.
+    *   Favicon cached for 1 hour for performance.
+
+*   **SearchableSelect Component Fixes**:
+    *   **Value Highlighting**: Fixed issue where dropdowns would highlight the next value instead of "-" when "-" was selected.
+    *   **Edit Mode Fix**: When editing records, dropdown now properly highlights the existing value instead of resetting to "-".
+    *   **Search Filter**: When searching, maintains highlight on current value if it exists in filtered results.
 
 #### V.0.55 - Integrated Job Scheduling Module
 *   **Module Launch: Job Schedules**:

@@ -11,10 +11,10 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "DevCo | Estimates Management",
-  description: "DevCo Proposals and Estimates Management System",
+  title: "DEVCO | ERP",
+  description: "Manage Proposals and Jobs Management System",
   icons: {
-    icon: "/api/favicon",
+    icon: "/favicon.png",
   },
 };
 

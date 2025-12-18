@@ -146,12 +146,7 @@ export function SearchableSelect({
 
             let targetIndex = idx >= 0 ? idx : 0;
 
-            // If the selected item is the blank one (value is empty string) and we have other options, default to the first real option (index 1)
-            // effective only when opening the dropdown.
-            if (displayOptions.length > 1 && displayOptions[0].value === '' && (idx === 0 || idx === -1) && !multiple) {
-                targetIndex = 1;
-            }
-
+            // Keep the selected index as-is - if blank is selected, highlight blank
             setActiveIndex(targetIndex);
 
             if (inputRef.current) {
@@ -167,8 +162,15 @@ export function SearchableSelect({
     }, [isOpen]);
 
     useEffect(() => {
-        setActiveIndex(0);
-    }, [searchTerm]);
+        // When search term changes, try to find current value in filtered results
+        const idx = displayOptions.findIndex(o => o.value === value);
+        if (idx >= 0) {
+            setActiveIndex(idx);
+        } else {
+            setActiveIndex(0);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchTerm, value]);
 
     const isKeyboardRef = useRef(false);
 

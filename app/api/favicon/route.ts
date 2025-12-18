@@ -15,10 +15,14 @@ export async function GET() {
             ]
         }).lean();
 
+        console.log('Favicon constant found:', faviconConstant?.description, '- Image:', faviconConstant?.image?.substring(0, 50));
+
         if (faviconConstant?.image) {
+            const imageUrl = faviconConstant.image;
+
             // If the image is a data URL, extract and return as image
-            if (faviconConstant.image.startsWith('data:')) {
-                const matches = faviconConstant.image.match(/^data:(.+);base64,(.+)$/);
+            if (imageUrl.startsWith('data:')) {
+                const matches = imageUrl.match(/^data:(.+);base64,(.+)$/);
                 if (matches) {
                     const contentType = matches[1];
                     const base64Data = matches[2];
@@ -27,14 +31,36 @@ export async function GET() {
                     return new NextResponse(buffer, {
                         headers: {
                             'Content-Type': contentType,
-                            'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+                            'Cache-Control': 'public, max-age=3600',
                         },
                     });
                 }
             }
 
-            // If it's a URL, redirect to it
-            return NextResponse.redirect(faviconConstant.image);
+            // If it's an external URL, fetch and return the image
+            if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                try {
+                    const imageResponse = await fetch(imageUrl);
+                    if (imageResponse.ok) {
+                        const imageBuffer = await imageResponse.arrayBuffer();
+                        const contentType = imageResponse.headers.get('content-type') || 'image/png';
+
+                        return new NextResponse(Buffer.from(imageBuffer), {
+                            headers: {
+                                'Content-Type': contentType,
+                                'Cache-Control': 'public, max-age=3600',
+                            },
+                        });
+                    }
+                } catch (fetchError) {
+                    console.error('Error fetching external favicon:', fetchError);
+                }
+            }
+
+            // If it's a relative URL, redirect to it
+            if (imageUrl.startsWith('/')) {
+                return NextResponse.redirect(new URL(imageUrl, process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'));
+            }
         }
 
         // Fallback to default favicon

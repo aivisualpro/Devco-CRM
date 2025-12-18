@@ -674,45 +674,123 @@ export default function SchedulePage() {
                                                             );
                                                         }
                                                     })()}
-                                                    <span className="text-xs sm:text-sm font-bold text-slate-500 truncate max-w-[80px] sm:max-w-[100px]">{item.customerName || 'Client'}</span>
+                                                    <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{item.customerName || 'Client'}</span>
                                                 </div>
                                             </div>
 
-                                            {/* Main Title */}
-                                            <div className="mb-4 sm:mb-6">
-                                                <h3 className="text-base sm:text-lg font-black text-slate-800 leading-tight mb-1 line-clamp-2 tracking-tight">
+                                            {/* Row 2: Title (smaller font) */}
+                                            <div className="mb-2">
+                                                <h3 className="text-sm sm:text-base font-bold text-slate-800 leading-tight line-clamp-2">
                                                     {item.title || 'Untitled Schedule'}
                                                 </h3>
-                                                <p className="text-[11px] sm:text-xs font-medium text-slate-400 truncate">{item.jobLocation}</p>
                                             </div>
 
-                                            {/* Footer: Time + Assignees */}
-                                            <div className="flex items-end justify-between mt-3 sm:mt-4">
-                                                {/* Time Pill */}
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-emerald-100/50 flex items-center justify-center text-emerald-600 shadow-sm">
-                                                        <Clock size={12} className="sm:w-3.5 sm:h-3.5" />
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Start Date</span>
-                                                        <span className="text-[11px] sm:text-xs font-black text-slate-700">
-                                                            {new Date(item.fromDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                                        </span>
-                                                    </div>
-                                                </div>
+                                            {/* Row 3: Job Location */}
+                                            <p className="text-[11px] sm:text-xs font-medium text-slate-400 truncate mb-2">{item.jobLocation}</p>
 
-                                                {/* Avatars */}
+                                            {/* Row 4: Estimate # and Project Name */}
+                                            <div className="flex items-center gap-2 mb-3">
+                                                {item.estimate && (
+                                                    <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                                        {item.estimate}
+                                                    </span>
+                                                )}
+                                                {item.description && (
+                                                    <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 truncate">
+                                                        {item.description.split('\n')[0]?.substring(0, 30)}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Row 5: Assignees (left) + Service/Fringe/etc badges (right) */}
+                                            <div className="flex items-center justify-between mb-3">
+                                                {/* Assignees - left side */}
                                                 <div className="flex -space-x-2">
-                                                    {(item.assignees || []).filter(Boolean).slice(0, 3).map((email, i) => (
-                                                        <div key={i} className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-slate-200 border-2 border-[#F2F6FA] flex items-center justify-center text-[8px] sm:text-[9px] font-black text-slate-600 shadow-sm">
-                                                            {email?.[0]?.toUpperCase() || '?'}
-                                                        </div>
-                                                    ))}
-                                                    {(item.assignees || []).filter(Boolean).length > 3 && (
-                                                        <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-[#38A169] border-2 border-[#F2F6FA] flex items-center justify-center text-[8px] sm:text-[9px] font-black text-white shadow-sm">
-                                                            +{(item.assignees?.filter(Boolean).length || 0) - 3}
+                                                    {(item.assignees || []).filter(Boolean).slice(0, 4).map((email, i) => {
+                                                        const emp = initialData.employees.find(e => e.value === email);
+                                                        return (
+                                                            <div key={i} className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
+                                                                {emp?.image ? (
+                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    email?.[0]?.toUpperCase() || '?'
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {(item.assignees || []).filter(Boolean).length > 4 && (
+                                                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#38A169] border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold text-white shadow-sm">
+                                                            +{(item.assignees?.filter(Boolean).length || 0) - 4}
                                                         </div>
                                                     )}
+                                                </div>
+
+                                                {/* Service, Fringe, Certified Payroll, Notified, Per Diem - right side */}
+                                                <div className="flex -space-x-1.5">
+                                                    {[
+                                                        { val: item.service, label: 'SV' },
+                                                        { val: item.fringe, label: 'FR' },
+                                                        { val: item.certifiedPayroll, label: 'CP' },
+                                                        { val: item.notifyAssignees, label: 'NA' },
+                                                        { val: item.perDiem, label: 'PD' }
+                                                    ].filter(attr => attr.val && attr.val !== 'No' && attr.val !== '-' && attr.val !== '').map((attr, i) => {
+                                                        // Look up in constants by description
+                                                        const constant = initialData.constants.find(c => c.description === attr.val);
+                                                        const hasImage = constant?.image;
+                                                        const hasColor = constant?.color;
+
+                                                        return (
+                                                            <div
+                                                                key={i}
+                                                                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white flex items-center justify-center text-[7px] sm:text-[8px] font-bold shadow-sm overflow-hidden"
+                                                                style={{
+                                                                    backgroundColor: hasColor || '#64748b',
+                                                                    color: 'white'
+                                                                }}
+                                                                title={`${attr.label}: ${attr.val}`}
+                                                            >
+                                                                {hasImage ? (
+                                                                    <img src={hasImage} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    attr.label
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+
+                                            {/* Row 6: Date (left) + PM/Foreman/SD (right) */}
+                                            <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
+                                                {/* Date - left side */}
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100/50 flex items-center justify-center text-emerald-600">
+                                                        <Clock size={12} />
+                                                    </div>
+                                                    <span className="text-[11px] sm:text-xs font-bold text-slate-700">
+                                                        {new Date(item.fromDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                    </span>
+                                                </div>
+
+                                                {/* PM / Foreman / SD - right side */}
+                                                <div className="flex -space-x-1.5">
+                                                    {[item.projectManager, item.foremanName, item.SDName].filter(Boolean).map((email, i) => {
+                                                        const emp = initialData.employees.find(e => e.value === email);
+                                                        const labels = ['PM', 'FM', 'SD'];
+                                                        return (
+                                                            <div
+                                                                key={i}
+                                                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-[#0F4C75] text-white"
+                                                                title={`${labels[i]}: ${emp?.label || email}`}
+                                                            >
+                                                                {emp?.image ? (
+                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    labels[i]
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
                                             </div>
 
