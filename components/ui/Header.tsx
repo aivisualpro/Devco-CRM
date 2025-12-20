@@ -72,7 +72,7 @@ const menuStructure: MenuItem[] = [
     }
 ];
 
-const CURRENT_VERSION = 'V.0.55';
+const CURRENT_VERSION = 'V.0.57';
 
 
 interface HeaderProps {

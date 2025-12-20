@@ -10,6 +10,11 @@
     *   **Contact Extensions**: Updated Client Detail and Edit views to support phone extensions ("Ext").
     *   **Smart Formatting**: Implemented auto-formatting for phone numbers `(555) 123-4567` across Client and Employee forms.
     *   **Import Logic**: Refined `importClients` to sync `Extension` fields (supporting "Ext" and "Extension" headers) and map legacy Accounting contacts correctly.
+*   **Document Management & Storage**:
+    *   **Cloudflare R2 Integration**: Implemented secure, high-performance object storage for all client and project documents using Cloudflare R2.
+    *   **Multi-File Uploads**: Enhanced `DocumentGallery` to support drag-and-drop multiple file uploads.
+    *   **Smart Thumbnails**: Added automatic thumbnail generation for images and PDFs, with specialized icons for other file types (Word, Excel, etc.).
+    *   **Gallery Redesign**: Refined the Document Gallery with tabbed filtering (All, PDF, Image, Doc, Sheets) for better organization.
 *   **Import System**:
     *   **Enhanced Mapping**: Updated `importEstimates` to handle all new schema fields.
     *   **Intelligent Sync**: Backend now checks and syncs Accounting Contacts to the Client record during Estimate imports if they don't exist.

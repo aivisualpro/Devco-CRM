@@ -13,6 +13,53 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.57',
+        date: 'December 20, 2025',
+        time: '17:00 PKT',
+        type: 'Schema & Contacts',
+        color: 'from-emerald-500 to-teal-600',
+        highlights: [
+            'Extended Estimate Schema',
+            'Cloudflare R2 Storage',
+            'Document Gallery 2.0',
+            'Smart Number Formatting'
+        ],
+        changes: [
+            {
+                category: 'Document Management',
+                items: [
+                    "Cloudflare R2 Integration: Secure, scalable object storage for all system files",
+                    "Multi-File Uploads: Drag-and-drop support for batch uploading documents",
+                    "Smart Thumbnails: Auto-generated previews for PDFs and images",
+                    "Gallery Redesign: New tabbed interface for filtering files by type"
+                ]
+            },
+            {
+                category: 'Estimates & Data Schema',
+                items: [
+                    "Added comprehensive fields: Customer Job Number, Accounting Contact, Billing Terms, Project Description, Site Conditions",
+                    "Added specialized contact roles (Owner's Contact, Lender's Inspector, etc.)",
+                    "Added 'extension' field to Estimates and Client Contacts"
+                ]
+            },
+            {
+                category: 'Client Management',
+                items: [
+                    "Updated Client Detail/Edit views to support phone extensions",
+                    "Implemented auto-formatting for phone numbers (xxx) xxx-xxxx",
+                    "Refined import logic to sync Extension fields and legacy Accounting contacts"
+                ]
+            },
+            {
+                category: 'Import System',
+                items: [
+                    "Updated importEstimates to handle all new schema fields",
+                    "Intelligent Sync: Auto-adds missing Accounting Contacts to Client records during import"
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.55',
         date: 'December 18, 2025',
         time: '12:30 PKT',
