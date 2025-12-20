@@ -2,17 +2,29 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin } from 'lucide-react';
+import { Save, RefreshCw, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload } from 'lucide-react';
 
 import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import { ClientHeaderCard, AccordionCard, DetailRow } from './components';
+import { ClientHeaderCard, AccordionCard, DetailRow, DocumentGallery, DocumentPreviewModal } from './components';
 
 // Types (Mirrors Client Interface)
 interface ClientContact {
     name: string;
     email?: string;
     phone?: string;
+    extension?: string;
+    type: string;
+    active: boolean;
+}
+
+interface ClientDocument {
+    name: string;
+    url: string;
+    thumbnailUrl?: string;
+    type: string;
+    category?: string;
+    uploadedAt?: string | Date;
 }
 
 interface Client {
@@ -20,20 +32,25 @@ interface Client {
     name: string;
     businessAddress?: string;
     proposalWriter?: string;
-    contactFullName?: string;
-    email?: string;
-    phone?: string;
-    accountingContact?: string;
-    accountingEmail?: string;
-    agreementFile?: string;
     status?: string;
     contacts?: ClientContact[];
     addresses?: string[];
+    documents?: ClientDocument[];
     [key: string]: any;
 }
 
 
 
+const formatPhoneNumber = (value: string) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
 
 export default function ClientViewPage() {
     const router = useRouter();
@@ -45,24 +62,40 @@ export default function ClientViewPage() {
     const [loading, setLoading] = useState(true);
     const [animate, setAnimate] = useState(false);
 
+    // Preview state
+    const [selectedDoc, setSelectedDoc] = useState<ClientDocument | null>(null);
+    const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+
 
 
     // Accordion State
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-        'company': true,
         'contacts': true,
         'addresses': true,
         'documents': false
     });
 
     const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
-    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '' });
+    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
 
     const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
     const [newAddress, setNewAddress] = useState('');
 
+    const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
+    const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(null);
+
 
     const [confirmDelete, setConfirmDelete] = useState(false);
+
+    // Document Upload State
+    const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
+    const [newDoc, setNewDoc] = useState<{ name: string, category: string, file: string | null, type: string | null }>({
+        name: '',
+        category: 'Service Agreement',
+        file: null,
+        type: null
+    });
 
     // API Call Helper
     const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
@@ -112,13 +145,25 @@ export default function ClientViewPage() {
 
     const handleAddContact = async () => {
         if (!client || !newContact.name) return;
-        const updatedContacts = [...(client.contacts || []), newContact];
+
+        // If this is marked as active, deactivate others
+        let updatedContacts = [...(client.contacts || [])];
+        if (newContact.active) {
+            updatedContacts = updatedContacts.map(c => ({ ...c, active: false }));
+        }
+        // If it's the first contact and no active one exists, make it active
+        if (updatedContacts.length === 0) {
+            newContact.active = true;
+        }
+
+        updatedContacts.push(newContact);
+
         try {
             const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
             if (res.success) {
                 setClient(res.result);
                 setIsAddContactModalOpen(false);
-                setNewContact({ name: '', email: '', phone: '' });
+                setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
                 success('Contact added');
             } else {
                 toastError(res.error || 'Failed to add contact');
@@ -130,6 +175,12 @@ export default function ClientViewPage() {
     const handleRemoveContact = async (index: number) => {
         if (!client || !client.contacts) return;
         const updatedContacts = client.contacts.filter((_, i) => i !== index);
+
+        // If we removed the active one, mark the first remaining one as active
+        if (client.contacts[index].active && updatedContacts.length > 0) {
+            updatedContacts[0].active = true;
+        }
+
         try {
             const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
             if (res.success) {
@@ -139,6 +190,55 @@ export default function ClientViewPage() {
                 toastError(res.error || 'Failed to remove contact');
             }
         } catch (err) { toastError('Error removing contact'); }
+    };
+
+    const handleSetActiveContact = async (index: number) => {
+        if (!client || !client.contacts) return;
+        const updatedContacts = client.contacts.map((c, i) => ({
+            ...c,
+            active: i === index
+        }));
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
+            if (res.success) {
+                setClient(res.result);
+                success('Primary contact updated');
+            } else {
+                toastError(res.error || 'Failed to update primary contact');
+            }
+        } catch (err) { toastError('Error updating primary contact'); }
+    };
+
+    const handleEditContact = (index: number) => {
+        const contact = client?.contacts?.[index];
+        if (contact) {
+            setNewContact({ ...contact });
+            setEditingContactIndex(index);
+            setIsAddContactModalOpen(true);
+        }
+    };
+
+    const handleUpdateContact = async () => {
+        if (!client || !newContact.name || editingContactIndex === null) return;
+
+        let updatedContacts = [...(client.contacts || [])];
+        if (newContact.active) {
+            updatedContacts = updatedContacts.map(c => ({ ...c, active: false }));
+        }
+        updatedContacts[editingContactIndex] = newContact;
+
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
+            if (res.success) {
+                setClient(res.result);
+                setIsAddContactModalOpen(false);
+                setEditingContactIndex(null);
+                setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
+                success('Contact updated');
+            } else {
+                toastError(res.error || 'Failed to update contact');
+            }
+        } catch (err) { toastError('Error updating contact'); }
     };
 
 
@@ -173,6 +273,33 @@ export default function ClientViewPage() {
         } catch (err) { toastError('Error removing address'); }
     };
 
+    const handleEditAddress = (index: number) => {
+        const address = client?.addresses?.[index];
+        if (address) {
+            setNewAddress(address);
+            setEditingAddressIndex(index);
+            setIsAddAddressModalOpen(true);
+        }
+    };
+
+    const handleUpdateAddress = async () => {
+        if (!client || !newAddress || editingAddressIndex === null) return;
+        const updatedAddresses = [...(client.addresses || [])];
+        updatedAddresses[editingAddressIndex] = newAddress;
+        try {
+            const res = await apiCall('updateClient', { id: client._id, item: { addresses: updatedAddresses } });
+            if (res.success) {
+                setClient(res.result);
+                setIsAddAddressModalOpen(false);
+                setEditingAddressIndex(null);
+                setNewAddress('');
+                success('Address updated');
+            } else {
+                toastError(res.error || 'Failed to update address');
+            }
+        } catch (err) { toastError('Error updating address'); }
+    };
+
 
     const handleDelete = async () => {
         if (!client) return;
@@ -187,6 +314,196 @@ export default function ClientViewPage() {
         } catch (err) {
             toastError('Error deleting client');
         }
+    };
+
+    const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            setNewDoc(prev => ({
+                ...prev,
+                file: event.target?.result as string,
+                type: file.type,
+                name: prev.name || file.name
+            }));
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleBulkUpload = async (files: File[]) => {
+        if (!client) return;
+        setIsUploading(true);
+
+        const newDocuments: ClientDocument[] = [];
+
+        for (const file of files) {
+            try {
+                // Read file as base64
+                const base64 = await new Promise<string>((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => resolve(e.target?.result as string);
+                    reader.readAsDataURL(file);
+                });
+
+                // 1. Upload to R2
+                const uploadRes = await apiCall('uploadDocument', {
+                    file: base64,
+                    fileName: `${client.name?.replace(/\s+/g, '_')}_${file.name.replace(/\s+/g, '_')}_${Date.now()}`,
+                    contentType: file.type
+                });
+
+                if (uploadRes.success) {
+                    const docUrl = uploadRes.result;
+                    let thumbnailUrl = '';
+
+                    // 2. Generate Thumbnail if PDF/Image
+                    const isPDF = file.type?.includes('pdf');
+                    const isImage = file.type?.startsWith('image/');
+
+                    if (isImage || isPDF) {
+                        try {
+                            const thumbRes = await apiCall('uploadThumbnail', {
+                                file: base64,
+                                fileName: `thumb_${Date.now()}`,
+                                contentType: file.type
+                            });
+                            if (thumbRes.success) thumbnailUrl = thumbRes.result;
+                        } catch (e) { console.error('Thumb error:', e); }
+                    }
+
+                    newDocuments.push({
+                        name: file.name,
+                        url: docUrl,
+                        thumbnailUrl,
+                        type: file.type || 'application/octet-stream',
+                        uploadedAt: new Date()
+                    });
+                }
+            } catch (err) {
+                console.error(`Error uploading ${file.name}:`, err);
+            }
+        }
+
+        if (newDocuments.length > 0) {
+            const currentDocs = Array.isArray(client.documents) ? client.documents : [];
+            const updatedDocs = [...currentDocs, ...newDocuments];
+
+            const updateRes = await apiCall('updateClient', {
+                id: client._id,
+                item: { documents: updatedDocs }
+            });
+
+            if (updateRes.success) {
+                setClient(updateRes.result);
+                success(`Successfully uploaded ${newDocuments.length} document(s)`);
+            } else {
+                toastError('Failed to update client with new documents');
+            }
+        }
+        setIsUploading(false);
+    };
+
+    const handleSaveDoc = async () => {
+        if (!client || !newDoc.file) return;
+
+        setIsUploading(true);
+        try {
+            // 1. Upload to R2 (Original File)
+            const uploadRes = await apiCall('uploadDocument', {
+                file: newDoc.file,
+                fileName: `${client.name?.replace(/\s+/g, '_')}_${newDoc.name?.replace(/\s+/g, '_')}_${Date.now()}`,
+                contentType: newDoc.type
+            });
+
+            if (uploadRes.success) {
+                const docUrl = uploadRes.result;
+                let thumbnailUrl = '';
+
+                // 2. Generate and Upload Thumbnail to Cloudinary
+                try {
+                    const isPDF = newDoc.type?.includes('pdf');
+                    const isImage = newDoc.type?.startsWith('image/');
+
+                    if (isImage || isPDF) {
+                        const thumbRes = await apiCall('uploadThumbnail', {
+                            file: newDoc.file,
+                            fileName: `thumb_${Date.now()}`,
+                            contentType: newDoc.type
+                        });
+                        if (thumbRes.success) thumbnailUrl = thumbRes.result;
+                    }
+                } catch (thumbErr) {
+                    console.error('Thumbnail Generation Error:', thumbErr);
+                }
+
+                const docToSave: ClientDocument = {
+                    name: newDoc.name,
+                    url: docUrl,
+                    thumbnailUrl: thumbnailUrl,
+                    type: newDoc.type || 'application/octet-stream',
+                    category: newDoc.category,
+                    uploadedAt: new Date()
+                };
+
+                // 3. Add to Client documents array
+                const currentDocs = Array.isArray(client.documents) ? client.documents : [];
+                const updatedDocs = [...currentDocs, docToSave];
+
+                const updateRes = await apiCall('updateClient', {
+                    id: client._id,
+                    item: { documents: updatedDocs }
+                });
+
+                if (updateRes.success) {
+                    setClient(updateRes.result);
+                    setIsAddDocModalOpen(false);
+                    setNewDoc({ name: '', category: 'Service Agreement', file: null, type: null });
+                    success('Document uploaded with thumbnail');
+                } else {
+                    toastError(updateRes.error || 'Failed to link document to client');
+                }
+            } else {
+                toastError(uploadRes.error || 'Failed to upload document');
+            }
+        } catch (err: any) {
+            console.error('Doc Upload Error:', err);
+            toastError(err.message || 'Error during upload');
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const handleRemoveDoc = async (index: number) => {
+        if (!client || !client.documents) return;
+        const docToDelete = client.documents[index];
+        const updatedDocs = client.documents.filter((_, i) => i !== index);
+
+        try {
+            // 1. Delete files from storage (R2 and Cloudinary)
+            await apiCall('deleteDocumentFiles', {
+                url: docToDelete.url,
+                thumbnailUrl: docToDelete.thumbnailUrl
+            });
+
+            // 2. Remove from database
+            const res = await apiCall('updateClient', { id: client._id, item: { documents: updatedDocs } });
+            if (res.success) {
+                setClient(res.result);
+                success('Document removed from storage and database');
+            } else {
+                toastError('Failed to remove document reference');
+            }
+        } catch (err) {
+            console.error('Error removing document:', err);
+            toastError('Error removing document');
+        }
+    };
+
+    const handlePreview = (doc: ClientDocument) => {
+        setSelectedDoc(doc);
+        setIsPreviewModalOpen(true);
     };
 
 
@@ -251,109 +568,208 @@ export default function ClientViewPage() {
                     />
 
 
-                    {/* Accordions Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-
-
-                        {/* Company Info */}
-                        <AccordionCard
-                            title="Company Information"
-                            icon={Building}
-                            isOpen={openSections['company']}
-                            onToggle={() => handleToggle('company')}
-                        >
-                            <DetailRow label="Company Name" value={client.name} />
-                            <DetailRow label="Primary Address" value={client.businessAddress} />
-                            <DetailRow label="Proposal Writer" value={client.proposalWriter} />
-                            <DetailRow label="Status" value={client.status} />
-                        </AccordionCard>
+                    {/* Main Layout Grid */}
+                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
                         {/* Contacts Card */}
-                        <AccordionCard
-                            title="Contacts"
-                            icon={User}
-                            isOpen={openSections['contacts']}
-                            onToggle={() => handleToggle('contacts')}
-                            rightElement={
-                                <Button size="sm" onClick={(e) => { e.stopPropagation(); setIsAddContactModalOpen(true); }} className="h-8 w-8 !p-0 rounded-full">
-                                    <Plus className="w-4 h-4" />
-                                </Button>
-                            }
-                        >
-                            <div className="flex flex-col">
-                                {client.contacts && client.contacts.length > 0 ? (
-                                    client.contacts.map((c, i) => (
-                                        <div key={i} className="flex items-start justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 group">
-                                            <div className="flex flex-col gap-1">
-                                                <div className="text-sm font-bold text-slate-700">{c.name}</div>
-                                                {c.email && <div className="text-xs text-slate-500 flex items-center gap-2"><Mail className="w-3 h-3 text-indigo-400" /> {c.email}</div>}
-                                                {c.phone && <div className="text-xs text-slate-500 flex items-center gap-2"><Phone className="w-3 h-3 text-emerald-400" /> {c.phone}</div>}
-                                            </div>
-                                            <button onClick={() => handleRemoveContact(i)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="p-8 text-center text-sm text-slate-400 italic">No additional contacts</div>
-                                )}
-                            </div>
-                        </AccordionCard>
-
-                        {/* Addresses Card */}
-                        <AccordionCard
-                            title="Addresses"
-                            icon={MapPin}
-                            isOpen={openSections['addresses']}
-                            onToggle={() => handleToggle('addresses')}
-                            rightElement={
-                                <Button size="sm" onClick={(e) => { e.stopPropagation(); setIsAddAddressModalOpen(true); }} className="h-8 w-8 !p-0 rounded-full">
-                                    <Plus className="w-4 h-4" />
-                                </Button>
-                            }
-                        >
-                            <div className="flex flex-col">
-                                {client.addresses && client.addresses.length > 0 ? (
-                                    client.addresses.map((addr, i) => (
-                                        <div key={i} className="flex items-start justify-between p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50/50 group">
-                                            <div className="flex items-start gap-3 flex-1">
-                                                <MapPin className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
-                                                <span className="text-sm font-medium text-slate-600 leading-snug">{addr}</span>
-                                            </div>
-                                            <button onClick={() => handleRemoveAddress(i)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="p-8 text-center text-sm text-slate-400 italic">No additional addresses</div>
-                                )}
-                            </div>
-                        </AccordionCard>
-
-
-
-
-                        {/* Documents & Agreements */}
-                        <div className="col-span-1 md:col-span-2 xl:col-span-3">
-
-
+                        <div className="col-span-1 xl:col-span-2">
                             <AccordionCard
-                                title="Documents & Agreements"
-                                icon={FileText}
-                                isOpen={openSections['documents']}
-                                onToggle={() => handleToggle('documents')}
+                                title="Contacts"
+                                icon={User}
+                                isStatic={true}
+                                contentClassName="max-h-[220px] overflow-y-auto thin-scrollbar"
+                                rightElement={
+                                    <Button size="sm" onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingContactIndex(null);
+                                        setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
+                                        setIsAddContactModalOpen(true);
+                                    }} className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                                        <Plus className="w-3.5 h-3.5 mr-1" />
+                                        Add New
+                                    </Button>
+                                }
                             >
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8">
-                                    <div>
-                                        <DetailRow label="Service Agreement" value={client.agreementFile} isLink href={client.agreementFile} />
-                                    </div>
-                                    <div>
-                                        {/* Placeholder for future documents */}
-                                        <DetailRow label="Master Service Agreement (MSA)" value="-" />
-                                    </div>
+                                <div className="p-0">
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow className="bg-slate-50/50">
+                                                <TableHeader>Name</TableHeader>
+                                                <TableHeader>Type</TableHeader>
+                                                <TableHeader>Email</TableHeader>
+                                                <TableHeader>Phone</TableHeader>
+                                                <TableHeader>Status</TableHeader>
+                                                <TableHeader className="text-right whitespace-nowrap">Actions</TableHeader>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {client.contacts && client.contacts.length > 0 ? (
+                                                client.contacts.map((c, i) => (
+                                                    <TableRow key={i} className={`hover:bg-slate-50/30 transition-colors ${c.active ? 'bg-[#3282B8]/5' : ''}`}>
+                                                        <TableCell>
+                                                            <div className="text-sm font-bold text-slate-700">{c.name}</div>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            <Badge variant="default" className="text-[10px] py-0 px-2 h-5 bg-slate-100 text-slate-500 border-slate-200">
+                                                                {c.type}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {c.email ? (
+                                                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                                    <Mail className="w-3.5 h-3.5 text-[#3282B8]" /> {c.email}
+                                                                </div>
+                                                            ) : '-'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {c.phone ? (
+                                                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                                    <Phone className="w-3.5 h-3.5 text-emerald-400" /> {c.phone} {c.extension ? <span className="text-slate-400 ml-1">x{c.extension}</span> : ''}
+                                                                </div>
+                                                            ) : '-'}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {c.active ? (
+                                                                <Badge variant="success" className="text-[10px] py-0 px-2 h-5">Active Primary</Badge>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => handleSetActiveContact(i)}
+                                                                    className="text-[10px] font-bold text-[#0F4C75] hover:text-[#3282B8] uppercase tracking-tight"
+                                                                >
+                                                                    Set Primary
+                                                                </button>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button
+                                                                    onClick={() => handleEditContact(i)}
+                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-[#3282B8]/5 rounded-lg transition-colors"
+                                                                    title="Edit Contact"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRemoveContact(i)}
+                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    title="Remove Contact"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={6} className="h-24 text-center text-slate-400 italic font-medium">
+                                                        No contacts found for this client
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
                                 </div>
                             </AccordionCard>
+                        </div>
+
+                        {/* Addresses Card */}
+                        <div className="col-span-1">
+                            <AccordionCard
+                                title="Addresses"
+                                icon={MapPin}
+                                isStatic={true}
+                                contentClassName="max-h-[220px] overflow-y-auto thin-scrollbar"
+                                rightElement={
+                                    <Button size="sm" onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingAddressIndex(null);
+                                        setNewAddress('');
+                                        setIsAddAddressModalOpen(true);
+                                    }} className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider">
+                                        <Plus className="w-3.5 h-3.5 mr-1" />
+                                        Add New
+                                    </Button>
+                                }
+                            >
+                                <div className="p-0">
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow className="bg-slate-50/50">
+                                                <TableHeader>Job / Billing Address</TableHeader>
+                                                <TableHeader className="text-right">Actions</TableHeader>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {client.addresses && client.addresses.length > 0 ? (
+                                                client.addresses.map((addr, i) => (
+                                                    <TableRow key={i} className="hover:bg-slate-50/30 transition-colors">
+                                                        <TableCell>
+                                                            <div className="flex items-start gap-3">
+                                                                <MapPin className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
+                                                                <span className="text-sm font-medium text-slate-600 leading-snug">{addr}</span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button
+                                                                    onClick={() => handleEditAddress(i)}
+                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                                    title="Edit Address"
+                                                                >
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleRemoveAddress(i)}
+                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                    title="Remove Address"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={2} className="h-24 text-center text-slate-400 italic font-medium">
+                                                        No additional addresses found
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </AccordionCard>
+                        </div>
+
+
+
+
+                        {/* Documents Section */}
+                        <div className="col-span-full mt-4">
+                            <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/50 overflow-hidden">
+                                <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-white">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-[#3282B8]/10 rounded-2xl">
+                                            <FileText className="w-5 h-5 text-[#0F4C75]" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Client Documents</h3>
+                                            <p className="text-xs font-medium text-slate-400">Manage and preview client related files</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-2">
+                                    <DocumentGallery
+                                        documents={client.documents || []}
+                                        onRemove={handleRemoveDoc}
+                                        onPreview={handlePreview}
+                                        onUpload={handleBulkUpload}
+                                        isUploading={isUploading}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -374,11 +790,13 @@ export default function ClientViewPage() {
             <Modal
                 isOpen={isAddContactModalOpen}
                 onClose={() => setIsAddContactModalOpen(false)}
-                title="Add New Contact"
+                title={editingContactIndex !== null ? "Edit Contact" : "Add New Contact"}
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setIsAddContactModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddContact} disabled={!newContact.name}>Add Contact</Button>
+                        <Button onClick={editingContactIndex !== null ? handleUpdateContact : handleAddContact} disabled={!newContact.name}>
+                            {editingContactIndex !== null ? "Update Contact" : "Add Contact"}
+                        </Button>
                     </>
                 }
             >
@@ -398,9 +816,43 @@ export default function ClientViewPage() {
                     <Input
                         label="Phone"
                         value={newContact.phone}
-                        onChange={e => setNewContact({ ...newContact, phone: e.target.value })}
+                        onChange={e => {
+                            const formattedValue = formatPhoneNumber(e.target.value);
+                            setNewContact({ ...newContact, phone: formattedValue });
+                        }}
                         placeholder="(555) 123-4567"
                     />
+                    <Input
+                        label="Extension"
+                        value={newContact.extension}
+                        onChange={e => setNewContact({ ...newContact, extension: e.target.value })}
+                        placeholder="123"
+                    />
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-bold text-slate-400 tracking-widest uppercase">Contact Type</label>
+                        <select
+                            value={newContact.type}
+                            onChange={(e) => setNewContact({ ...newContact, type: e.target.value })}
+                            className="w-full h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#3282B8]/20 focus:border-[#3282B8] transition-all cursor-pointer"
+                        >
+                            <option value="Main Contact">Main Contact</option>
+                            <option value="Accounting">Accounting</option>
+                            <option value="Secondary Contact">Secondary Contact</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <input
+                            type="checkbox"
+                            checked={newContact.active}
+                            onChange={(e) => setNewContact({ ...newContact, active: e.target.checked })}
+                            className="w-5 h-5 rounded text-[#0F4C75] focus:ring-[#3282B8] border-slate-300"
+                        />
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-700">Set as Primary Active Contact</span>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Main profile display contact</span>
+                        </div>
+                    </label>
                 </div>
             </Modal>
 
@@ -408,11 +860,13 @@ export default function ClientViewPage() {
             <Modal
                 isOpen={isAddAddressModalOpen}
                 onClose={() => setIsAddAddressModalOpen(false)}
-                title="Add New Address"
+                title={editingAddressIndex !== null ? "Edit Address" : "Add New Address"}
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setIsAddAddressModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddAddress} disabled={!newAddress}>Add Address</Button>
+                        <Button onClick={editingAddressIndex !== null ? handleUpdateAddress : handleAddAddress} disabled={!newAddress}>
+                            {editingAddressIndex !== null ? "Update Address" : "Add Address"}
+                        </Button>
                     </>
                 }
             >
@@ -425,7 +879,77 @@ export default function ClientViewPage() {
                     />
                 </div>
             </Modal>
-        </>
 
+            {/* Add Document Modal */}
+            <Modal
+                isOpen={isAddDocModalOpen}
+                onClose={() => setIsAddDocModalOpen(false)}
+                title="Upload New Document"
+                footer={
+                    <>
+                        <Button variant="ghost" onClick={() => setIsAddDocModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveDoc} disabled={isUploading || !newDoc.file || !newDoc.name}>
+                            {isUploading ? 'Uploading...' : 'Save Document'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="flex flex-col gap-4">
+                    <Input
+                        label="Document Name *"
+                        value={newDoc.name}
+                        onChange={e => setNewDoc({ ...newDoc, name: e.target.value })}
+                        placeholder="e.g. Master Service Agreement"
+                    />
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-bold text-slate-400 tracking-widest uppercase">Category / Account Type</label>
+                        <select
+                            value={newDoc.category}
+                            onChange={(e) => setNewDoc({ ...newDoc, category: e.target.value })}
+                            className="w-full h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#3282B8]/20 focus:border-[#3282B8] transition-all cursor-pointer"
+                        >
+                            <option value="Service Agreement">Service Agreement</option>
+                            <option value="Master Service Agreement (MSA)">Master Service Agreement (MSA)</option>
+                            <option value="Project Proposal">Project Proposal</option>
+                            <option value="Technical Specification">Technical Specification</option>
+                            <option value="Permits & Licenses">Permits & Licenses</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-bold text-slate-400 tracking-widest uppercase">Select File *</label>
+                        <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-200 border-dashed rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer group relative">
+                            <input
+                                type="file"
+                                onChange={handleDocUpload}
+                                className="absolute inset-0 opacity-0 cursor-pointer"
+                            />
+                            <div className="space-y-2 text-center">
+                                <Upload className={`mx-auto h-10 w-10 ${newDoc.file ? 'text-[#0F4C75]' : 'text-slate-400'} group-hover:scale-110 transition-transform`} />
+                                <div className="text-sm text-slate-600">
+                                    <span className="font-bold text-[#0F4C75] underline">Click to upload</span>
+                                    <span> or drag and drop</span>
+                                </div>
+                                <p className="text-xs text-slate-400">PDF, IMAGE, DOCX up to 10MB</p>
+                                {newDoc.name && newDoc.file && (
+                                    <div className="mt-2 text-xs font-bold text-[#0F4C75] bg-[#3282B8]/10 px-2 py-1 rounded-full animate-pulse">
+                                        File Selected: {newDoc.name}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Document Preview Modal */}
+            <DocumentPreviewModal
+                isOpen={isPreviewModalOpen}
+                onClose={() => setIsPreviewModalOpen(false)}
+                doc={selectedDoc}
+            />
+        </>
     );
 }

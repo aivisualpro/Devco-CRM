@@ -2,41 +2,63 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Pencil, Trash2 } from 'lucide-react';
-import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input } from '@/components/ui';
+import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase } from 'lucide-react';
+import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+
+interface ClientContact {
+    name: string;
+    email?: string;
+    phone?: string;
+    extension?: string;
+    type: string;
+    active: boolean;
+}
 
 interface Client {
     _id: string; // recordId
     name: string;
     businessAddress?: string;
-    proposalWriter?: string;
-    contactFullName?: string;
-    email?: string;
-    phone?: string;
-    accountingContact?: string;
-    accountingEmail?: string;
-    agreementFile?: string;
+    proposalWriter?: string; // This should be an employee ID/email
+    contacts: ClientContact[];
+    addresses?: string[];
+    documents?: any[];
     status?: string;
+}
+
+interface Employee {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    profilePicture?: string;
+    email: string;
 }
 
 const defaultClient: Partial<Client> = {
     name: '',
     businessAddress: '',
     proposalWriter: '',
-    contactFullName: '',
-    email: '',
-    phone: '',
-    accountingContact: '',
-    accountingEmail: '',
-    agreementFile: '',
+    contacts: [],
+    addresses: [],
     status: 'Active'
+};
+
+const formatPhoneNumber = (value: string) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 };
 
 export default function ClientsPage() {
     const router = useRouter();
     const { success, error } = useToast();
     const [clients, setClients] = useState<Client[]>([]);
+    const [employees, setEmployees] = useState<Employee[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
@@ -52,10 +74,28 @@ export default function ClientsPage() {
     // Import state
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
 
     useEffect(() => {
         fetchClients();
+        fetchEmployees();
     }, []);
+
+    const fetchEmployees = async () => {
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getEmployees' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setEmployees(data.result || []);
+            }
+        } catch (err) {
+            console.error('Error fetching employees:', err);
+        }
+    };
 
     const fetchClients = async () => {
         setLoading(true);
@@ -216,10 +256,15 @@ export default function ClientsPage() {
         // Search filter
         if (search) {
             const lowerSearch = search.toLowerCase();
+            const writer = employees.find(e => e._id === c.proposalWriter || e.email === c.proposalWriter);
+            const writerName = writer ? `${writer.firstName} ${writer.lastName}`.toLowerCase() : '';
+
+            const primaryContact = c.contacts?.find(con => con.active) || c.contacts?.[0];
             return (
                 (c.name || '').toLowerCase().includes(lowerSearch) ||
-                (c.email || '').toLowerCase().includes(lowerSearch) ||
-                (c.contactFullName || '').toLowerCase().includes(lowerSearch)
+                (primaryContact?.email || '').toLowerCase().includes(lowerSearch) ||
+                (primaryContact?.name || '').toLowerCase().includes(lowerSearch) ||
+                writerName.includes(lowerSearch)
             );
         }
         return true;
@@ -282,11 +327,22 @@ export default function ClientsPage() {
                     <Table>
                         <TableHead>
                             <TableRow>
-                                <TableHeader>Name</TableHeader>
+                                <TableHeader>
+                                    <div className="flex items-center gap-2">
+                                        <Building2 className="w-4 h-4 text-[#0F4C75]" />
+                                        Name
+                                    </div>
+                                </TableHeader>
+                                <TableHeader>Address</TableHeader>
+                                <TableHeader>
+                                    <div className="flex items-center gap-2">
+                                        <Briefcase className="w-4 h-4 text-[#0F4C75]" />
+                                        Proposal Writer
+                                    </div>
+                                </TableHeader>
                                 <TableHeader>Contact</TableHeader>
                                 <TableHeader>Email</TableHeader>
                                 <TableHeader>Phone</TableHeader>
-                                <TableHeader>Address</TableHeader>
                                 <TableHeader>Status</TableHeader>
                                 <TableHeader className="text-right">Actions</TableHeader>
                             </TableRow>
@@ -302,48 +358,93 @@ export default function ClientsPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                paginatedClients.map((client) => (
-                                    <TableRow 
-                                        key={client._id}
-                                        className="cursor-pointer hover:bg-gray-50 transition-colors"
-                                        onClick={() => router.push(`/clients/${client._id}`)}
-                                    >
-                                        <TableCell
-                                            className="font-medium text-indigo-600"
+                                paginatedClients.map((client) => {
+                                    const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
+                                    const primaryContact = client.contacts?.find(con => con.active) || client.contacts?.[0];
+
+                                    return (
+                                        <TableRow
+                                            key={client._id}
+                                            className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                            onClick={() => router.push(`/clients/${client._id}`)}
                                         >
-                                            {client.name}
-                                        </TableCell>
-                                        <TableCell>{client.contactFullName || '-'}</TableCell>
-                                        <TableCell>{client.email || '-'}</TableCell>
-                                        <TableCell>{client.phone || '-'}</TableCell>
-                                        <TableCell>
-                                            <span title={client.businessAddress} className="block max-w-xs truncate">
-                                                {client.businessAddress || '-'}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant={client.status === 'Active' ? 'success' : 'default'}>
-                                                {client.status || 'Active'}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                                <button
-                                                    onClick={() => openEditModal(client)}
-                                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </button>
-                                                <button
-                                                    onClick={() => openDeleteModal(client)}
-                                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-[#3282B8]/10 rounded-lg">
+                                                        <Building className="w-4 h-4 text-[#0F4C75]" />
+                                                    </div>
+                                                    <span className="text-slate-700 font-bold">{client.name}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-start gap-2 max-w-[200px]">
+                                                    <MapPin className="w-3.5 h-3.5 text-[#0F4C75] mt-0.5 shrink-0" />
+                                                    <span title={client.businessAddress} className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                                        {client.businessAddress || '-'}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {writer ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden border border-slate-200 shadow-sm">
+                                                            {writer.profilePicture ? (
+                                                                <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
+                                                            )}
+                                                        </div>
+                                                        <span className="text-sm text-slate-600 font-medium tracking-tight">
+                                                            {writer.firstName} {writer.lastName}
+                                                        </span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400 text-xs italic">Not assigned</span>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="text-sm font-semibold text-slate-600">{primaryContact?.name || '-'}</div>
+                                            </TableCell>
+                                            <TableCell>
+                                                {primaryContact?.email ? (
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        <Mail className="w-3.5 h-3.5 text-[#3282B8]" />
+                                                        {primaryContact.email}
+                                                    </div>
+                                                ) : '-'}
+                                            </TableCell>
+                                            <TableCell>
+                                                {primaryContact?.phone ? (
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                                        {primaryContact.phone}
+                                                    </div>
+                                                ) : '-'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={client.status === 'Active' ? 'success' : 'default'} className="text-[10px] uppercase font-bold tracking-wider">
+                                                    {client.status || 'Active'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => openEditModal(client)}
+                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openDeleteModal(client)}
+                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>
@@ -363,100 +464,235 @@ export default function ClientsPage() {
                     </>
                 }
             >
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
-                        <Input
-                            value={currentClient.name || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, name: e.target.value })}
-                            placeholder="Enter company name"
-                        />
+                <div className="flex flex-col gap-8">
+                    {/* Top Row: Company Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                        <div className="md:col-span-1">
+                            <Input
+                                label="Company Name *"
+                                value={currentClient.name || ''}
+                                onChange={(e) => setCurrentClient({ ...currentClient, name: e.target.value })}
+                                placeholder="Enter company name"
+                            />
+                        </div>
+
+                        <div className="md:col-span-1">
+                            <SearchableSelect
+                                label="Proposal Writer"
+                                value={currentClient.proposalWriter || ''}
+                                onChange={(val) => setCurrentClient({ ...currentClient, proposalWriter: val })}
+                                options={employees.map(e => ({
+                                    label: `${e.firstName} ${e.lastName}`,
+                                    value: e._id,
+                                    image: e.profilePicture,
+                                    initials: `${e.firstName?.[0] || ''}${e.lastName?.[0] || ''}`
+                                }))}
+                                placeholder="Select writer"
+                            />
+                        </div>
+
+                        <div className="md:col-span-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Status</label>
+                            <select
+                                value={currentClient.status || 'Active'}
+                                onChange={(e) => setCurrentClient({ ...currentClient, status: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#3282B8]/20 focus:border-[#3282B8] transition-all cursor-pointer"
+                            >
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Business Address</label>
-                        <Input
-                            value={currentClient.businessAddress || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, businessAddress: e.target.value })}
-                            placeholder="Full business address"
-                        />
+                    {/* Contacts Section */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="flex items-center gap-2">
+                                <User className="w-5 h-5 text-[#0F4C75]" />
+                                <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Contacts</h4>
+                            </div>
+                            <Button
+                                size="sm"
+                                onClick={() => {
+                                    const contacts = [...(currentClient.contacts || [])];
+                                    contacts.push({ name: '', email: '', phone: '', type: contacts.length === 0 ? 'Main Contact' : 'Secondary Contact', active: contacts.length === 0 });
+                                    setCurrentClient({ ...currentClient, contacts });
+                                }}
+                                className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider !bg-[#0F4C75]"
+                            >
+                                <Plus className="w-3.5 h-3.5 mr-1.5" /> ADD CONTACT
+                            </Button>
+                        </div>
+
+                        <div className="max-h-[350px] overflow-y-auto pr-2 flex flex-col gap-3 thin-scrollbar">
+                            {(currentClient.contacts || []).map((contact, idx) => (
+                                <div key={idx} className={`p-4 rounded-2xl border transition-all ${contact.active ? 'bg-[#3282B8]/5 border-[#3282B8]/20' : 'bg-slate-50 border-slate-100'} relative group shadow-sm`}>
+                                    <button
+                                        onClick={() => {
+                                            const contacts = currentClient.contacts?.filter((_, i) => i !== idx);
+                                            setCurrentClient({ ...currentClient, contacts });
+                                        }}
+                                        className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 className="w-4.5 h-4.5" />
+                                    </button>
+                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                        <div className="md:col-span-3">
+                                            <Input
+                                                label="Full Name"
+                                                value={contact.name}
+                                                onChange={(e) => {
+                                                    const contacts = [...(currentClient.contacts || [])];
+                                                    contacts[idx].name = e.target.value;
+                                                    setCurrentClient({ ...currentClient, contacts });
+                                                }}
+                                                placeholder="e.g. John Smith"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <Input
+                                                label="Email"
+                                                value={contact.email}
+                                                onChange={(e) => {
+                                                    const contacts = [...(currentClient.contacts || [])];
+                                                    contacts[idx].email = e.target.value;
+                                                    setCurrentClient({ ...currentClient, contacts });
+                                                }}
+                                                placeholder="john@example.com"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <Input
+                                                label="Phone"
+                                                value={contact.phone}
+                                                onChange={(e) => {
+                                                    const formattedValue = formatPhoneNumber(e.target.value);
+                                                    const contacts = [...(currentClient.contacts || [])];
+                                                    contacts[idx].phone = formattedValue;
+                                                    setCurrentClient({ ...currentClient, contacts });
+                                                }}
+                                                placeholder="(555) 000-0000"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <Input
+                                                label="Ext"
+                                                value={contact.extension}
+                                                onChange={(e) => {
+                                                    const contacts = [...(currentClient.contacts || [])];
+                                                    contacts[idx].extension = e.target.value;
+                                                    setCurrentClient({ ...currentClient, contacts });
+                                                }}
+                                                placeholder="123"
+                                            />
+                                        </div>
+                                        <div className="md:col-span-3">
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type & Status</label>
+                                                <div className="flex items-center gap-3">
+                                                    <select
+                                                        value={contact.type}
+                                                        onChange={(e) => {
+                                                            const contacts = [...(currentClient.contacts || [])];
+                                                            contacts[idx].type = e.target.value;
+                                                            setCurrentClient({ ...currentClient, contacts });
+                                                        }}
+                                                        className="flex-1 h-9 px-3 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-[#3282B8]/20 transition-all cursor-pointer"
+                                                    >
+                                                        <option value="Main Contact">Main</option>
+                                                        <option value="Accounting">Accounting</option>
+                                                        <option value="Secondary Contact">Secondary</option>
+                                                        <option value="Other">Other</option>
+                                                    </select>
+                                                    <button
+                                                        onClick={() => {
+                                                            const contacts = (currentClient.contacts || []).map((c, i) => ({
+                                                                ...c,
+                                                                active: i === idx
+                                                            }));
+                                                            setCurrentClient({ ...currentClient, contacts });
+                                                        }}
+                                                        className={`h-9 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${contact.active ? 'bg-[#0F4C75] text-white border-[#0F4C75]' : 'bg-white text-slate-400 border-slate-200 hover:border-[#3282B8] hover:text-[#3282B8]'}`}
+                                                    >
+                                                        {contact.active ? 'ACTIVE' : 'SET ACTIVE'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {(!currentClient.contacts || currentClient.contacts.length === 0) && (
+                                <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
+                                    <div className="text-slate-300 text-sm italic font-medium">No contacts added yet.</div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name</label>
-                        <Input
-                            value={currentClient.contactFullName || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, contactFullName: e.target.value })}
-                            placeholder="Primary contact"
-                        />
-                    </div>
+                    {/* Addresses Section */}
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                            <div className="flex items-center gap-2">
+                                <MapPin className="w-5 h-5 text-[#0F4C75]" />
+                                <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Addresses</h4>
+                            </div>
+                            <Button
+                                size="sm"
+                                onClick={() => {
+                                    const addresses = [...(currentClient.addresses || [])];
+                                    addresses.push('');
+                                    setCurrentClient({ ...currentClient, addresses });
+                                }}
+                                className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider !bg-[#0F4C75]"
+                            >
+                                <Plus className="w-3.5 h-3.5 mr-1.5" /> ADD ADDRESS
+                            </Button>
+                        </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Proposal Writer</label>
-                        <Input
-                            value={currentClient.proposalWriter || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, proposalWriter: e.target.value })}
-                            placeholder="Assigned writer"
-                        />
-                    </div>
+                        <div className="max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3 thin-scrollbar">
+                            {(currentClient.addresses || []).map((address, idx) => (
+                                <div key={idx} className={`p-4 rounded-2xl border transition-all ${idx === 0 ? 'bg-emerald-50/30 border-emerald-100' : 'bg-slate-50 border-slate-100'} relative group flex gap-4 items-end`}>
+                                    <div className="flex-1">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                {idx === 0 ? 'Primary Business Address' : `Additional Address ${idx + 1}`}
+                                            </label>
+                                            {idx === 0 && <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-widest">MAIN TABLE ADDRESS</span>}
+                                        </div>
+                                        <Input
+                                            value={address}
+                                            onChange={(e) => {
+                                                const addresses = [...(currentClient.addresses || [])];
+                                                addresses[idx] = e.target.value;
+                                                // If this is the first address, also update the main businessAddress
+                                                const update: any = { addresses };
+                                                if (idx === 0) update.businessAddress = e.target.value;
+                                                setCurrentClient({ ...currentClient, ...update });
+                                            }}
+                                            placeholder="Enter full address line..."
+                                            className="!bg-white"
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const addresses = currentClient.addresses?.filter((_, i) => i !== idx);
+                                            setCurrentClient({ ...currentClient, addresses, businessAddress: addresses?.[0] || '' });
+                                        }}
+                                        className="p-2.5 text-slate-300 hover:text-red-500 transition-colors bg-white rounded-xl border border-slate-200"
+                                    >
+                                        <Trash2 className="w-4.5 h-4.5" />
+                                    </button>
+                                </div>
+                            ))}
 
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                        <Input
-                            value={currentClient.email || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, email: e.target.value })}
-                            placeholder="contact@company.com"
-                            type="email"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                        <Input
-                            value={currentClient.phone || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, phone: e.target.value })}
-                            placeholder="(555) 123-4567"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Accounting Contact</label>
-                        <Input
-                            value={currentClient.accountingContact || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, accountingContact: e.target.value })}
-                            placeholder="Billing contact name"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Accounting Email</label>
-                        <Input
-                            value={currentClient.accountingEmail || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, accountingEmail: e.target.value })}
-                            placeholder="billing@company.com"
-                            type="email"
-                        />
-                    </div>
-
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select
-                            value={currentClient.status || 'Active'}
-                            onChange={(e) => setCurrentClient({ ...currentClient, status: e.target.value })}
-                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                        >
-                            <option value="Active">Active</option>
-                            <option value="Inactive">Inactive</option>
-                        </select>
-                    </div>
-
-                    <div className="col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Agreement File (URL/Ref)</label>
-                        <Input
-                            value={currentClient.agreementFile || ''}
-                            onChange={(e) => setCurrentClient({ ...currentClient, agreementFile: e.target.value })}
-                            placeholder="Link to agreement file"
-                        />
+                            {(!currentClient.addresses || currentClient.addresses.length === 0) && (
+                                <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
+                                    <div className="text-slate-300 text-sm italic font-medium">No addresses added yet.</div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </Modal>

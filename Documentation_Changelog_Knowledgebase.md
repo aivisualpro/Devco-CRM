@@ -1,4 +1,18 @@
-## Current Version: V.0.56
+## Current Version: V.0.57
+
+#### V.0.57 - Extended Schema & Smart Contacts
+*Timestamp: December 20, 2025*
+
+*   **Estimates & Data Schema**:
+    *   **Expanded Data Model**: Added comprehensive fields to Estimates including `Customer Job Number`, `Accounting Contact`, `Billing Terms`, `Project Description`, `Site Conditions`, and specialized contact roles (Owner's Contact, Lender's Inspector, etc.).
+    *   **Extension Support**: Added `extension` field to both Estimates and Client Contacts for better phone number management.
+*   **Client Management Enhancements**:
+    *   **Contact Extensions**: Updated Client Detail and Edit views to support phone extensions ("Ext").
+    *   **Smart Formatting**: Implemented auto-formatting for phone numbers `(555) 123-4567` across Client and Employee forms.
+    *   **Import Logic**: Refined `importClients` to sync `Extension` fields (supporting "Ext" and "Extension" headers) and map legacy Accounting contacts correctly.
+*   **Import System**:
+    *   **Enhanced Mapping**: Updated `importEstimates` to handle all new schema fields.
+    *   **Intelligent Sync**: Backend now checks and syncs Accounting Contacts to the Client record during Estimate imports if they don't exist.
 
 #### V.0.56 - Schedule Cards Redesign & Dynamic Favicon
 *Timestamp: December 19, 2025 00:06 PKT*

@@ -9,6 +9,7 @@ interface ClientContact {
     name: string;
     email?: string;
     phone?: string;
+    extension?: string;
 }
 
 interface ContactSelectorProps {
@@ -16,6 +17,17 @@ interface ContactSelectorProps {
     customerId?: string;
     onChange: (name: string, id?: string, email?: string, phone?: string) => void;
 }
+
+const formatPhoneNumber = (value: string) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
 
 export function ContactSelector({ value, customerId, onChange }: ContactSelectorProps) {
     const [contacts, setContacts] = useState<ClientContact[]>([]);
@@ -155,7 +167,16 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
                     <Input
                         label="Phone"
                         value={newContact.phone}
-                        onChange={e => setNewContact({ ...newContact, phone: e.target.value })}
+                        onChange={e => {
+                            const formattedValue = formatPhoneNumber(e.target.value);
+                            setNewContact({ ...newContact, phone: formattedValue });
+                        }}
+                    />
+                    <Input
+                        label="Extension"
+                        value={newContact.extension}
+                        onChange={e => setNewContact({ ...newContact, extension: e.target.value })}
+                        placeholder="123"
                     />
                 </div>
             </Modal>

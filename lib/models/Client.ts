@@ -4,6 +4,18 @@ export interface IClientContact {
     name: string;
     email?: string;
     phone?: string;
+    extension?: string;
+    type: string; // 'Main Contact', 'Accounting', etc.
+    active: boolean;
+}
+
+export interface IClientDocument {
+    name: string;
+    url: string;
+    thumbnailUrl?: string;
+    type: string;
+    category?: string;
+    uploadedAt?: Date;
 }
 
 export interface IClient {
@@ -14,15 +26,22 @@ export interface IClient {
     contactFullName?: string;
     email?: string;
     phone?: string;
-    accountingContact?: string;
-    accountingEmail?: string;
-    agreementFile?: string;
     status?: string;
     contacts?: IClientContact[];
     addresses?: string[];
+    documents?: IClientDocument[];
     createdAt?: Date;
     updatedAt?: Date;
 }
+
+const ClientDocumentSchema = new Schema({
+    name: { type: String },
+    url: { type: String },
+    thumbnailUrl: { type: String },
+    type: { type: String },
+    category: { type: String },
+    uploadedAt: { type: Date, default: Date.now }
+}, { _id: false });
 
 const ClientSchema: Schema = new Schema({
     _id: { type: String, required: true }, // recordId as _id
@@ -32,28 +51,34 @@ const ClientSchema: Schema = new Schema({
     contactFullName: { type: String },
     email: { type: String },
     phone: { type: String },
-    accountingContact: { type: String },
-    accountingEmail: { type: String },
-    agreementFile: { type: String },
     status: { type: String, default: 'Active' },
     contacts: {
         type: [{
             name: String,
             email: String,
-            phone: String
+            phone: String,
+            extension: String,
+            type: { type: String, default: 'Main Contact' },
+            active: { type: Boolean, default: false }
         }],
         default: []
     },
     addresses: {
         type: [String],
         default: []
+    },
+    documents: {
+        type: [ClientDocumentSchema],
+        default: []
     }
 }, { timestamps: true });
 
 // Prevent model overwrite in development, but ensure schema changes are picked up
 if (process.env.NODE_ENV === 'development') {
+    console.log('[MODEL] Deleting Client model from cache for HMR');
     delete mongoose.models.Client;
 }
 const Client: Model<IClient> = mongoose.models.Client || mongoose.model<IClient>('Client', ClientSchema);
+console.log('[MODEL] Client model registered/retrieved');
 
 export default Client;

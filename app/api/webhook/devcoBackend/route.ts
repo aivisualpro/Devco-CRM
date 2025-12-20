@@ -21,7 +21,7 @@ import {
 } from '@/lib/models';
 
 import { v2 as cloudinary } from 'cloudinary';
-
+import { uploadToR2, removeFromR2 } from '@/lib/s3';
 // Cloudinary Configuration
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -29,11 +29,44 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET
 });
 
+async function deleteFromCloudinary(url: string): Promise<boolean> {
+    if (!url || !url.includes('cloudinary.com')) return false;
+    try {
+        const parts = url.split('/');
+        const uploadIndex = parts.indexOf('upload');
+        if (uploadIndex === -1) return false;
+
+        let startIndex = uploadIndex + 1;
+        // Skip transformation or version segments
+        // Standard URLs: .../upload/v1234/folder/file.ext
+        // With Transformations: .../upload/w_400,h_533.../v1234/folder/file.ext
+
+        while (startIndex < parts.length) {
+            const segment = parts[startIndex];
+            // If it's a version (v followed by digits) or a transformation (contains _), skip it
+            if (segment.match(/^v\d+$/) || segment.includes(',') || segment.includes('_')) {
+                startIndex++;
+            } else {
+                break;
+            }
+        }
+
+        const pathWithExt = parts.slice(startIndex).join('/');
+        const publicId = pathWithExt.replace(/\.[^/.]+$/, "");
+
+        console.log('Deleting Cloudinary PublicID:', publicId);
+        await cloudinary.uploader.destroy(publicId);
+        return true;
+    } catch (error) {
+        console.error('Cloudinary Delete Error:', error);
+        return false;
+    }
+}
+
 async function uploadImage(imageString: string, publicId: string): Promise<string | null> {
     if (!imageString || !imageString.startsWith('data:image')) return imageString;
 
     try {
-        // Sanitize publicId
         const safeId = publicId.replace(/[^a-zA-Z0-9]/g, '_');
         const uploadResult = await cloudinary.uploader.upload(imageString, {
             public_id: `employees/${safeId}`,
@@ -48,6 +81,52 @@ async function uploadImage(imageString: string, publicId: string): Promise<strin
         console.error('Cloudinary Upload Error:', error);
         return null;
     }
+}
+
+async function uploadThumbnail(fileString: string, publicId: string, contentType: string): Promise<string | null> {
+    if (!fileString) return null;
+
+    try {
+        const safeId = publicId.replace(/[^a-zA-Z0-9]/g, '_');
+        const isPDF = contentType.includes('pdf') || fileString.startsWith('data:application/pdf');
+        const isImage = contentType.startsWith('image/') || fileString.startsWith('data:image');
+
+        if (isImage || isPDF) {
+            const uploadResult = await cloudinary.uploader.upload(fileString, {
+                public_id: safeId,
+                folder: 'thumbnails',
+                overwrite: true,
+                resource_type: isPDF ? 'auto' : 'image',
+                transformation: [
+                    { width: 400, height: 533, crop: 'fill', gravity: 'north', format: 'png', page: 1 }
+                ]
+            });
+
+            let url = uploadResult.secure_url;
+            if (isPDF) {
+                url = url.replace(/\.[^/.]+$/, ".png");
+            }
+            return url;
+        }
+
+        // Fallback for Word/Excel/etc.
+        if (contentType.includes('word') || contentType.includes('officedocument.wordprocessingml')) {
+            return 'https://res.cloudinary.com/dff9f7q8o/image/upload/v1711200000/word_icon.png';
+        }
+        if (contentType.includes('excel') || contentType.includes('officedocument.spreadsheetml')) {
+            return 'https://res.cloudinary.com/dff9f7q8o/image/upload/v1711200000/excel_icon.png';
+        }
+
+        return null;
+    } catch (error) {
+        console.error('Thumbnail Upload Error:', error);
+        return null;
+    }
+}
+
+// Helper to upload documents to R2
+export async function uploadDocumentToR2(base64String: string, fileName: string, contentType: string) {
+    return await uploadToR2(base64String, `documents/${fileName}`, contentType);
 }
 
 
@@ -641,6 +720,43 @@ export async function POST(request: NextRequest) {
                     if (e['Fringe']) cleanData.fringe = e['Fringe'];
                     if (e['Certified Payroll']) cleanData.certifiedPayroll = e['Certified Payroll'];
 
+                    // New Fields Mapping
+                    if (e['Customer Job Number']) cleanData.customerJobNumber = e['Customer Job Number'];
+                    if (e['Extension']) cleanData.extension = e['Extension'];
+                    if (e['Accounting Contact']) cleanData.accountingContact = e['Accounting Contact'];
+                    if (e['Accounting Email']) cleanData.accountingEmail = e['Accounting Email'];
+                    if (e['PO OR PA']) cleanData.PoORPa = e['PO OR PA'];
+                    if (e['PO Name']) cleanData.poName = e['PO Name'];
+                    if (e['PO Address']) cleanData.PoAddress = e['PO Address'];
+                    if (e['PO Phone']) cleanData.PoPhone = e['PO Phone'];
+                    if (e['OC Name']) cleanData.ocName = e['OC Name'];
+                    if (e['OC Address']) cleanData.ocAddress = e['OC Address'];
+                    if (e['OC Phone']) cleanData.ocPhone = e['OC Phone'];
+                    if (e['Sub C Name']) cleanData.subCName = e['Sub C Name'];
+                    if (e['Sub C Address']) cleanData.subCAddress = e['Sub C Address'];
+                    if (e['Sub C Phone']) cleanData.subCPhone = e['Sub C Phone'];
+                    if (e['LI Name']) cleanData.liName = e['LI Name'];
+                    if (e['LI Address']) cleanData.liAddress = e['LI Address'];
+                    if (e['LI Phone']) cleanData.liPhone = e['LI Phone'];
+                    if (e['SC Name']) cleanData.scName = e['SC Name'];
+                    if (e['SC Address']) cleanData.scAddress = e['SC Address'];
+                    if (e['SC Phone']) cleanData.scPhone = e['SC Phone'];
+                    if (e['Bond Number']) cleanData.bondNumber = e['Bond Number'];
+                    if (e['Project ID']) cleanData.projectId = e['Project ID'];
+                    if (e['FB Name']) cleanData.fbName = e['FB Name'];
+                    if (e['FB Address']) cleanData.fbAddress = e['FB Address'];
+                    if (e['eCPR System']) cleanData.eCPRSystem = e['eCPR System'];
+                    if (e['Type of Service Required']) cleanData.typeOfServiceRequired = e['Type of Service Required'];
+                    if (e['Wet Utilities']) cleanData.wetUtilities = e['Wet Utilities'];
+                    if (e['Dry Utilities']) cleanData.dryUtilities = e['Dry Utilities'];
+                    if (e['Project Description']) cleanData.projectDescription = e['Project Description'];
+                    if (e['Estimated Start Date']) cleanData.estimatedStartDate = e['Estimated Start Date'];
+                    if (e['Estimated Completion Date']) cleanData.estimatedCompletionDate = e['Estimated Completion Date'];
+                    if (e['Site Conditions']) cleanData.siteConditions = e['Site Conditions'];
+                    if (e['Prelim Amount']) cleanData.prelimAmount = e['Prelim Amount'];
+                    if (e['Billing Terms']) cleanData.billingTerms = e['Billing Terms'];
+                    if (e['Other Billing Terms']) cleanData.otherBillingTerms = e['Other Billing Terms'];
+
                     // Header Mapping for Totals
                     if (cleanData['Grand Total']) cleanData.grandTotal = cleanData['Grand Total'];
                     if (cleanData['Sub Total']) cleanData.subTotal = cleanData['Sub Total'];
@@ -749,9 +865,37 @@ export async function POST(request: NextRequest) {
                         client.activeUpdates.$push.contacts.push({
                             name: e.contactName || 'Unknown',
                             email: e.contactEmail,
-                            phone: e.contactPhone
+                            phone: e.contactPhone,
+                            extension: e.extension || e['Extension'],
+                            type: 'Main Contact',
+                            active: currentContacts.length === 0
                         });
                         updated = true;
+                    }
+
+                    // Check Accounting Contact
+                    const accName = e.accountingContact || e['Accounting Contact'];
+                    const accEmail = e.accountingEmail || e['Accounting Email'];
+
+                    if (accName || accEmail) {
+                        const accountingExists = currentContacts.some((c: any) =>
+                            c.type === 'Accounting' && (
+                                (accEmail && c.email === accEmail) ||
+                                (accName && c.name === accName)
+                            )
+                        );
+
+                        if (!accountingExists) {
+                            if (!client.activeUpdates.$push.contacts) client.activeUpdates.$push.contacts = [];
+                            client.activeUpdates.$push.contacts.push({
+                                name: accName || 'Accounting Contact',
+                                email: accEmail || '',
+                                phone: '', // Accounting contact usually has no phone in this context
+                                type: 'Accounting',
+                                active: false
+                            });
+                            updated = true;
+                        }
                     }
 
                     // Check Address
@@ -982,67 +1126,223 @@ export async function POST(request: NextRequest) {
                 const { item } = payload || {};
                 if (!item) return NextResponse.json({ success: false, error: 'Missing client data' }, { status: 400 });
 
-                // Ensure _id is set from recordId if provided, otherwise generate one
-                // If the user manually creates one, we might need to generate a recordId
+                const contacts: any[] = [];
+                const inputContacts = Array.isArray(item.contacts) ? item.contacts : [];
+
+                inputContacts.forEach((con: any, idx: number) => {
+                    contacts.push({
+                        ...con,
+                        type: con.type || 'Main Contact',
+                        active: con.active !== undefined ? con.active : (idx === 0)
+                    });
+                });
+
+                // Migrate legacy main contact info
+                if (item.contactFullName || item.email || item.phone) {
+                    const exists = contacts.some(con => con.name === item.contactFullName);
+                    if (!exists) {
+                        contacts.push({
+                            name: item.contactFullName || 'Primary Contact',
+                            email: item.email || '',
+                            phone: item.phone || '',
+                            type: 'Main Contact',
+                            active: contacts.length === 0
+                        });
+                    }
+                }
+
+                // Migrate legacy accounting info
+                if (item.accountingContact || item.accountingEmail) {
+                    const exists = contacts.some(con => con.name === item.accountingContact && con.type === 'Accounting');
+                    if (!exists) {
+                        contacts.push({
+                            name: item.accountingContact || 'Accounting Contact',
+                            email: item.accountingEmail || '',
+                            type: 'Accounting',
+                            active: contacts.length === 0
+                        });
+                    }
+                }
+
+                if (contacts.length > 0 && !contacts.some(con => con.active)) {
+                    contacts[0].active = true;
+                }
+
                 const clientData = {
                     ...item,
+                    contacts,
                     _id: item.recordId || item._id || `C-${Date.now()}`
                 };
+                delete (clientData as any).accountingContact;
+                delete (clientData as any).accountingEmail;
+                delete (clientData as any).contactFullName;
+                delete (clientData as any).email;
+                delete (clientData as any).phone;
 
                 const newClient = await Client.create(clientData);
                 return NextResponse.json({ success: true, result: newClient });
             }
 
             case 'updateClient': {
-                const { id: clientId, item: clientItem } = payload || {};
-                console.log('[API] updateClient payload:', { clientId, clientItem });
-                if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+                try {
+                    const { id: clientId, item: clientItem } = payload || {};
+                    if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                const updated = await Client.findByIdAndUpdate(
-                    clientId,
-                    { ...clientItem, updatedAt: new Date() },
-                    { new: true, strict: false }
-                );
-                console.log('[API] updateClient updated result:', updated);
-                return NextResponse.json({ success: true, result: updated });
+                    // Handle contact refactoring and migration
+                    if (clientItem.accountingContact || clientItem.accountingEmail || clientItem.contactFullName || clientItem.email || clientItem.phone || Array.isArray(clientItem.contacts)) {
+                        const contacts = Array.isArray(clientItem.contacts) ? [...clientItem.contacts] : [];
+
+                        // Migrate/Update primary contact info if provided as top-level
+                        if (clientItem.contactFullName || clientItem.email || clientItem.phone) {
+                            const mainIdx = contacts.findIndex(con => (con.type === 'Main Contact' && con.active) || con.name === clientItem.contactFullName);
+                            if (mainIdx > -1) {
+                                contacts[mainIdx] = {
+                                    ...contacts[mainIdx],
+                                    name: clientItem.contactFullName || contacts[mainIdx].name,
+                                    email: clientItem.email || contacts[mainIdx].email,
+                                    phone: clientItem.phone || contacts[mainIdx].phone
+                                };
+                            } else {
+                                contacts.push({
+                                    name: clientItem.contactFullName || 'Main Contact',
+                                    email: clientItem.email || '',
+                                    phone: clientItem.phone || '',
+                                    type: 'Main Contact',
+                                    active: contacts.length === 0
+                                });
+                            }
+                        }
+
+                        // Migrate/Update accounting contact info if provided as top-level
+                        if (clientItem.accountingContact || clientItem.accountingEmail) {
+                            const accIdx = contacts.findIndex(con => con.type === 'Accounting');
+                            if (accIdx > -1) {
+                                contacts[accIdx] = {
+                                    ...contacts[accIdx],
+                                    name: clientItem.accountingContact || contacts[accIdx].name,
+                                    email: clientItem.accountingEmail || contacts[accIdx].email
+                                };
+                            } else {
+                                contacts.push({
+                                    name: clientItem.accountingContact || 'Accounting',
+                                    email: clientItem.accountingEmail || '',
+                                    type: 'Accounting',
+                                    active: contacts.length === 0
+                                });
+                            }
+                        }
+
+                        // Clean up legacy fields from update object
+                        delete (clientItem as any).accountingContact;
+                        delete (clientItem as any).accountingEmail;
+                        delete (clientItem as any).contactFullName;
+                        delete (clientItem as any).email;
+                        delete (clientItem as any).phone;
+
+                        // Ensure all contacts have type and active status
+                        const processedContacts = contacts.map((con, idx) => ({
+                            ...con,
+                            type: con.type || 'Main Contact',
+                            active: con.active !== undefined ? con.active : (idx === 0)
+                        }));
+
+                        // Ensure exactly one is active if any exist
+                        if (processedContacts.length > 0 && !processedContacts.some(con => con.active)) {
+                            processedContacts[0].active = true;
+                        }
+
+                        clientItem.contacts = processedContacts;
+                    }
+
+                    const updated = await Client.findByIdAndUpdate(
+                        clientId,
+                        { ...clientItem, updatedAt: new Date() },
+                        { new: true, strict: false }
+                    );
+                    return NextResponse.json({ success: true, result: updated });
+                } catch (err: any) {
+                    console.error('[API] updateClient Error:', err);
+                    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+                }
             }
 
             case 'deleteClient': {
                 const { id: clientDelId } = payload || {};
                 if (!clientDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 await Client.findByIdAndDelete(clientDelId);
                 return NextResponse.json({ success: true });
             }
 
             case 'importClients': {
-                const { clients } = payload || {};
-                if (!Array.isArray(clients)) return NextResponse.json({ success: false, error: 'Invalid clients array' }, { status: 400 });
+                const { clients: importClientsArray } = payload || {};
+                if (!Array.isArray(importClientsArray)) return NextResponse.json({ success: false, error: 'Invalid clients array' }, { status: 400 });
 
-                const operations = clients.map((c: any) => {
-                    const updateData: any = {
-                        ...c,
-                        _id: c.recordId || c._id,
-                        updatedAt: new Date()
-                    };
-
-                    // Map legacy single address to addresses array if not already present
-                    if (c.businessAddress) {
-                        updateData.addresses = [c.businessAddress];
+                const operations = importClientsArray.map((client: any) => {
+                    const contacts: any[] = [];
+                    if (Array.isArray(client.contacts)) {
+                        client.contacts.forEach((con: any, idx: number) => {
+                            contacts.push({
+                                ...con,
+                                type: con.type || 'Main Contact',
+                                active: con.active !== undefined ? con.active : (idx === 0)
+                            });
+                        });
                     }
 
-                    // Map legacy contact info to contacts array
-                    if (c.contactFullName || c.email || c.phone) {
-                        updateData.contacts = [{
-                            name: c.contactFullName || 'Primary Contact',
-                            email: c.email || '',
-                            phone: c.phone || ''
-                        }];
+                    // Map legacy main contact info to contacts array
+                    if (client.contactFullName || client.email || client.phone) {
+                        const exists = contacts.some(con => con.name === client.contactFullName);
+                        if (!exists) {
+                            contacts.push({
+                                name: client.contactFullName || 'Primary Contact',
+                                email: client.email || '',
+                                phone: client.phone || '',
+                                extension: client.extension || client.Extension || client.Ext || '',
+                                type: 'Main Contact',
+                                active: contacts.length === 0
+                            });
+                        }
+                    }
+
+                    // Map legacy accounting info
+                    if (client.accountingContact || client.accountingEmail) {
+                        const exists = contacts.some(con => con.name === client.accountingContact && con.type === 'Accounting');
+                        if (!exists) {
+                            contacts.push({
+                                name: client.accountingContact || 'Accounting Contact',
+                                email: client.accountingEmail || '',
+                                type: 'Accounting',
+                                active: contacts.length === 0
+                            });
+                        }
+                    }
+
+                    // Final check: ensure at least one active
+                    if (contacts.length > 0 && !contacts.some(con => con.active)) {
+                        contacts[0].active = true;
+                    }
+
+                    const updateData: any = {
+                        ...client,
+                        _id: client.recordId || client._id,
+                        contacts,
+                        updatedAt: new Date()
+                    };
+                    delete updateData.accountingContact;
+                    delete updateData.accountingEmail;
+                    delete updateData.contactFullName;
+                    delete updateData.email;
+                    delete updateData.phone;
+                    delete updateData.extension;
+
+                    // Map legacy single address to addresses array if not already present
+                    if (client.businessAddress && (!client.addresses || client.addresses.length === 0)) {
+                        updateData.addresses = [client.businessAddress];
                     }
 
                     return {
                         updateOne: {
-                            filter: { _id: c.recordId || c._id },
+                            filter: { _id: client.recordId || client._id },
                             update: {
                                 $set: updateData,
                                 $setOnInsert: { createdAt: new Date() }
@@ -1056,19 +1356,46 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result });
             }
 
+            case 'uploadDocument': {
+                const { file, fileName, contentType } = payload || {};
+                if (!file) return NextResponse.json({ success: false, error: 'Missing file data' }, { status: 400 });
+                const url = await uploadToR2(file, fileName || `doc_${Date.now()}`, contentType || 'application/octet-stream');
+                return NextResponse.json({ success: true, result: url });
+            }
+
+            case 'uploadThumbnail': {
+                const { file, fileName, contentType } = payload || {};
+                if (!file) return NextResponse.json({ success: false, error: 'Missing file data' }, { status: 400 });
+                const url = await uploadThumbnail(file, fileName || `thumb_${Date.now()}`, contentType || 'image/png');
+                return NextResponse.json({ success: true, result: url });
+            }
+
+            case 'deleteDocumentFiles': {
+                const { url, thumbnailUrl } = payload || {};
+                if (url) {
+                    let r2Key = '';
+                    if (url.includes('/api/docs/')) {
+                        r2Key = url.split('/api/docs/')[1].split('?')[0];
+                    } else if (url.includes('.cloudflarestorage.com/')) {
+                        r2Key = url.split('.cloudflarestorage.com/')[1];
+                    }
+                    if (r2Key) {
+                        r2Key = decodeURIComponent(r2Key);
+                        await removeFromR2(r2Key);
+                    }
+                }
+                if (thumbnailUrl) await deleteFromCloudinary(thumbnailUrl);
+                return NextResponse.json({ success: true });
+            }
 
             case 'getClientById': {
                 const { id: clientId } = payload || {};
                 if (!clientId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 const client = await Client.findById(clientId);
                 if (!client) return NextResponse.json({ success: false, error: 'Client not found' }, { status: 404 });
-
                 return NextResponse.json({ success: true, result: client });
             }
 
-
-            // ========== TEMPLATES ==========
             case 'getTemplates': {
                 const items = await Template.find().sort({ createdAt: -1 });
                 return NextResponse.json({ success: true, result: items });
@@ -1082,7 +1409,6 @@ export async function POST(request: NextRequest) {
             case 'updateTemplate': {
                 const { id: tempId, item: tempItem } = payload || {};
                 if (!tempId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 const updated = await Template.findByIdAndUpdate(tempId, { ...tempItem, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
             }
@@ -1090,7 +1416,6 @@ export async function POST(request: NextRequest) {
             case 'deleteTemplate': {
                 const { id: tempDelId } = payload || {};
                 if (!tempDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 await Template.findByIdAndDelete(tempDelId);
                 return NextResponse.json({ success: true });
             }
@@ -1098,25 +1423,18 @@ export async function POST(request: NextRequest) {
             case 'cloneTemplate': {
                 const { id: cloneId } = payload || {};
                 if (!cloneId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 const original = await Template.findById(cloneId).lean();
                 if (!original) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
-
-                // Create a copy without _id and with updated title
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const { _id, createdAt, updatedAt, ...rest } = original as any;
-
                 const newTemplate = await Template.create({
                     ...rest,
                     title: `${rest.title} (Copy)`,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
-
                 return NextResponse.json({ success: true, result: newTemplate });
             }
 
-            // ========== GLOBAL CUSTOM VARIABLES ==========
             case 'getGlobalCustomVariables': {
                 const vars = await GlobalCustomVariable.find().sort({ createdAt: 1 });
                 return NextResponse.json({ success: true, result: vars });
@@ -1124,41 +1442,23 @@ export async function POST(request: NextRequest) {
 
             case 'saveGlobalCustomVariables': {
                 const { variables } = payload || {};
-                if (!Array.isArray(variables)) {
-                    return NextResponse.json({ success: false, error: 'Invalid variables array' }, { status: 400 });
-                }
-
-                // Delete all existing and recreate (simple approach)
+                if (!Array.isArray(variables)) return NextResponse.json({ success: false, error: 'Invalid variables array' }, { status: 400 });
                 await GlobalCustomVariable.deleteMany({});
-                if (variables.length > 0) {
-                    await GlobalCustomVariable.insertMany(variables);
-                }
+                if (variables.length > 0) await GlobalCustomVariable.insertMany(variables);
                 const updated = await GlobalCustomVariable.find().sort({ createdAt: 1 });
                 return NextResponse.json({ success: true, result: updated });
             }
 
-            // ========== PROPOSALS ==========
             case 'previewProposal': {
                 const { templateId, estimateId, editMode = true, estimateData } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
-
                 const [template, dbEstimate] = await Promise.all([
                     Template.findById(templateId).lean(),
                     Estimate.findById(estimateId).lean()
                 ]);
-
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!dbEstimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
-
-                // Use provided override data or DB data
-                // We merge override data ON TOP of DB data to ensure we have all fields but with latest updates
                 const estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
-
-                console.log('previewProposal estimate.customVariables:', (estimate as any).customVariables);
-
-
-                // Resolve with editMode flag
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const html = resolveTemplateDocument(template, estimate as any, editMode);
                 return NextResponse.json({ success: true, result: { html } });
             }
@@ -1166,47 +1466,29 @@ export async function POST(request: NextRequest) {
             case 'generateProposal': {
                 const { templateId, estimateId, customVariables = {} } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
-
                 const [template, estimate] = await Promise.all([
                     Template.findById(templateId).lean(),
-                    Estimate.findById(estimateId) // Keep mongoose doc for saving
+                    Estimate.findById(estimateId)
                 ]);
-
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
-
-                // Save custom variables to estimate
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (estimate as any).customVariables = customVariables;
-                estimate.markModified('customVariables'); // Tell Mongoose the field changed
-
-                // Prepare estimate object for resolver
+                estimate.markModified('customVariables');
                 const estimateObj = estimate.toObject() as any;
                 estimateObj.customVariables = customVariables;
-
-
-                // Resolve template in view mode (false) - final output without inputs
                 const html = resolveTemplateDocument(template, estimateObj, false);
-
-                // Update Estimate with Snapshot
                 estimate.proposal = {
                     templateId: String(template._id),
                     templateVersion: template.version || 1,
                     generatedAt: new Date(),
                     htmlContent: html,
-                    pdfUrl: '' // PDF Generation would go here (Puppeteer)
+                    pdfUrl: ''
                 };
-
-                // Set active template ID
                 estimate.templateId = String(template._id);
-
                 await estimate.save();
-
                 return NextResponse.json({ success: true, result: { html } });
             }
 
-
-            // ========== EMPLOYEES ==========
             case 'getEmployees': {
                 const employees = await Employee.find().sort({ name: 1 });
                 return NextResponse.json({ success: true, result: employees });
@@ -1222,21 +1504,12 @@ export async function POST(request: NextRequest) {
             case 'addEmployee': {
                 const { item } = payload || {};
                 if (!item || !item.email) return NextResponse.json({ success: false, error: 'Missing employee data or email' }, { status: 400 });
-
-                // Use email as _id
                 let profilePictureUrl = item.profilePicture;
-                if (item.profilePicture) {
+                if (item.profilePicture && item.profilePicture.startsWith('data:image')) {
                     const uploaded = await uploadImage(item.profilePicture, item.email);
                     if (uploaded) profilePictureUrl = uploaded;
                 }
-
-                const employeeData = {
-                    ...item,
-                    _id: item.email,
-                    profilePicture: profilePictureUrl
-                };
-
-
+                const employeeData = { ...item, _id: item.email, profilePicture: profilePictureUrl };
                 const newEmployee = await Employee.create(employeeData);
                 return NextResponse.json({ success: true, result: newEmployee });
             }
@@ -1244,26 +1517,18 @@ export async function POST(request: NextRequest) {
             case 'updateEmployee': {
                 const { id: empId, item: empItem } = payload || {};
                 if (!empId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 let updateData = { ...empItem };
-
-                // Handle Profile Picture Upload
                 if (empItem.profilePicture && empItem.profilePicture.startsWith('data:image')) {
                     const uploaded = await uploadImage(empItem.profilePicture, empId);
-                    if (uploaded) {
-                        updateData.profilePicture = uploaded;
-                    }
+                    if (uploaded) updateData.profilePicture = uploaded;
                 }
-
                 const updated = await Employee.findByIdAndUpdate(empId, { ...updateData, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
             }
 
-
             case 'deleteEmployee': {
                 const { id: empDelId } = payload || {};
                 if (!empDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
                 await Employee.findByIdAndDelete(empDelId);
                 return NextResponse.json({ success: true });
             }
@@ -1271,49 +1536,26 @@ export async function POST(request: NextRequest) {
             case 'importEmployees': {
                 const { employees } = payload || {};
                 if (!Array.isArray(employees)) return NextResponse.json({ success: false, error: 'Invalid employees array' }, { status: 400 });
-
                 const operations = employees.map((e: any) => {
-                    if (!e.email) return null; // Skip if no email
-
-                    // Parse boolean fields
+                    if (!e.email) return null;
                     let scheduleActive = e.isScheduleActive;
                     if (typeof scheduleActive === 'string') {
                         const val = scheduleActive.trim().toUpperCase();
                         scheduleActive = ['YES', 'Y', 'TRUE', '1'].includes(val);
                     }
-
-                    // Parse currency fields
                     const rateSite = e.hourlyRateSITE ? parseNum(e.hourlyRateSITE) : 0;
                     const rateDrive = e.hourlyRateDrive ? parseNum(e.hourlyRateDrive) : 0;
-
-                    // Destructure to remove parsed fields from 'rest' so we don't duplicate or overwrite
                     const { _id, isScheduleActive, hourlyRateSITE, hourlyRateDrive, ...rest } = e;
-
-                    const finalUpdate = {
-                        ...rest,
-                        isScheduleActive: scheduleActive, // Use parsed boolean
-                        hourlyRateSITE: rateSite,         // Use parsed number
-                        hourlyRateDrive: rateDrive,       // Use parsed number
-                        email: e.email,
-                        updatedAt: new Date()
-                    };
-
+                    const finalUpdate = { ...rest, isScheduleActive: scheduleActive, hourlyRateSITE: rateSite, hourlyRateDrive: rateDrive, email: e.email, updatedAt: new Date() };
                     return {
                         updateOne: {
                             filter: { _id: e.email },
-                            update: {
-                                $set: finalUpdate,
-                                $setOnInsert: {
-                                    _id: e.email,
-                                    createdAt: new Date()
-                                }
-                            },
+                            update: { $set: finalUpdate, $setOnInsert: { _id: e.email, createdAt: new Date() } },
                             upsert: true
                         }
                     };
-                }).filter(Boolean); // Remove nulls
-
-                const result = await Employee.bulkWrite(operations as any); // Cast to any to avoid complex TS mapping issues with filtered nulls
+                }).filter(Boolean);
+                const result = await Employee.bulkWrite(operations as any);
                 return NextResponse.json({ success: true, result });
             }
 

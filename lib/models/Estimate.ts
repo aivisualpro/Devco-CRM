@@ -10,25 +10,57 @@ export interface IEstimate extends Document {
     contactId?: string;
     contactEmail?: string;
     contactPhone?: string;
+    extension?: string;
     jobAddress?: string;
-
     projectTitle?: string;
-    projectName?: string; // New field
+    projectName?: string;
     proposalNumber?: string;
     proposalNo?: string;
     status?: string;
     notes?: string;
     fringe?: string;
-
     bidMarkUp?: string;
     confirmed?: boolean;
-
     proposalWriter?: string;
     certifiedPayroll?: string;
 
+    // New fields
+    customerJobNumber?: string;
+    accountingContact?: string;
+    accountingEmail?: string;
+    PoORPa?: string;
+    poName?: string;
+    PoAddress?: string;
+    PoPhone?: string;
+    ocName?: string;
+    ocAddress?: string;
+    ocPhone?: string;
+    subCName?: string;
+    subCAddress?: string;
+    subCPhone?: string;
+    liName?: string;
+    liAddress?: string;
+    liPhone?: string;
+    scName?: string;
+    scAddress?: string;
+    scPhone?: string;
+    bondNumber?: string;
+    projectId?: string;
+    fbName?: string;
+    fbAddress?: string;
+    eCPRSystem?: string;
+    typeOfServiceRequired?: string;
+    wetUtilities?: string;
+    dryUtilities?: string;
+    projectDescription?: string;
+    estimatedStartDate?: string;
+    estimatedCompletionDate?: string;
+    siteConditions?: string;
+    prelimAmount?: string;
+    billingTerms?: string;
+    otherBillingTerms?: string;
 
-
-    // Totals
+    // Totals & Meta
     subTotal?: number;
     margin?: number;
     grandTotal?: number;
@@ -36,7 +68,7 @@ export interface IEstimate extends Document {
     createdAt?: Date;
     updatedAt?: Date;
 
-    // Template & Proposal Support
+    // Template & Proposal Success
     templateId?: string;
     proposal?: {
         templateId: string;
@@ -45,7 +77,6 @@ export interface IEstimate extends Document {
         pdfUrl?: string;
         htmlContent: string;
     };
-    // Custom variable values filled by user
     customVariables?: Record<string, string>;
 }
 
@@ -60,6 +91,7 @@ const EstimateSchema = new Schema({
     contactId: { type: String },
     contactEmail: { type: String },
     contactPhone: { type: String },
+    extension: { type: String },
     jobAddress: { type: String },
 
     projectTitle: { type: String },
@@ -75,7 +107,41 @@ const EstimateSchema = new Schema({
     proposalWriter: { type: String },
     certifiedPayroll: { type: String },
 
-
+    // New fields
+    customerJobNumber: { type: String },
+    accountingContact: { type: String },
+    accountingEmail: { type: String },
+    PoORPa: { type: String },
+    poName: { type: String },
+    PoAddress: { type: String },
+    PoPhone: { type: String },
+    ocName: { type: String },
+    ocAddress: { type: String },
+    ocPhone: { type: String },
+    subCName: { type: String },
+    subCAddress: { type: String },
+    subCPhone: { type: String },
+    liName: { type: String },
+    liAddress: { type: String },
+    liPhone: { type: String },
+    scName: { type: String },
+    scAddress: { type: String },
+    scPhone: { type: String },
+    bondNumber: { type: String },
+    projectId: { type: String },
+    fbName: { type: String },
+    fbAddress: { type: String },
+    eCPRSystem: { type: String },
+    typeOfServiceRequired: { type: String },
+    wetUtilities: { type: String },
+    dryUtilities: { type: String },
+    projectDescription: { type: String },
+    estimatedStartDate: { type: String },
+    estimatedCompletionDate: { type: String },
+    siteConditions: { type: String },
+    prelimAmount: { type: String },
+    billingTerms: { type: String },
+    otherBillingTerms: { type: String },
 
 
     services: { type: [String], default: [] },

@@ -93,6 +93,17 @@ const defaultEmployee: Partial<Employee> = {
     profilePicture: ''
 };
 
+const formatPhoneNumber = (value: string) => {
+    if (!value) return value;
+    const phoneNumber = value.replace(/[^\d]/g, '');
+    const phoneNumberLength = phoneNumber.length;
+    if (phoneNumberLength < 4) return phoneNumber;
+    if (phoneNumberLength < 7) {
+        return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3)}`;
+    }
+    return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
+};
+
 
 import { useRouter } from 'next/navigation';
 
@@ -655,14 +666,20 @@ export default function EmployeesPage() {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                                 <Input
                                     value={currentEmployee.phone || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, phone: e.target.value })}
+                                    onChange={(e) => {
+                                        const formattedValue = formatPhoneNumber(e.target.value);
+                                        setCurrentEmployee({ ...currentEmployee, phone: formattedValue });
+                                    }}
                                 />
                             </div>
                             <div className="col-span-12 md:col-span-3">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
                                 <Input
                                     value={currentEmployee.mobile || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, mobile: e.target.value })}
+                                    onChange={(e) => {
+                                        const formattedValue = formatPhoneNumber(e.target.value);
+                                        setCurrentEmployee({ ...currentEmployee, mobile: formattedValue });
+                                    }}
                                 />
                             </div>
 
