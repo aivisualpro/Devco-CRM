@@ -13,6 +13,38 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.58',
+        date: 'December 21, 2025',
+        time: '08:00 PKT',
+        type: 'Smart System & Schedules',
+        color: 'from-violet-500 to-fuchsia-500',
+        highlights: [
+            'Multiple Type Constants',
+            'Smart Duplicate Prevention',
+            'Advanced Schedule Filters',
+            'Infinite Schedule Scroll'
+        ],
+        changes: [
+            {
+                category: 'Smart Constants Management',
+                items: [
+                    "Multiple Type Selection: Users can now select multiple types (e.g., 'Fringe' + 'Labor') when creating a new constant",
+                    "Batch Creation: The system automatically generates separate constant entries for each selected type",
+                    "Intelligent Validation: Per-type duplicate check strictly prevents duplicates while allowing valid entries",
+                    "New Item Shortcut: Integrated 'New Item' shortcut within the type selector"
+                ]
+            },
+            {
+                category: 'Schedule Module Upgrades',
+                items: [
+                    "Advanced Filtering: Filter schedules by Estimate #, Client, Employee, Service, Tag, and Per Diem",
+                    "Infinite Scroll: Replaced pagination with seamless 'load on scroll' experience",
+                    "Enhanced Job Details: Redesigned layout with inline metadata, smart assignee chips, and local time formatting"
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.57',
         date: 'December 20, 2025',
         time: '17:00 PKT',

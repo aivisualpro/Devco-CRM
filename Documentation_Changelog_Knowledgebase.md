@@ -9,6 +9,15 @@
     *   **Intelligent Validation**: Implemented a per-type duplicate check that strictly prevents creating a constant if its description already exists within that specific type, while successfully creating the non-duplicate ones.
     *   **New Item Shortcut**: Integrated a "New Item" shortcut within the type selector for rapid category creation.
 
+*   **Schedule Module Upgrades**:
+    *   **Advanced Filtering**: Introduced powerful sidebar filters allowing users to drill down by Estimate #, Client, Employee, Service, Tag, and Per Diem usage.
+    *   **Infinite Scroll**: Replaced pagination with an optimized "load on scroll" experience, allowing for unlimited browsing of schedule cards without page reloads.
+    *   **Enhanced Job Details**: Redesigned the right-hand details column for better readability:
+        *   **Inline Metadata**: Services and Tags are now displayed in a single, compact row.
+        *   **Smart Assignees**: Employee chips now include names and role icons.
+        *   **Layout Optimization**: "Project Scope / Notes" moved to the bottom for better information hierarchy, and dates now strictly follow local time formatting.
+
+
 #### V.0.57 - Extended Schema & Smart Contacts
 *Timestamp: December 20, 2025*
 
