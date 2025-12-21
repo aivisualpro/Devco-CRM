@@ -64,6 +64,8 @@ export function AddOverheadCatalogueDialogue({
         const processedData = { ...formData };
         if (processedData.hourlyRate) processedData.hourlyRate = parseFloat(processedData.hourlyRate) || 0;
         if (processedData.dailyRate) processedData.dailyRate = parseFloat(processedData.dailyRate) || 0;
+        if (processedData.payrollTaxesPercent) processedData.payrollTaxesPercent = parseFloat(processedData.payrollTaxesPercent) || 0;
+        if (processedData.wCompPercent) processedData.wCompPercent = parseFloat(processedData.wCompPercent) || 0;
 
         await onSave(processedData);
         setIsSaving(false);
@@ -75,7 +77,9 @@ export function AddOverheadCatalogueDialogue({
             'field-classification',
             'field-subClassification',
             'field-hourlyRate',
-            'field-dailyRate'
+            'field-dailyRate',
+            'field-payrollTax',
+            'field-wComp'
         ];
 
         if (currentIndex === fieldIds.length - 1) {
@@ -90,9 +94,9 @@ export function AddOverheadCatalogueDialogue({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
+            <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-modal" >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                     <h2 className="text-lg font-bold text-gray-900">
@@ -104,8 +108,8 @@ export function AddOverheadCatalogueDialogue({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 max-h-[70vh] overflow-y-auto">
-                    <div className="grid grid-cols-2 gap-5">
+                <div className="p-6 max-h-[85vh] overflow-y-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pb-40 md:pb-0">
                         <div className="col-span-1">
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">Overhead Description</label>
                             <input
@@ -133,6 +137,7 @@ export function AddOverheadCatalogueDialogue({
                                 onChange={(val) => setFormData({ ...formData, classification: val })}
                                 options={getOptions('classification')}
                                 onNext={() => focusNextField(1)}
+                                onAddNew={(val) => setFormData({ ...formData, classification: val })}
                             />
                         </div>
 
@@ -144,6 +149,7 @@ export function AddOverheadCatalogueDialogue({
                                 onChange={(val) => setFormData({ ...formData, subClassification: val })}
                                 options={getOptions('subClassification')}
                                 onNext={() => focusNextField(2)}
+                                onAddNew={(val) => setFormData({ ...formData, subClassification: val })}
                             />
                         </div>
 
@@ -173,6 +179,42 @@ export function AddOverheadCatalogueDialogue({
                                 value={formData.dailyRate || ''}
                                 onChange={(e) => setFormData({ ...formData, dailyRate: e.target.value })}
                                 placeholder="0.00"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        focusNextField(4);
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        <div className="col-span-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Payroll Taxes %</label>
+                            <input
+                                id="field-payrollTax"
+                                type="number"
+                                value={formData.payrollTaxesPercent || ''}
+                                onChange={(e) => setFormData({ ...formData, payrollTaxesPercent: e.target.value })}
+                                placeholder="0"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        focusNextField(5);
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        <div className="col-span-1">
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Workers Comp %</label>
+                            <input
+                                id="field-wComp"
+                                type="number"
+                                value={formData.wCompPercent || ''}
+                                onChange={(e) => setFormData({ ...formData, wCompPercent: e.target.value })}
+                                placeholder="0"
                                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {

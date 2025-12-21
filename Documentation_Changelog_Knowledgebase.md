@@ -1,4 +1,13 @@
-## Current Version: V.0.57
+## Current Version: V.0.58
+
+#### V.0.58 - Smart Constants & Documentation
+*Timestamp: December 21, 2025*
+
+*   **Smart Constants Management**:
+    *   **Multiple Type Selection**: Users can now select multiple types (e.g., "Fringe" + "Labor") when creating a new constant.
+    *   **Batch Creation**: The system automatically generates separate constant entries for each selected type in a single action.
+    *   **Intelligent Validation**: Implemented a per-type duplicate check that strictly prevents creating a constant if its description already exists within that specific type, while successfully creating the non-duplicate ones.
+    *   **New Item Shortcut**: Integrated a "New Item" shortcut within the type selector for rapid category creation.
 
 #### V.0.57 - Extended Schema & Smart Contacts
 *Timestamp: December 20, 2025*
@@ -6,7 +15,7 @@
 *   **Estimates & Data Schema**:
     *   **Expanded Data Model**: Added comprehensive fields to Estimates including `Customer Job Number`, `Accounting Contact`, `Billing Terms`, `Project Description`, `Site Conditions`, and specialized contact roles (Owner's Contact, Lender's Inspector, etc.).
     *   **Extension Support**: Added `extension` field to both Estimates and Client Contacts for better phone number management.
-*   **Client Management Enhancements**:
+    *   **Client Management Enhancements**:
     *   **Contact Extensions**: Updated Client Detail and Edit views to support phone extensions ("Ext").
     *   **Smart Formatting**: Implemented auto-formatting for phone numbers `(555) 123-4567` across Client and Employee forms.
     *   **Import Logic**: Refined `importClients` to sync `Extension` fields (supporting "Ext" and "Extension" headers) and map legacy Accounting contacts correctly.

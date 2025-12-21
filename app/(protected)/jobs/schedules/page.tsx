@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
-    ChevronRight, Clock, MapPin, Briefcase,
+    ChevronRight, Clock, MapPin, Briefcase, Phone,
     CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users
 } from 'lucide-react';
 
@@ -65,12 +65,31 @@ export default function SchedulePage() {
     });
     const [activeDayTab, setActiveDayTab] = useState<string>('all');
     const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [visibleCount, setVisibleCount] = useState(20);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Partial<ScheduleItem> | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
+
+    // Filter States
+    const [filterEstimate, setFilterEstimate] = useState('');
+    const [filterClient, setFilterClient] = useState('');
+    const [filterEmployee, setFilterEmployee] = useState('');
+    const [filterService, setFilterService] = useState('');
+    const [filterTag, setFilterTag] = useState('');
+    const [filterPerDiem, setFilterPerDiem] = useState('');
+
+    const clearFilters = () => {
+        setSearch('');
+        setSelectedDates([]); // Or reset to today/week? User said "Clear all filters including dates selection", implying clear selection.
+        setFilterEstimate('');
+        setFilterClient('');
+        setFilterEmployee('');
+        setFilterService('');
+        setFilterTag('');
+        setFilterPerDiem('');
+    };
 
     // Initial data for dropdowns
     const [initialData, setInitialData] = useState<{
@@ -81,7 +100,7 @@ export default function SchedulePage() {
     }>({ clients: [], employees: [], constants: [], estimates: [] });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const itemsPerPage = 12;
+    const INCREMENT = 20;
 
     const openCreateModal = () => {
         setEditingItem({
@@ -194,7 +213,7 @@ export default function SchedulePage() {
                 s.estimate?.toLowerCase().includes(search.toLowerCase()) ||
                 s.jobLocation?.toLowerCase().includes(search.toLowerCase());
 
-            if (selectedDates.length === 0 && activeDayTab === 'all') return matchesSearch;
+
 
             const scheduleDate = formatLocalDate(s.fromDate);
             const matchesSelectedDates = selectedDates.length === 0 || selectedDates.includes(scheduleDate);
@@ -203,14 +222,44 @@ export default function SchedulePage() {
             const dayName = getDayName(scheduleDate);
             const matchesDayTab = activeDayTab === 'all' || dayName === activeDayTab;
 
-            return matchesSearch && matchesSelectedDates && matchesDayTab;
-        });
-    }, [schedules, search, selectedDates, activeDayTab]);
+            // New Filters
+            const matchesEstimate = !filterEstimate || s.estimate?.toLowerCase().includes(filterEstimate.toLowerCase()) || (s.estimate === filterEstimate);
 
-    const paginatedSchedules = useMemo(() => {
-        const start = (currentPage - 1) * itemsPerPage;
-        return filteredSchedules.slice(start, start + itemsPerPage);
-    }, [filteredSchedules, currentPage]);
+            // Loose comparison for IDs in case mismatch between ObjectId object and string
+            const matchesClient = !filterClient || String(s.customerId) === String(filterClient);
+
+            const matchesEmployee = !filterEmployee || (
+                s.projectManager === filterEmployee ||
+                s.foremanName === filterEmployee ||
+                s.SDName === filterEmployee ||
+                (s.assignees && s.assignees.some(a => String(a) === String(filterEmployee))) // Check if value matches
+            );
+
+            const matchesService = !filterService || s.service === filterService;
+            const matchesTag = !filterTag || s.item === filterTag;
+            const matchesPerDiem = !filterPerDiem || s.perDiem === filterPerDiem;
+
+            return matchesSearch && matchesSelectedDates && matchesDayTab &&
+                matchesEstimate && matchesClient && matchesEmployee &&
+                matchesService && matchesTag && matchesPerDiem;
+        });
+    }, [schedules, search, selectedDates, activeDayTab, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterPerDiem]);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setVisibleCount(INCREMENT);
+    }, [search, selectedDates, activeDayTab, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterPerDiem]);
+
+    const displayedSchedules = useMemo(() => {
+        return filteredSchedules.slice(0, visibleCount);
+    }, [filteredSchedules, visibleCount]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        const { scrollTop, clientHeight, scrollHeight } = e.currentTarget;
+        if (scrollHeight - scrollTop <= clientHeight + 100) {
+            setVisibleCount(prev => Math.min(prev + INCREMENT, filteredSchedules.length));
+        }
+    };
 
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -251,7 +300,10 @@ export default function SchedulePage() {
         const currentDate = new Date(fromDate);
 
         while (currentDate <= toDate) {
-            const dateStr = currentDate.toISOString().split('T')[0];
+            const year = currentDate.getFullYear();
+            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+            const day = String(currentDate.getDate()).padStart(2, '0');
+            const dateStr = `${year}-${month}-${day}`;
             // Generate MongoDB-compatible ObjectId (24 hex characters)
             const objectIdHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
             schedulesToCreate.push({
@@ -403,6 +455,19 @@ export default function SchedulePage() {
         reader.readAsText(file);
     };
 
+
+
+    // Close details on Escape key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && selectedSchedule) {
+                setSelectedSchedule(null);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [selectedSchedule]);
+
     const formatDate = (dateStr: string) => {
         if (!dateStr) return 'N/A';
         try {
@@ -457,13 +522,12 @@ export default function SchedulePage() {
             <Header
                 rightContent={
                     <div className="flex items-center gap-2 sm:gap-3">
-                        <div className="hidden sm:block w-48 md:w-64">
-                            <SearchInput
-                                value={search}
-                                onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search schedules..."
-                            />
-                        </div>
+                        <SearchInput
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search schedules..."
+                            className="hidden sm:block"
+                        />
                         <input
                             type="file"
                             ref={fileInputRef}
@@ -493,21 +557,7 @@ export default function SchedulePage() {
                     <div className="w-full lg:w-[25%] lg:h-full overflow-y-auto custom-scrollbar">
                         <div className="bg-[#F2F6FA] rounded-[24px] lg:rounded-[32px] p-3 sm:p-4 border border-white/40">
 
-                            {/* Switcher */}
-                            <div className="flex bg-[#E6EEF8] p-1.5 rounded-[20px] shadow-[inset_6px_6px_10px_#c9d1d9,inset_-6px_-6px_10px_#ffffff] mb-4 sm:mb-6">
-                                <button
-                                    onClick={() => setViewType('calendar')}
-                                    className={`flex-1 py-2 sm:py-2.5 text-[10px] font-black rounded-2xl transition-all tracking-[0.1em] ${viewType === 'calendar' ? 'bg-[#E6EEF8] shadow-[4px_4px_8px_#c9d1d9,-4px_-4px_8px_#ffffff] text-slate-800' : 'text-slate-400'}`}
-                                >
-                                    CALENDAR
-                                </button>
-                                <button
-                                    onClick={() => setViewType('timeline')}
-                                    className={`flex-1 py-2 sm:py-2.5 text-[10px] font-black rounded-2xl transition-all tracking-[0.1em] ${viewType === 'timeline' ? 'bg-[#E6EEF8] shadow-[4px_4px_8px_#c9d1d9,-4px_-4px_8px_#ffffff] text-[#0F4C75]' : 'text-slate-400'}`}
-                                >
-                                    TIMELINE
-                                </button>
-                            </div>
+                            {/* Switcher Removed */}
 
                             {/* Days Mapping */}
                             <div className="grid grid-cols-7 mb-2 px-2">
@@ -580,10 +630,92 @@ export default function SchedulePage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Filters Section */}
+                        <div className="bg-[#F2F6FA] rounded-[24px] lg:rounded-[32px] p-4 sm:p-5 border border-white/40 mt-4">
+                            <div className="flex justify-between items-center mb-5">
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                    <Filter size={12} />
+                                    FILTERS
+                                </h3>
+                                <button
+                                    onClick={clearFilters}
+                                    className="text-[10px] font-bold text-[#0F4C75] hover:underline bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm"
+                                >
+                                    Clear All
+                                </button>
+                            </div>
+
+                            <div className="space-y-4">
+                                <SearchableSelect
+                                    id="filterEstimate"
+                                    label="Estimate #"
+                                    placeholder="Select Estimate"
+                                    options={initialData.estimates.map(e => ({ label: e.label, value: e.label }))}
+                                    value={filterEstimate}
+                                    onChange={setFilterEstimate}
+                                />
+
+                                <SearchableSelect
+                                    id="filterClient"
+                                    label="Client"
+                                    placeholder="Select Client"
+                                    options={initialData.clients.map(c => ({ label: c.name, value: c._id }))}
+                                    value={filterClient}
+                                    onChange={setFilterClient}
+                                />
+
+                                <SearchableSelect
+                                    id="filterEmployee"
+                                    label="Employee"
+                                    placeholder="Select Employee"
+                                    options={initialData.employees.map(e => ({ label: e.label, value: e.value }))}
+                                    value={filterEmployee}
+                                    onChange={setFilterEmployee}
+                                />
+
+                                <SearchableSelect
+                                    id="filterService"
+                                    label="Service"
+                                    placeholder="Select Service"
+                                    options={initialData.constants
+                                        .filter(c => c.type?.toLowerCase() === 'services')
+                                        .map(c => ({ label: c.description, value: c.description }))}
+                                    value={filterService}
+                                    onChange={setFilterService}
+                                />
+
+                                <SearchableSelect
+                                    id="filterTag"
+                                    label="Tag"
+                                    placeholder="Select Tag"
+                                    options={initialData.constants
+                                        .filter(c => c.type === 'Schedule Items')
+                                        .map(c => ({ label: c.description, value: c.description }))}
+                                    value={filterTag}
+                                    onChange={setFilterTag}
+                                />
+
+                                <SearchableSelect
+                                    id="filterPerDiem"
+                                    label="Per Diem"
+                                    placeholder="Any"
+                                    options={[
+                                        { label: 'Yes', value: 'Yes' },
+                                        { label: 'No', value: 'No' },
+                                    ]}
+                                    value={filterPerDiem}
+                                    onChange={setFilterPerDiem}
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     {/* MIDDLE COLUMN - SCHEDULE FEED - Full width on mobile */}
-                    <div className={`w-full ${selectedSchedule ? 'lg:w-[30%]' : 'lg:w-[60%]'} lg:h-full overflow-y-auto px-2 sm:px-6 custom-scrollbar pb-10 bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}>
+                    <div
+                        className={`w-full ${selectedSchedule ? 'lg:w-[30%]' : 'lg:w-[60%]'} lg:h-full overflow-y-auto px-2 sm:px-6 custom-scrollbar pb-10 bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}
+                        onScroll={handleScroll}
+                    >
 
                         {/* Day Filter Tabs */}
                         <div className="pt-4 pb-2 overflow-x-auto">
@@ -600,7 +732,7 @@ export default function SchedulePage() {
                             <SkeletonTable rows={8} columns={6} />
                         ) : filteredSchedules.length > 0 ? (
                             <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 sm:gap-6 pt-4 sm:pt-6 transition-all duration-500`}>
-                                {paginatedSchedules.map((item) => (
+                                {displayedSchedules.map((item) => (
                                     <div
                                         key={item._id}
                                         onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
@@ -806,13 +938,9 @@ export default function SchedulePage() {
                             />
                         )}
 
-                        {filteredSchedules.length > itemsPerPage && (
-                            <div className="mt-12 flex justify-center">
-                                <Pagination
-                                    currentPage={currentPage}
-                                    totalPages={Math.ceil(filteredSchedules.length / itemsPerPage)}
-                                    onPageChange={setCurrentPage}
-                                />
+                        {visibleCount < filteredSchedules.length && (
+                            <div className="mt-8 flex justify-center pb-4 text-slate-400 text-xs font-bold uppercase tracking-wider">
+                                Loading more...
                             </div>
                         )}
                     </div>
@@ -822,81 +950,163 @@ export default function SchedulePage() {
                         <div className="space-y-10 pt-4">
                             {selectedSchedule ? (
                                 <div className="animate-in slide-in-from-right duration-300">
-                                    <div className="flex items-center justify-between mb-6">
-                                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">JOB DETAILS</h4>
-                                        <button
-                                            onClick={() => setSelectedSchedule(null)}
-                                            className="p-1.5 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"
-                                        >
-                                            <XCircle size={20} />
-                                        </button>
-                                    </div>
+                                    <div className="animate-in slide-in-from-right duration-300">
+                                        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-5">
 
-                                    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-6">
-                                        {/* Status / Title */}
-                                        <div>
-                                            <Badge variant="success" className="mb-3 bg-emerald-100 text-emerald-700 border-none">Active</Badge>
-                                            <h3 className="text-xl font-black text-slate-800 leading-tight">{selectedSchedule.title}</h3>
-                                            <p className="text-sm font-bold text-[#0F4C75] mt-1">{selectedSchedule.customerName}</p>
-                                        </div>
+                                            {/* Row 1: Tag Icon & Client Name */}
+                                            <div className="flex items-center gap-4">
+                                                {(() => {
+                                                    const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item);
+                                                    const tagImage = tagConstant?.image;
+                                                    const tagColor = tagConstant?.color;
+                                                    const tagLabel = selectedSchedule.item || selectedSchedule.service || 'S';
 
-                                        {/* Info Grid */}
-                                        <div className="space-y-4">
-                                            <div className="flex gap-3">
-                                                <div className="mt-0.5 text-slate-400"><CalendarIcon size={16} /></div>
+                                                    if (tagImage) {
+                                                        return (
+                                                            <div className="w-12 h-12 shrink-0 rounded-full overflow-hidden shadow-md">
+                                                                <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                                            </div>
+                                                        );
+                                                    } else if (tagColor) {
+                                                        return (
+                                                            <div className="w-12 h-12 shrink-0 rounded-full shadow-sm flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: tagColor }}>
+                                                                {tagLabel.substring(0, 2).toUpperCase()}
+                                                            </div>
+                                                        );
+                                                    } else {
+                                                        return (
+                                                            <div className="w-12 h-12 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[#0F4C75] font-black text-sm">
+                                                                {tagLabel.substring(0, 2).toUpperCase()}
+                                                            </div>
+                                                        );
+                                                    }
+                                                })()}
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">From</p>
-                                                    <p className="text-sm font-bold text-slate-700">{formatDate(selectedSchedule.fromDate)}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client</p>
+                                                    <p className="text-xl font-black text-[#0F4C75] leading-none">{selectedSchedule.customerName}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex gap-3">
-                                                <div className="mt-0.5 text-slate-400"><ArrowLeft size={16} className="rotate-180" /></div>
+
+                                            {/* Row 2: Location */}
+                                            <div className="flex items-start gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
+                                                <div className="mt-0.5 text-slate-400"><MapPin size={18} /></div>
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">To</p>
-                                                    <p className="text-sm font-bold text-slate-700">{formatDate(selectedSchedule.toDate)}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-3">
-                                                <div className="mt-0.5 text-slate-400"><MapPin size={16} /></div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Location</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</p>
                                                     <p className="text-sm font-bold text-slate-700 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Description */}
-                                        {selectedSchedule.description && (
-                                            <div className="pt-4 border-t border-slate-100">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Scope / Notes</p>
-                                                <p className="text-xs text-slate-600 leading-relaxed max-h-40 overflow-y-auto custom-scrollbar">
-                                                    {selectedSchedule.description}
-                                                </p>
+                                            {/* Row 3: Title & Date */}
+                                            <div className="grid grid-cols-1 gap-1">
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Title</p>
+                                                    <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
+                                                </div>
+                                                <div className="mt-2 flex items-center gap-2">
+                                                    <CalendarIcon size={14} className="text-slate-400" />
+                                                    <span className="text-xs font-bold text-slate-700">Date: {formatDate(selectedSchedule.fromDate)}</span>
+                                                </div>
                                             </div>
-                                        )}
 
-                                        {/* Team */}
-                                        <div className="pt-4 border-t border-slate-100">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-3">Assigned Team</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {selectedSchedule.assignees?.map((email, i) => (
-                                                    <span key={i} className="inline-flex items-center px-2.5 py-1 rounded-full bg-slate-100 text-xs font-bold text-slate-600 border border-slate-200">
-                                                        {email.split('@')[0]}
-                                                    </span>
-                                                )) || <span className="text-xs text-slate-400 italic">No assignees</span>}
+                                            {/* Row 4: Estimate & Project Name */}
+                                            <div className="flex items-center gap-4">
+                                                {selectedSchedule.estimate && (
+                                                    <div className="shrink-0">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Estimate #</p>
+                                                        <Badge variant="info">{selectedSchedule.estimate}</Badge>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
 
-                                        {/* Metadata */}
-                                        <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-4">
+                                            <div className="h-px bg-slate-100 my-2" />
+
+                                            {/* Rows 5, 6, 7: PM, Foreman, SD */}
+                                            <div className="space-y-3">
+                                                {[
+                                                    { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
+                                                    { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' },
+                                                    { label: 'Site Director', val: selectedSchedule.SDName, color: 'bg-purple-600' }
+                                                ].map((role, idx) => {
+                                                    if (!role.val) return null;
+                                                    const emp = initialData.employees.find(e => e.value === role.val);
+                                                    return (
+                                                        <div key={idx} className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
+                                                                {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || role.val[0])}
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
+                                                                <p className="text-sm font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
+                                                                {/* Assuming phone exists on emp object, otherwise hidden */}
+                                                                {emp?.phone && <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5"><Phone size={10} /> {emp.phone}</p>}
+                                                            </div>
+                                                            {emp?.phone && (
+                                                                <a href={`tel:${emp.phone}`} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:bg-green-100 hover:text-green-600 transition-colors">
+                                                                    <Phone size={14} />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <div className="h-px bg-slate-100 my-2" />
+
+                                            {/* Row 8: Service & Tab (Inline) */}
+                                            <div className="flex items-center justify-between gap-4">
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
+                                                    <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
+                                                    <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
+                                                </div>
+                                            </div>
+
+                                            {/* Row 9: Assignees (Inline Chips) */}
                                             <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase">PM</p>
-                                                <p className="text-xs font-bold text-slate-700 truncate">{selectedSchedule.projectManager || '-'}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Assignees</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {(selectedSchedule.assignees || []).map((assignee, i) => {
+                                                        const emp = initialData.employees.find(e => e.value === assignee);
+                                                        return (
+                                                            <div key={i} className="inline-flex items-center gap-2 pl-1 pr-3 py-1 bg-slate-100 rounded-full border border-slate-200">
+                                                                <div className="w-6 h-6 rounded-full bg-slate-300 overflow-hidden flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
+                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || assignee[0])}
+                                                                </div>
+                                                                <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{emp?.label || assignee}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {(!selectedSchedule.assignees || selectedSchedule.assignees.length === 0) && (
+                                                        <span className="text-xs text-slate-400 italic">No assignees</span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase">Foreman</p>
-                                                <p className="text-xs font-bold text-slate-700 truncate">{selectedSchedule.foremanName || '-'}</p>
+
+                                            {/* Row 10: Notify & Per Diem */}
+                                            <div className="flex flex-wrap gap-3 pt-2">
+                                                <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                    Notify: {selectedSchedule.notifyAssignees || 'No'}
+                                                </Badge>
+                                                <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                    Per Diem: {selectedSchedule.perDiem || 'No'}
+                                                </Badge>
                                             </div>
+
+                                            {/* Row 11: Scope / Notes (Moved to end) */}
+                                            {selectedSchedule.description && (
+                                                <div className="pt-4 border-t border-slate-100">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope / Notes</p>
+                                                    <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                        {selectedSchedule.description}
+                                                    </p>
+                                                </div>
+                                            )}
+
                                         </div>
                                     </div>
                                 </div>

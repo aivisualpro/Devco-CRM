@@ -3,10 +3,11 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Package, Briefcase, Layers, Settings, Wrench, Truck, DollarSign, User, ShieldCheck, Mail, Phone, MapPin, MessageSquare } from 'lucide-react';
 import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, SkeletonTable } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
+import { useRef, useCallback } from 'react';
 
 // Category configurations
 const categoryConfig: Record<string, { headers: string[]; fields: string[] }> = {
@@ -86,6 +87,31 @@ export default function CataloguePage() {
     const [isGenericModalOpen, setIsGenericModalOpen] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
+    // Mobile specific
+    const [mobileItems, setMobileItems] = useState<CatalogItem[]>([]);
+    const [hasMore, setHasMore] = useState(true);
+    const observerTarget = useRef<HTMLDivElement>(null);
+    const [actionSheetItem, setActionSheetItem] = useState<CatalogItem | null>(null);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const isLongPressActive = useRef(false);
+
+    const handleTouchStart = (item: CatalogItem) => {
+        isLongPressActive.current = false;
+        longPressTimer.current = setTimeout(() => {
+            isLongPressActive.current = true;
+            setActionSheetItem(item);
+            if (window.navigator?.vibrate) window.navigator.vibrate(50);
+        }, 600);
+    };
+
+    const handleTouchEnd = (item: CatalogItem) => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+
+    const handleTouchMove = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+
     // Fringe Constants
     const [fringeConstants, setFringeConstants] = useState<CatalogItem[]>([]);
 
@@ -114,7 +140,98 @@ export default function CataloguePage() {
             loadFringeConstants();
         }
         setSortConfig(null); // Reset sort on category change
+        setCurrentPage(1);
     }, [activeCategory]);
+
+
+
+    // Filter and paginate
+    const filteredItems = useMemo(() => {
+        if (!search) return items;
+        const s = search.toLowerCase();
+        return items.filter((item) =>
+            Object.values(item).some((v) => String(v).toLowerCase().includes(s))
+        );
+    }, [items, search]);
+
+    const sortedItems = useMemo(() => {
+        const moveableItems = [...filteredItems];
+        if (sortConfig !== null) {
+            moveableItems.sort((a, b) => {
+                const key = sortConfig.key;
+                let aValue = (a as any)[key];
+                let bValue = (b as any)[key];
+
+                // Special handling for S.NO (treat as createdAt or _id sort)
+                if (key === 'sno') {
+                    // Fallback to _id if createdAt not available
+                    aValue = (a as any).createdAt || (a as any)._id;
+                    bValue = (b as any).createdAt || (b as any)._id;
+                }
+
+                // Handle numbers disguised as strings or undefined
+                if (typeof aValue === 'string' && !isNaN(Number(aValue)) && key !== 'sno' && key !== '_id') {
+                    aValue = Number(aValue);
+                    bValue = Number(bValue);
+                }
+
+                if (!aValue) aValue = '';
+                if (!bValue) bValue = '';
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'asc' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'asc' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return moveableItems;
+    }, [filteredItems, sortConfig]);
+
+    const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
+    const paginatedItems = sortedItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const handleSort = (key: string) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // Reset mobile items when sorted items or category changes
+    useEffect(() => {
+        setMobileItems(sortedItems.slice(0, 20));
+        setHasMore(sortedItems.length > 20);
+    }, [sortedItems, activeCategory]);
+
+    const loadMoreMobile = useCallback(() => {
+        if (!hasMore) return;
+        setMobileItems(prev => {
+            const nextBatch = sortedItems.slice(prev.length, prev.length + 20);
+            if (nextBatch.length === 0) setHasMore(false);
+            return [...prev, ...nextBatch];
+        });
+    }, [hasMore, sortedItems]);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting && hasMore) {
+                    loadMoreMobile();
+                }
+            },
+            { threshold: 1.0 }
+        );
+
+        const currentTarget = observerTarget.current;
+        if (currentTarget) observer.observe(currentTarget);
+        return () => {
+            if (currentTarget) observer.unobserve(currentTarget);
+        };
+    }, [loadMoreMobile, hasMore]);
 
     const loadFringeConstants = async () => {
         try {
@@ -224,61 +341,7 @@ export default function CataloguePage() {
         router.push(`/catalogue#${cat}`);
     };
 
-    // Filter and paginate
-    const filteredItems = useMemo(() => {
-        if (!search) return items;
-        const s = search.toLowerCase();
-        return items.filter((item) =>
-            Object.values(item).some((v) => String(v).toLowerCase().includes(s))
-        );
-    }, [items, search]);
 
-    const sortedItems = useMemo(() => {
-        const moveableItems = [...filteredItems];
-        if (sortConfig !== null) {
-            moveableItems.sort((a, b) => {
-                const key = sortConfig.key;
-                let aValue = (a as any)[key];
-                let bValue = (b as any)[key];
-
-                // Special handling for S.NO (treat as createdAt or _id sort)
-                if (key === 'sno') {
-                    // Fallback to _id if createdAt not available
-                    aValue = (a as any).createdAt || (a as any)._id;
-                    bValue = (b as any).createdAt || (b as any)._id;
-                }
-
-                // Handle numbers disguised as strings or undefined
-                if (typeof aValue === 'string' && !isNaN(Number(aValue)) && key !== 'sno' && key !== '_id') {
-                    aValue = Number(aValue);
-                    bValue = Number(bValue);
-                }
-
-                if (!aValue) aValue = '';
-                if (!bValue) bValue = '';
-
-                if (aValue < bValue) {
-                    return sortConfig.direction === 'asc' ? -1 : 1;
-                }
-                if (aValue > bValue) {
-                    return sortConfig.direction === 'asc' ? 1 : -1;
-                }
-                return 0;
-            });
-        }
-        return moveableItems;
-    }, [filteredItems, sortConfig]);
-
-    const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
-    const paginatedItems = sortedItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-
-    const handleSort = (key: string) => {
-        let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
 
     const formatValue = (val: unknown, field: string) => {
         if (val === undefined || val === null) return '-';
@@ -385,105 +448,202 @@ export default function CataloguePage() {
     return (
         <>
             <Header
+                hideLogo={false}
                 rightContent={
-                    <div className="flex items-center gap-3">
-                        <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search for ..." className="w-64" />
-                        <AddButton
-                            onClick={openAddModal}
-                            label={`Add ${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}`}
-                            className="bg-indigo-600 hover:bg-indigo-700"
+                    <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:flex-initial">
+                        <SearchInput
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder={`Search ${activeCategory}...`}
                         />
+
+                        <div className="hidden md:block">
+                            <AddButton
+                                onClick={openAddModal}
+                                label={`New ${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}`}
+                            />
+                        </div>
                     </div>
                 }
             />
             <div className="p-4">
 
-                {/* Tabs */}
-                <div className="flex justify-center mb-4">
+                {/* Tabs - Scrollable on mobile */}
+                <div className="flex justify-start md:justify-center mb-4 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
                     <BadgeTabs
                         tabs={categories.map((c) => ({ id: c, label: c.charAt(0).toUpperCase() + c.slice(1), count: allCounts[c] || 0 }))}
                         activeTab={activeCategory}
                         onChange={handleCategoryChange}
+                        className="shrink-0"
                     />
                 </div>
 
-                {/* Table */}
-                <div>
+                {/* Main Content */}
+                <div className="pb-20">
                     {loading ? (
-                        <SkeletonTable rows={10} columns={9} />
+                        <>
+                            <div className="md:hidden grid grid-cols-2 gap-2">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <div key={i} className="h-40 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+                                ))}
+                            </div>
+                            <div className="hidden md:block">
+                                <SkeletonTable rows={10} columns={config.headers.length + 1} />
+                            </div>
+                        </>
                     ) : (
-                        <Table>
-                            <TableHead>
-                                <TableRow>
-                                    {config.headers.map((h, index) => {
-                                        const fieldKey = config.fields[index];
-                                        const isSorted = sortConfig?.key === fieldKey;
-                                        const isSortable = fieldKey !== 'sno'; // Disable sort for S.NO
+                        <>
+                            {/* Mobile Card View */}
+                            <div className="md:hidden grid grid-cols-2 gap-2">
+                                {mobileItems.length === 0 ? (
+                                    <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                        <p className="text-slate-500 font-medium">No {activeCategory} found</p>
+                                    </div>
+                                ) : (
+                                    mobileItems.map((item, index) => {
+                                        if (activeCategory === 'labor') {
+                                            return (
+                                                <div
+                                                    key={item._id}
+                                                    className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 active:scale-[0.98] transition-all flex flex-col min-h-[110px] touch-pan-y select-none"
+                                                    style={{ WebkitTouchCallout: 'none' }}
+                                                    onTouchStart={() => handleTouchStart(item)}
+                                                    onTouchEnd={() => handleTouchEnd(item)}
+                                                    onTouchMove={handleTouchMove}
+                                                >
+                                                    <div className="flex-1 flex flex-col gap-1">
+                                                        <h3 className="font-extrabold text-slate-800 text-[11px] uppercase tracking-tight line-clamp-1 leading-tight">
+                                                            {String(item.classification || '-')}
+                                                        </h3>
+                                                        <p className="text-[10px] text-slate-500 font-semibold line-clamp-1">
+                                                            {String(item.subClassification || '-')}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
+                                                        <span className="text-[10px] text-[#3282B8] font-bold truncate">
+                                                            {String(item.fringe || '-')}
+                                                        </span>
+                                                        <span className="text-[11px] font-extrabold text-[#0F4C75] shrink-0">
+                                                            {formatValue(item.basePay, 'cost')}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        }
+
+                                        const mainTitle = (item.equipmentMachine || item.material || item.tool || item.overhead || item.subcontractor || item.disposalAndHaulOff || item.item) as string;
+                                        const cost = formatValue(item.cost || item.dailyCost || item.basePay || item.hourlyRate || item.rate, 'cost');
+                                        const subTitle = [item.classification, item.subClassification].filter(Boolean).join(' • ');
 
                                         return (
-                                            <TableHeader
-                                                key={h}
-                                                onClick={() => isSortable && handleSort(fieldKey)}
-                                                className={`whitespace-nowrap group ${isSortable ? 'cursor-pointer' : ''}`}
+                                            <div
+                                                key={item._id}
+                                                className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 active:scale-[0.98] transition-all flex flex-col min-h-[110px] touch-pan-y select-none"
+                                                style={{ WebkitTouchCallout: 'none' }}
+                                                onTouchStart={() => handleTouchStart(item)}
+                                                onTouchEnd={() => handleTouchEnd(item)}
+                                                onTouchMove={handleTouchMove}
                                             >
-                                                <div className="flex items-center gap-1">
-                                                    {h}
-                                                    {isSortable && (
-                                                        <span className="text-gray-400">
-                                                            {isSorted ? (
-                                                                sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
-                                                            ) : (
-                                                                <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50" />
-                                                            )}
-                                                        </span>
+                                                <div className="mb-1.5 flex-1">
+                                                    <h3 className="font-extrabold text-slate-800 text-[11px] line-clamp-2 leading-tight uppercase tracking-tight">
+                                                        {mainTitle || 'Untitled'}
+                                                    </h3>
+                                                    {subTitle && (
+                                                        <p className="text-[10px] text-slate-400 mt-1 font-medium italic">{subTitle}</p>
                                                     )}
                                                 </div>
-                                            </TableHeader>
-                                        );
-                                    })}
-                                    <TableHeader className="text-right">Actions</TableHeader>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {paginatedItems.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={config.headers.length + 1}>
-                                            <div className="flex flex-col items-center justify-center">
-                                                <p className="text-base font-medium text-gray-900">No items found</p>
-                                                <p className="text-sm text-gray-500 mt-1">Get started by adding a new {activeCategory} item.</p>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    paginatedItems.map((item, rowIndex) => (
-                                        <TableRow key={item._id}>
-                                            {config.fields.map((f) => (
-                                                <TableCell key={f} className={f === 'sno' ? "text-gray-400 font-medium w-16" : ""}>
-                                                    {f === 'sno'
-                                                        ? (currentPage - 1) * itemsPerPage + rowIndex + 1
-                                                        : f === 'labor' && activeCategory === 'labor'
-                                                            ? `${item.classification || ''}${item.classification && item.fringe ? '-' : ''}${item.fringe || ''}`
-                                                            : formatValue(item[f], f)
-                                                    }
-                                                </TableCell>
-                                            ))}
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <button onClick={() => openEditModal(item)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
-                                                        <Pencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button onClick={() => confirmDelete(item._id)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+
+                                                <div className="mt-2 pt-2 border-t border-slate-50 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[11px] font-extrabold text-[#0F4C75]">{cost}</span>
+                                                        <span className="text-[9px] text-slate-400 font-bold uppercase">
+                                                            {String(item.uom || 'Unit')}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                            </div>
+                                        );
+                                    })
                                 )}
-                            </TableBody>
-                        </Table>
+                                <div ref={observerTarget} className="h-4 col-span-2" />
+                            </div>
+
+                            {/* Desktop Table View */}
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHead>
+                                        <TableRow>
+                                            {config.headers.map((h, index) => {
+                                                const fieldKey = config.fields[index];
+                                                const isSorted = sortConfig?.key === fieldKey;
+                                                const isSortable = fieldKey !== 'sno'; // Disable sort for S.NO
+
+                                                return (
+                                                    <TableHeader
+                                                        key={h}
+                                                        onClick={() => isSortable && handleSort(fieldKey)}
+                                                        className={`whitespace-nowrap group ${isSortable ? 'cursor-pointer' : ''}`}
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            {h}
+                                                            {isSortable && (
+                                                                <span className="text-gray-400">
+                                                                    {isSorted ? (
+                                                                        sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-indigo-600" /> : <ArrowDown className="w-3 h-3 text-indigo-600" />
+                                                                    ) : (
+                                                                        <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-50" />
+                                                                    )}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </TableHeader>
+                                                );
+                                            })}
+                                            <TableHeader className="text-right">Actions</TableHeader>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {paginatedItems.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell className="text-center py-8 text-gray-500" colSpan={config.headers.length + 1}>
+                                                    <div className="flex flex-col items-center justify-center">
+                                                        <p className="text-base font-medium text-gray-900">No items found</p>
+                                                        <p className="text-sm text-gray-500 mt-1">Get started by adding a new {activeCategory} item.</p>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            paginatedItems.map((item, rowIndex) => (
+                                                <TableRow key={item._id}>
+                                                    {config.fields.map((f) => (
+                                                        <TableCell key={f} className={f === 'sno' ? "text-gray-400 font-medium w-16" : ""}>
+                                                            {f === 'sno'
+                                                                ? (currentPage - 1) * itemsPerPage + rowIndex + 1
+                                                                : f === 'labor' && activeCategory === 'labor'
+                                                                    ? `${item.classification || ''}${item.classification && item.fringe ? '-' : ''}${item.fringe || ''}`
+                                                                    : formatValue(item[f], f)
+                                                            }
+                                                        </TableCell>
+                                                    ))}
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            <button onClick={() => openEditModal(item)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                                <Pencil className="w-4 h-4" />
+                                                            </button>
+                                                            <button onClick={() => confirmDelete(item._id)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                                <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
+                            </div>
+                        </>
                     )}
-                    <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                 </div>
 
                 {/* Modals */}
@@ -584,7 +744,7 @@ export default function CataloguePage() {
                         <Button onClick={handleGenericSave}>Save</Button>
                     </>
                 }>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {config.fields.map((f) => {
                             if (f === 'sno') return null;
                             return (
@@ -611,6 +771,83 @@ export default function CataloguePage() {
                     message="Are you sure you want to delete this item? This action cannot be undone."
                     confirmText="Delete"
                 />
+
+                <button
+                    onClick={openAddModal}
+                    className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform z-30 border-4 border-white"
+                >
+                    <Plus size={24} />
+                </button>
+
+                {/* Mobile Action Sheet */}
+                {actionSheetItem && (
+                    <div
+                        className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 backdrop-blur-sm px-4 pb-20 md:pb-4 transition-all animate-in fade-in duration-200"
+                        onClick={() => setActionSheetItem(null)}
+                    >
+                        <div
+                            className="w-full max-w-lg bg-white rounded-[32px] p-6 pb-8 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 select-none"
+                            style={{ WebkitTouchCallout: 'none' }}
+                            onClick={e => e.stopPropagation()}
+                        >
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6" />
+
+                            <div className="mb-6 px-2">
+                                <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
+                                    {(actionSheetItem.labor || actionSheetItem.equipmentMachine || actionSheetItem.material || actionSheetItem.tool || actionSheetItem.overhead || actionSheetItem.item || 'Catalogue Item') as string}
+                                </h3>
+                                <p className="text-slate-500 text-sm font-medium mt-1">Select an action for this item</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <button
+                                    onClick={() => {
+                                        openEditModal(actionSheetItem);
+                                        setActionSheetItem(null);
+                                    }}
+                                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-slate-50 active:scale-[0.98] active:bg-slate-100 transition-all border border-slate-100/50"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-2.5 bg-blue-100 rounded-xl">
+                                            <Pencil className="w-5 h-5 text-blue-600" />
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="block font-bold text-slate-800 text-sm">Edit Details</span>
+                                            <span className="block text-slate-500 text-[11px]">Modify item information</span>
+                                        </div>
+                                    </div>
+                                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                </button>
+
+                                <button
+                                    onClick={() => {
+                                        confirmDelete(actionSheetItem._id);
+                                        setActionSheetItem(null);
+                                    }}
+                                    className="w-full flex items-center justify-between p-4 rounded-2xl bg-red-50 active:scale-[0.98] active:bg-red-100 transition-all border border-red-100/50"
+                                >
+                                    <div className="flex items-center gap-4">
+                                        <div className="p-2.5 bg-red-100 rounded-xl">
+                                            <Trash2 className="w-5 h-5 text-red-600" />
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="block font-bold text-red-700 text-sm">Delete Item</span>
+                                            <span className="block text-red-500 text-[11px]">Permanently remove item</span>
+                                        </div>
+                                    </div>
+                                    <div className="w-2 h-2 rounded-full bg-red-500" />
+                                </button>
+
+                                <button
+                                    onClick={() => setActionSheetItem(null)}
+                                    className="w-full p-4 mt-2 text-slate-400 font-bold text-sm text-center active:scale-95 transition-transform"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );

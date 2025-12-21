@@ -54,18 +54,18 @@ export function ConfirmModal({
 
     return (
         <div
-            className={`fixed inset-0 z-[60] flex items-center justify-center transition-all duration-200 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            className={`fixed inset-0 z-[200] flex items-start md:items-center justify-center transition-all duration-200 pt-10 md:pt-0 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
         >
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] transition-opacity duration-200"
+                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity duration-200"
                 onClick={onClose}
             />
 
             {/* Modal Card */}
             <div
-                className={`relative bg-white rounded-2xl shadow-2xl w-full max-w-[400px] mx-4 p-6 overflow-hidden transform transition-all duration-200 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'
+                className={`relative bg-white rounded-3xl shadow-2xl w-full max-w-[400px] mx-4 p-6 overflow-hidden transform transition-all duration-200 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 -translate-y-4'
                     }`}
             >
                 {/* Close Button */}

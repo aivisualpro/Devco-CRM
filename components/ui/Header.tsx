@@ -80,9 +80,10 @@ interface HeaderProps {
     leftContent?: React.ReactNode;
     centerContent?: React.ReactNode;
     showDashboardActions?: boolean;
+    hideLogo?: boolean;
 }
 
-export function Header({ rightContent, leftContent, centerContent, showDashboardActions }: HeaderProps) {
+export function Header({ rightContent, leftContent, centerContent, showDashboardActions, hideLogo }: HeaderProps) {
     const pathname = usePathname();
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -127,16 +128,18 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
     return (
         <>
-            <header className="sticky top-0 z-50 bg-[#f0f2f5] border-b border-gray-200">
-                <div className="w-full px-6">
-                    <div className="flex items-center justify-between h-16">
+            <header className="md:sticky top-0 z-50 bg-[#f0f2f5] border-b border-gray-200">
+                <div className="w-full px-4 md:px-6">
+                    <div className="flex items-center justify-between h-16 relative">
                         {/* Left Content + Navigation Menu */}
                         <div className="flex items-center gap-4">
-                            <Link href="/" className="text-2xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
-                                DEVCO
-                            </Link>
+                            {!hideLogo && (
+                                <Link href="/" className="hidden md:block text-2xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                    DEVCO
+                                </Link>
+                            )}
                             {leftContent}
-                            <nav className="flex items-center gap-2">
+                            <nav className="hidden md:flex items-center gap-2">
                                 {menuStructure.map((group) => {
                                     const active = isGroupActive(group.items);
 
@@ -210,6 +213,15 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             </nav>
                         </div>
 
+                        {/* Mobile Centered Logo */}
+                        {!hideLogo && (
+                            <div className="md:hidden absolute left-1/2 -translate-x-1/2">
+                                <Link href="/" className="text-2xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                    DEVCO
+                                </Link>
+                            </div>
+                        )}
+
                         {/* Center Content */}
                         {centerContent && (
                             <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center">
@@ -224,30 +236,24 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Search Button with Shortcut */}
                                     <button
                                         onClick={() => setSearchOpen(true)}
-                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-500 transition-all w-64 shadow-sm group"
+                                        className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
                                         style={{ border: searchOpen ? '1px solid #0F4C75' : '' }}
                                     >
-                                        <Search size={18} className="group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
+                                        <Search size={18} className="shrink-0 group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
                                         <span className="flex-1 text-left font-medium">Search...</span>
-                                        <kbd className="hidden sm:flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 border border-slate-200">
+                                        <kbd className="hidden lg:flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 border border-slate-200">
                                             <Command size={10} />K
                                         </kbd>
-                                    </button>
-
-                                    {/* Notifications */}
-                                    <button className="p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all relative group shadow-sm hover:border-[#0F4C75]">
-                                        <Bell size={20} className="text-slate-600 group-hover:rotate-12 transition-all group-hover:text-[#0F4C75]" />
-                                        <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full text-[11px] text-white flex items-center justify-center font-bold border-2 border-white" style={{ backgroundColor: '#0F4C75' }}>3</span>
                                     </button>
 
                                     {/* Version Badge - Links to Knowledgebase */}
                                     <Link
                                         href="/knowledgebase"
-                                        className="flex items-center gap-2 px-4 py-2 text-white rounded-full text-sm font-bold transition-all shadow-lg group hover:-translate-y-0.5"
+                                        className="flex items-center gap-2 px-3 md:px-4 py-2 text-white rounded-full text-sm font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
                                         style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
                                     >
-                                        <BookOpen size={18} className="group-hover:rotate-12 transition-transform" />
-                                        <span>{CURRENT_VERSION}</span>
+                                        <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
+                                        <span className="hidden xs:inline">{CURRENT_VERSION}</span>
                                     </Link>
                                 </>
                             )}

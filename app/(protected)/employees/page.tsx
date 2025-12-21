@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Upload, Pencil, Trash2 } from 'lucide-react';
+import { Upload, Pencil, Trash2, Plus, Phone, Mail } from 'lucide-react';
 import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SearchableSelect, SaveButton, CancelButton } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -116,7 +116,9 @@ export default function EmployeesPage() {
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [activeTab, setActiveTab] = useState('active');
+    const [visibleCount, setVisibleCount] = useState(20);
     const itemsPerPage = 15;
+    const observerTarget = useRef(null);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -134,18 +136,7 @@ export default function EmployeesPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
 
-    useEffect(() => {
-        fetchEmployees();
-    }, []);
-
-    // Reset pagination when filters change
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [search, activeTab, selectedPosition, selectedDesignation]);
-
-
-
-    const fetchEmployees = async () => {
+    async function fetchEmployees() {
         setLoading(true);
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
@@ -161,7 +152,125 @@ export default function EmployeesPage() {
             console.error('Error fetching employees:', err);
         }
         setLoading(false);
+    }
+
+    useEffect(() => {
+        fetchEmployees();
+    }, []);
+
+
+    const [sortConfig, setSortConfig] = useState<{ key: keyof Employee | 'name'; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
+
+    const handleSort = (key: keyof Employee | 'name') => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
     };
+
+    // Calculate tab counts (basic status counts)
+    const counts = useMemo(() => {
+        return {
+            all: employees.length,
+            active: employees.filter(c => c.status === 'Active').length,
+            inactive: employees.filter(c => c.status !== 'Active').length
+        };
+    }, [employees]);
+
+    // Filter by Tab, Search, Position, Designation then Sort
+    const filteredEmployees = useMemo(() => {
+        return employees.filter(c => {
+            // Tab filter
+            if (activeTab === 'active' && c.status !== 'Active') return false;
+            if (activeTab === 'inactive' && c.status === 'Active') return false;
+
+            // Dropdown filters
+            if (selectedPosition !== 'All' && c.companyPosition !== selectedPosition) return false;
+            if (selectedDesignation !== 'All' && c.designation !== selectedDesignation) return false;
+
+            // Search filter
+            if (search) {
+                const lowerSearch = search.toLowerCase();
+                return (
+                    (c.firstName || '').toLowerCase().includes(lowerSearch) ||
+                    (c.lastName || '').toLowerCase().includes(lowerSearch) ||
+                    (c.email || '').toLowerCase().includes(lowerSearch) ||
+                    (c.companyPosition || '').toLowerCase().includes(lowerSearch) ||
+                    (c.appRole || '').toLowerCase().includes(lowerSearch)
+                );
+            }
+            return true;
+        }).sort((a, b) => {
+            if (!sortConfig) return 0;
+
+            let aValue: any;
+            let bValue: any;
+
+            if (sortConfig.key === 'name') {
+                aValue = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
+                bValue = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
+            } else {
+                aValue = (a[sortConfig.key] || '').toString().toLowerCase();
+                bValue = (b[sortConfig.key] || '').toString().toLowerCase();
+            }
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    }, [employees, activeTab, selectedPosition, selectedDesignation, search, sortConfig]);
+
+    const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const mobileEmployees = filteredEmployees.slice(0, visibleCount);
+    const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
+
+    // Reset pagination and visible count when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+        setVisibleCount(20);
+    }, [search, activeTab, selectedPosition, selectedDesignation]);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && visibleCount < filteredEmployees.length) {
+                    setVisibleCount(prev => prev + 20);
+                }
+            },
+            { threshold: 1.0 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [filteredEmployees.length, visibleCount]);
+
+
+
+
+
+    // Unique options for filters
+    const filterPositionOptions = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.companyPosition).filter(Boolean)))], [employees]);
+    const filterDesignationOptions = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.designation).filter(Boolean)))], [employees]);
+
+    const tabs = [
+        { id: 'all', label: 'All Employees', count: counts.all },
+        { id: 'active', label: 'Active', count: counts.active },
+        { id: 'inactive', label: 'Inactive', count: counts.inactive }
+    ];
+
+    const modalTabs = [
+        { id: 'personal', label: 'Personal Info' },
+        { id: 'employment', label: 'Employment Details' },
+        { id: 'compliance', label: 'Files & Compliance' }
+    ];
 
     // Derived Options for SearchableSelects
     const getOptions = (key: keyof Employee) => {
@@ -308,101 +417,18 @@ export default function EmployeesPage() {
         setEmployeeToDelete(null);
     };
 
-
-    // Calculate tab counts (basic status counts)
-    const counts = useMemo(() => {
-        return {
-            all: employees.length,
-            active: employees.filter(c => c.status === 'Active').length,
-            inactive: employees.filter(c => c.status !== 'Active').length
-        };
-    }, [employees]);
-
-    // Unique options for filters
-    const filterPositionOptions = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.companyPosition).filter(Boolean)))], [employees]);
-    const filterDesignationOptions = useMemo(() => ['All', ...Array.from(new Set(employees.map(e => e.designation).filter(Boolean)))], [employees]);
-
-    const [sortConfig, setSortConfig] = useState<{ key: keyof Employee | 'name'; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
-
-    const handleSort = (key: keyof Employee | 'name') => {
-        let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
-    };
-
-    // Filter by Tab, Search, Position, Designation then Sort
-    const filteredEmployees = employees.filter(c => {
-        // Tab filter
-        if (activeTab === 'active' && c.status !== 'Active') return false;
-        if (activeTab === 'inactive' && c.status === 'Active') return false;
-
-        // Dropdown filters
-        if (selectedPosition !== 'All' && c.companyPosition !== selectedPosition) return false;
-        if (selectedDesignation !== 'All' && c.designation !== selectedDesignation) return false;
-
-        // Search filter
-        if (search) {
-            const lowerSearch = search.toLowerCase();
-            return (
-                (c.firstName || '').toLowerCase().includes(lowerSearch) ||
-                (c.lastName || '').toLowerCase().includes(lowerSearch) ||
-                (c.email || '').toLowerCase().includes(lowerSearch) ||
-                (c.companyPosition || '').toLowerCase().includes(lowerSearch) ||
-                (c.appRole || '').toLowerCase().includes(lowerSearch)
-            );
-        }
-        return true;
-    }).sort((a, b) => {
-        if (!sortConfig) return 0;
-
-        let aValue: any;
-        let bValue: any;
-
-        if (sortConfig.key === 'name') {
-            aValue = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
-            bValue = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
-        } else {
-            aValue = (a[sortConfig.key] || '').toString().toLowerCase();
-            bValue = (b[sortConfig.key] || '').toString().toLowerCase();
-        }
-
-        if (aValue < bValue) {
-            return sortConfig.direction === 'asc' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-            return sortConfig.direction === 'asc' ? 1 : -1;
-        }
-        return 0;
-    });
-
-    const paginatedEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
-
-    const tabs = [
-        { id: 'all', label: 'All Employees', count: counts.all },
-        { id: 'active', label: 'Active', count: counts.active },
-        { id: 'inactive', label: 'Inactive', count: counts.inactive }
-    ];
-
-    const modalTabs = [
-        { id: 'personal', label: 'Personal Info' },
-        { id: 'employment', label: 'Employment Details' },
-        { id: 'compliance', label: 'Files & Compliance' }
-    ];
-
     return (
         <>
             <Header
+                hideLogo={false}
                 rightContent={
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:flex-initial">
                         <SearchInput
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search employees..."
-                            className="w-64"
                         />
+
                         <input
                             type="file"
                             accept=".csv"
@@ -410,23 +436,35 @@ export default function EmployeesPage() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <Button
-                            variant="secondary"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="bg-white border text-gray-700 hover:bg-gray-50"
-                            disabled={isImporting}
+                        <div className="hidden lg:block">
+                            <Button
+                                variant="secondary"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="bg-white border text-gray-700 hover:bg-gray-50"
+                                disabled={isImporting}
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                {isImporting ? 'Importing...' : 'Import CSV'}
+                            </Button>
+                        </div>
+
+                        <button
+                            onClick={openAddModal}
+                            className="md:hidden w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                         >
-                            <Upload className="w-4 h-4 mr-2" />
-                            {isImporting ? 'Importing...' : 'Import CSV'}
-                        </Button>
-                        <AddButton onClick={openAddModal} label="New Employee" />
+                            <Plus size={24} />
+                        </button>
+
+                        <div className="hidden md:block">
+                            <AddButton onClick={openAddModal} label="New Employee" />
+                        </div>
                     </div>
                 }
             />
 
             <div className="p-4">
-                {/* Tabs */}
-                <div className="flex justify-center mb-4 relative">
+                {/* Tabs - Hidden on Mobile */}
+                <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
                         tabs={tabs}
                         activeTab={activeTab}
@@ -436,131 +474,203 @@ export default function EmployeesPage() {
 
 
                 {loading ? (
-                    <SkeletonTable rows={10} columns={7} />
+                    <>
+                        <div className="md:hidden grid grid-cols-2 gap-2">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <div key={i} className="h-48 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+                            ))}
+                        </div>
+                        <div className="hidden md:block">
+                            <SkeletonTable rows={10} columns={7} />
+                        </div>
+                    </>
                 ) : (
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableHeader
-                                    onClick={() => handleSort('name')}
-                                    sortable={true}
-                                    sortDirection={sortConfig?.key === 'name' ? sortConfig.direction : null}
-                                >
-                                    Name
-                                </TableHeader>
-                                <TableHeader
-                                    onClick={() => handleSort('companyPosition')}
-                                    sortable={true}
-                                    sortDirection={sortConfig?.key === 'companyPosition' ? sortConfig.direction : null}
-                                >
-                                    Position
-                                </TableHeader>
-                                <TableHeader
-                                    onClick={() => handleSort('email')}
-                                    sortable={true}
-                                    sortDirection={sortConfig?.key === 'email' ? sortConfig.direction : null}
-                                >
-                                    Email
-                                </TableHeader>
-                                <TableHeader
-                                    onClick={() => handleSort('mobile')} // sorting by mobile/phone
-                                    sortable={true}
-                                    sortDirection={sortConfig?.key === 'mobile' ? sortConfig.direction : null}
-                                >
-                                    Phone
-                                </TableHeader>
-                                <TableHeader
-                                    onClick={() => handleSort('appRole')}
-                                    sortable={true}
-                                    sortDirection={sortConfig?.key === 'appRole' ? sortConfig.direction : null}
-                                >
-                                    App Role
-                                </TableHeader>
-                                <TableHeader
-                                    onClick={() => handleSort('status')}
-                                    sortable={true}
-                                    sortDirection={sortConfig?.key === 'status' ? sortConfig.direction : null}
-                                >
-                                    Status
-                                </TableHeader>
-                                <TableHeader className="text-right">Actions</TableHeader>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {paginatedEmployees.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                                        <div className="flex flex-col items-center justify-center">
-                                            <p className="text-base font-medium text-gray-900">No employees found</p>
-                                            <p className="text-sm text-gray-500 mt-1">Get started by adding a new employee.</p>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
+                    <>
+                        {/* Mobile Card View - 2 Columns */}
+                        <div className="md:hidden grid grid-cols-2 gap-2 pb-8">
+                            {mobileEmployees.length === 0 ? (
+                                <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                    <p className="text-slate-500 font-medium">No employees found</p>
+                                </div>
                             ) : (
-                                paginatedEmployees.map((emp) => (
-                                    <TableRow
+                                mobileEmployees.map((emp) => (
+                                    <div
                                         key={emp._id}
+                                        className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col items-center text-center"
                                         onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
-                                        className="cursor-pointer hover:bg-gray-50/80 transition-colors"
                                     >
-                                        <TableCell className="font-medium text-gray-900">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold overflow-hidden border border-indigo-200 shadow-sm">
-                                                    {emp.profilePicture ? (
-                                                        <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
-                                                    )}
+                                        <div className="w-16 h-16 rounded-full bg-indigo-50 border-2 border-white shadow-sm overflow-hidden mb-3">
+                                            {emp.profilePicture ? (
+                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-xl font-bold text-indigo-300">
+                                                    {(emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')}
                                                 </div>
-                                                <span>{emp.firstName} {emp.lastName}</span>
-                                            </div>
-                                        </TableCell>
+                                            )}
+                                        </div>
 
-                                        <TableCell>{emp.companyPosition || '-'}</TableCell>
-                                        <TableCell>{emp.email}</TableCell>
-                                        <TableCell>
-                                            <a href={`tel:${emp.mobile || emp.phone}`} className="hover:text-indigo-600 hover:underline">
-                                                {(emp.mobile || emp.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}
+                                        <h3 className="font-bold text-slate-800 text-sm line-clamp-1 leading-tight mb-1">
+                                            {emp.firstName} {emp.lastName}
+                                        </h3>
+
+                                        <p className="text-[10px] font-medium text-slate-400 mb-2 truncate w-full">
+                                            {emp.companyPosition || emp.appRole || '-'}
+                                        </p>
+
+                                        <div className="flex items-center gap-2 mt-auto pt-2 w-full border-t border-slate-50 justify-center">
+                                            <a
+                                                href={`tel:${emp.mobile || emp.phone}`}
+                                                className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <Phone size={12} />
                                             </a>
-
-                                        </TableCell>
-                                        <TableCell>{emp.appRole || '-'}</TableCell>
-                                        <TableCell>
-                                            <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>
+                                            <a
+                                                href={`mailto:${emp.email}`}
+                                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                                                onClick={e => e.stopPropagation()}
+                                            >
+                                                <Mail size={12} />
+                                            </a>
+                                            <Badge variant={emp.status === 'Active' ? 'success' : 'default'} className="text-[8px] py-0 px-1.5 h-4 uppercase">
                                                 {emp.status || 'Active'}
                                             </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openEditModal(emp);
-                                                    }}
-                                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                >
-                                                    <Pencil className="w-4 h-4" />
-                                                </button>
-
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openDeleteModal(emp);
-                                                    }}
-                                                    className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
+                                        </div>
+                                    </div>
                                 ))
                             )}
-                        </TableBody>
-                    </Table>
+                            <div ref={observerTarget} className="h-4 col-span-2" />
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block">
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeader
+                                            onClick={() => handleSort('name')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'name' ? sortConfig.direction : null}
+                                        >
+                                            Name
+                                        </TableHeader>
+                                        <TableHeader
+                                            onClick={() => handleSort('companyPosition')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'companyPosition' ? sortConfig.direction : null}
+                                        >
+                                            Position
+                                        </TableHeader>
+                                        <TableHeader
+                                            onClick={() => handleSort('email')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'email' ? sortConfig.direction : null}
+                                        >
+                                            Email
+                                        </TableHeader>
+                                        <TableHeader
+                                            onClick={() => handleSort('mobile')} // sorting by mobile/phone
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'mobile' ? sortConfig.direction : null}
+                                        >
+                                            Phone
+                                        </TableHeader>
+                                        <TableHeader
+                                            onClick={() => handleSort('appRole')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'appRole' ? sortConfig.direction : null}
+                                        >
+                                            App Role
+                                        </TableHeader>
+                                        <TableHeader
+                                            onClick={() => handleSort('status')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'status' ? sortConfig.direction : null}
+                                        >
+                                            Status
+                                        </TableHeader>
+                                        <TableHeader className="text-right">Actions</TableHeader>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {paginatedEmployees.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <p className="text-base font-medium text-gray-900">No employees found</p>
+                                                    <p className="text-sm text-gray-500 mt-1">Get started by adding a new employee.</p>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        paginatedEmployees.map((emp) => (
+                                            <TableRow
+                                                key={emp._id}
+                                                onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
+                                                className="cursor-pointer hover:bg-gray-50/80 transition-colors"
+                                            >
+                                                <TableCell className="font-medium text-gray-900">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold overflow-hidden border border-indigo-200 shadow-sm">
+                                                            {emp.profilePicture ? (
+                                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
+                                                            )}
+                                                        </div>
+                                                        <span>{emp.firstName} {emp.lastName}</span>
+                                                    </div>
+                                                </TableCell>
+
+                                                <TableCell>{emp.companyPosition || '-'}</TableCell>
+                                                <TableCell>{emp.email}</TableCell>
+                                                <TableCell>
+                                                    <a href={`tel:${emp.mobile || emp.phone}`} className="hover:text-indigo-600 hover:underline">
+                                                        {(emp.mobile || emp.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}
+                                                    </a>
+
+                                                </TableCell>
+                                                <TableCell>{emp.appRole || '-'}</TableCell>
+                                                <TableCell>
+                                                    <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>
+                                                        {emp.status || 'Active'}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-2">
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openEditModal(emp);
+                                                            }}
+                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                        >
+                                                            <Pencil className="w-4 h-4" />
+                                                        </button>
+
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                openDeleteModal(emp);
+                                                            }}
+                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </>
                 )}
-                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                <div className="hidden md:block">
+                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                </div>
             </div>
 
             {/* Add/Edit Modal */}

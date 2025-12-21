@@ -123,9 +123,10 @@ interface BadgeTabsProps {
     activeTab: string;
     onChange: (tabId: string) => void;
     size?: 'sm' | 'md' | 'lg';
+    className?: string;
 }
 
-export function BadgeTabs({ tabs, activeTab, onChange, size = 'md' }: BadgeTabsProps) {
+export function BadgeTabs({ tabs, activeTab, onChange, size = 'md', className = '' }: BadgeTabsProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
     const [isReady, setIsReady] = useState(false);
@@ -162,7 +163,7 @@ export function BadgeTabs({ tabs, activeTab, onChange, size = 'md' }: BadgeTabsP
     return (
         <div
             ref={containerRef}
-            className="relative inline-flex items-center gap-1 bg-slate-100 p-1 rounded-full"
+            className={`relative inline-flex items-center gap-1 bg-slate-100 p-1 rounded-full ${className}`}
         >
             {/* Sliding Blue Pill Indicator */}
             <div

@@ -131,9 +131,9 @@ export function AddLaborCatalogueDialogue({
 
     return (
         <>
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}></div>
-                <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
+                <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-modal" >
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                         <h2 className="text-lg font-bold text-gray-900">
@@ -145,8 +145,8 @@ export function AddLaborCatalogueDialogue({
                     </div>
 
                     {/* Body */}
-                    <div className="p-6 max-h-[70vh] overflow-y-auto">
-                        <div className="grid grid-cols-2 gap-5">
+                    <div className="p-6 max-h-[85vh] overflow-y-auto">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pb-40 md:pb-0">
                             <div className="col-span-1">
                                 <SearchableSelect
                                     id="field-classification"
@@ -156,6 +156,7 @@ export function AddLaborCatalogueDialogue({
                                     options={getOptions('classification')}
                                     autoFocus={!isEditing}
                                     onNext={() => focusNextField(0)}
+                                    onAddNew={(val) => setFormData({ ...formData, classification: val })}
                                 />
                             </div>
 
@@ -167,6 +168,7 @@ export function AddLaborCatalogueDialogue({
                                     onChange={(val) => setFormData({ ...formData, subClassification: val })}
                                     options={getOptions('subClassification')}
                                     onNext={() => focusNextField(1)}
+                                    onAddNew={(val) => setFormData({ ...formData, subClassification: val })}
                                 />
                             </div>
 
@@ -179,6 +181,7 @@ export function AddLaborCatalogueDialogue({
                                     options={['-', ...fringeConstants.map(c => c.description)]}
                                     placeholder="Select or add fringe..."
                                     onNext={() => focusNextField(2)}
+                                    onAddNew={handleFringeChange}
                                 />
                             </div>
 
@@ -259,7 +262,7 @@ export function AddLaborCatalogueDialogue({
 
             {/* Fringe Prompt Modal */}
             {showFringePrompt && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[60] fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
                     <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowFringePrompt(false)}></div>
                     <div className="relative w-full max-w-sm bg-white rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
                         <h3 className="text-lg font-bold text-gray-900 mb-2">New Fringe Constant</h3>

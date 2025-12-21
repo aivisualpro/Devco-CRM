@@ -82,6 +82,7 @@ export function AddEquipmentCatalogueDialogue({
             'field-classification',
             'field-subClassification',
             'field-supplier',
+            'field-uom',
             'field-dailyCost',
             'field-weeklyCost',
             'field-monthlyCost',
@@ -100,9 +101,9 @@ export function AddEquipmentCatalogueDialogue({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose}></div>
-            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
+            <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-modal" >
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
                     <h2 className="text-lg font-bold text-gray-900">
@@ -114,8 +115,8 @@ export function AddEquipmentCatalogueDialogue({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 max-h-[70vh] overflow-y-auto">
-                    <div className="grid grid-cols-2 gap-5">
+                <div className="p-6 max-h-[85vh] overflow-y-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pb-40 md:pb-0">
                         <div className="col-span-1">
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">Equipment / Machine</label>
                             <input
@@ -143,6 +144,7 @@ export function AddEquipmentCatalogueDialogue({
                                 onChange={(val) => setFormData({ ...formData, classification: val })}
                                 options={getOptions('classification')}
                                 onNext={() => focusNextField(1)}
+                                onAddNew={(val) => setFormData({ ...formData, classification: val })}
                             />
                         </div>
 
@@ -154,6 +156,7 @@ export function AddEquipmentCatalogueDialogue({
                                 onChange={(val) => setFormData({ ...formData, subClassification: val })}
                                 options={getOptions('subClassification')}
                                 onNext={() => focusNextField(2)}
+                                onAddNew={(val) => setFormData({ ...formData, subClassification: val })}
                             />
                         </div>
 
@@ -165,6 +168,19 @@ export function AddEquipmentCatalogueDialogue({
                                 onChange={(val) => setFormData({ ...formData, supplier: val })}
                                 options={getOptions('supplier')}
                                 onNext={() => focusNextField(3)}
+                                onAddNew={(val) => setFormData({ ...formData, supplier: val })}
+                            />
+                        </div>
+
+                        <div className="col-span-1">
+                            <SearchableSelect
+                                id="field-uom"
+                                label="UOM"
+                                value={formData.uom || ''}
+                                onChange={(val) => setFormData({ ...formData, uom: val })}
+                                options={getOptions('uom')}
+                                onNext={() => focusNextField(4)}
+                                onAddNew={(val) => setFormData({ ...formData, uom: val })}
                             />
                         </div>
 

@@ -204,21 +204,21 @@ export default function DashboardPage() {
     return (
         <>
             <Header showDashboardActions={true} />
-            <div className="min-h-screen bg-[#f8fafc]">
-                <div className="max-w-[1600px] mx-auto px-6 py-6">
+            <div className="min-h-screen bg-[#f8fafc] overflow-x-hidden">
+                <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-4 md:py-6">
 
                     {/* Top Bar */}
-                    <div className={`flex items-center justify-between mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+                    <div className={`flex flex-col md:flex-row items-center md:justify-between text-center md:text-left mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
                         <div>
-                            <h1 className="text-3xl font-bold text-slate-900 mb-1">
+                            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-1">
                                 {greeting}! 👋
                             </h1>
                             <p className="text-slate-500">{currentDate}</p>
                         </div>
                     </div>
 
-                    {/* Stats Cards Row */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
+                    {/* Stats Cards Row - Hidden on Mobile */}
+                    <div className="hidden md:grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
                         {[
                             { label: 'Total Estimates', value: stats.estimates, trend: '+12%', trendUp: true, icon: Calculator, gradient: 'from-[#E5F0FF] to-[#CCE0FF]' },
                             { label: 'In Progress', value: stats.activeEstimates, trend: 'Active', trendUp: true, icon: Activity, gradient: 'from-[#E5F0FF] to-[#99C2FF]' },
@@ -228,21 +228,21 @@ export default function DashboardPage() {
                         ].map((stat, i) => (
                             <div
                                 key={stat.label}
-                                className={`bg-gradient-to-br ${stat.gradient} rounded-2xl p-5 border border-white/50 shadow-sm card-hover ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
+                                className={`bg-gradient-to-br ${stat.gradient} rounded-2xl p-4 md:p-5 border border-white/50 shadow-sm card-hover ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}
                                 style={{ animationDelay: `${i * 100}ms` }}
                             >
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="w-10 h-10 rounded-xl bg-white/80 flex items-center justify-center shadow-sm">
-                                        <stat.icon size={20} className="text-[#0066FF]" />
+                                <div className="flex items-center justify-between mb-2 md:mb-3">
+                                    <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-white/80 flex items-center justify-center shadow-sm">
+                                        <stat.icon size={18} className="text-[#0066FF]" />
                                     </div>
-                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stat.trendUp ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                                    <span className={`text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-full ${stat.trendUp ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
                                         {stat.trend}
                                     </span>
                                 </div>
-                                <p className="text-3xl font-bold text-slate-900 mb-1">
+                                <p className="text-xl md:text-3xl font-bold text-slate-900 mb-0.5 md:mb-1">
                                     {loading ? '...' : <AnimatedCounter value={stat.value} prefix={stat.prefix} suffix={stat.suffix} />}
                                 </p>
-                                <p className="text-xs font-medium text-slate-500">{stat.label}</p>
+                                <p className="text-[10px] md:text-xs font-medium text-slate-500">{stat.label}</p>
                             </div>
                         ))}
                     </div>
@@ -250,8 +250,8 @@ export default function DashboardPage() {
                     {/* Main Grid */}
                     <div className="grid grid-cols-12 gap-6 mb-8">
 
-                        {/* Recent Activity - Span 5 */}
-                        <div className={`col-span-12 lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '200ms' }}>
+                        {/* Recent Activity - Hidden on Mobile */}
+                        <div className="hidden lg:block lg:col-span-5 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm animate-fade-in-up" style={{ animationDelay: '200ms' }}>
                             <div className="flex items-center justify-between mb-5">
                                 <h3 className="text-lg font-semibold text-slate-900">Recent Activity</h3>
                                 <Link href="/estimates" className="text-sm text-[#0066FF] font-medium flex items-center gap-1 hover:gap-2 transition-all">
@@ -311,8 +311,8 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Stats Ring - Span 3 */}
-                        <div className={`col-span-12 lg:col-span-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '400ms' }}>
+                        {/* Stats Ring - Hidden on Mobile */}
+                        <div className="hidden lg:block lg:col-span-3 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm animate-fade-in-up" style={{ animationDelay: '400ms' }}>
                             <div className="flex items-center justify-between mb-5">
                                 <h3 className="text-lg font-semibold text-slate-900">Completion</h3>
                                 <select className="text-xs text-slate-500 bg-slate-50 border-0 rounded-lg px-2 py-1">
@@ -425,8 +425,8 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Reports */}
-                        <div className={`col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '800ms' }}>
+                        {/* Reports - Hidden on Mobile */}
+                        <div className="hidden md:block md:col-span-12 lg:col-span-4 bg-white rounded-2xl p-6 border border-slate-100 shadow-sm animate-fade-in-up" style={{ animationDelay: '800ms' }}>
                             <div className="flex items-center justify-between mb-5">
                                 <h3 className="text-lg font-semibold text-slate-900">Reports</h3>
                                 <Link href="/reports/payroll" className="text-sm text-[#0066FF] font-medium">View all</Link>
@@ -451,8 +451,8 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Quick Actions */}
-                        <div className={`col-span-12 lg:col-span-4 space-y-4 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '900ms' }}>
+                        {/* Quick Actions - Hidden on Mobile */}
+                        <div className="hidden md:block md:col-span-12 lg:col-span-4 space-y-4 animate-fade-in-up" style={{ animationDelay: '900ms' }}>
                             <Link href="/estimates" className="block p-5 bg-gradient-to-r from-[#0066FF] to-[#3385FF] rounded-2xl text-white hover:from-[#0052CC] hover:to-[#0066FF] transition-all group shadow-lg shadow-[#0066FF]/20">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">

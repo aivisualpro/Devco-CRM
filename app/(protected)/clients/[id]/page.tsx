@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload } from 'lucide-react';
+import { Save, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload } from 'lucide-react';
 
-import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button } from '@/components/ui';
+import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button, SearchableSelect } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { ClientHeaderCard, AccordionCard, DetailRow, DocumentGallery, DocumentPreviewModal } from './components';
 
@@ -86,6 +86,9 @@ export default function ClientViewPage() {
 
 
     const [confirmDelete, setConfirmDelete] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [currentClient, setCurrentClient] = useState<Partial<Client>>({});
+    const [employees, setEmployees] = useState<any[]>([]);
 
     // Document Upload State
     const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
@@ -137,7 +140,47 @@ export default function ClientViewPage() {
         if (id) {
             loadClient();
         }
+
+        const fetchEmployees = async () => {
+            try {
+                const res = await apiCall('getEmployees');
+                if (res.success) {
+                    setEmployees(res.result || []);
+                }
+            } catch (err) {
+                console.error('Error fetching employees:', err);
+            }
+        };
+        fetchEmployees();
     }, [id]);
+
+    const handleEditClient = () => {
+        if (!client) return;
+        setCurrentClient({ ...client });
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveClient = async () => {
+        if (!currentClient.name) {
+            toastError('Client Name is required');
+            return;
+        }
+
+        try {
+            const res = await apiCall('updateClient', { id: client?._id, item: currentClient });
+
+            if (res.success) {
+                success('Client updated successfully');
+                setIsEditModalOpen(false);
+                loadClient(true);
+            } else {
+                toastError('Failed to save client: ' + (res.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error('Error saving client:', err);
+            toastError('An error occurred while saving');
+        }
+    };
 
     const handleToggle = (section: string) => {
         setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -526,24 +569,23 @@ export default function ClientViewPage() {
     return (
         <>
             <Header
+                leftContent={
+                    <button
+                        onClick={() => router.push('/clients')}
+                        className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+                        title="Back to List"
+                    >
+                        <ArrowLeft className="w-5 h-5" />
+                    </button>
+                }
                 rightContent={
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={() => router.push('/clients')}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
-                            title="Back to List"
+                            onClick={handleEditClient}
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-slate-100 rounded-xl transition-colors"
+                            title="Edit Client"
                         >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-
-                        <div className="h-6 w-px bg-gray-200 mx-1" />
-
-                        <button
-                            onClick={() => loadClient(true)}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                            title="Refresh Data"
-                        >
-                            <RefreshCw className="w-5 h-5" />
+                            <Pencil className="w-5 h-5" />
                         </button>
 
                         <button
@@ -944,12 +986,77 @@ export default function ClientViewPage() {
                 </div>
             </Modal>
 
+            {/* Edit Client Modal */}
+            <Modal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                title="Edit Client Profile"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setIsEditModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveClient}>Save Changes</Button>
+                    </>
+                }
+            >
+                <div className="flex flex-col gap-4 md:gap-8">
+                    {/* Top Row: Company Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 items-end">
+                        <div className="md:col-span-1">
+                            <Input
+                                label="Company Name *"
+                                value={currentClient.name || ''}
+                                onChange={(e) => setCurrentClient({ ...currentClient, name: e.target.value })}
+                                placeholder="Enter company name"
+                            />
+                        </div>
+
+                        <div className="md:col-span-1">
+                            <SearchableSelect
+                                label="Proposal Writer"
+                                value={currentClient.proposalWriter || ''}
+                                onChange={(val) => setCurrentClient({ ...currentClient, proposalWriter: val })}
+                                options={employees.map(e => ({
+                                    label: `${e.firstName} ${e.lastName}`,
+                                    value: e._id,
+                                    image: e.profilePicture,
+                                    initials: `${e.firstName?.[0] || ''}${e.lastName?.[0] || ''}`
+                                }))}
+                                placeholder="Select writer"
+                            />
+                        </div>
+
+                        <div className="md:col-span-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Status</label>
+                            <select
+                                value={currentClient.status || 'Active'}
+                                onChange={(e) => setCurrentClient({ ...currentClient, status: e.target.value })}
+                                className="w-full h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#3282B8]/20 focus:border-[#3282B8] transition-all cursor-pointer"
+                            >
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
+                        <div className="p-2 bg-amber-100 rounded-lg">
+                            <Building className="w-4 h-4 text-amber-600" />
+                        </div>
+                        <div>
+                            <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Notice</p>
+                            <p className="text-[11px] text-amber-700 leading-relaxed font-medium">To edit individual Contacts or Addresses, please use the edit buttons within their respective sections on the main page.</p>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
             {/* Document Preview Modal */}
             <DocumentPreviewModal
                 isOpen={isPreviewModalOpen}
                 onClose={() => setIsPreviewModalOpen(false)}
                 doc={selectedDoc}
             />
+
         </>
     );
 }

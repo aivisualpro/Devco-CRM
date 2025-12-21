@@ -13,9 +13,25 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "DEVCO | ERP",
   description: "Manage Proposals and Jobs Management System",
+  manifest: "/manifest.json",
+  themeColor: "#0F4C75",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DevCo",
+  },
   icons: {
     icon: "/favicon.png",
+    apple: "/favicon.png",
   },
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -29,6 +45,8 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className="antialiased" suppressHydrationWarning>
         {children}

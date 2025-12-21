@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase } from 'lucide-react';
+import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase, Search, ChevronRight, X, MessageSquare } from 'lucide-react';
 import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -63,7 +63,9 @@ export default function ClientsPage() {
     const [search, setSearch] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [activeTab, setActiveTab] = useState('all');
+    const [visibleCount, setVisibleCount] = useState(20);
     const itemsPerPage = 15;
+    const observerTarget = useRef(null);
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,6 +82,67 @@ export default function ClientsPage() {
         fetchClients();
         fetchEmployees();
     }, []);
+
+    // Calculate tab counts
+    const counts = useMemo(() => {
+        return {
+            all: clients.length,
+            active: clients.filter(c => c.status === 'Active').length,
+            inactive: clients.filter(c => c.status !== 'Active').length
+        };
+    }, [clients]);
+
+    // Filter by Tab then Search
+    const filteredClients = useMemo(() => {
+        return clients.filter(c => {
+            // Tab filter
+            if (activeTab === 'active' && c.status !== 'Active') return false;
+            if (activeTab === 'inactive' && c.status === 'Active') return false;
+
+            // Search filter
+            if (search) {
+                const lowerSearch = search.toLowerCase();
+                const writer = employees.find(e => e._id === c.proposalWriter || e.email === c.proposalWriter);
+                const writerName = writer ? `${writer.firstName} ${writer.lastName}`.toLowerCase() : '';
+
+                const primaryContact = c.contacts?.find(con => con.active) || c.contacts?.[0];
+                return (
+                    (c.name || '').toLowerCase().includes(lowerSearch) ||
+                    (primaryContact?.email || '').toLowerCase().includes(lowerSearch) ||
+                    (primaryContact?.name || '').toLowerCase().includes(lowerSearch) ||
+                    writerName.includes(lowerSearch)
+                );
+            }
+            return true;
+        });
+    }, [clients, activeTab, search, employees]);
+
+    const paginatedClients = filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const mobileClients = filteredClients.slice(0, visibleCount);
+    const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+
+
+    // Reset visible count when search or tab changes
+    useEffect(() => {
+        setVisibleCount(20);
+    }, [search, activeTab]);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && visibleCount < filteredClients.length) {
+                    setVisibleCount(prev => prev + 20);
+                }
+            },
+            { threshold: 1.0 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => observer.disconnect();
+    }, [filteredClients.length, visibleCount]);
 
     const fetchEmployees = async () => {
         try {
@@ -238,41 +301,6 @@ export default function ClientsPage() {
         setClientToDelete(null);
     };
 
-    // Calculate tab counts
-    const counts = useMemo(() => {
-        return {
-            all: clients.length,
-            active: clients.filter(c => c.status === 'Active').length,
-            inactive: clients.filter(c => c.status !== 'Active').length
-        };
-    }, [clients]);
-
-    // Filter by Tab then Search
-    const filteredClients = clients.filter(c => {
-        // Tab filter
-        if (activeTab === 'active' && c.status !== 'Active') return false;
-        if (activeTab === 'inactive' && c.status === 'Active') return false;
-
-        // Search filter
-        if (search) {
-            const lowerSearch = search.toLowerCase();
-            const writer = employees.find(e => e._id === c.proposalWriter || e.email === c.proposalWriter);
-            const writerName = writer ? `${writer.firstName} ${writer.lastName}`.toLowerCase() : '';
-
-            const primaryContact = c.contacts?.find(con => con.active) || c.contacts?.[0];
-            return (
-                (c.name || '').toLowerCase().includes(lowerSearch) ||
-                (primaryContact?.email || '').toLowerCase().includes(lowerSearch) ||
-                (primaryContact?.name || '').toLowerCase().includes(lowerSearch) ||
-                writerName.includes(lowerSearch)
-            );
-        }
-        return true;
-    });
-
-    const paginatedClients = filteredClients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
-
     const tabs = [
         { id: 'all', label: 'All Clients', count: counts.all },
         { id: 'active', label: 'Active', count: counts.active },
@@ -282,14 +310,15 @@ export default function ClientsPage() {
     return (
         <>
             <Header
+                hideLogo={false} // Hidden on mobile via our Header logic, but let's be explicit
                 rightContent={
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:flex-initial">
                         <SearchInput
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search clients..."
-                            className="w-64"
                         />
+
                         <input
                             type="file"
                             accept=".csv"
@@ -297,23 +326,34 @@ export default function ClientsPage() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <Button
-                            variant="secondary"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="bg-white border text-gray-700 hover:bg-gray-50"
-                            disabled={isImporting}
+                        <div className="hidden lg:block">
+                            <Button
+                                variant="secondary"
+                                onClick={() => fileInputRef.current?.click()}
+                                className="bg-white border text-gray-700 hover:bg-gray-50"
+                                disabled={isImporting}
+                            >
+                                <Upload className="w-4 h-4 mr-2" />
+                                {isImporting ? 'Importing...' : 'Import CSV'}
+                            </Button>
+                        </div>
+
+                        <button
+                            onClick={openAddModal}
+                            className="md:hidden w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
                         >
-                            <Upload className="w-4 h-4 mr-2" />
-                            {isImporting ? 'Importing...' : 'Import CSV'}
-                        </Button>
-                        <AddButton onClick={openAddModal} label="New Client" />
+                            <Plus size={24} />
+                        </button>
+                        <div className="hidden md:block">
+                            <AddButton onClick={openAddModal} label="New Client" />
+                        </div>
                     </div>
                 }
             />
 
             <div className="p-4">
-                {/* Tabs */}
-                <div className="flex justify-center mb-4">
+                {/* Tabs - Hidden on Mobile */}
+                <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
                         tabs={tabs}
                         activeTab={activeTab}
@@ -322,134 +362,216 @@ export default function ClientsPage() {
                 </div>
 
                 {loading ? (
-                    <SkeletonTable rows={10} columns={7} />
+                    <>
+                        <div className="md:hidden grid grid-cols-2 gap-2">
+                            {[1, 2, 3, 4, 5, 6].map(i => (
+                                <div key={i} className="h-48 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+                            ))}
+                        </div>
+                        <div className="hidden md:block">
+                            <SkeletonTable rows={10} columns={7} />
+                        </div>
+                    </>
                 ) : (
-                    <Table>
-                        <TableHead>
-                            <TableRow>
-                                <TableHeader>
-                                    <div className="flex items-center gap-2">
-                                        <Building2 className="w-4 h-4 text-[#0F4C75]" />
-                                        Name
-                                    </div>
-                                </TableHeader>
-                                <TableHeader>Address</TableHeader>
-                                <TableHeader>
-                                    <div className="flex items-center gap-2">
-                                        <Briefcase className="w-4 h-4 text-[#0F4C75]" />
-                                        Proposal Writer
-                                    </div>
-                                </TableHeader>
-                                <TableHeader>Contact</TableHeader>
-                                <TableHeader>Email</TableHeader>
-                                <TableHeader>Phone</TableHeader>
-                                <TableHeader>Status</TableHeader>
-                                <TableHeader className="text-right">Actions</TableHeader>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {paginatedClients.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                                        <div className="flex flex-col items-center justify-center">
-                                            <p className="text-base font-medium text-gray-900">No clients found</p>
-                                            <p className="text-sm text-gray-500 mt-1">Get started by adding a new client.</p>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
+                    <>
+                        {/* Mobile Card View - 2 Columns */}
+                        <div className="md:hidden grid grid-cols-2 gap-2 pb-8">
+                            {mobileClients.length === 0 ? (
+                                <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                    <p className="text-slate-500 font-medium">No clients found</p>
+                                </div>
                             ) : (
-                                paginatedClients.map((client) => {
+                                mobileClients.map((client) => {
                                     const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
                                     const primaryContact = client.contacts?.find(con => con.active) || client.contacts?.[0];
 
                                     return (
-                                        <TableRow
+                                        <div
                                             key={client._id}
-                                            className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                            className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col min-h-[140px]"
                                             onClick={() => router.push(`/clients/${client._id}`)}
                                         >
-                                            <TableCell className="font-medium">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-[#3282B8]/10 rounded-lg">
-                                                        <Building className="w-4 h-4 text-[#0F4C75]" />
-                                                    </div>
-                                                    <span className="text-slate-700 font-bold">{client.name}</span>
+                                            {/* 1st Row: Client Name */}
+                                            <div className="mb-1.5">
+                                                <h3 className="font-bold text-slate-800 text-xs line-clamp-1 leading-tight">{client.name}</h3>
+                                            </div>
+
+                                            {/* 2nd Row: Address */}
+                                            <div className="flex items-start gap-1 text-[10px] text-slate-400 mb-1">
+                                                <MapPin size={12} className="shrink-0 mt-0.5 text-slate-300" />
+                                                <span className="leading-relaxed">{client.businessAddress || 'No address'}</span>
+                                            </div>
+
+                                            {/* 3rd Row: Contact Name */}
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-3 flex-1">
+                                                <User size={12} className="shrink-0 text-[#3282B8]" />
+                                                <span className="truncate font-medium">{primaryContact?.name || 'No contact'}</span>
+                                            </div>
+
+                                            {/* 4th Row: Action Icons & Writer */}
+                                            <div className="pt-2.5 border-t border-slate-50 flex items-center justify-between">
+                                                <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                                                    <a href={`tel:${primaryContact?.phone}`} className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                                                        <Phone size={12} />
+                                                    </a>
+                                                    <a href={`sms:${primaryContact?.phone}`} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                                        <MessageSquare size={12} />
+                                                    </a>
+                                                    <a href={`mailto:${primaryContact?.email}`} className="p-1.5 bg-slate-50 text-slate-600 rounded-lg">
+                                                        <Mail size={12} />
+                                                    </a>
                                                 </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex items-start gap-2 max-w-[200px]">
-                                                    <MapPin className="w-3.5 h-3.5 text-[#0F4C75] mt-0.5 shrink-0" />
-                                                    <span title={client.businessAddress} className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                                                        {client.businessAddress || '-'}
-                                                    </span>
+
+                                                <div
+                                                    className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500 border border-slate-200 overflow-hidden shadow-sm"
+                                                    title={writer ? `${writer.firstName} ${writer.lastName}` : 'Unassigned'}
+                                                >
+                                                    {writer?.profilePicture ? (
+                                                        <img src={writer.profilePicture} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        writer ? `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` : '?'
+                                                    )}
                                                 </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {writer ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden border border-slate-200 shadow-sm">
-                                                            {writer.profilePicture ? (
-                                                                <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
-                                                            )}
-                                                        </div>
-                                                        <span className="text-sm text-slate-600 font-medium tracking-tight">
-                                                            {writer.firstName} {writer.lastName}
-                                                        </span>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-gray-400 text-xs italic">Not assigned</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="text-sm font-semibold text-slate-600">{primaryContact?.name || '-'}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                {primaryContact?.email ? (
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                        <Mail className="w-3.5 h-3.5 text-[#3282B8]" />
-                                                        {primaryContact.email}
-                                                    </div>
-                                                ) : '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                {primaryContact?.phone ? (
-                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                        <Phone className="w-3.5 h-3.5 text-emerald-400" />
-                                                        {primaryContact.phone}
-                                                    </div>
-                                                ) : '-'}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant={client.status === 'Active' ? 'success' : 'default'} className="text-[10px] uppercase font-bold tracking-wider">
-                                                    {client.status || 'Active'}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                                    <button
-                                                        onClick={() => openEditModal(client)}
-                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                    >
-                                                        <Pencil className="w-4 h-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => openDeleteModal(client)}
-                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
+                                            </div>
+                                        </div>
                                     );
                                 })
                             )}
-                        </TableBody>
-                    </Table>
+                            <div ref={observerTarget} className="h-4 col-span-2" />
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block">
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeader>
+                                            <div className="flex items-center gap-2">
+                                                <Building2 className="w-4 h-4 text-[#0F4C75]" />
+                                                Name
+                                            </div>
+                                        </TableHeader>
+                                        <TableHeader>Address</TableHeader>
+                                        <TableHeader>
+                                            <div className="flex items-center gap-2">
+                                                <Briefcase className="w-4 h-4 text-[#0F4C75]" />
+                                                Proposal Writer
+                                            </div>
+                                        </TableHeader>
+                                        <TableHeader>Contact</TableHeader>
+                                        <TableHeader>Email</TableHeader>
+                                        <TableHeader>Phone</TableHeader>
+                                        <TableHeader>Status</TableHeader>
+                                        <TableHeader className="text-right">Actions</TableHeader>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {paginatedClients.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                                                <div className="flex flex-col items-center justify-center">
+                                                    <p className="text-base font-medium text-gray-900">No clients found</p>
+                                                    <p className="text-sm text-gray-500 mt-1">Get started by adding a new client.</p>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        paginatedClients.map((client) => {
+                                            const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
+                                            const primaryContact = client.contacts?.find(con => con.active) || client.contacts?.[0];
+
+                                            return (
+                                                <TableRow
+                                                    key={client._id}
+                                                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                                                    onClick={() => router.push(`/clients/${client._id}`)}
+                                                >
+                                                    <TableCell className="font-medium">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-[#3282B8]/10 rounded-lg">
+                                                                <Building className="w-4 h-4 text-[#0F4C75]" />
+                                                            </div>
+                                                            <span className="text-slate-700 font-bold">{client.name}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-start gap-2 max-w-[200px]">
+                                                            <MapPin className="w-3.5 h-3.5 text-[#0F4C75] mt-0.5 shrink-0" />
+                                                            <span title={client.businessAddress} className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                                                {client.businessAddress || '-'}
+                                                            </span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {writer ? (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden border border-slate-200 shadow-sm">
+                                                                    {writer.profilePicture ? (
+                                                                        <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
+                                                                    )}
+                                                                </div>
+                                                                <span className="text-sm text-slate-600 font-medium tracking-tight">
+                                                                    {writer.firstName} {writer.lastName}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-gray-400 text-xs italic">Not assigned</span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="text-sm font-semibold text-slate-600">{primaryContact?.name || '-'}</div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {primaryContact?.email ? (
+                                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                                <Mail className="w-3.5 h-3.5 text-[#3282B8]" />
+                                                                {primaryContact.email}
+                                                            </div>
+                                                        ) : '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {primaryContact?.phone ? (
+                                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                                                                {primaryContact.phone}
+                                                            </div>
+                                                        ) : '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={client.status === 'Active' ? 'success' : 'default'} className="text-[10px] uppercase font-bold tracking-wider">
+                                                            {client.status || 'Active'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                                            <button
+                                                                onClick={() => openEditModal(client)}
+                                                                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                            >
+                                                                <Pencil className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => openDeleteModal(client)}
+                                                                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </>
                 )}
-                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                <div className="hidden md:block">
+                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                </div>
             </div>
 
             {/* Add/Edit Modal */}
