@@ -29,6 +29,7 @@ interface Employee {
     city?: string;
     state?: string;
     zip?: string;
+    password?: string;
     applicationResume?: string;
     dateHired?: string;
     separationDate?: string;
@@ -229,25 +230,7 @@ export default function EmployeeViewPage() {
                         <ArrowLeft className="w-5 h-5" />
                     </button>
                 }
-                rightContent={
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={handleEditEmployee}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-slate-100 rounded-xl transition-colors"
-                            title="Edit Employee"
-                        >
-                            <Pencil className="w-5 h-5" />
-                        </button>
-
-                        <button
-                            onClick={() => setConfirmDelete(true)}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Delete Employee"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                        </button>
-                    </div>
-                }
+                rightContent={null}
             />
 
             <main className="flex-1 overflow-y-auto bg-gray-50/50">
@@ -457,6 +440,14 @@ export default function EmployeeViewPage() {
                                         const formattedValue = formatPhoneNumber(e.target.value);
                                         setCurrentEmployee({ ...currentEmployee, mobile: formattedValue });
                                     }}
+                                />
+                            </div>
+
+                            <div className="col-span-12 md:col-span-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <Input
+                                    value={currentEmployee.password || ''}
+                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, password: e.target.value })}
                                 />
                             </div>
 

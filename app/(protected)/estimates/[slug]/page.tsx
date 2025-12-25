@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate } from 'lucide-react';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft } from 'lucide-react';
 import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -998,12 +998,13 @@ export default function EstimateViewPage() {
                         <div className="h-6 w-px bg-gray-200 mx-2" />
 
                         {/* Refresh */}
+                        {/* Back */}
                         <button
-                            onClick={() => loadEstimate(true)}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                            title="Refresh Data"
+                            onClick={() => router.push('/estimates')}
+                            className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Back to Estimates"
                         >
-                            <RefreshCw className="w-5 h-5" />
+                            <ArrowLeft className="w-5 h-5" />
                         </button>
 
                         {/* Clone */}

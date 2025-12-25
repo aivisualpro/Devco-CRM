@@ -664,12 +664,61 @@ export async function POST(request: NextRequest) {
                 // Debug: Log incoming fringe value
                 console.log('updateEstimate - fringe value:', updateData.fringe);
 
-                // Directly update the document including all embedded arrays
+                // Directly update the specific version document
                 const updated = await Estimate.findByIdAndUpdate(
                     estId,
                     { ...updateData, updatedAt: new Date() },
                     { new: true }
                 );
+
+                if (updated && updated.estimate) {
+                    // Fields that should be synced across ALL versions of this estimate
+                    const SHARED_FIELDS = [
+                        'projectName', 'jobAddress', 'customerId', 'customerName',
+                        'contactName', 'contactEmail', 'contactPhone', 'contactId',
+                        'accountingContact', 'accountingEmail', 'accountingPhone', 'PoORPa', 'poName', 'PoAddress', 'PoPhone',
+                        'ocName', 'ocAddress', 'ocPhone',
+                        'subCName', 'subCAddress', 'subCPhone',
+                        'liName', 'liAddress', 'liPhone',
+                        'scName', 'scAddress', 'scPhone',
+                        'bondNumber', 'projectId', 'fbName', 'fbAddress', 'eCPRSystem',
+                        'typeOfServiceRequired', 'wetUtilities', 'dryUtilities',
+                        'projectDescription', 'estimatedStartDate', 'estimatedCompletionDate', 'siteConditions',
+                        'prelimAmount', 'billingTerms', 'otherBillingTerms'
+                    ];
+
+                    // Construct update object for shared fields
+                    const sharedUpdate: Record<string, any> = {};
+                    let hasSharedUpdates = false;
+
+                    SHARED_FIELDS.forEach(field => {
+                        if (updateData[field] !== undefined) {
+                            sharedUpdate[field] = updateData[field];
+                            hasSharedUpdates = true;
+                        }
+                    });
+
+                    // Propagate to all other versions if shared fields are present
+                    if (hasSharedUpdates) {
+                        try {
+                            await Estimate.updateMany(
+                                {
+                                    estimate: updated.estimate, // Same Estimate Number
+                                    _id: { $ne: updated._id }   // Exclude the one we just updated
+                                },
+                                {
+                                    $set: {
+                                        ...sharedUpdate,
+                                        updatedAt: new Date()
+                                    }
+                                }
+                            );
+                            console.log(`Synced shared fields for Estimate #${updated.estimate} across versions.`);
+                        } catch (syncErr) {
+                            console.error('Failed to sync shared fields across versions:', syncErr);
+                        }
+                    }
+                }
 
                 // AppSheet sync disabled temporarily
                 // if (updated) {

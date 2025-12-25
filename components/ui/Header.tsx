@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock } from 'lucide-react';
 
 interface SubItem {
     label: string;
@@ -34,9 +34,8 @@ const menuStructure: MenuItem[] = [
             { label: 'Catalogue', href: '/catalogue', icon: <Package className="w-5 h-5" />, description: 'Manage resource and item library', colorClass: 'text-blue-500' },
             { label: 'Templates', href: '/templates', icon: <FileText className="w-5 h-5" />, description: 'Reusable proposal templates', colorClass: 'text-indigo-500' },
             { label: 'Estimates & Proposals', href: '/estimates', icon: <Calculator className="w-5 h-5" />, description: 'Create and manage cost estimates', colorClass: 'text-orange-500' },
-            { label: 'Proposals', href: '/jobs/proposals', icon: <FileSpreadsheet className="w-5 h-5" />, description: 'Send professional proposals', colorClass: 'text-amber-500' },
             { label: 'Schedules', href: '/jobs/schedules', icon: <Calendar className="w-5 h-5" />, description: 'Project timelines and scheduling', colorClass: 'text-teal-500' },
-            { label: 'Project Cost', href: '/jobs/project-cost', icon: <DollarSign className="w-5 h-5" />, description: 'Track actual vs estimated costs', colorClass: 'text-emerald-500' },
+            { label: 'Time Cards', href: '/jobs/time-cards', icon: <Clock className="w-5 h-5" />, description: 'Employee time cards', colorClass: 'text-purple-500' },
         ]
     },
     {
@@ -74,7 +73,6 @@ const menuStructure: MenuItem[] = [
 
 const CURRENT_VERSION = 'V.0.57';
 
-
 interface HeaderProps {
     rightContent?: React.ReactNode;
     leftContent?: React.ReactNode;
@@ -83,11 +81,57 @@ interface HeaderProps {
     hideLogo?: boolean;
 }
 
+interface User {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    profilePicture?: string;
+}
+
 export function Header({ rightContent, leftContent, centerContent, showDashboardActions, hideLogo }: HeaderProps) {
+    const router = useRouter();
     const pathname = usePathname();
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [user, setUser] = useState<User | null>(null);
+    const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const storedUser = localStorage.getItem('devco_user');
+        if (storedUser) {
+            try {
+                const parsed = JSON.parse(storedUser);
+                // Ensure it's an object and has at least an email or id
+                if (parsed && typeof parsed === 'object') {
+                    setUser(parsed);
+                } else {
+                    console.warn('Invalid user data found, clearing...');
+                    localStorage.removeItem('devco_user');
+                }
+            } catch (e) {
+                console.error('Failed to parse user data, clearing...', e);
+                localStorage.removeItem('devco_user');
+            }
+        }
+        
+        // Click outside listener for dropdowns
+        const handleClickOutside = (event: MouseEvent) => {
+           if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+               setUserDropdownOpen(false);
+           }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const handleLogout = () => {
+        localStorage.removeItem('devco_user');
+        localStorage.removeItem('devco_session_valid');
+        router.push('/login');
+    };
 
     // Keyboard shortcut for search
     useEffect(() => {
@@ -169,7 +213,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
                                                     <div className={`grid ${gridCols} gap-4`}>
                                                         {group.items.map((item) => {
-                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase', '/jobs/schedules'].includes(item.href);
+                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll'].includes(item.href);
 
 
                                                             const Content = () => (
@@ -260,6 +304,81 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                             {/* Additional right content if provided */}
                             {rightContent}
+
+                            {/* User Profile Dropdown - Always visible for logout access */}
+                            <div className="relative ml-2" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                                    className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#0F4C75]/20 transition-all focus:outline-none"
+                                >
+                                    {user?.profilePicture ? (
+                                        <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full bg-[#0F4C75] text-white flex items-center justify-center text-sm font-bold">
+                                            {user ? `${(user.firstName?.[0] || '')}${(user.lastName?.[0] || '')}` : <UserIcon size={20} />}
+                                        </div>
+                                    )}
+                                </button>
+
+                                {userDropdownOpen && (
+                                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-[60] animate-scale-in origin-top-right">
+                                        <div className="px-4 py-4 border-b border-slate-50 bg-slate-50/50">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="w-10 h-10 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-sm font-bold shadow-sm">
+                                                    {user ? `${(user.firstName?.[0] || '')}${(user.lastName?.[0] || '')}` : <UserIcon size={20} />}
+                                                </div>
+                                                <div className="overflow-hidden">
+                                                    <p className="text-sm font-bold text-slate-900 truncate">
+                                                        {user ? `${user.firstName} ${user.lastName}` : 'Guest User'}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 truncate font-medium bg-slate-200/50 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                                                        {user ? 'Active' : 'Not Logged In'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {user && <p className="text-xs text-slate-400 truncate pl-1">{user.email}</p>}
+                                        </div>
+                                        <div className="p-1.5 space-y-0.5">
+                                            {user && (
+                                                <Link
+                                                    href={`/employees/${user._id}`}
+                                                    onClick={() => setUserDropdownOpen(false)}
+                                                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#0F4C75] rounded-xl transition-colors font-medium group"
+                                                >
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-[#0F4C75]/10 text-slate-500 group-hover:text-[#0F4C75] transition-colors">
+                                                        <UserIcon size={16} />
+                                                    </div>
+                                                    My Profile
+                                                </Link>
+                                            )}
+                                            
+                                            {/* Sign In option if no user */}
+                                            {!user && (
+                                                 <Link
+                                                    href="/login"
+                                                    onClick={() => setUserDropdownOpen(false)}
+                                                    className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#0F4C75] rounded-xl transition-colors font-medium group"
+                                                >
+                                                    <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-[#0F4C75]/10 text-slate-500 group-hover:text-[#0F4C75] transition-colors">
+                                                        <UserIcon size={16} />
+                                                    </div>
+                                                    Sign In
+                                                </Link>
+                                            )}
+
+                                            <button
+                                                onClick={handleLogout}
+                                                className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 rounded-xl transition-colors text-left font-medium group"
+                                            >
+                                                <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center group-hover:bg-red-100 text-red-500 group-hover:text-red-700 transition-colors">
+                                                    <LogOut size={16} />
+                                                </div>
+                                                Logout
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Users, Briefcase, FileText, X, ChevronRight, Package, Calculator, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, FileCheck, AlertTriangle, Truck, Wrench, MessageSquare } from 'lucide-react';
+import { Home, Users, Briefcase, FileText, X, ChevronRight, Package, Calculator, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, FileCheck, AlertTriangle, Truck, Wrench, MessageSquare, Clock, BarChart3 } from 'lucide-react';
 import ChatModal from '../Chat/ChatModal';
 
 const menuStructure = [
@@ -22,6 +22,7 @@ const menuStructure = [
             { label: 'Templates', href: '/templates', icon: FileText, colorClass: 'text-indigo-500' },
             { label: 'Estimates & Proposals', href: '/estimates', icon: Calculator, colorClass: 'text-orange-500' },
             { label: 'Schedules', href: '/jobs/schedules', icon: Calendar, colorClass: 'text-teal-500' },
+            { label: 'Time Cards', href: '/jobs/time-cards', icon: Clock, colorClass: 'text-purple-500' },
         ]
     },
     {
@@ -31,6 +32,14 @@ const menuStructure = [
             { label: 'Job Tickets', href: '/docs/job-tickets', icon: FileCheck, colorClass: 'text-violet-500' },
             { label: 'Incidents', href: '/docs/incidents', icon: AlertTriangle, colorClass: 'text-red-600' },
             { label: 'Vehicle Maint', href: '/docs/vehicle-safety', icon: Truck, colorClass: 'text-orange-600' },
+        ]
+    },
+    {
+        label: 'REPORTS',
+        items: [
+            { label: 'Payroll', href: '/reports/payroll', icon: DollarSign, colorClass: 'text-green-600' },
+            { label: 'Work Comp', href: '/reports/work-comp', icon: FileCheck, colorClass: 'text-blue-700' },
+            { label: 'Sales', href: '/reports/sales', icon: BarChart3, colorClass: 'text-emerald-500' },
         ]
     }
 ];
@@ -46,6 +55,7 @@ const MobileNav = () => {
         { label: 'CHAT', type: 'chat', icon: MessageSquare },
         { label: 'JOBS', type: 'menu', icon: Briefcase },
         { label: 'DOCS', type: 'menu', icon: FileText },
+        { label: 'REPORTS', type: 'menu', icon: FileSpreadsheet },
     ];
 
     const isTabActive = (tab: any) => {
@@ -56,6 +66,7 @@ const MobileNav = () => {
         }
         if (tab.label === 'CRM') return pathname.startsWith('/clients') || pathname.startsWith('/employees') || pathname.startsWith('/leads');
         if (tab.label === 'JOBS') return pathname.startsWith('/catalogue') || pathname.startsWith('/templates') || pathname.startsWith('/estimates') || pathname.startsWith('/jobs/schedules');
+        if (tab.label === 'REPORTS') return pathname.startsWith('/reports');
         if (tab.label === 'DOCS') return pathname.startsWith('/docs');
         return false;
     };
@@ -82,7 +93,7 @@ const MobileNav = () => {
                         <div className="grid grid-cols-1 gap-3">
                             {getMenuContent()?.items.map((item) => {
                                 const Icon = item.icon;
-                                const isImplemented = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/docs/jha', '/jobs/schedules'].some(path => item.href.startsWith(path));
+                                const isImplemented = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/docs/jha', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll'].some(path => item.href.startsWith(path));
 
                                 return (
                                     <Link

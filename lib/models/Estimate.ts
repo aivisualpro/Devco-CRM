@@ -28,6 +28,7 @@ export interface IEstimate extends Document {
     customerJobNumber?: string;
     accountingContact?: string;
     accountingEmail?: string;
+    accountingPhone?: string; // Added field
     PoORPa?: string;
     poName?: string;
     PoAddress?: string;
@@ -111,6 +112,7 @@ const EstimateSchema = new Schema({
     customerJobNumber: { type: String },
     accountingContact: { type: String },
     accountingEmail: { type: String },
+    accountingPhone: { type: String },
     PoORPa: { type: String },
     poName: { type: String },
     PoAddress: { type: String },

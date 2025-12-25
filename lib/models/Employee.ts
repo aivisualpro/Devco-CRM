@@ -21,6 +21,7 @@ export interface IEmployee extends Omit<Document, '_id'> {
     city?: string;
     state?: string;
     zip?: string;
+    password?: string;
 
     // Documents / Checks / Dates
     applicationResume?: string;
@@ -72,6 +73,7 @@ const EmployeeSchema: Schema = new Schema({
     city: { type: String },
     state: { type: String },
     zip: { type: String },
+    password: { type: String },
 
     applicationResume: { type: String },
     dateHired: { type: String },

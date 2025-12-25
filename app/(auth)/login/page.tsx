@@ -7,7 +7,7 @@ import { Building2, Users, FileText, BarChart3, Shield, ArrowRight } from 'lucid
 
 export default function LoginPage() {
     const router = useRouter();
-    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -22,11 +22,28 @@ export default function LoginPage() {
         setLoading(true);
         setError('');
 
-        if (username === 'admin' && password === 'abc123***') {
-            localStorage.setItem('devco_session_valid', 'true');
-            router.push('/dashboard');
-        } else {
-            setError('Invalid username or password');
+        try {
+            const res = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                // Store session info
+                localStorage.setItem('devco_session_valid', 'true');
+                localStorage.setItem('devco_user', JSON.stringify(data.user));
+                
+                router.push('/dashboard');
+            } else {
+                setError(data.error || 'Login failed');
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('Login error:', err);
+            setError('An error occurred. Please try again.');
             setLoading(false);
         }
     };
@@ -140,10 +157,10 @@ export default function LoginPage() {
                             </div>
                         )}
 
-                        {/* Username */}
+                        {/* Email */}
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Username
+                                Email Address
                             </label>
                             <div className="relative">
                                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
@@ -153,11 +170,11 @@ export default function LoginPage() {
                                     </svg>
                                 </div>
                                 <input
-                                    type="text"
-                                    value={username}
-                                    onChange={(e) => setUsername(e.target.value)}
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                                    placeholder="Enter username"
+                                    placeholder="Enter your email"
                                     required
                                 />
                             </div>

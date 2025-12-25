@@ -22,7 +22,58 @@ export interface ISchedule extends Document {
     perDiem: string;
     createdAt?: Date;
     updatedAt?: Date;
+    timesheet?: ITimesheet[];
 }
+
+export interface ITimesheet {
+    _id: string; // Object _id when import
+    employee: string;
+    scheduleId: string; // Reference of devcoschedule _id
+    jhaId?: string;
+    ticket_id?: string;
+    type?: string;
+    client_id?: string;
+    estimateId?: string;
+    clockIn?: string; // date & time like this 9/8/2024 5:06:07 PM
+    lunchStart?: string; // date & time like this 9/8/2024 5:06:07 PM
+    lunchEnd?: string; // date & time like this 9/8/2024 5:06:07 PM
+    clockOut?: string; // date & time like this 9/8/2024 5:06:07 PM
+    locationIn?: string; // latlong like 34.058392, -117.786035
+    locationOut?: string; // latlong like 34.058392, -117.786035
+    hourlyRateSITE?: string; // $ value (stored as string based on request, or number if parsed) - User said "$ value", usually string in import but helpful as number. User request: "$ value"
+    hourlyRateDrive?: string; // $ value
+    dumpWashout?: string; // string
+    comments?: string; // long text
+    createdBy?: string;
+    createdAt?: string; 
+    manualDistance?: string;
+    manualDuration?: string;
+}
+
+const TimesheetSchema = new Schema({
+    _id: { type: String },
+    employee: { type: String },
+    scheduleId: { type: String },
+    jhaId: { type: String },
+    ticket_id: { type: String },
+    type: { type: String },
+    client_id: { type: String },
+    estimateId: { type: String },
+    clockIn: { type: String },
+    lunchStart: { type: String },
+    lunchEnd: { type: String },
+    clockOut: { type: String },
+    locationIn: { type: String },
+    locationOut: { type: String },
+    hourlyRateSITE: { type: String },
+    hourlyRateDrive: { type: String },
+    dumpWashout: { type: String },
+    comments: { type: String },
+    createdBy: { type: String },
+    createdAt: { type: String },
+    manualDistance: { type: String },
+    manualDuration: { type: String }
+});
 
 const ScheduleSchema = new Schema({
     _id: { type: String },
@@ -43,7 +94,8 @@ const ScheduleSchema = new Schema({
     fringe: { type: String },
     certifiedPayroll: { type: String },
     notifyAssignees: { type: String, default: 'No' },
-    perDiem: { type: String, default: 'No' }
+    perDiem: { type: String, default: 'No' },
+    timesheet: { type: [TimesheetSchema], default: [] }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

@@ -29,6 +29,7 @@ interface SearchableSelectProps {
     submitOnEnter?: boolean;
     openOnFocus?: boolean;
     renderOption?: (option: SelectOption) => React.ReactNode;
+    align?: 'left' | 'right';
 }
 
 export function SearchableSelect({
@@ -47,7 +48,8 @@ export function SearchableSelect({
     disableBlank = false,
     submitOnEnter = false,
     openOnFocus = false,
-    renderOption
+    renderOption,
+    align = 'left'
 }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(autoFocus || false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -73,6 +75,7 @@ export function SearchableSelect({
     // Filter based on search
     const filteredOptions = normalizedOptions.filter(opt =>
         opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        opt.value.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (opt.subtitle && opt.subtitle.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
@@ -411,7 +414,7 @@ export function SearchableSelect({
 
                 {/* Dropdown Panel - Desktop */}
                 {isOpen && (
-                    <div className="hidden md:block absolute top-10 left-0 w-full min-w-[240px] bg-white rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.15)] ring-1 ring-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <div className={`hidden md:block absolute top-12 ${align === 'right' ? 'right-0' : 'left-0'} w-full min-w-[320px] bg-white rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.15)] ring-1 ring-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100`}>
                         {/* Search Header */}
                         <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
                             <Search className="w-4 h-4 text-slate-400 shrink-0" />

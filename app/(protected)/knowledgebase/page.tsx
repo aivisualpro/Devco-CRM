@@ -13,6 +13,44 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.60',
+        date: 'December 25, 2025',
+        time: '10:00 PKT',
+        type: 'Payroll & UI Refinement',
+        color: 'from-blue-700 to-indigo-800',
+        highlights: [
+            'Double Time Calculations',
+            'Smart Audit Trail Rates',
+            'Time Card Iconography',
+            'Data Persistence Fixes'
+        ],
+        changes: [
+            {
+                category: 'Payroll & Reporting',
+                items: [
+                    "Double Time Implementation: Automated calculations for hours > 12 per shift",
+                    "Smart Audit Trail: Dynamic rate logic for OT (1.5x) and DT (2.0x) visibility",
+                    "Extended Category Support: Full audit trail for the new 'Double Time' type"
+                ]
+            },
+            {
+                category: 'Time Card UI/UX',
+                items: [
+                    "Visual Type Indicators: Replaced text with iconography (Truck/MapPin)",
+                    "Compact View: Optimized row heights and padding for data density",
+                    "Advanced Sorting: Descending week numerical sorting for faster navigation"
+                ]
+            },
+            {
+                category: 'System Stability',
+                items: [
+                    "Data Persistence: Fixed manualDistance and manualDuration MongoDB saving issue",
+                    "Robust Matching: Improved record identification for multi-page timesheet edits"
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.58',
         date: 'December 21, 2025',
         time: '08:00 PKT',

@@ -10,11 +10,13 @@ interface ClientContact {
     email?: string;
     phone?: string;
     extension?: string;
+    type?: string;
 }
 
 interface ContactSelectorProps {
     value?: string; // contactName
     customerId?: string;
+    filterType?: string;
     onChange: (name: string, id?: string, email?: string, phone?: string) => void;
 }
 
@@ -29,7 +31,7 @@ const formatPhoneNumber = (value: string) => {
     return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 };
 
-export function ContactSelector({ value, customerId, onChange }: ContactSelectorProps) {
+export function ContactSelector({ value, customerId, filterType, onChange }: ContactSelectorProps) {
     const [contacts, setContacts] = useState<ClientContact[]>([]);
     const [options, setOptions] = useState<string[]>([]);
     const { success, error: toastError } = useToast();
@@ -37,7 +39,12 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
 
     // New Contact Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '' });
+    const [newContact, setNewContact] = useState<ClientContact>({
+        name: '',
+        email: '',
+        phone: '',
+        type: filterType || 'Main Contact'
+    });
 
     useEffect(() => {
         if (!customerId) {
@@ -58,20 +65,29 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
                 if (data.success && data.result) {
                     const clientContacts = data.result.contacts || [];
 
-                    // Also include primary contact if available
+                    // Also include primary contact if available, defaulting type to Main Contact if missing
                     if (data.result.contactFullName) {
                         const primaryExists = clientContacts.find((c: any) => c.name === data.result.contactFullName);
                         if (!primaryExists) {
                             clientContacts.unshift({
                                 name: data.result.contactFullName,
                                 email: data.result.email,
-                                phone: data.result.phone
+                                phone: data.result.phone,
+                                type: 'Main Contact'
                             });
                         }
                     }
 
                     setContacts(clientContacts);
-                    setOptions(clientContacts.map((c: ClientContact) => c.name));
+
+                    // Filter options based on filterType
+                    let filtered = clientContacts;
+                    if (filterType) {
+                        filtered = clientContacts.filter((c: ClientContact) =>
+                            c.type?.toLowerCase() === filterType.toLowerCase()
+                        );
+                    }
+                    setOptions(filtered.map((c: ClientContact) => c.name));
                 }
             } catch (err) {
                 console.error('Failed to fetch client contacts', err);
@@ -81,7 +97,7 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
         };
 
         fetchClientContacts();
-    }, [customerId]);
+    }, [customerId, filterType]);
 
     const handleChange = (newVal: string) => {
         if (!newVal) {
@@ -89,12 +105,26 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
             return;
         }
 
+        // Search in ALL contacts to find match, validation is handled by UI filtering usually but strict check here is good
+        // However, if we filter options, user can likely only select from valid ones or add new.
+        // If adding new, we apply filterType as default type.
+
         const exists = contacts.find((c: ClientContact) => c.name.toLowerCase() === newVal.toLowerCase());
+
+        // If it exists but doesn't match filter type, what do we do? 
+        // Usage choice: we should allow selecting it if the user typed it exactly? 
+        // Or assume they want to create a new one for THIS type?
+        // Let's assume standard select behavior: if found in filtered list, select it.
+
         if (exists) {
             onChange(exists.name, exists._id || exists.name, exists.email, exists.phone);
         } else {
-
-            setNewContact({ name: newVal, email: '', phone: '' });
+            setNewContact({
+                name: newVal,
+                email: '',
+                phone: '',
+                type: filterType || 'Main Contact'
+            });
             setIsModalOpen(true);
         }
     };
@@ -136,6 +166,7 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
             <SearchableSelect
                 value={value || ''}
                 onChange={handleChange}
+                onAddNew={handleChange}
                 options={options}
                 placeholder="Select or add contact..."
                 className="w-full"
@@ -172,9 +203,23 @@ export function ContactSelector({ value, customerId, onChange }: ContactSelector
                             setNewContact({ ...newContact, phone: formattedValue });
                         }}
                     />
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Type</label>
+                        <select
+                            className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                            value={newContact.type}
+                            onChange={e => setNewContact({ ...newContact, type: e.target.value })}
+                        >
+                            <option value="Main Contact">Main Contact</option>
+                            <option value="Accounting">Accounting</option>
+                            <option value="Billing">Billing</option>
+                            <option value="Site Contact">Site Contact</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
                     <Input
                         label="Extension"
-                        value={newContact.extension}
+                        value={newContact.extension || ''}
                         onChange={e => setNewContact({ ...newContact, extension: e.target.value })}
                         placeholder="123"
                     />

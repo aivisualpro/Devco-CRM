@@ -26,6 +26,7 @@ interface Employee {
     city?: string;
     state?: string;
     zip?: string;
+    password?: string;
 
     // Documents / Checks / Dates
     applicationResume?: string;
@@ -71,6 +72,7 @@ const defaultEmployee: Partial<Employee> = {
     city: '',
     state: '',
     zip: '',
+    password: '',
 
     // Default compliance fields to empty or '-'
     applicationResume: '',
@@ -456,7 +458,7 @@ export default function EmployeesPage() {
                         </button>
 
                         <div className="hidden md:block">
-                            <AddButton onClick={openAddModal} label="New Employee" />
+                            <AddButton onClick={openAddModal} label="Add New " />
                         </div>
                     </div>
                 }
@@ -790,6 +792,14 @@ export default function EmployeesPage() {
                                         const formattedValue = formatPhoneNumber(e.target.value);
                                         setCurrentEmployee({ ...currentEmployee, mobile: formattedValue });
                                     }}
+                                />
+                            </div>
+
+                            <div className="col-span-12 md:col-span-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                                <Input
+                                    value={currentEmployee.password || ''}
+                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, password: e.target.value })}
                                 />
                             </div>
 

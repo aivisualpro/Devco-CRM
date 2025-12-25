@@ -1,4 +1,20 @@
-## Current Version: V.0.58
+## Current Version: V.0.60
+
+
+#### V.0.60 - Payroll Automation & UI Refinement
+*Timestamp: December 25, 2025*
+
+*   **Payroll & Report Upgrades**:
+    *   **Double Time Implementation**: Introduced a new "Double Time" category for automated payroll calculations, applied to hours exceeding 12 per shift.
+    *   **Smart Audit Trail**: Enhanced the Payroll Audit Trail modal to dynamically calculate and display correct rates for Regular, Overtime (1.5x), and Double Time (2.0x).
+    *   **Extended Detail View**: Audit trail now correctly filters and displays site entries for the newly introduced Double Time category.
+*   **Time Card Management**:
+    *   **Visual Type Indicators**: Replaced text labels for "Type" with intuitive icons (Truck for Drive, MapPin for Site) in the Time Cards table.
+    *   **UI Optimization**: Reduced row heights and padding in the Time Cards view for a more compact, data-dense display.
+    *   **Sorting Logic**: Implemented numerical week sorting (descending) in the sidebar for faster navigation across the calendar year.
+*   **Data Consistency Fixes**:
+    *   **Timesheet Persistence**: Resolved critical issue where manualDistance and manualDuration overrides were not correctly saving to MongoDB.
+    *   **ID Matching Robustness**: Enhanced the handleSaveEdit logic to use robust ID matching across both Payroll and Time Card pages, ensuring edits are always applied to the correct record.
 
 #### V.0.58 - Smart Constants & Documentation
 *Timestamp: December 21, 2025*

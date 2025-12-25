@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, PenSquare } from 'lucide-react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, PenSquare, FileSpreadsheet } from 'lucide-react';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { VersionTimeline } from './VersionTimeline';
 import { CustomerSelector } from './CustomerSelector';
 import { ContactSelector } from './ContactSelector';
 import { AddressSelector } from './AddressSelector';
+import { EstimateDetailsModal } from './EstimateDetailsModal';
 
 
 
@@ -101,6 +102,7 @@ export function EstimateHeaderCard({
     const [isEditingCustomer, setIsEditingCustomer] = useState(false);
     const [isEditingContact, setIsEditingContact] = useState(false);
     const [isEditingAddress, setIsEditingAddress] = useState(false);
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
     const [isEditingProjectName, setIsEditingProjectName] = useState(false);
     const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | null>(null);
@@ -237,7 +239,7 @@ export function EstimateHeaderCard({
                         {isEditingProjectName ? (
                             <input
                                 autoFocus
-                                className="w-full bg-transparent border-b outline-none text-base font-bold text-slate-700 py-1"
+                                className="w-full bg-transparent border-b outline-none text-sm font-medium text-slate-700 py-1"
                                 style={{ borderColor: '#0F4C75' }}
                                 value={formData.projectName || ''}
                                 onChange={e => onHeaderUpdate('projectName', e.target.value)}
@@ -247,14 +249,33 @@ export function EstimateHeaderCard({
                             />
                         ) : (
                             <div
-                                className="text-base font-bold text-slate-700 cursor-pointer hover:text-indigo-600 transition-colors truncate"
+                                className="text-sm font-medium cursor-pointer hover:opacity-70 transition-colors truncate"
+                                style={{ color: '#0F4C75' }}
                                 onDoubleClick={() => setIsEditingProjectName(true)}
                                 title="Double click to edit"
                             >
                                 {formData.projectName || <span className="text-slate-400 font-normal italic">No project name</span>}
                             </div>
+
                         )}
                     </div>
+
+                    {/* Estimate Details Button */}
+                    <button
+                        onClick={() => setIsDetailsModalOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 hover:text-[#0F4C75] hover:border-[#0F4C75] hover:bg-blue-50/50 transition-all group"
+                    >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        <span className="text-xs font-bold uppercase tracking-wider">Estimate Details</span>
+                    </button>
+
+                    <EstimateDetailsModal
+                        isOpen={isDetailsModalOpen}
+                        onClose={() => setIsDetailsModalOpen(false)}
+                        formData={formData}
+                        customerId={formData.customerId}
+                        onUpdate={(field, value) => onHeaderUpdate(field, value)}
+                    />
                 </div>
 
                 {/* PART 2: Estimate Details Column */}

@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { action, payload } = body;
-
+        
         await connectToDatabase();
 
         switch (action) {
@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
             case 'getScheduleById': {
                 const { id } = payload || {};
                 const result = await Schedule.findById(id).lean();
+                console.log('FETCHED SCHEDULE:', id, JSON.stringify(result?.timesheet?.[0], null, 2));
                 return NextResponse.json({ success: true, result });
             }
 
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
 
             case 'updateSchedule': {
                 const { id, ...data } = payload || {};
+                console.log('UPDATING SCHEDULE:', id, JSON.stringify(data.timesheet?.[0], null, 2));
                 const result = await Schedule.findByIdAndUpdate(
                     id,
                     { ...data, updatedAt: new Date() },
@@ -71,14 +73,40 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result });
             }
 
+            case 'importTimesheets': {
+                const { timesheets } = payload || {};
+                if (!Array.isArray(timesheets)) return NextResponse.json({ success: false, error: 'Invalid timesheets array' });
+
+                const ops = timesheets.map((ts: any) => {
+                    if (!ts.scheduleId) return null;
+                    
+                    // Ensure _id exists for the timesheet subdocument
+                    if (!ts._id && ts.recordId) ts._id = ts.recordId;
+                    
+                    return {
+                        updateOne: {
+                            filter: { _id: ts.scheduleId },
+                            update: {
+                                $push: { timesheet: ts }
+                            }
+                        }
+                    };
+                }).filter(Boolean);
+
+                if (ops.length === 0) return NextResponse.json({ success: false, error: 'No valid timesheets to import (missing scheduleId)' });
+
+                const result = await Schedule.bulkWrite(ops as any);
+                return NextResponse.json({ success: true, result });
+            }
+
             case 'getSchedulesPage': {
                 // Combined fetch for schedules + initial data (reduces API calls)
                 const [schedules, clients, employees, constants, estimates] = await Promise.all([
                     Schedule.find().sort({ fromDate: 1 }).lean(),
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture').lean(),
+                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId').lean()
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName').lean()
                 ]);
 
                 // Process estimates to keep unique estimate numbers
@@ -87,7 +115,13 @@ export async function POST(request: NextRequest) {
                     .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
                     .forEach((e: any) => {
                         if (e.estimate && !uniqueEstimates.has(e.estimate)) {
-                            uniqueEstimates.set(e.estimate, { value: e.estimate, label: e.estimate, customerId: e.customerId });
+                            const pName = e.projectTitle || e.projectName || '';
+                            uniqueEstimates.set(e.estimate, { 
+                                value: e.estimate, 
+                                label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
+                                customerId: e.customerId,
+                                projectTitle: pName
+                            });
                         }
                     });
 
@@ -97,7 +131,13 @@ export async function POST(request: NextRequest) {
                         schedules,
                         initialData: {
                             clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
-                            employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { value: e.email, label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, image: e.profilePicture }])).values()),
+                            employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { 
+                                value: e.email, 
+                                label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
+                                image: e.profilePicture,
+                                hourlyRateSITE: (e as any).hourlyRateSITE,
+                                hourlyRateDrive: (e as any).hourlyRateDrive
+                            }])).values()),
                             constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                             estimates: Array.from(uniqueEstimates.values())
                         }
@@ -108,9 +148,9 @@ export async function POST(request: NextRequest) {
             case 'getInitialData': {
                 const [clients, employees, constants, estimates] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture').lean(),
+                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId').lean()
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName').lean()
                 ]);
 
                 // Process estimates to keep unique estimate numbers but preserve customerId (from latest version)
@@ -119,7 +159,13 @@ export async function POST(request: NextRequest) {
                     .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
                     .forEach((e: any) => {
                         if (e.estimate && !uniqueEstimates.has(e.estimate)) {
-                            uniqueEstimates.set(e.estimate, { value: e.estimate, label: e.estimate, customerId: e.customerId });
+                            const pName = e.projectTitle || e.projectName || '';
+                            uniqueEstimates.set(e.estimate, { 
+                                value: e.estimate, 
+                                label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
+                                customerId: e.customerId,
+                                projectTitle: pName
+                            });
                         }
                     });
 

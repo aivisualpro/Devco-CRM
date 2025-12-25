@@ -20,11 +20,12 @@ export function Table({ children, className = '', containerClassName = 'h-[calc(
 
 interface TableHeadProps {
     children: React.ReactNode;
+    className?: string;
 }
 
-export function TableHead({ children }: TableHeadProps) {
+export function TableHead({ children, className = '' }: TableHeadProps) {
     return (
-        <thead className="bg-[#f9fafb] sticky top-0 z-10 border-b border-gray-200">
+        <thead className={`bg-[#f9fafb] sticky top-0 z-10 border-b border-gray-200 ${className}`}>
             {children}
         </thead>
     );
@@ -32,10 +33,11 @@ export function TableHead({ children }: TableHeadProps) {
 
 interface TableBodyProps {
     children: React.ReactNode;
+    className?: string;
 }
 
-export function TableBody({ children }: TableBodyProps) {
-    return <tbody className="divide-y divide-gray-100 bg-white">{children}</tbody>;
+export function TableBody({ children, className = '' }: TableBodyProps) {
+    return <tbody className={`divide-y divide-gray-100 bg-white ${className}`}>{children}</tbody>;
 }
 
 interface TableRowProps {

@@ -40,6 +40,7 @@ interface ScheduleItem {
     perDiem: string;
     createdAt?: string;
     updatedAt?: string;
+    timesheet?: any[];
 }
 
 export default function SchedulePage() {
@@ -100,6 +101,7 @@ export default function SchedulePage() {
     }>({ clients: [], employees: [], constants: [], estimates: [] });
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const timesheetInputRef = useRef<HTMLInputElement>(null);
     const INCREMENT = 20;
 
     const openCreateModal = () => {
@@ -517,10 +519,214 @@ export default function SchedulePage() {
 
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
+    const handleImportTimesheets = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsedRows = parseCSV(text);
+
+                if (parsedRows.length < 2) throw new Error("File must contain at least a header and one data row.");
+
+                const headers = parsedRows[0].map(h => h.replace(/^"|"$/g, '').trim());
+
+                const data = parsedRows.slice(1).map(values => {
+                    const obj: any = {};
+                    headers.forEach((h, i) => {
+                        if (values[i] !== undefined) {
+                            let val = values[i].replace(/^"|"$/g, '').trim();
+                            obj[h] = val;
+                        }
+                    });
+                     
+                    if ((obj as any).recordId) {
+                        (obj as any)._id = (obj as any).recordId;
+                        delete (obj as any).recordId;
+                    }
+                    // Ensure type is uppercase for consistency if present
+                    if ((obj as any).type) {
+                        (obj as any).type = (obj as any).type.toUpperCase();
+                    }
+                    
+                    return obj;
+                });
+
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importTimesheets', payload: { timesheets: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} timesheets`);
+                    fetchPageData(); 
+                } else {
+                    toastError(resData.error || 'Timesheet import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (timesheetInputRef.current) timesheetInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    // Helper to format time strings
+    const formatTimeOnly = (dateStr: string) => {
+        if (!dateStr) return '-';
+        try {
+            const date = new Date(dateStr);
+            const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+            return time === 'Invalid Date' ? dateStr : time;
+        } catch (e) {
+            return dateStr;
+        }
+    };
+
+    const calculateTimesheetData = (ts: any, scheduleDate: string) => {
+        let hours = 0;
+        let distance = 0;
+        // Normalize type
+        const type = (ts.type || '').toUpperCase();
+
+        // Safe parse helpers
+        const parseLoc = (val: any) => {
+            const num = parseFloat(String(val).replace(/,/g, ''));
+            return isNaN(num) ? 0 : num;
+        };
+
+        const locIn = parseLoc(ts.locationIn);
+        const locOut = parseLoc(ts.locationOut);
+
+        // Calculate Distance (always needed for display if type is Drive Time or just available)
+        // Rule: Distance is locationOut - locationIn (if valid)
+        if (locOut > locIn) {
+            distance = locOut - locIn;
+        }
+
+        if (type.includes('DRIVE')) {
+            if (distance > 0) {
+                 // Rule: Distance / 55
+                 hours = distance / 55;
+            } else if (String(ts.dumpWashout).toLowerCase() === 'yes' || ts.dumpWashout === true) {
+                 // Rule: If Dump/Washout is Yes, 0.5 hours
+                 hours = 0.5;
+            }
+        } 
+        else if (type.includes('SITE')) {
+            // Rule: Calculate Duration
+            if (ts.clockIn && ts.clockOut) {
+                const start = new Date(ts.clockIn).getTime();
+                const end = new Date(ts.clockOut).getTime();
+                let durationMs = end - start;
+
+                // Subtract lunch
+                if (ts.lunchStart && ts.lunchEnd) {
+                    const lStart = new Date(ts.lunchStart).getTime();
+                    const lEnd = new Date(ts.lunchEnd).getTime();
+                    if (lEnd > lStart) {
+                        durationMs -= (lEnd - lStart);
+                    }
+                }
+
+                if (durationMs > 0) {
+                    const totalHoursRaw = durationMs / (1000 * 60 * 60);
+                    
+                    // Date Check for Logic Branching
+                    const tsDateStr = ts.clockIn || scheduleDate;
+                    const tsDate = new Date(tsDateStr);
+                    const cutoffDate = new Date('2025-10-26T00:00:00'); // ensuring comparison works
+                    
+                    if (tsDate < cutoffDate) {
+                        // Old Logic: exact decimal hours
+                        hours = totalHoursRaw;
+                    } else {
+                        // New Logic (>= 10/26/2025)
+                        if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) {
+                            hours = 8.0;
+                        } else {
+                            // Minute Rounding Logic
+                            const h = Math.floor(totalHoursRaw);
+                            const m = Math.round((totalHoursRaw - h) * 60); // Get minute part
+
+                            let roundedM = 0;
+                            // IFS(AND(M>1,M<=14),0, AND(M>14,M<=29),15, AND(M>29,M<=44),30, AND(M>44,M<=59),45)
+                            if (m > 1 && m <= 14) roundedM = 0;
+                            else if (m > 14 && m <= 29) roundedM = 15;
+                            else if (m > 29 && m <= 44) roundedM = 30;
+                            else if (m > 44 && m <= 59) roundedM = 45;
+                            else if (m > 59) {
+                                // edge case close to 60, usually 0 and add hour, but strict to formula logic:
+                                // "AND(MINUTE([Duration])>44,MINUTE([Duration])<=59),45" -> undefined for 60.
+                                // We'll assume standard behavior or just 45 if it caps there, 
+                                // but mathematically 60 mins -> next hour. Let's stick to adding fractional part.
+                                // If simple logic:
+                                roundedM = 0; // Reset
+                            } else {
+                                // 0 or 1
+                                roundedM = 0;
+                            }
+                            
+                            hours = h + (roundedM / 60);
+                        }
+                    }
+                }
+            }
+        }
+
+        return { hours, distance };
+    };
+
+    const handleDeleteTimesheet = async (tsId: string) => {
+        if (!selectedSchedule) return;
+        
+        const confirmDelete = window.confirm("Are you sure you want to delete this timesheet entry?");
+        if (!confirmDelete) return;
+
+        const updatedTimesheets = (selectedSchedule.timesheet || []).filter(t => (t._id || t.recordId) !== tsId);
+        
+        try {
+             const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'updateSchedule', 
+                    payload: { 
+                        id: selectedSchedule._id, 
+                        timesheet: updatedTimesheets 
+                    } 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                // Update local state
+                setSchedules(prev => prev.map(s => s._id === selectedSchedule._id ? { ...s, timesheet: updatedTimesheets } : s));
+                setSelectedSchedule(prev => prev ? { ...prev, timesheet: updatedTimesheets } : null);
+                success('Timesheet entry deleted');
+            } else {
+                toastError(data.error || 'Failed to delete entry');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Error removing timesheet');
+        }
+    };
+
+
     return (
         <div className="min-h-screen bg-[#F8FAFC]">
             <Header
                 rightContent={
+
+
+
                     <div className="flex items-center gap-2 sm:gap-3">
                         <SearchInput
                             value={search}
@@ -535,12 +741,26 @@ export default function SchedulePage() {
                             className="hidden"
                             accept=".csv"
                         />
+                        <input
+                            type="file"
+                            ref={timesheetInputRef}
+                            onChange={handleImportTimesheets}
+                            className="hidden"
+                            accept=".csv"
+                        />
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
                             title="Import Schedules"
                         >
                             <Upload size={18} className={isImporting ? 'animate-pulse' : ''} />
+                        </button>
+                        <button
+                            onClick={() => timesheetInputRef.current?.click()}
+                            className="p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            title="Import Timesheets"
+                        >
+                            <Clock size={18} className={isImporting ? 'animate-pulse' : ''} />
                         </button>
                         <AddButton
                             onClick={openCreateModal}
@@ -1104,6 +1324,107 @@ export default function SchedulePage() {
                                                     <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                         {selectedSchedule.description}
                                                     </p>
+                                                </div>
+                                            )}
+
+                                            {/* Row 12: Timesheets - Grouped */}
+                                            {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 && (
+                                                <div className="pt-6 border-t border-slate-100">
+                                                    <div className="flex items-center justify-between mb-4">
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
+                                                        <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">{selectedSchedule.timesheet.length} Entries</Badge>
+                                                    </div>
+                                                    
+                                                    {Object.entries(
+                                                        selectedSchedule.timesheet.reduce((acc: any, item: any) => {
+                                                            const type = item.type || 'Other';
+                                                            if (!acc[type]) acc[type] = [];
+                                                            acc[type].push(item);
+                                                            return acc;
+                                                        }, {}) as Record<string, any[]>
+                                                    ).map(([type, items], groupIdx) => (
+                                                        <div key={groupIdx} className="mb-4 last:mb-0">
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#0F4C75]"></div>
+                                                                <h5 className="text-xs font-bold text-[#0F4C75] uppercase tracking-wide">{type}</h5>
+                                                            </div>
+                                                            <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+                                                                <table className="w-full text-left border-collapse">
+                                                                    <thead>
+                                                                        <tr className="bg-slate-50/80 border-b border-slate-100">
+                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider w-[25%]">Employee</th>
+                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">In</th>
+                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Out</th>
+                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Dist.</th>
+                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Hrs</th>
+                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right w-20">Actions</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
+                                                                        {items.map((ts, idx) => {
+                                                                            const emp = initialData.employees.find(e => e.value === ts.employee);
+                                                                            const { hours, distance } = calculateTimesheetData(ts, selectedSchedule.fromDate);
+                                                                            return (
+                                                                                <tr key={idx} className="group hover:bg-blue-50/30 transition-colors">
+                                                                                    <td className="px-4 py-3">
+                                                                                        <div className="flex items-center gap-2.5">
+                                                                                            <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
+                                                                                                {emp?.image ? (
+                                                                                                    <img src={emp.image} className="w-full h-full object-cover" />
+                                                                                                ) : (
+                                                                                                    (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
+                                                                                                )}
+                                                                                            </div>
+                                                                                            <div className="min-w-0">
+                                                                                                <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="px-4 py-3 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
+                                                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100/50">
+                                                                                            {formatTimeOnly(ts.clockIn)}
+                                                                                        </div>
+                                                                                    </td>
+                                                                                    <td className="px-4 py-3 text-center font-medium">
+                                                                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
+                                                                                            {formatTimeOnly(ts.clockOut)}
+                                                                                         </div>
+                                                                                    </td>
+                                                                                    <td className="px-4 py-3 text-right font-medium text-slate-500">
+                                                                                        {distance > 0 ? `${distance.toFixed(1)} mi` : '-'}
+                                                                                    </td>
+                                                                                    <td className="px-4 py-3 text-right font-bold text-[#0F4C75]">
+                                                                                        {hours > 0 ? hours.toFixed(2) : '-'}
+                                                                                    </td>
+                                                                                    <td className="px-4 py-3 text-right">
+                                                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                                                                            <button 
+                                                                                                onClick={(e) => { e.stopPropagation(); /* TODO: Edit logic */ }}
+                                                                                                className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
+                                                                                                title="Edit"
+                                                                                            >
+                                                                                                <Edit size={12} />
+                                                                                            </button>
+                                                                                            <button 
+                                                                                                onClick={(e) => { 
+                                                                                                    e.stopPropagation(); 
+                                                                                                    handleDeleteTimesheet(ts._id || ts.recordId); 
+                                                                                                }}
+                                                                                                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                                                title="Delete"
+                                                                                            >
+                                                                                                <Trash2 size={12} />
+                                                                                            </button>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
 

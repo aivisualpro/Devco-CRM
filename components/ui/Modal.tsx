@@ -9,9 +9,10 @@ interface ModalProps {
     title: string;
     children: React.ReactNode;
     footer?: React.ReactNode;
+    maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'full';
 }
 
-export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4xl' }: ModalProps) {
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
@@ -24,10 +25,24 @@ export function Modal({ isOpen, onClose, title, children, footer }: ModalProps) 
 
     if (!isOpen) return null;
 
+    const maxWidthClass = {
+        'sm': 'max-w-sm',
+        'md': 'max-w-md',
+        'lg': 'max-w-lg',
+        'xl': 'max-w-xl',
+        '2xl': 'max-w-2xl',
+        '3xl': 'max-w-3xl',
+        '4xl': 'max-w-4xl',
+        '5xl': 'max-w-5xl',
+        '6xl': 'max-w-6xl',
+        '7xl': 'max-w-7xl',
+        'full': 'max-w-full'
+    }[maxWidth];
+
     return (
         <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
-            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden animate-modal">
+            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden animate-modal`}>
                 <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 flex-shrink-0">
                     <h3 className="text-lg font-bold text-gray-900">{title}</h3>
                     <button

@@ -32,7 +32,7 @@ export function VersionTimeline({
     };
 
     return (
-        <div className="flex flex-col h-[320px] p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] overflow-hidden">
+        <div className="flex flex-col h-full p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] overflow-hidden">
             <div className="flex items-center justify-between mb-4">
                 <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">
                     Version History
