@@ -100,11 +100,19 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getSchedulesPage': {
+                const { startDate, endDate } = payload || {};
+                const query: any = {};
+                if (startDate || endDate) {
+                    query.fromDate = {};
+                    if (startDate) query.fromDate.$gte = startDate;
+                    if (endDate) query.fromDate.$lte = endDate;
+                }
+
                 // Combined fetch for schedules + initial data (reduces API calls)
                 const [schedules, clients, employees, constants, estimates] = await Promise.all([
-                    Schedule.find().sort({ fromDate: 1 }).lean(),
+                    Schedule.find(query).sort({ fromDate: -1 }).lean(),
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive').lean(),
+                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition').lean(),
                     Constant.find().lean(),
                     Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName').lean()
                 ]);
@@ -136,7 +144,9 @@ export async function POST(request: NextRequest) {
                                 label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
                                 image: e.profilePicture,
                                 hourlyRateSITE: (e as any).hourlyRateSITE,
-                                hourlyRateDrive: (e as any).hourlyRateDrive
+                                hourlyRateDrive: (e as any).hourlyRateDrive,
+                                classification: (e as any).classification,
+                                companyPosition: (e as any).companyPosition
                             }])).values()),
                             constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                             estimates: Array.from(uniqueEstimates.values())

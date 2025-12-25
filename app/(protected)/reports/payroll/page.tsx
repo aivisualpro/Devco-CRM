@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { 
-    ChevronLeft, Printer, Download,
+    Printer, Download,
     Users, Calendar as CalendarIcon, MapPin,
     FileText, Briefcase, Info, ChevronDown, Search,
     Clock, Truck, BadgeDollarSign
@@ -11,7 +11,7 @@ import {
     Header, Loading, Modal
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import Link from 'next/link';
+
 
 // --- Custom Date Helpers ---
 
@@ -275,13 +275,22 @@ export default function PayrollReportPage() {
         );
     }, [employeeOptions, employeeSearch]);
 
-    const fetchData = async () => {
+    const fetchData = async (dateOverride?: Date) => {
         setLoading(true);
+        const targetDate = dateOverride || currentWeekStart;
+        const weekEnd = endOfWeek(targetDate);
+
         try {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getSchedulesPage' })
+                body: JSON.stringify({ 
+                    action: 'getSchedulesPage',
+                    payload: {
+                        startDate: targetDate.toISOString(),
+                        endDate: weekEnd.toISOString()
+                    }
+                })
             });
             const data = await res.json();
             if (data.success) {
@@ -371,7 +380,7 @@ export default function PayrollReportPage() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [currentWeekStart]);
 
     const reportData = useMemo(() => {
         const weekEnd = endOfWeek(currentWeekStart);
@@ -509,26 +518,126 @@ export default function PayrollReportPage() {
         });
     }, [rawSchedules, currentWeekStart, employeesMap, filterEmployee]);
 
-    if (loading) return <Loading />;
-
     const weekDays = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(currentWeekStart);
         d.setDate(d.getDate() + i);
         return d;
     });
 
+    const handleExportCSV = () => {
+        if (!reportData || reportData.length === 0) {
+            toastError("No data to export");
+            return;
+        }
+
+        const weekHeaders = weekDays.map(d => `${formatDate(d, 'EEEE')} ${formatDate(d, 'MM/dd/yy')}`).join(',');
+        // Removed Position column, Added Category column
+        const headers = `Employee,Category,${weekHeaders},Total,Rate,Subtotal`;
+        
+        const rows: string[] = [];
+        const safe = (str: any) => `"${String(str || '').replace(/"/g, '""')}"`;
+
+        reportData.forEach(emp => {
+            // Helper to create a row
+            const createRow = (category: string, dayValues: any[], total: any, rate: any, subtotal: any) => {
+                const dayCols = dayValues.map(v => safe(v)).join(',');
+                return [
+                    safe(emp.name),
+                    safe(category),
+                    dayCols,
+                    safe(total),
+                    safe(rate),
+                    safe(subtotal)
+                ].join(',');
+
+            };
+
+            // 1. Job ID Row
+            const jobValues = emp.days.map(d => d.estimates.length > 0 ? d.estimates.join(' | ') : '');
+            rows.push(createRow('Job ID', jobValues, '', '', ''));
+
+            // 2. Certified Row
+            const certValues = emp.days.map(d => d.certified ? 'YES' : 'NO');
+            rows.push(createRow('Certified', certValues, '', '', ''));
+
+            // 3. Regular Row
+            const regValues = emp.days.map(d => d.reg > 0 ? d.reg.toFixed(2) : '');
+            rows.push(createRow(
+                'Regular', 
+                regValues, 
+                emp.totalReg.toFixed(2), 
+                `$${emp.rateSite.toFixed(2)}`, 
+                `$${(emp.totalReg * emp.rateSite).toFixed(2)}`
+            ));
+
+            // 4. Overtime Row
+            const otValues = emp.days.map(d => d.ot > 0 ? d.ot.toFixed(2) : '');
+            rows.push(createRow(
+                'Overtime', 
+                otValues, 
+                emp.totalOt.toFixed(2), 
+                `$${(emp.rateSite * 1.5).toFixed(2)}`, 
+                `$${(emp.totalOt * emp.rateSite * 1.5).toFixed(2)}`
+            ));
+
+            // 5. Double Time Row
+            const dtValues = emp.days.map(d => d.dt > 0 ? d.dt.toFixed(2) : '');
+            rows.push(createRow(
+                'Double Time', 
+                dtValues, 
+                emp.totalDt.toFixed(2), 
+                `$${(emp.rateSite * 2.0).toFixed(2)}`, 
+                `$${(emp.totalDt * emp.rateSite * 2.0).toFixed(2)}`
+            ));
+
+            // 6. Travel Row
+            const travelValues = emp.days.map(d => d.travel > 0 ? d.travel.toFixed(2) : '');
+            rows.push(createRow(
+                'Travel', 
+                travelValues, 
+                emp.totalTravel.toFixed(2), 
+                `$${emp.rateTravel.toFixed(2)}`, 
+                `$${(emp.totalTravel * emp.rateTravel).toFixed(2)}`
+            ));
+
+            // 7. Per Diem Row
+            const diemValues = emp.days.map(d => d.diem > 0 ? `$${d.diem.toFixed(2)}` : '');
+            rows.push(createRow(
+                'Per Diem', 
+                diemValues, 
+                `$${emp.totalDiem.toFixed(2)}`, 
+                '', 
+                `$${emp.totalDiem.toFixed(2)}`
+            ));
+
+            // 8. Total Net Row (Hours and Amounts)
+            const totalValues = emp.days.map(d => d.total > 0 ? d.total.toFixed(2) : ''); // Daily Total Hours
+            rows.push(createRow(
+                'Total Net', 
+                totalValues, 
+                emp.totalHrs.toFixed(2), // Total Hours for week
+                '', 
+                `$${emp.totalAmount.toFixed(2)}` // Total Amount for week
+            ));
+        });
+
+        const csvContent = [headers, ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `Payroll_Report_${formatDate(currentWeekStart, 'MM-dd-yy')}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+
     return (
         <div className="min-h-screen bg-[#F4F7FA]">
             {/* Minimal Header */}
             <Header 
-                leftContent={
-                    <div className="flex items-center gap-4">
-                        <Link href="/jobs/time-cards" className="p-2 bg-[#F4F7FA] rounded-full transition-all neu-outset hover:neu-pressed active:scale-95">
-                            <ChevronLeft className="w-5 h-5 text-slate-500" />
-                        </Link>
-                        <h1 className="text-xl font-black text-slate-900 tracking-tight">Payroll Report</h1>
-                    </div>
-                }
+                leftContent={null}
                 rightContent={
                     <div className="flex items-center gap-4">
                         {/* Week Selection - Neumorphic Dropdown */}
@@ -658,7 +767,7 @@ export default function PayrollReportPage() {
                         <button className="p-3 bg-[#F4F7FA] rounded-2xl text-slate-500 hover:text-slate-900 transition-all neu-outset hover:neu-pressed active:scale-95" title="Print Report">
                             <Printer size={18} />
                         </button>
-                        <button className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95" title="Export CSV">
+                        <button onClick={handleExportCSV} className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95" title="Export CSV">
                             <Download size={18} />
                         </button>
                     </div>
@@ -666,6 +775,13 @@ export default function PayrollReportPage() {
             />
 
             <main className="max-w-[2400px] mx-auto p-2 bg-[#F4F7FA]">
+                {loading ? (
+                    <div className="h-[70vh] flex flex-col items-center justify-center gap-4">
+                        <Loading />
+                        <p className="text-slate-400 font-bold text-sm animate-pulse">Loading Payroll Data...</p>
+                    </div>
+                ) : (
+                    <>
                 {/* Payroll Content Container */}
                 <div className="neu-outset rounded-[32px] overflow-hidden p-4 bg-[#F4F7FA]">
                     {reportData.length === 0 ? (
@@ -678,51 +794,57 @@ export default function PayrollReportPage() {
                             <table className="w-full border-collapse">
                                 <thead className="sticky top-0 z-50">
                                     <tr className="bg-[#F4F7FA]">
-                                        <th className="sticky left-0 z-50 bg-[#F4F7FA] text-left px-4 py-4 min-w-[220px]">
+                                        <th className="sticky left-0 z-50 bg-[#F4F7FA] text-left px-4 py-4 min-w-[170px]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Identity</span>
                                         </th>
-                                        <th className="text-left px-4 py-4 min-w-[90px]">
+                                        <th className="text-left px-4 py-4 min-w-[80px]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Category</span>
                                         </th>
                                         {weekDays.map((date, idx) => (
-                                            <th key={idx} className="px-2 py-4 text-center min-w-[85px]">
+                                            <th key={idx} className="px-2 py-4 text-center min-w-[80px]">
                                                 <p className="text-[9px] font-black text-[#0F4C75] uppercase tracking-tighter leading-none">{formatDate(date, 'EEEE')}</p>
                                                 <p className="text-[10px] font-black text-slate-700 mt-1">{formatDate(date, 'MM/dd/yy')}</p>
                                             </th>
                                         ))}
-                                        <th className="px-4 py-4 text-center min-w-[90px]">
+                                        <th className="px-4 py-4 text-center min-w-[85px]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Total</span>
                                         </th>
-                                        <th className="px-4 py-4 text-right min-w-[90px]">
+                                        <th className="px-4 py-4 text-right min-w-[85px]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Rate</span>
                                         </th>
-                                        <th className="px-4 py-4 text-right min-w-[110px]">
+                                        <th className="px-4 py-4 text-right min-w-[100px]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Subtotal</span>
                                         </th>
                                     </tr>
                                 </thead>
                                 
                                 {reportData.map((emp) => (
-                                    <tbody key={emp.employee} className="border-t-[20px] border-transparent">
-                                        {/* Neumorphic Row Block */}
+                                    <tbody key={emp.employee} className="border-t-[10px] border-transparent">
+                                        {/* Compact Identity Row Block */}
                                         <tr className="hover:bg-white/30 transition-colors group cursor-pointer" onClick={() => setSelectedDetail({ employee: emp, type: 'General' })}>
-                                            <td rowSpan={8} className="sticky left-0 z-40 bg-[#F4F7FA] p-4 align-top">
-                                                <div className="neu-outset rounded-2xl p-4 bg-[#F4F7FA] space-y-3">
-                                                    <div>
-                                                        <h3 className="text-base font-black text-slate-900 leading-tight mb-2 tracking-tight">Name: {emp.name}</h3>
-                                                        <div className="flex flex-col gap-1.5">
-                                                            <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                                                                <MapPin size={10} className="text-[#0F4C75]" />
-                                                                Address: {emp.address.substring(0, 20)}...
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                                                                <Info size={10} className="text-[#0F4C75]" />
-                                                                SSN: ***-**-6020
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-tight">
-                                                                <Briefcase size={10} className="text-[#0F4C75]" />
-                                                                Class: {emp.classification}
-                                                            </div>
+                                            <td rowSpan={8} className="sticky left-0 z-40 bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50">
+                                                <div className="space-y-2 max-w-[155px]">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
+                                                            <span className="text-[10px] font-black text-[#0F4C75]">
+                                                                {emp.name.split(' ').map((n:string)=>n[0]).join('').substring(0,2).toUpperCase()}
+                                                            </span>
+                                                        </div>
+                                                        <h3 className="text-xs font-black text-slate-900 leading-tight truncate" title={emp.name}>{emp.name}</h3>
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-col gap-1 pl-1">
+                                                        <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight" title={emp.address}>
+                                                            <MapPin size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
+                                                            <span className="truncate">{emp.address}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight">
+                                                            <Info size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
+                                                            <span>***-**-6020</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-tight truncate">
+                                                            <Briefcase size={10} className="text-[#0F4C75] opacity-50 shrink-0" />
+                                                            <span className="truncate">{emp.classification}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -847,13 +969,15 @@ export default function PayrollReportPage() {
                         </div>
                     </div>
                 </div>
-            </main>
+            </>
+        )}
+    </main>
 
             {/* Detail Modal */}
             <Modal
                 isOpen={!!selectedDetail}
                 onClose={() => setSelectedDetail(null)}
-                title={`Payroll Audit Trail: ${selectedDetail?.employee.name}`}
+                title={`Payroll Audit Trail: ${selectedDetail?.employee.name || ''}`}
                 maxWidth="4xl"
             >
                 {selectedDetail && (
