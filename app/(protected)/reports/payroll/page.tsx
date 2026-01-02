@@ -634,147 +634,149 @@ export default function PayrollReportPage() {
 
 
     return (
-        <div className="min-h-screen bg-[#F4F7FA]">
+        <div className="flex flex-col h-full bg-[#F4F7FA]">
             {/* Minimal Header */}
-            <Header 
-                leftContent={null}
-                rightContent={
-                    <div className="flex items-center gap-4">
-                        {/* Week Selection - Neumorphic Dropdown */}
-                        <div className="relative">
-                            <button 
-                                onClick={() => {
-                                    setIsWeekDropdownOpen(!isWeekDropdownOpen);
-                                    setIsEmployeeDropdownOpen(false);
-                                }}
-                                className={`p-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center ${isWeekDropdownOpen ? 'neu-pressed text-[#0F4C75] bg-[#F4F7FA]' : 'neu-outset text-slate-500 bg-[#F4F7FA]'}`}
-                            >
-                                <CalendarIcon size={18} />
-                                {isWeekDropdownOpen && <ChevronDown size={14} className="ml-1 opacity-50" />}
-                            </button>
+            <div className="flex-none">
+                <Header 
+                    leftContent={null}
+                    rightContent={
+                        <div className="flex items-center gap-4">
+                            {/* Week Selection - Neumorphic Dropdown */}
+                            <div className="relative">
+                                <button 
+                                    onClick={() => {
+                                        setIsWeekDropdownOpen(!isWeekDropdownOpen);
+                                        setIsEmployeeDropdownOpen(false);
+                                    }}
+                                    className={`p-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center ${isWeekDropdownOpen ? 'neu-pressed text-[#0F4C75] bg-[#F4F7FA]' : 'neu-outset text-slate-500 bg-[#F4F7FA]'}`}
+                                >
+                                    <CalendarIcon size={18} />
+                                    {isWeekDropdownOpen && <ChevronDown size={14} className="ml-1 opacity-50" />}
+                                </button>
 
-                            {isWeekDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-[100]" onClick={() => setIsWeekDropdownOpen(false)} />
-                                    <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-2 z-[101] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
-                                        <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
-                                            {weekOptions.map((week, idx) => {
-                                                const isActive = week.start.getTime() === currentWeekStart.getTime();
-                                                return (
-                                                    <button
-                                                        key={idx}
-                                                        onClick={() => {
-                                                            setCurrentWeekStart(week.start);
-                                                            setIsWeekDropdownOpen(false);
-                                                        }}
-                                                        className={`w-full px-6 py-4 text-left text-sm font-bold transition-all rounded-2xl mb-1 ${isActive ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
-                                                    >
-                                                        {week.label}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Employee Selection - Neumorphic Search Dropdown */}
-                        <div className="relative">
-                            <button 
-                                onClick={() => {
-                                    setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
-                                    setIsWeekDropdownOpen(false);
-                                    setEmployeeSearch('');
-                                }}
-                                className={`p-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center relative ${isEmployeeDropdownOpen ? 'neu-pressed text-[#0F4C75] bg-[#F4F7FA]' : 'neu-outset text-slate-500 bg-[#F4F7FA]'}`}
-                            >
-                                <Users size={18} />
-                                {isEmployeeDropdownOpen && <ChevronDown size={14} className="ml-1 opacity-50" />}
-                                {filterEmployee !== 'all' && !isEmployeeDropdownOpen && (
-                                    <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#F4F7FA]" />
-                                )}
-                            </button>
-
-                            {isEmployeeDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-[100]" onClick={() => setIsEmployeeDropdownOpen(false)} />
-                                    <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-4 z-[101] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
-                                        {/* Search Bar - Neumorphic Style */}
-                                        <div className="relative mb-4">
-                                            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-                                                <Search size={16} className="text-slate-400" />
+                                {isWeekDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-[100]" onClick={() => setIsWeekDropdownOpen(false)} />
+                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-2 z-[101] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
+                                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
+                                                {weekOptions.map((week, idx) => {
+                                                    const isActive = week.start.getTime() === currentWeekStart.getTime();
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => {
+                                                                setCurrentWeekStart(week.start);
+                                                                setIsWeekDropdownOpen(false);
+                                                            }}
+                                                            className={`w-full px-6 py-4 text-left text-sm font-bold transition-all rounded-2xl mb-1 ${isActive ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
+                                                        >
+                                                            {week.label}
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
-                                            <input 
-                                                autoFocus
-                                                type="text"
-                                                placeholder="Search Employees..."
-                                                value={employeeSearch}
-                                                onChange={(e) => setEmployeeSearch(e.target.value)}
-                                                className="w-full bg-[#f0f3f8] border-none rounded-2xl py-3 pl-12 pr-4 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none neu-pressed"
-                                            />
                                         </div>
+                                    </>
+                                )}
+                            </div>
 
-                                        <div className="max-h-[350px] overflow-y-auto custom-scrollbar space-y-2 pr-1">
-                                            <button
-                                                onClick={() => {
-                                                    setFilterEmployee('all');
-                                                    setIsEmployeeDropdownOpen(false);
-                                                }}
-                                                className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${filterEmployee === 'all' ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
-                                            >
-                                                <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs text-slate-500 font-bold">
-                                                    ALL
+                            {/* Employee Selection - Neumorphic Search Dropdown */}
+                            <div className="relative">
+                                <button 
+                                    onClick={() => {
+                                        setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
+                                        setIsWeekDropdownOpen(false);
+                                        setEmployeeSearch('');
+                                    }}
+                                    className={`p-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center relative ${isEmployeeDropdownOpen ? 'neu-pressed text-[#0F4C75] bg-[#F4F7FA]' : 'neu-outset text-slate-500 bg-[#F4F7FA]'}`}
+                                >
+                                    <Users size={18} />
+                                    {isEmployeeDropdownOpen && <ChevronDown size={14} className="ml-1 opacity-50" />}
+                                    {filterEmployee !== 'all' && !isEmployeeDropdownOpen && (
+                                        <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full border-2 border-[#F4F7FA]" />
+                                    )}
+                                </button>
+
+                                {isEmployeeDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-[100]" onClick={() => setIsEmployeeDropdownOpen(false)} />
+                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-4 z-[101] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
+                                            {/* Search Bar - Neumorphic Style */}
+                                            <div className="relative mb-4">
+                                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                                    <Search size={16} className="text-slate-400" />
                                                 </div>
-                                                All Employees
-                                            </button>
-                                            
-                                            {filteredEmployeeOptions.map((emp, idx) => {
-                                                const isActive = emp.value === filterEmployee;
-                                                return (
-                                                    <button
-                                                        key={idx}
-                                                        onClick={() => {
-                                                            setFilterEmployee(emp.value);
-                                                            setIsEmployeeDropdownOpen(false);
-                                                        }}
-                                                        className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${isActive ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
-                                                    >
-                                                        {emp.image ? (
-                                                            <img src={emp.image} alt={emp.label} className="w-10 h-10 rounded-full border-2 border-white object-cover" />
-                                                        ) : (
-                                                            <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-xs text-[#0F4C75] font-black">
-                                                                {emp.initials}
-                                                            </div>
-                                                        )}
-                                                        <span className="truncate">{emp.label}</span>
-                                                    </button>
-                                                );
-                                            })}
-                                            
-                                            {filteredEmployeeOptions.length === 0 && (
-                                                <div className="p-8 text-center text-xs font-bold text-slate-400">No results found</div>
-                                            )}
+                                                <input 
+                                                    autoFocus
+                                                    type="text"
+                                                    placeholder="Search Employees..."
+                                                    value={employeeSearch}
+                                                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                                                    className="w-full bg-[#f0f3f8] border-none rounded-2xl py-3 pl-12 pr-4 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none neu-pressed"
+                                                />
+                                            </div>
+
+                                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setFilterEmployee('all');
+                                                        setIsEmployeeDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${filterEmployee === 'all' ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
+                                                >
+                                                    <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-xs text-slate-500 font-bold">
+                                                        ALL
+                                                    </div>
+                                                    All Employees
+                                                </button>
+                                                
+                                                {filteredEmployeeOptions.map((emp, idx) => {
+                                                    const isActive = emp.value === filterEmployee;
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => {
+                                                                setFilterEmployee(emp.value);
+                                                                setIsEmployeeDropdownOpen(false);
+                                                            }}
+                                                            className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${isActive ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
+                                                        >
+                                                            {emp.image ? (
+                                                                <img src={emp.image} alt={emp.label} className="w-10 h-10 rounded-full border-2 border-white object-cover" />
+                                                            ) : (
+                                                                <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-xs text-[#0F4C75] font-black">
+                                                                    {emp.initials}
+                                                                </div>
+                                                            )}
+                                                            <span className="truncate">{emp.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                                
+                                                {filteredEmployeeOptions.length === 0 && (
+                                                    <div className="p-8 text-center text-xs font-bold text-slate-400">No results found</div>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </>
-                            )}
+                                    </>
+                                )}
+                            </div>
+
+                            <div className="h-8 w-px bg-slate-200/50 mx-1" />
+
+                            {/* Action Icons - Neumorphic */}
+                            <button className="p-3 bg-[#F4F7FA] rounded-2xl text-slate-500 hover:text-slate-900 transition-all neu-outset hover:neu-pressed active:scale-95" title="Print Report">
+                                <Printer size={18} />
+                            </button>
+                            <button onClick={handleExportCSV} className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95" title="Export CSV">
+                                <Download size={18} />
+                            </button>
                         </div>
+                    }
+                />
+            </div>
 
-                        <div className="h-8 w-px bg-slate-200/50 mx-1" />
-
-                        {/* Action Icons - Neumorphic */}
-                        <button className="p-3 bg-[#F4F7FA] rounded-2xl text-slate-500 hover:text-slate-900 transition-all neu-outset hover:neu-pressed active:scale-95" title="Print Report">
-                            <Printer size={18} />
-                        </button>
-                        <button onClick={handleExportCSV} className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95" title="Export CSV">
-                            <Download size={18} />
-                        </button>
-                    </div>
-                }
-            />
-
-            <main className="max-w-[2400px] mx-auto p-2 bg-[#F4F7FA]">
+            <main className="flex-1 overflow-y-auto w-full max-w-[2400px] mx-auto p-2 bg-[#F4F7FA]">
                 {loading ? (
                     <div className="h-[70vh] flex flex-col items-center justify-center gap-4">
                         <Loading />

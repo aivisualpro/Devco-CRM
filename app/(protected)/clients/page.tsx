@@ -308,7 +308,8 @@ export default function ClientsPage() {
     ];
 
     return (
-        <>
+        <div className="flex flex-col h-full">
+            <div className="flex-none">
             <Header
                 hideLogo={false} // Hidden on mobile via our Header logic, but let's be explicit
                 rightContent={
@@ -350,8 +351,9 @@ export default function ClientsPage() {
                     </div>
                 }
             />
-
-            <div className="p-4">
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4">
                 {/* Tabs - Hidden on Mobile */}
                 <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
@@ -828,6 +830,6 @@ export default function ClientsPage() {
                 message={`Are you sure you want to delete ${clientToDelete?.name}? This action cannot be undone.`}
                 confirmText="Delete Client"
             />
-        </>
+        </div>
     );
 }

@@ -467,7 +467,8 @@ export default function EstimatesPage() {
     };
 
     return (
-        <>
+        <div className="flex flex-col h-full">
+            <div className="flex-none">
             <Header
                 rightContent={
                     <div className="flex items-center gap-3">
@@ -511,7 +512,8 @@ export default function EstimatesPage() {
                     </div>
                 }
             />
-            <div className="p-4">
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
 
                 {/* Filter Tabs & Toggle */}
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
@@ -714,6 +716,8 @@ export default function EstimatesPage() {
                     <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                 </div>
 
+                </div>
+
                 {/* Confirm Delete Modal */}
                 <ConfirmModal
                     isOpen={isConfirmOpen}
@@ -802,7 +806,6 @@ export default function EstimatesPage() {
                         </div>
                     </div>
                 </Modal>
-            </div>
-        </>
+        </div>
     );
 }

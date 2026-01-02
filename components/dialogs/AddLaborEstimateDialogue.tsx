@@ -33,6 +33,7 @@ interface AddLaborEstimateDialogueProps {
     catalog: CatalogItem[];
     fringe?: string;
     onSave: (section: SectionConfig, data: Record<string, unknown>, isManual: boolean) => Promise<void>;
+    fringeConstants?: Array<{ description: string; value: unknown }>;
 }
 
 export function AddLaborEstimateDialogue({
@@ -42,7 +43,8 @@ export function AddLaborEstimateDialogue({
     existingItems,
     catalog,
     fringe,
-    onSave
+    onSave,
+    fringeConstants = []
 }: AddLaborEstimateDialogueProps) {
     const [mode, setMode] = useState<'catalog' | 'manual'>('catalog');
     const [formData, setFormData] = useState<Record<string, unknown>>({});
@@ -256,8 +258,13 @@ export function AddLaborEstimateDialogue({
                     // The catalogue dialogue uses them. We might need to fetch them or pass them down from AddItemModal if possible.
                     // Checking AddItemModal props... it has `fringeConstants`.
                     // We need to pass `fringeConstants` to this component first.
-                    fringeConstants={[]} // Placeholder if not available, or we update props
-                    onAddFringe={async () => { }} // Placeholder
+                    fringeConstants={fringeConstants}
+                    existingItems={catalog}
+                    onAddFringe={async (name, val) => {
+                        console.log('Adding fringe not fully supported in this view yet', name, val);
+                        // Optional: Toast "Please add fringe constants in Settings/Constants"
+                        // or implement a quick local add if needed.
+                    }}
                 />
             )}
         </>

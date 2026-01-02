@@ -47,14 +47,25 @@ const prepareContext = (estimate: IEstimate) => {
         miscellaneous: e.miscellaneous || []
     };
 
+    // Helper to format as $X,XXX.XX
+    const formatMoney = (val: any) => {
+        const num = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g, "")) : val;
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num || 0);
+    };
+
     // Calculate generic aggregations if needed (though usually passed in estimate)
     // We can add specific aggregations here that might be useful for templates
     const aggregations = {
-        laborTotal: _.sumBy(lineItems.labor, (i: any) => i.total || 0),
-        equipmentTotal: _.sumBy(lineItems.equipment, (i: any) => i.total || 0),
-        materialTotal: _.sumBy(lineItems.material, (i: any) => i.total || 0),
-        subTotal: e.subTotal || 0,
-        grandTotal: e.grandTotal || 0
+        laborTotal: formatMoney(_.sumBy(lineItems.labor, (i: any) => i.total || 0)),
+        equipmentTotal: formatMoney(_.sumBy(lineItems.equipment, (i: any) => i.total || 0)),
+        materialTotal: formatMoney(_.sumBy(lineItems.material, (i: any) => i.total || 0)),
+        toolsTotal: formatMoney(_.sumBy(lineItems.tools, (i: any) => i.total || 0)),
+        overheadTotal: formatMoney(_.sumBy(lineItems.overhead, (i: any) => i.total || 0)),
+        subcontractorTotal: formatMoney(_.sumBy(lineItems.subcontractor, (i: any) => i.total || 0)),
+        disposalTotal: formatMoney(_.sumBy(lineItems.disposal, (i: any) => i.total || 0)),
+        miscellaneousTotal: formatMoney(_.sumBy(lineItems.miscellaneous, (i: any) => i.total || 0)),
+        subTotal: formatMoney(e.subTotal || 0),
+        grandTotal: formatMoney(e.grandTotal || 0)
     };
 
     return {

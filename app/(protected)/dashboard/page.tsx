@@ -247,11 +247,11 @@ export default function DashboardPage() {
     };
 
     return (
-        <>
-            <div className="hidden md:block">
+        <div className="flex flex-col h-full">
+            <div className="hidden md:block flex-none">
                 <Header showDashboardActions={true} />
             </div>
-            <div className="min-h-screen bg-[#f8fafc] overflow-x-hidden">
+            <div className="flex-1 overflow-y-auto bg-[#f8fafc] overflow-x-hidden">
                 <div className="max-w-[1600px] mx-auto px-2 md:px-6 py-4 md:py-6">
 
                     {/* Top Bar - REMOVED */}
@@ -909,6 +909,6 @@ export default function DashboardPage() {
                     </div>
                 </Modal>
             )}
-        </>
+        </div>
     );
 }

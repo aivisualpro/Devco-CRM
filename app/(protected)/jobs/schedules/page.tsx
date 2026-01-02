@@ -721,7 +721,8 @@ export default function SchedulePage() {
 
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC]">
+        <div className="flex flex-col h-full bg-[#F8FAFC]">
+            <div className="flex-none">
             <Header
                 rightContent={
 
@@ -769,8 +770,9 @@ export default function SchedulePage() {
                     </div>
                 }
             />
+            </div>
 
-            <main className="max-w-[1800px] mx-auto px-4 sm:px-6 py-4 sm:py-6 lg:h-[calc(100vh-80px)] lg:overflow-hidden">
+            <main className="flex-1 overflow-y-auto max-w-[1800px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6">
                 <div className="flex flex-col lg:flex-row gap-4 lg:gap-0 h-full">
 
                     {/* LEFT COLUMN - CALENDAR - Full width on mobile, 25% on desktop */}

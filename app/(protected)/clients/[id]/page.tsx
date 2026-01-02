@@ -567,7 +567,8 @@ export default function ClientViewPage() {
     if (!client) return null;
 
     return (
-        <>
+        <div className="flex flex-col h-full bg-gray-50/50">
+            <div className="flex-none bg-white">
             <Header
                 leftContent={
                     <button
@@ -598,8 +599,9 @@ export default function ClientViewPage() {
                     </div>
                 }
             />
+            </div>
 
-            <main className="flex-1 overflow-y-auto bg-gray-50/50">
+            <main className="flex-1 overflow-y-auto">
                 <div className="w-full px-4 sm:px-6 lg:px-8 py-6 pb-24 max-w-[1600px] mx-auto">
 
                     {/* Hero Header Card */}
@@ -1057,6 +1059,6 @@ export default function ClientViewPage() {
                 doc={selectedDoc}
             />
 
-        </>
+        </div>
     );
 }

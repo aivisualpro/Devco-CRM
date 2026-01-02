@@ -136,16 +136,18 @@ export default function TemplatesPage() {
     const paginatedTemplates = filteredTemplates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
-        <>
-            <Header
-                rightContent={
-                    <div className="flex items-center gap-3">
-                        <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates..." />
-                        <AddButton onClick={handleCreate} label="New Template" />
-                    </div>
-                }
-            />
-            <div className="p-6 bg-[#e0e5ec] min-h-screen">
+        <div className="flex flex-col h-full bg-[#e0e5ec]">
+            <div className="flex-none">
+                <Header
+                    rightContent={
+                        <div className="flex items-center gap-3">
+                            <SearchInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search templates..." />
+                            <AddButton onClick={handleCreate} label="New Template" />
+                        </div>
+                    }
+                />
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-[#e0e5ec]">
                 <ToastContainer toasts={toasts} removeToast={removeToast} />
 
                 {loading ? (
@@ -276,6 +278,6 @@ export default function TemplatesPage() {
                 message="Are you sure you want to delete this template?"
                 confirmText="Delete"
             />
-        </>
+        </div>
     );
 }

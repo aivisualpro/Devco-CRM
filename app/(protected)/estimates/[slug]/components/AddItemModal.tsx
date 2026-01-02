@@ -57,6 +57,7 @@ export function AddItemModal(props: AddItemModalProps) {
                 <AddLaborEstimateDialogue
                     {...commonProps}
                     fringe={props.fringe}
+                    fringeConstants={props.fringeConstants}
                 />
             );
         case 'Equipment':

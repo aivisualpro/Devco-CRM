@@ -445,9 +445,11 @@ export default function KnowledgebasePage() {
     const activeChangelog = changelog.find(c => c.version === activeVersion) || changelog[0];
 
     return (
-        <>
-            <Header showDashboardActions={true} />
-            <div className="min-h-screen bg-[#f8fafc]">
+        <div className="flex flex-col h-full bg-[#f8fafc]">
+            <div className="flex-none">
+                <Header showDashboardActions={true} />
+            </div>
+            <div className="flex-1 overflow-y-auto bg-[#f8fafc]">
                 <div className="max-w-[1400px] mx-auto px-6 py-8">
 
                     {/* Hero Section */}
@@ -625,8 +627,8 @@ export default function KnowledgebasePage() {
                         </p>
                     </div>
 
-                </div >
-            </div >
-        </>
+                </div>
+            </div>
+        </div>
     );
 }

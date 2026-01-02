@@ -267,7 +267,6 @@ export function SearchableSelect({
                 <div
                     id={id}
                     tabIndex={0}
-                    style={isOpen ? { visibility: 'hidden' } : {}}
                     ref={triggerRef}
                     onClick={() => setIsOpen(true)}
                     onFocus={() => {

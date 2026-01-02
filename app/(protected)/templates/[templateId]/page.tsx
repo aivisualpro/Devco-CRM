@@ -297,91 +297,95 @@ export default function TemplateEditorPage() {
 
     if (loading) {
         return (
-            <>
-                <Header />
-                <div className="min-h-screen bg-[#e0e5ec] flex items-center justify-center">
+            <div className="flex flex-col h-full bg-[#e0e5ec]">
+                <div className="flex-none">
+                    <Header />
+                </div>
+                <div className="flex-1 flex items-center justify-center">
                     <div className="w-16 h-16 rounded-full animate-pulse" style={{ background: '#e0e5ec', boxShadow: '6px 6px 12px #b8b9be, -6px -6px 12px #ffffff' }} />
                 </div>
-            </>
+            </div>
         );
     }
 
     return (
-        <>
-            <Header
-                centerContent={
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="text"
-                            value={String(formData.title || '')}
-                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            placeholder="Untitled Template"
-                            className="text-lg font-bold text-gray-700 border-none focus:ring-0 p-0 placeholder-gray-400 bg-transparent w-64 text-center"
-                        />
-                        {saving ? (
-                            <span className="text-sm text-gray-400 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-                                Saving...
-                            </span>
-                        ) : lastSaved ? (
-                            <span className="text-sm text-gray-400">Saved</span>
-                        ) : null}
-                    </div>
-                }
-                rightContent={
-                    <div className="flex items-center gap-3">
-                        <SearchInput
-                            placeholder="Search in template..."
-                            value={searchQuery}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setSearchQuery(val);
-                                // Search and highlight in Quill editors
-                                if (val.length >= 2) {
-                                    quillRefs.current.forEach((ref) => {
-                                        if (ref) {
-                                            const quill = ref.getEditor();
-                                            const text = quill.getText();
-                                            const searchLower = val.toLowerCase();
-                                            const textLower = text.toLowerCase();
-                                            const index = textLower.indexOf(searchLower);
+        <div className="flex flex-col h-full bg-[#e0e5ec]">
+            <div className="flex-none">
+                <Header
+                    centerContent={
+                        <div className="flex items-center gap-3">
+                            <input
+                                type="text"
+                                value={String(formData.title || '')}
+                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                placeholder="Untitled Template"
+                                className="text-lg font-bold text-gray-700 border-none focus:ring-0 p-0 placeholder-gray-400 bg-transparent w-64 text-center"
+                            />
+                            {saving ? (
+                                <span className="text-sm text-gray-400 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+                                    Saving...
+                                </span>
+                            ) : lastSaved ? (
+                                <span className="text-sm text-gray-400">Saved</span>
+                            ) : null}
+                        </div>
+                    }
+                    rightContent={
+                        <div className="flex items-center gap-3">
+                            <SearchInput
+                                placeholder="Search in template..."
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setSearchQuery(val);
+                                    // Search and highlight in Quill editors
+                                    if (val.length >= 2) {
+                                        quillRefs.current.forEach((ref) => {
+                                            if (ref) {
+                                                const quill = ref.getEditor();
+                                                const text = quill.getText();
+                                                const searchLower = val.toLowerCase();
+                                                const textLower = text.toLowerCase();
+                                                const index = textLower.indexOf(searchLower);
 
-                                            // Remove previous highlights
-                                            quill.formatText(0, text.length, 'background', false);
+                                                // Remove previous highlights
+                                                quill.formatText(0, text.length, 'background', false);
 
-                                            if (index !== -1) {
-                                                // Highlight found text
-                                                quill.formatText(index, val.length, 'background', '#ffeb3b');
-                                                // Scroll the page container into view
-                                                const container = ref.editor?.container?.parentElement;
-                                                if (container) {
-                                                    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                if (index !== -1) {
+                                                    // Highlight found text
+                                                    quill.formatText(index, val.length, 'background', '#ffeb3b');
+                                                    // Scroll the page container into view
+                                                    const container = ref.editor?.container?.parentElement;
+                                                    if (container) {
+                                                        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                    }
                                                 }
                                             }
-                                        }
-                                    });
-                                } else {
-                                    // Clear highlights when search is empty
-                                    quillRefs.current.forEach((ref) => {
-                                        if (ref) {
-                                            const quill = ref.getEditor();
-                                            const text = quill.getText();
-                                            quill.formatText(0, text.length, 'background', false);
-                                        }
-                                    });
-                                }
-                            }}
-                        />
-                        <button
-                            onClick={handleBack}
-                            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all active:scale-95"
-                            style={{ background: '#e0e5ec', boxShadow: '3px 3px 6px #b8b9be, -3px -3px 6px #ffffff' }}
-                        >
-                            <ArrowLeft className="w-4 h-4" />
-                        </button>
-                    </div>
-                }
-            />
+                                        });
+                                    } else {
+                                        // Clear highlights when search is empty
+                                        quillRefs.current.forEach((ref) => {
+                                            if (ref) {
+                                                const quill = ref.getEditor();
+                                                const text = quill.getText();
+                                                quill.formatText(0, text.length, 'background', false);
+                                            }
+                                        });
+                                    }
+                                }}
+                            />
+                            <button
+                                onClick={handleBack}
+                                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all active:scale-95"
+                                style={{ background: '#e0e5ec', boxShadow: '3px 3px 6px #b8b9be, -3px -3px 6px #ffffff' }}
+                            >
+                                <ArrowLeft className="w-4 h-4" />
+                            </button>
+                        </div>
+                    }
+                />
+            </div>
 
             {/* Custom styles for Quill editor and toolbar */}
             <style jsx global>{`
@@ -625,7 +629,7 @@ export default function TemplateEditorPage() {
                 }
             `}</style>
 
-            <div className="min-h-screen bg-[#e0e5ec] flex">
+            <div className="flex-1 flex overflow-hidden min-h-0 bg-[#e0e5ec]">
                 {/* CENTER: Pages (scrollable) */}
                 <div className="flex-1 overflow-y-auto py-6 px-8">
 
@@ -737,6 +741,6 @@ export default function TemplateEditorPage() {
             </div>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
-        </>
+        </div>
     );
 }

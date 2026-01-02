@@ -33,7 +33,7 @@ export default function ProtectedLayout({
     }
 
     return (
-        <div className="min-h-screen flex flex-col relative pb-20 md:pb-0" style={{ background: '#f0f2f5' }}>
+        <div className="h-screen overflow-hidden flex flex-col relative pb-20 md:pb-0" style={{ background: '#f0f2f5' }}>
             {children}
             <ChatWidget />
             <MobileNav />

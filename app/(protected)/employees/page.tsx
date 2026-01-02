@@ -420,7 +420,8 @@ export default function EmployeesPage() {
     };
 
     return (
-        <>
+        <div className="flex flex-col h-full">
+            <div className="flex-none">
             <Header
                 hideLogo={false}
                 rightContent={
@@ -464,7 +465,9 @@ export default function EmployeesPage() {
                 }
             />
 
-            <div className="p-4">
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
                 {/* Tabs - Hidden on Mobile */}
                 <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
@@ -992,6 +995,7 @@ export default function EmployeesPage() {
                 message={`Are you sure you want to delete ${employeeToDelete?.firstName} ${employeeToDelete?.lastName}? This action cannot be undone.`}
                 confirmText="Delete Employee"
             />
-        </>
+
+        </div>
     );
 }

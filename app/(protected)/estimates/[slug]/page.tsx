@@ -3,10 +3,14 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion } from '@/components/ui';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
+import dynamic from 'next/dynamic';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as any;
 import {
     EstimateHeaderCard,
     AccordionSection,
@@ -27,12 +31,69 @@ import {
     type FringeConstant
 } from '@/lib/estimateCalculations';
 
+const SYSTEM_VARIABLES = [
+    { name: 'proposalNo', label: 'Proposal No.' },
+    { name: 'date', label: 'Proposal Date' },
+    { name: 'projectTitle', label: 'Project Name' },
+    { name: 'jobAddress', label: 'Job Address' },
+    { name: 'customerName', label: 'Client Name' },
+    { name: 'contactPerson', label: 'Contact Person' },
+    { name: 'contactAddress', label: 'Contact Address' },
+    { name: 'contactPhone', label: 'Contact Phone' },
+    { name: 'contactEmail', label: 'Contact Email' },
+    { name: 'aggregations.grandTotal', label: 'Estimate Grand Total' },
+    { name: 'aggregations.subTotal', label: 'Estimate Sub Total' },
+    { name: 'aggregations.laborTotal', label: 'Estimate Labor' },
+    { name: 'aggregations.toolsTotal', label: 'Estimate Tools' },
+    { name: 'aggregations.materialTotal', label: 'Estimate Materials' },
+    { name: 'aggregations.equipmentTotal', label: 'Estimate Equipment' },
+    { name: 'aggregations.overheadTotal', label: 'Estimate Overhead' },
+    { name: 'aggregations.subcontractorTotal', label: 'Estimate Subcontractor' },
+    { name: 'aggregations.disposalTotal', label: 'Estimate Disposal' },
+    { name: 'aggregations.miscellaneousTotal', label: 'Estimate Miscellaneous' },
+];
+
+const CUSTOM_VARIABLES = [
+    { name: 'customText', label: 'Custom Text', type: 'text', description: 'Plain text field' },
+    { name: 'customCurrency', label: 'Custom Currency', type: 'currency', description: 'Shows as $X,XXX.XX' },
+    { name: 'customNumber', label: 'Custom Number', type: 'decimal', description: 'Shows as X,XXX.XX' },
+];
+
+const LINE_ITEM_VARIABLES = [
+    { name: 'lineItemLabor', label: 'Labor Item', category: 'labor', description: 'Select & insert labor item' },
+    { name: 'lineItemEquipment', label: 'Equipment Item', category: 'equipment', description: 'Select & insert equipment item' },
+    { name: 'lineItemMaterial', label: 'Material Item', category: 'material', description: 'Select & insert material item' },
+    { name: 'lineItemTool', label: 'Tool Item', category: 'tool', description: 'Select & insert tool item' },
+    { name: 'lineItemOverhead', label: 'Overhead Item', category: 'overhead', description: 'Select & insert overhead item' },
+    { name: 'lineItemSubcontractor', label: 'Subcontractor Item', category: 'subcontractor', description: 'Select & insert subcontractor item' },
+    { name: 'lineItemDisposal', label: 'Disposal Item', category: 'disposal', description: 'Select & insert disposal item' },
+    { name: 'lineItemMiscellaneous', label: 'Miscellaneous Item', category: 'miscellaneous', description: 'Select & insert misc item' },
+];
+
+// Neumorphic Sidebar Accordion
+function SidebarAccordion({ title, children, defaultOpen = false }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
+    return (
+        <div className="w-full rounded-[16px] p-4 mb-4 bg-gray-100 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
+                <div className="flex items-center gap-2">
+                    {isOpen ? <ChevronsUp className="w-4 h-4 text-gray-500" /> : <ChevronsDown className="w-4 h-4 text-gray-500" />}
+                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider select-none">{title}</h4>
+                </div>
+            </div>
+            {isOpen && <div className="mt-3">{children}</div>}
+        </div>
+    );
+}
+
 const DRAFT_KEY_PREFIX = 'estimate_draft_';
 
 // Types
 interface Template {
     _id: string;
     title: string;
+    content?: string;
+    pages?: { content: string }[];
 }
 
 interface Estimate {
@@ -184,6 +245,35 @@ export default function EstimateViewPage() {
     const [previewHtml, setPreviewHtml] = useState<string>('');
     const [isEditingTemplate, setIsEditingTemplate] = useState(false);
     const proposalRef = useRef<HTMLDivElement>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const quillRefs = useRef<any[]>([]);
+    
+    // Template Editing State
+    const [editorPages, setEditorPages] = useState<string[]>(['']);
+
+    // Insert variable into Quill editor
+    const insertVariable = (variableName: string) => {
+        // Try to find a focused editor
+        for (const ref of quillRefs.current) {
+            if (ref) {
+                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const editor = (ref as any).getEditor();
+                const range = editor.getSelection();
+                if (range) {
+                    editor.insertText(range.index, `{{${variableName}}} `);
+                    editor.setSelection(range.index + variableName.length + 5);
+                    return;
+                }
+            }
+        }
+        // Fallback: insert into first page
+        if (quillRefs.current[0]) {
+             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const editor = (quillRefs.current[0] as any).getEditor();
+            const length = editor.getLength();
+            editor.insertText(length - 1, `{{${variableName}}} `);
+        }
+    };
     const [showPdfPreview, setShowPdfPreview] = useState(false);
     const [generatingProposal, setGeneratingProposal] = useState(false);
     const [formData, setFormData] = useState<Estimate | null>(null);
@@ -221,6 +311,13 @@ export default function EstimateViewPage() {
     const [breakdownData, setBreakdownData] = useState<LaborBreakdown | null>(null);
     const [confirmDeleteEstimate, setConfirmDeleteEstimate] = useState(false);
     const [itemToDelete, setItemToDelete] = useState<{ section: SectionConfig; item: LineItem } | null>(null);
+    
+    // Template Editing State
+    const [editorContent, setEditorContent] = useState('');
+    const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+    const [newTemplateTitle, setNewTemplateTitle] = useState('');
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+    const [saveType, setSaveType] = useState<'update' | 'create'>('update');
 
     // Refs
     const toastShownRef = useRef<string | null>(null);
@@ -309,6 +406,8 @@ export default function EstimateViewPage() {
                 }
 
                 // Check for local draft using the fetched ID
+                /* 
+                // TEMPORARILY DISABLED TO FIX STALE DATA ISSUES
                 const draftKey = `${DRAFT_KEY_PREFIX}${data._id}`;
                 const savedDraft = localStorage.getItem(draftKey);
                 if (savedDraft) {
@@ -329,6 +428,7 @@ export default function EstimateViewPage() {
                         console.error('Failed to parse draft', e);
                     }
                 }
+                */
             } else {
                 toastError('Estimate not found');
             }
@@ -582,7 +682,6 @@ export default function EstimateViewPage() {
     }, [chartData.grandTotal, estimate?._id]);
 
     // Auto-refresh preview when data changes (debounce 1s)
-    // Auto-refresh preview when data changes (debounce 1s)
     useEffect(() => {
         // Run if we have a template selected and not in manual edit mode
         if (!selectedTemplateId || isEditingTemplate || generatingProposal || !estimate) return;
@@ -595,7 +694,62 @@ export default function EstimateViewPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData, chartData, estimate, selectedTemplateId]);
 
+
+
     // Handlers
+    const handleSaveTemplate = async () => {
+        // if (!editorContent) return; // Allow empty
+        setIsSavingTemplate(true);
+
+        const action = saveType === 'create' ? 'addTemplate' : 'updateTemplate';
+        const payload: any = {};
+        
+        const pagesToSave = editorPages.map(c => ({ content: c }));
+        const contentToSave = editorPages[0] || '';
+
+        if (saveType === 'create') {
+            payload.item = {
+                title: newTemplateTitle,
+                content: contentToSave,
+                pages: pagesToSave
+            };
+        } else {
+            payload.id = selectedTemplateId;
+            payload.item = {
+                content: contentToSave,
+                pages: pagesToSave
+            };
+        }
+
+        try {
+            const res = await apiCall(action, payload);
+            if (res.success) {
+                success(saveType === 'create' ? 'Template created' : 'Template updated');
+                setShowSaveTemplateModal(false);
+                setIsEditingTemplate(false);
+                
+                // Refresh templates
+                const tRes = await apiCall('getTemplates');
+                if (tRes.success) setTemplates(tRes.result);
+
+                // If created new, select it
+                if (saveType === 'create' && res.result && res.result._id) {
+                    setSelectedTemplateId(res.result._id);
+                    handleGenerateProposal(res.result._id);
+                } else {
+                    handleGenerateProposal();
+                }
+            } else {
+                toastError(res.error || 'Failed to save template');
+            }
+        } catch (e) {
+            console.error(e);
+            toastError('Error saving template');
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    };
+
     const handlePreview = async (forceEditMode?: boolean, explicitTemplateId?: string) => {
         const tid = explicitTemplateId || selectedTemplateId;
         if (!tid || !estimate) return;
@@ -932,9 +1086,11 @@ export default function EstimateViewPage() {
     // Loading state
     if (loading) {
         return (
-            <>
-                <Header />
-                <main className="flex-1 overflow-y-auto">
+            <div className="flex flex-col h-full bg-[#f8fafc]">
+                <div className="flex-none">
+                    <Header />
+                </div>
+                <div className="flex-1 overflow-y-auto min-h-0">
                     <div className="w-full px-8 py-6">
                         <SkeletonEstimateHeader />
                     </div>
@@ -943,30 +1099,33 @@ export default function EstimateViewPage() {
                         <SkeletonAccordion />
                         <SkeletonAccordion />
                     </div>
-                </main>
-            </>
+                </div>
+            </div>
         );
     }
 
     // Empty state
     if (!estimate || !formData) {
         return (
-            <>
-                <Header />
-                <div className="flex flex-col items-center justify-center flex-1 gap-4">
+            <div className="flex flex-col h-full bg-[#f8fafc]">
+                <div className="flex-none">
+                    <Header />
+                </div>
+                <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center justify-center gap-4">
                     <div className="text-6xl">🚫</div>
                     <h3 className="text-xl font-bold text-gray-900">Estimate Not Found</h3>
                     <p className="text-gray-500">The requested estimate could not be loaded.</p>
                     <Button onClick={() => router.push('/estimates')}>Back to Estimates</Button>
                 </div>
-            </>
+            </div>
         );
     }
 
 
 
     return (
-        <>
+        <div className="flex flex-col h-full min-h-0 bg-[#f8fafc]">
+            <div className="flex-none">
             <Header
                 rightContent={
                     <div className="flex items-center gap-2">
@@ -1039,8 +1198,8 @@ export default function EstimateViewPage() {
                     </div>
                 }
             />
-
-            <main className="flex-1">
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0 w-full max-w-[1920px] mx-auto p-2 bg-[#F4F7FA]">
                 <div className="w-full px-8 py-6">
                     {/* Header Card */}
                     <EstimateHeaderCard
@@ -1100,7 +1259,7 @@ export default function EstimateViewPage() {
                     {/* Proposal Content Section */}
                     {templates.length > 0 && (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
-                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between sticky top-[64px] z-20 shadow-sm rounded-t-xl transition-all">
+                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between sticky top-0 z-20 shadow-sm rounded-t-xl transition-all">
                                 <div className="flex items-center gap-2">
                                     <LayoutTemplate className="w-5 h-5 text-blue-600" />
                                     <h3 className="font-semibold text-gray-800">Proposal</h3>
@@ -1112,46 +1271,92 @@ export default function EstimateViewPage() {
                                             const newId = e.target.value;
                                             setSelectedTemplateId(newId);
                                             if (newId) {
-                                                // Auto-apply template when selected - Instant and explicitly passed
                                                 handleGenerateProposal(newId);
                                             } else {
                                                 setPreviewHtml('');
                                             }
                                         }}
-                                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                                        disabled={isEditingTemplate}
+                                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
                                     >
                                         <option value="">Select Template...</option>
                                         {templates.map(t => (
                                             <option key={t._id} value={t._id}>{t.title}</option>
                                         ))}
                                     </select>
-                                    <Button
-                                        onClick={async () => {
-                                            await handlePreview(false); // Get view mode preview
-                                            setShowPdfPreview(true);
-                                        }}
-                                        variant="secondary"
-                                        size="sm"
-                                        disabled={generatingProposal || !selectedTemplateId}
-                                    >
-                                        {generatingProposal ? 'Generating...' : 'Preview'}
-                                    </Button>
-                                    {(previewHtml || estimate?.proposal?.htmlContent) && (
+                                    
+                                    {!isEditingTemplate && (
                                         <Button
-                                            onClick={() => {
-                                                if (isEditingTemplate) {
-                                                    handleGenerateProposal();
-                                                } else {
-                                                    setIsEditingTemplate(true);
-                                                    handlePreview(true);
-                                                }
+                                            onClick={async () => {
+                                                await handlePreview(false);
+                                                setShowPdfPreview(true);
                                             }}
-                                            variant={isEditingTemplate ? 'primary' : 'secondary'}
+                                            variant="secondary"
                                             size="sm"
-                                            disabled={generatingProposal}
+                                            disabled={generatingProposal || !selectedTemplateId}
                                         >
-                                            {generatingProposal ? 'Saving...' : (isEditingTemplate ? 'Save' : 'Edit')}
+                                            {generatingProposal ? 'Generating...' : 'Preview PDF'}
                                         </Button>
+                                    )}
+
+                                    {(previewHtml || estimate?.proposal?.htmlContent) && (
+                                        <>
+                                            {isEditingTemplate ? (
+                                                <>
+                                                    <Button
+                                                        onClick={() => {
+                                                            setIsEditingTemplate(false);
+                                                            handlePreview(false);
+                                                        }}
+                                                        variant="ghost"
+                                                        size="sm"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                    <Button
+                                                        onClick={() => {
+                                                            setSaveType('create');
+                                                            const currentTitle = templates.find(t => t._id === selectedTemplateId)?.title;
+                                                            setNewTemplateTitle(currentTitle ? `${currentTitle} (Copy)` : 'New Template');
+                                                            setShowSaveTemplateModal(true);
+                                                        }}
+                                                        variant="secondary"
+                                                        size="sm"
+                                                    >
+                                                        Save Copy
+                                                    </Button>
+                                                    <Button
+                                                        onClick={() => {
+                                                            setSaveType('update');
+                                                            handleSaveTemplate();
+                                                        }}
+                                                        variant="primary"
+                                                        size="sm"
+                                                        disabled={isSavingTemplate}
+                                                    >
+                                                        {isSavingTemplate ? 'Saving...' : 'Save Changes'}
+                                                    </Button>
+                                                </>
+                                            ) : (
+                                                <Button
+                                                    onClick={() => {
+                                                        const tmpl = templates.find(t => t._id === selectedTemplateId);
+                                                        // Load pages if available, otherwise fallback to content or empty
+                                                        if (tmpl?.pages && tmpl.pages.length > 0) {
+                                                            setEditorPages(tmpl.pages.map(p => p.content));
+                                                        } else {
+                                                            setEditorPages([tmpl?.content || '']);
+                                                        }
+                                                        setIsEditingTemplate(true);
+                                                    }}
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    disabled={generatingProposal}
+                                                >
+                                                    Edit Template
+                                                </Button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </div>
@@ -1159,11 +1364,115 @@ export default function EstimateViewPage() {
                             {(previewHtml || (estimate?.proposal?.htmlContent)) ? (
                                 <div className="p-8 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
                                     {isEditingTemplate ? (
-                                        <div
-                                            ref={proposalRef}
-                                            className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
-                                            dangerouslySetInnerHTML={{ __html: previewHtml || estimate?.proposal?.htmlContent || '' }}
-                                        />
+                                        <div className="flex gap-6 items-start max-w-[1400px] mx-auto">
+                                            {/* Main Editor */}
+                                            <div className="flex-1 flex flex-col gap-6">
+                                                {editorPages.map((pageContent, idx) => (
+                                                    <div key={idx} className="bg-white shadow-lg rounded-xl overflow-hidden proposal-content p-4 relative group/page">
+                                                        {idx > 0 && (
+                                                            <div className="absolute top-2 right-2 z-20">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newPages = editorPages.filter((_, i) => i !== idx);
+                                                                        setEditorPages(newPages);
+                                                                    }}
+                                                                    className="p-2 text-gray-400 hover:text-red-500 bg-white/50 hover:bg-red-50 rounded-full transition-colors"
+                                                                    title="Delete Page"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        <div className="mb-2 px-2 text-xs font-bold text-gray-400 uppercase tracking-widest select-none flex justify-between items-center">
+                                                            <span>Page {idx + 1}</span>
+                                                        </div>
+                                                        <ReactQuill 
+                                                            ref={(el: any) => { quillRefs.current[idx] = el; }}
+                                                            theme="snow"
+                                                            value={pageContent}
+                                                            onChange={(val: string) => {
+                                                                const newPages = [...editorPages];
+                                                                newPages[idx] = val;
+                                                                setEditorPages(newPages);
+                                                            }}
+                                                            className="min-h-[800px] flex flex-col [&_.ql-editor]:min-h-[800px]"
+                                                            modules={{
+                                                                toolbar: [
+                                                                    [{ 'header': [1, 2, 3, false] }],
+                                                                    ['bold', 'italic', 'underline', 'strike'],
+                                                                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                                                                    [{ 'color': [] }, { 'background': [] }],
+                                                                    [{ 'align': [] }],
+                                                                    ['clean'], 
+                                                                    ['code-block']
+                                                                ]
+                                                            }}
+                                                        />
+                                                    </div>
+                                                ))}
+
+                                                <button
+                                                    onClick={() => setEditorPages([...editorPages, ''])}
+                                                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-medium"
+                                                >
+                                                    <Plus className="w-5 h-5" />
+                                                    Add New Page
+                                                </button>
+                                            </div>
+
+                                            {/* Variables Sidebar */}
+                                            <div className="w-80 flex-shrink-0 sticky top-4 h-[calc(100vh-200px)] overflow-y-auto pr-2">
+                                                <div className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Insert Variables</div>
+                                                
+                                                <SidebarAccordion title="System Variables" defaultOpen={true}>
+                                                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                                                        {SYSTEM_VARIABLES.map(v => (
+                                                            <button 
+                                                                key={v.name}
+                                                                onClick={() => insertVariable(v.name)}
+                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-gray-100 flex items-center justify-between group"
+                                                            >
+                                                                <span className="truncate">{v.label}</span>
+                                                                <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </SidebarAccordion>
+
+                                                <SidebarAccordion title="Custom Variables" defaultOpen={true}>
+                                                    <div className="space-y-1.5">
+                                                        {CUSTOM_VARIABLES.map(v => (
+                                                            <button 
+                                                                key={v.name}
+                                                                onClick={() => insertVariable(v.name)}
+                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-gray-100 flex items-center justify-between group"
+                                                            >
+                                                                <span>{v.label}</span>
+                                                                <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </SidebarAccordion>
+
+                                                <SidebarAccordion title="Line Item Variables" defaultOpen={false}>
+                                                    <div className="space-y-1.5">
+                                                        {LINE_ITEM_VARIABLES.map(v => (
+                                                            <button 
+                                                                key={v.name}
+                                                                onClick={() => insertVariable(v.name)}
+                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-gray-100 flex items-center justify-between group"
+                                                            >
+                                                                <div className="flex flex-col items-start gap-1">
+                                                                    <span>{v.label}</span>
+                                                                    <span className="text-[10px] text-gray-400 font-normal">{v.description}</span>
+                                                                </div>
+                                                                <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </SidebarAccordion>
+                                            </div>
+                                        </div>
                                     ) : (
                                         <div className="flex flex-col gap-8 items-center w-full">
                                             {(() => {
@@ -1210,7 +1519,7 @@ export default function EstimateViewPage() {
                         </div>
                     )}
                 </div>
-            </main>
+            </div>
 
             {/* Modals */}
             <AddItemModal
@@ -1435,9 +1744,39 @@ export default function EstimateViewPage() {
                         </div>
                     </div>
                 </div>
+
             )}
 
-
-        </>
+            {/* Save Template Modal */}
+            <Modal
+                isOpen={showSaveTemplateModal}
+                onClose={() => setShowSaveTemplateModal(false)}
+                title="Save As New Template"
+                footer={
+                    <>
+                        <Button variant="secondary" onClick={() => setShowSaveTemplateModal(false)}>Cancel</Button>
+                        <Button 
+                            variant="primary" 
+                            onClick={handleSaveTemplate}
+                            disabled={!newTemplateTitle.trim() || isSavingTemplate}
+                        >
+                            {isSavingTemplate ? 'Saving...' : 'Save Template'}
+                        </Button>
+                    </>
+                }
+            >
+                <div className="space-y-4">
+                    <p className="text-sm text-gray-500">Enter a name for your new template. This will create a copy of the current content.</p>
+                    <input 
+                        type="text" 
+                        value={newTemplateTitle}
+                        onChange={(e) => setNewTemplateTitle(e.target.value)}
+                        placeholder="Template Name e.g., Residential Proposal V2"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                        autoFocus
+                    />
+                </div>
+            </Modal>
+        </div>
     );
 }

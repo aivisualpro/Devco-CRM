@@ -532,34 +532,36 @@ export default function TimeCardPage() {
     const uniqueTypes = ["Drive Time", "Site Time"];
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC]">
-            <Header 
-                leftContent={
-                    <div className="flex items-center gap-4">
-                        <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
-                            <Clock className="w-5 h-5 text-[#0F4C75]" />
+        <div className="flex flex-col h-full bg-[#F8FAFC]">
+            <div className="flex-none">
+                <Header 
+                    leftContent={
+                        <div className="flex items-center gap-4">
+                            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
+                                <Clock className="w-5 h-5 text-[#0F4C75]" />
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">Time Cards</h1>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Management</p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">Time Cards</h1>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Management</p>
+                    }
+                    rightContent={
+                        <div className="flex items-center gap-3">
+                            <Link 
+                                href="/reports/payroll"
+                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
+                            >
+                                <FileText size={16} />
+                                Payroll Report
+                            </Link>
                         </div>
-                    </div>
-                }
-                rightContent={
-                    <div className="flex items-center gap-3">
-                        <Link 
-                            href="/reports/payroll"
-                            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
-                        >
-                            <FileText size={16} />
-                            Payroll Report
-                        </Link>
-                    </div>
-                }
-            />
+                    }
+                />
+            </div>
 
-            <main className="max-w-[1920px] mx-auto p-6 h-[calc(100vh-80px)]">
-                <div className="flex gap-6 h-full">
+            <main className="flex-1 min-h-0 p-6 flex flex-col max-w-[1920px] w-full mx-auto">
+                <div className="flex-1 flex gap-6 min-h-0">
                     
                     {/* Left Sidebar - Tree View */}
                     <div className="w-[300px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">

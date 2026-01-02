@@ -739,6 +739,18 @@ export async function POST(request: NextRequest) {
                 const { estimates } = payload || {};
                 if (!Array.isArray(estimates)) return NextResponse.json({ success: false, error: 'Invalid estimates array' }, { status: 400 });
 
+                // Fetch Employees for name resolution
+                const allEmployees = await Employee.find({}).select('firstName lastName email _id').lean();
+
+                // Helper to get value from multiple keys case-insensitive
+                const getValue = (obj: any, keys: string[]) => {
+                    for (const k of keys) {
+                        if (obj[k] !== undefined && obj[k] !== null && obj[k] !== '') return obj[k];
+                        // Try lowercase match too? Maybe risky for generic usage, stick to specific keys
+                    }
+                    return undefined;
+                };
+
                 // 1. Prepare Estimate Upsert Operations
                 const estimateOps = estimates.map((e: any) => {
                     const identifier = e._id || e.Record_Id;
@@ -753,7 +765,14 @@ export async function POST(request: NextRequest) {
                         if (!isNaN(parsed)) vn = parsed;
                     }
 
-                    const concatenatedId = `${estimateNum}-V${vn}`;
+                    // Strip -V suffix if present in the estimate number to avoid double suffixing (e.g. 25-0636-V1-V1)
+                    let baseEstNum = String(estimateNum);
+                    const vMatch = baseEstNum.match(/-V(\d+)$/i);
+                    if (vMatch) {
+                        baseEstNum = baseEstNum.substring(0, vMatch.index);
+                    }
+
+                    const concatenatedId = `${baseEstNum}-V${vn}`;
 
                     const parseVal = (v: any) => {
                         if (typeof v === 'number') return v;
@@ -761,11 +780,39 @@ export async function POST(request: NextRequest) {
                     };
 
                     const cleanData = { ...e };
-                    if (e['Estimate #']) cleanData.estimate = e['Estimate #'];
-                    if (e['Customer']) cleanData.customerName = e['Customer'];
+                    
+                    // Enhanced Field Mapping with Fallbacks
+                    cleanData.estimate = baseEstNum; // Use cleaned number
+                    
+                    const custName = getValue(e, ['Customer', 'Customer Name', 'customerName', 'customer']);
+                    if (custName) cleanData.customerName = custName;
+
                     if (e['Date']) cleanData.date = e['Date'];
                     if (e['Status']) cleanData.status = e['Status']?.toLowerCase();
-                    if (e['Proposal Writer']) cleanData.proposalWriter = e['Proposal Writer'];
+                    
+                    // Smart Proposal Writer Resolution
+                    const writerInput = getValue(e, ['Proposal Writer', 'proposalWriter', 'Writer', 'proposal_writer']);
+                    if (writerInput) {
+                        const valStr = String(writerInput).trim();
+                        if (valStr.includes('@')) {
+                            // Already an email/ID
+                            cleanData.proposalWriter = valStr;
+                        } else {
+                            // Lookup by name
+                            const found = allEmployees.find((emp: any) => {
+                                const fullName = `${emp.firstName} ${emp.lastName}`.toLowerCase();
+                                const firstOnly = (emp.firstName || '').toLowerCase();
+                                return fullName === valStr.toLowerCase() || firstOnly === valStr.toLowerCase();
+                            });
+                            
+                            if (found) {
+                                cleanData.proposalWriter = found._id || found.email;
+                            } else {
+                                cleanData.proposalWriter = valStr; // Fallback to raw name
+                            }
+                        }
+                    }
+
                     if (e['Fringe']) cleanData.fringe = e['Fringe'];
                     if (e['Certified Payroll']) cleanData.certifiedPayroll = e['Certified Payroll'];
 
@@ -805,6 +852,41 @@ export async function POST(request: NextRequest) {
                     if (e['Prelim Amount']) cleanData.prelimAmount = e['Prelim Amount'];
                     if (e['Billing Terms']) cleanData.billingTerms = e['Billing Terms'];
                     if (e['Other Billing Terms']) cleanData.otherBillingTerms = e['Other Billing Terms'];
+                    
+                    // Explicit mapping for camelCase or specific user-provided headers to ensure they are captured
+                    if (e['accountingContact']) cleanData.accountingContact = e['accountingContact'];
+                    if (e['accountingEmail']) cleanData.accountingEmail = e['accountingEmail'];
+                    if (e['PoORPa']) cleanData.PoORPa = e['PoORPa'];
+                    if (e['poName']) cleanData.poName = e['poName'];
+                    if (e['PoAddress']) cleanData.PoAddress = e['PoAddress'];
+                    if (e['PoPhone']) cleanData.PoPhone = e['PoPhone'];
+                    if (e['ocName']) cleanData.ocName = e['ocName'];
+                    if (e['ocAddress']) cleanData.ocAddress = e['ocAddress'];
+                    if (e['ocPhone']) cleanData.ocPhone = e['ocPhone'];
+                    if (e['subCName']) cleanData.subCName = e['subCName'];
+                    if (e['subCAddress']) cleanData.subCAddress = e['subCAddress'];
+                    if (e['subCPhone']) cleanData.subCPhone = e['subCPhone'];
+                    if (e['liName']) cleanData.liName = e['liName'];
+                    if (e['liAddress']) cleanData.liAddress = e['liAddress'];
+                    if (e['liPhone']) cleanData.liPhone = e['liPhone'];
+                    if (e['scName']) cleanData.scName = e['scName'];
+                    if (e['scAddress']) cleanData.scAddress = e['scAddress'];
+                    if (e['scPhone']) cleanData.scPhone = e['scPhone'];
+                    if (e['bondNumber']) cleanData.bondNumber = e['bondNumber'];
+                    if (e['projectId']) cleanData.projectId = e['projectId'];
+                    if (e['fbName']) cleanData.fbName = e['fbName'];
+                    if (e['fbAddress']) cleanData.fbAddress = e['fbAddress'];
+                    if (e['eCPRSystem']) cleanData.eCPRSystem = e['eCPRSystem'];
+                    if (e['typeOfServiceRequired']) cleanData.typeOfServiceRequired = e['typeOfServiceRequired'];
+                    if (e['wetUtilities']) cleanData.wetUtilities = e['wetUtilities'];
+                    if (e['dryUtilities']) cleanData.dryUtilities = e['dryUtilities'];
+                    if (e['projectDescription']) cleanData.projectDescription = e['projectDescription'];
+                    if (e['estimatedStartDate']) cleanData.estimatedStartDate = e['estimatedStartDate'];
+                    if (e['estimatedCompletionDate']) cleanData.estimatedCompletionDate = e['estimatedCompletionDate'];
+                    if (e['siteConditions']) cleanData.siteConditions = e['siteConditions'];
+                    if (e['prelimAmount']) cleanData.prelimAmount = e['prelimAmount'];
+                    if (e['billingTerms']) cleanData.billingTerms = e['billingTerms'];
+                    if (e['otherBilling Terms']) cleanData.otherBillingTerms = e['otherBilling Terms'];
 
                     // Header Mapping for Totals
                     if (cleanData['Grand Total']) cleanData.grandTotal = cleanData['Grand Total'];
@@ -819,10 +901,27 @@ export async function POST(request: NextRequest) {
                     // Ensure versionNumber is correct in cleanData
                     cleanData.versionNumber = vn;
 
-                    // Prune empty fields so we don't overwrite existing data with empty strings
-                    if (!cleanData.status) delete cleanData.status;
-                    if (!cleanData.date) delete cleanData.date;
-                    if (!cleanData.customerName) delete cleanData.customerName;
+                    // Prune empty fields logic was preventing updates if only some fields were passed?
+                    // Actually, if cleanData has the correct new value, we should KEEP it.
+                    // The issue might be that cleanData has OLD keys from the CSV specific check above?
+                    // Wait, `cleanData` starts as `{...e}`. 
+                    // If `e` has `Status: "Pending"`, then `cleanData.status` becomes "pending".
+                    // If `e` DOES NOT have `status` key (only `Status`), `cleanData.status` is set correctly.
+                    // BUT `cleanData` still has `Status` key. This is fine for Mongoose limit strict: false.
+
+                    // Removing the prune logic that deletes fields if they are falsy.
+                    // If the CSV has a blank value, maybe we WANT to blank it out?
+                    // Or if our mapping logic failed, it might be undefined.
+                    
+                    // Let's NOT delete these for now to ensure whatever we mapped IS used.
+                    // (Commented out pruning)
+                    // if (!cleanData.status) delete cleanData.status;
+                    // if (!cleanData.date) delete cleanData.date;
+                    // if (!cleanData.customerName) delete cleanData.customerName;
+
+                    // Remove explicit IDs to prevent immutable field error on update
+                    delete cleanData._id;
+                    delete cleanData.Record_Id;
 
                     const updateSet = { ...cleanData, updatedAt: new Date() };
 
