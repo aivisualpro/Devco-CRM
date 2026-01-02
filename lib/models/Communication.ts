@@ -7,11 +7,20 @@ export interface IMessage extends Document {
     targetId: string; // can be proposalNo, channelId, or employee email
     attachments: {
         url: string;
-        filename: string;
-        fileType: string;
+        name?: string;
+        filename?: string;
+        type?: string;
+        fileType?: string;
+        size?: number;
     }[];
     mentions: string[];
     estimateRef?: string;
+    replyTo?: {
+        messageId: string;
+        senderName: string;
+        text: string;
+    };
+    forwardedFrom?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -21,13 +30,15 @@ const MessageSchema = new Schema({
     text: { type: String },
     type: { type: String, enum: ['proposal', 'channel', 'direct'], required: true },
     targetId: { type: String, required: true },
-    attachments: [{
-        url: { type: String },
-        filename: { type: String },
-        fileType: { type: String }
-    }],
+    attachments: [{ type: Schema.Types.Mixed }],
     mentions: { type: [String], default: [] },
     estimateRef: { type: String },
+    replyTo: {
+        messageId: { type: String },
+        senderName: { type: String },
+        text: { type: String }
+    },
+    forwardedFrom: { type: String },
 }, {
     timestamps: true,
     collection: 'DevcoCommunicationDb' // As requested by the user

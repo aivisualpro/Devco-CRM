@@ -535,17 +535,6 @@ export default function TimeCardPage() {
         <div className="flex flex-col h-full bg-[#F8FAFC]">
             <div className="flex-none">
                 <Header 
-                    leftContent={
-                        <div className="flex items-center gap-4">
-                            <div className="bg-white p-2 rounded-xl shadow-sm border border-slate-100">
-                                <Clock className="w-5 h-5 text-[#0F4C75]" />
-                            </div>
-                            <div>
-                                <h1 className="text-lg font-black text-slate-800 tracking-tight leading-none">Time Cards</h1>
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Management</p>
-                            </div>
-                        </div>
-                    }
                     rightContent={
                         <div className="flex items-center gap-3">
                             <Link 
