@@ -127,7 +127,14 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleLogout = () => {
+    const handleLogout = async () => {
+        try {
+            // Call server-side logout to clear HTTP-only cookie
+            await fetch('/api/auth/logout', { method: 'POST' });
+        } catch (err) {
+            console.error('Logout error:', err);
+        }
+        // Also clear client-side storage
         localStorage.removeItem('devco_user');
         localStorage.removeItem('devco_session_valid');
         router.push('/login');

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { Employee } from '@/lib/models';
+import { SignJWT } from 'jose';
+
+// Secret key for JWT - should be in environment variables
+const JWT_SECRET = new TextEncoder().encode(
+    process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET || 'devco-secure-secret-key-change-in-production'
+);
 
 export async function POST(request: NextRequest) {
     try {
@@ -16,10 +22,10 @@ export async function POST(request: NextRequest) {
 
         await connectToDatabase();
 
-        // Find employee by email (case-insensitive search often preferred for email, but let's stick to direct match first or standard lowercase convention if enforced)
-        // Adjusting to findOne with case-insensitive email if possible, or just direct match.
-        // Assuming email is stored as provided.
-        const employee = await Employee.findOne({ email });
+        // Find employee by email (case-insensitive)
+        const employee = await Employee.findOne({ 
+            email: { $regex: new RegExp(`^${email}$`, 'i') }
+        });
 
         if (!employee) {
             return NextResponse.json(
@@ -37,8 +43,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Check password
-        // Note: In a real app, passwords should be hashed. The user asked for "matching with password field", implying direct comparison for now.
-        // I will implement direct comparison as requested/implied by "add a field... password".
+        // TODO: In production, use bcrypt to hash and compare passwords
         if (employee.password !== password) {
             return NextResponse.json(
                 { success: false, error: 'Invalid credentials' },
@@ -46,14 +51,36 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Login successful
+        // Create JWT token
+        const token = await new SignJWT({
+            userId: employee._id,
+            email: employee.email,
+            role: employee.appRole || 'Employee',
+        })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
+            .setExpirationTime('24h')
+            .sign(JWT_SECRET);
+
         // Return user info (excluding password)
         const { password: _, ...userWithoutPassword } = employee.toObject();
 
-        return NextResponse.json({
+        // Create response with HTTP-only cookie
+        const response = NextResponse.json({
             success: true,
             user: userWithoutPassword
         });
+
+        // Set secure HTTP-only cookie
+        response.cookies.set('devco_auth_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24, // 24 hours
+            path: '/',
+        });
+
+        return response;
 
     } catch (error) {
         console.error('Login error:', error);
