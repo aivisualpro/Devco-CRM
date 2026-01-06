@@ -1084,10 +1084,10 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleClone = async () => {
+    const handleClone = async (id?: string) => {
         setLoading(true);
         try {
-            const result = await apiCall('cloneEstimate', { id: estimate?._id });
+            const result = await apiCall('cloneEstimate', { id: id || estimate?._id });
             if (result.success && result.result) {
                 const newSlug = result.result.estimate ? `${result.result.estimate}-V${result.result.versionNumber || 1}` : result.result._id;
                 router.push(`/estimates/${newSlug}`);
@@ -1325,14 +1325,7 @@ export default function EstimateViewPage() {
                             <ArrowLeft className="w-5 h-5" />
                         </button>
 
-                        {/* Clone */}
-                        <button
-                            onClick={handleClone}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                            title={`Clone V${formData.versionNumber || 1}`}
-                        >
-                            <Copy className="w-5 h-5" />
-                        </button>
+
 
                         {/* Copy */}
                         <button
@@ -1391,6 +1384,7 @@ export default function EstimateViewPage() {
                         onAddClient={handleAddClient}
                         onUpdateClientContacts={handleUpdateClientContacts}
                         onUpdateClientAddresses={handleUpdateClientAddresses}
+                        onCloneVersion={handleClone}
 
                         onVersionClick={(id) => {
                             const v = versionHistory.find(vh => vh._id === id);

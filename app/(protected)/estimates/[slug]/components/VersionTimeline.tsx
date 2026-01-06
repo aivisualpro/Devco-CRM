@@ -1,5 +1,7 @@
 'use client';
 
+import { Copy } from 'lucide-react';
+
 interface VersionEntry {
     _id: string;
     proposalNo?: string;
@@ -12,12 +14,14 @@ interface VersionTimelineProps {
     versions: VersionEntry[];
     currentId: string;
     onVersionClick?: (id: string) => void;
+    onCloneVersion?: (id: string, versionNumber: number) => void;
 }
 
 export function VersionTimeline({
     versions,
     currentId,
-    onVersionClick
+    onVersionClick,
+    onCloneVersion
 }: VersionTimelineProps) {
     const formatMoney = (val: number) =>
         `$${val.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -55,7 +59,7 @@ export function VersionTimeline({
                                 key={ver._id}
                                 onClick={() => onVersionClick?.(ver._id)}
                                 className={`
-                                    group flex items-center gap-3 p-2 rounded-xl transition-colors cursor-pointer
+                                    relative group flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer
                                     ${isCurrent
                                         ? 'bg-blue-50/80 shadow-sm border border-blue-100'
                                         : 'hover:bg-white/40 border border-transparent'}
@@ -63,8 +67,8 @@ export function VersionTimeline({
                             >
                                 <div
                                     className={`
-                                        relative w-8 h-8 rounded-full flex items-center justify-center
-                                        text-xs font-bold text-white shadow-md
+                                        relative w-10 h-10 rounded-full flex items-center justify-center
+                                        text-xs font-bold text-white shadow-md flex-shrink-0
                                         ${isCurrent ? 'bg-blue-600' : 'bg-slate-300'}
                                     `}
                                 >
@@ -73,9 +77,9 @@ export function VersionTimeline({
                                         <span className="absolute w-full h-full rounded-full bg-blue-400/20 animate-ping" />
                                     )}
                                 </div>
-                                <div className="flex-1">
+                                <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <div className={`text-sm font-bold ${isCurrent ? 'text-blue-800' : 'text-slate-700'}`}>
+                                        <div className={`text-[13px] font-bold truncate ${isCurrent ? 'text-blue-800' : 'text-slate-700'}`}>
                                             {ver.proposalNo || '0000'}-V.{ver.versionNumber || idx + 1}
                                         </div>
                                         {isLatest && (
@@ -84,7 +88,7 @@ export function VersionTimeline({
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
                                         <span>{formatDate(ver.date)}</span>
                                         <span className="w-1 h-1 rounded-full bg-slate-300" />
                                         <span className={`font-bold ${isCurrent ? 'text-blue-600' : 'text-slate-500'}`}>
@@ -92,19 +96,18 @@ export function VersionTimeline({
                                         </span>
                                     </div>
                                 </div>
-                                {!isCurrent && (
-                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <svg
-                                            className="w-4 h-4 text-blue-400"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                        >
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                                        </svg>
-                                    </div>
-                                )}
+
+                                {/* Clone Button */}
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onCloneVersion?.(ver._id, ver.versionNumber || idx + 1);
+                                    }}
+                                    className="absolute bottom-2 right-2 p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all opacity-0 group-hover:opacity-100 shadow-sm bg-white/80"
+                                    title="Clone this version"
+                                >
+                                    <Copy className="w-3.5 h-3.5" />
+                                </button>
                             </div>
                         );
                     })

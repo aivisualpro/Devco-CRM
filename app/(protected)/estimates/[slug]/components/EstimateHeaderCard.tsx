@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check } from 'lucide-react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { MyDropDown, Modal, Input, Button } from '@/components/ui';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
@@ -80,6 +81,7 @@ interface EstimateHeaderCardProps {
     onAddClient: (name: string) => Promise<{ id: string, name: string } | null>;
     onUpdateClientContacts: (contacts: any[]) => Promise<void>;
     onUpdateClientAddresses: (addresses: string[]) => Promise<void>;
+    onCloneVersion?: (id: string, versionNumber: number) => void;
 }
 
 
@@ -108,8 +110,10 @@ export function EstimateHeaderCard({
     addressOptions,
     onAddClient,
     onUpdateClientContacts,
-    onUpdateClientAddresses
+    onUpdateClientAddresses,
+    onCloneVersion
 }: EstimateHeaderCardProps) {
+    const router = useRouter();
 
     const [isAddingContact, setIsAddingContact] = useState(false);
     const [newContactData, setNewContactData] = useState({ name: '', email: '', phone: '', type: 'Main Contact' });
@@ -251,9 +255,23 @@ export function EstimateHeaderCard({
                 <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
                     {/* Customer */}
                     <div className="relative group">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
-                            Customer
-                        </label>
+                        <div className="flex items-center justify-between mb-1 px-1">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                                Customer
+                            </label>
+                            {formData.customerId && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        router.push(`/clients/${formData.customerId}?from=${encodeURIComponent(window.location.pathname)}`);
+                                    }}
+                                    className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
+                                    title="Go to Client Profile"
+                                >
+                                    <ExternalLink className="w-3 h-3" />
+                                </button>
+                            )}
+                        </div>
                         <div 
                             onClick={() => setActiveDropdown(activeDropdown === 'client' ? null : 'client')}
                             className={`
@@ -401,17 +419,17 @@ export function EstimateHeaderCard({
                             `}
                         >
                             {isEditingProjectName ? (
-                                <input
+                                <textarea
                                     autoFocus
-                                    className="w-full bg-transparent outline-none text-xs font-bold text-[#0F4C75]"
+                                    rows={2}
+                                    className="w-full bg-transparent outline-none text-xs font-bold text-[#0F4C75] resize-none"
                                     value={formData.projectName || ''}
                                     onChange={e => onHeaderUpdate('projectName', e.target.value)}
                                     onBlur={() => setIsEditingProjectName(false)}
-                                    onKeyDown={e => e.key === 'Enter' && setIsEditingProjectName(false)}
                                     placeholder="Enter Project Name"
                                 />
                             ) : (
-                                <span className={`text-xs font-bold truncate ${formData.projectName ? 'text-[#0F4C75]' : 'text-slate-400'}`}>
+                                <span className={`text-xs font-bold leading-tight ${formData.projectName ? 'text-[#0F4C75]' : 'text-slate-400'}`}>
                                     {formData.projectName || 'Project Title...'}
                                 </span>
                             )}
@@ -803,6 +821,7 @@ export function EstimateHeaderCard({
                     versions={versionHistory}
                     currentId={currentEstimateId}
                     onVersionClick={onVersionClick}
+                    onCloneVersion={onCloneVersion}
                 />
             </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Save, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload } from 'lucide-react';
 
 import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button, SearchableSelect } from '@/components/ui';
@@ -55,7 +55,9 @@ const formatPhoneNumber = (value: string) => {
 export default function ClientViewPage() {
     const router = useRouter();
     const params = useParams();
+    const searchParams = useSearchParams();
     const id = decodeURIComponent(params.id as string);
+    const fromPath = searchParams.get('from');
     const { success, error: toastError } = useToast();
 
     const [client, setClient] = useState<Client | null>(null);
@@ -572,9 +574,9 @@ export default function ClientViewPage() {
             <Header
                 leftContent={
                     <button
-                        onClick={() => router.push('/clients')}
+                        onClick={() => router.push(fromPath || '/clients')}
                         className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
-                        title="Back to List"
+                        title={fromPath ? "Go Back" : "Back to List"}
                     >
                         <ArrowLeft className="w-5 h-5" />
                     </button>
