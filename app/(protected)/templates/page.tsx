@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Pencil, Trash2, LayoutTemplate, Calendar, Copy } from 'lucide-react';
-import { Header, AddButton, SearchInput, Pagination, ConfirmModal, ToastContainer } from '@/components/ui';
+import { Header, AddButton, SearchInput, Pagination, ConfirmModal, ToastContainer, MyDropDown } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface Template {
@@ -16,6 +16,7 @@ interface Template {
     status?: string;
     createdAt?: string;
     updatedAt?: string;
+    services?: string[];
 }
 
 export default function TemplatesPage() {
@@ -33,6 +34,9 @@ export default function TemplatesPage() {
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [editingDescId, setEditingDescId] = useState<string | null>(null);
     const [tempDesc, setTempDesc] = useState('');
+    const [serviceOptions, setServiceOptions] = useState<any[]>([]);
+    const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+    const [isAddingService, setIsAddingService] = useState(false);
     const itemsPerPage = 15;
 
     const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
@@ -51,7 +55,26 @@ export default function TemplatesPage() {
 
     useEffect(() => {
         fetchTemplates();
+        loadServiceOptions();
     }, []);
+
+    const loadServiceOptions = async () => {
+        const result = await apiCall('getConstants');
+        if (result.success && result.result) {
+            const services = (result.result || [])
+                .filter((c: any) => {
+                    const type = (c.type || c.category || '').toLowerCase();
+                    return type === 'services' || type === 'service';
+                })
+                .map((c: any) => ({
+                    id: c._id,
+                    label: (c.description || c.value || 'Unnamed Service').trim(),
+                    value: (c.description || c.value || '').trim(),
+                    color: c.color
+                }));
+            setServiceOptions(services);
+        }
+    };
 
     const fetchTemplates = async () => {
         setLoading(true);
@@ -120,6 +143,53 @@ export default function TemplatesPage() {
         } else {
             toastError('Failed to clone template');
         }
+    };
+
+    const handleServiceUpdate = async (templateId: string, services: string[]) => {
+        const template = templates.find(t => t._id === templateId);
+        if (!template) return;
+
+        const result = await apiCall('updateTemplate', {
+            id: templateId,
+            item: { ...template, services }
+        });
+        if (result.success) {
+            setTemplates(prev => prev.map(t => t._id === templateId ? { ...t, services } : t));
+            success('Template services updated');
+        } else {
+            toastError('Failed to update services');
+        }
+    };
+
+    const handleAddService = async (templateId: string, search: string) => {
+        setIsAddingService(true);
+        const result = await apiCall('addConstant', {
+            item: {
+                type: 'Services',
+                description: search,
+                value: search
+            }
+        });
+
+        if (result.success && result.result) {
+            const newSvc = {
+                id: result.result._id,
+                label: search,
+                value: search
+            };
+            setServiceOptions(prev => [...prev, newSvc]);
+            
+            // Link it to the current template
+            const template = templates.find(t => t._id === templateId);
+            const currentSvcs = template?.services || [];
+            if (!currentSvcs.includes(search)) {
+                await handleServiceUpdate(templateId, [...currentSvcs, search]);
+            }
+            success(`Added and linked service: ${search}`);
+        } else {
+            toastError('Failed to add new service');
+        }
+        setIsAddingService(false);
     };
 
     // Pagination Logic
@@ -252,6 +322,82 @@ export default function TemplatesPage() {
                                                 {item.subTitleDescription || 'No description provided. Double click to add one.'}
                                             </p>
                                         )}
+
+                                        {/* Services Dropdown and Tags */}
+                                        <div className="mt-6">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    Associated Services
+                                                </label>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveDropdown(activeDropdown === item._id ? null : item._id);
+                                                    }}
+                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                    title="Manage Services"
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            <div className="relative">
+                                                <div className="flex flex-wrap gap-2 min-h-[40px] p-2 rounded-2xl bg-white/30 shadow-[inset_1px_1px_3px_#b8b9be,inset_-1px_-1px_3px_#ffffff]">
+                                                    {item.services && item.services.length > 0 ? (
+                                                        item.services.map((svcVal, idx) => {
+                                                            const svc = serviceOptions.find(o => o.value === svcVal);
+                                                            return (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white shadow-sm border border-slate-100 animate-in fade-in zoom-in-95 duration-200"
+                                                                >
+                                                                    {svc?.color && (
+                                                                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: svc.color }} />
+                                                                    )}
+                                                                    <span className="text-[10px] font-bold text-slate-600 truncate max-w-[100px]">
+                                                                        {svc?.label || svcVal}
+                                                                    </span>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            const newSvcs = (item.services || []).filter(s => s !== svcVal);
+                                                                            handleServiceUpdate(item._id, newSvcs);
+                                                                        }}
+                                                                        className="hover:text-red-500 transition-colors"
+                                                                    >
+                                                                        <Plus className="w-3 h-3 rotate-45" />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 italic flex items-center h-6 px-2">
+                                                            No services linked...
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <MyDropDown
+                                                    isOpen={activeDropdown === item._id}
+                                                    onClose={() => setActiveDropdown(null)}
+                                                    options={serviceOptions}
+                                                    selectedValues={item.services || []}
+                                                    onSelect={(val) => {
+                                                        const current = item.services || [];
+                                                        const exists = current.includes(val);
+                                                        const updated = exists 
+                                                            ? current.filter(s => s !== val)
+                                                            : [...current, val];
+                                                        handleServiceUpdate(item._id, updated);
+                                                    }}
+                                                    onAdd={(search) => handleAddService(item._id, search)}
+                                                    isAdding={isAddingService}
+                                                    placeholder="Search or add services..."
+                                                    width="w-64"
+                                                    className="left-0 translate-x-0"
+                                                />
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ))}

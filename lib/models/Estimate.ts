@@ -78,6 +78,14 @@ export interface IEstimate extends Document {
         pdfUrl?: string;
         htmlContent: string;
     };
+    // Store multiple proposals keyed by templateId
+    proposals?: Array<{
+        templateId: string;
+        templateVersion?: number;
+        generatedAt: Date;
+        pdfUrl?: string;
+        htmlContent: string;
+    }>;
     customVariables?: Record<string, string>;
 }
 
@@ -174,6 +182,14 @@ const EstimateSchema = new Schema({
         pdfUrl: { type: String },
         htmlContent: { type: String }
     },
+    // Array to store multiple proposals
+    proposals: [{
+        templateId: { type: String },
+        templateVersion: { type: Number },
+        generatedAt: { type: Date },
+        pdfUrl: { type: String },
+        htmlContent: { type: String }
+    }],
     customVariables: { type: Object, default: {} }
 }, {
     _id: false,

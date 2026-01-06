@@ -26,3 +26,4 @@ export {
 export { SaveButton, CancelButton } from './ActionButtons';
 export { LetterPageEditor } from './LetterPageEditor';
 export { MyDropDown } from './MyDropDown';
+export { MyTemplate } from './MyTemplate';

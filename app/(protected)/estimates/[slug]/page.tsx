@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor } from '@/components/ui';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check } from 'lucide-react';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor, MyDropDown, MyTemplate } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
@@ -97,6 +97,7 @@ interface Template {
     title: string;
     content?: string;
     pages?: { content: string }[];
+    services?: string[];
 }
 
 interface Estimate {
@@ -137,6 +138,13 @@ interface Estimate {
         pdfUrl?: string;
         htmlContent: string;
     };
+    proposals?: Array<{
+        templateId: string;
+        templateVersion?: number;
+        generatedAt: Date | string;
+        pdfUrl?: string;
+        htmlContent: string;
+    }>;
     [key: string]: unknown;
 }
 
@@ -325,6 +333,8 @@ export default function EstimateViewPage() {
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
     const [saveType, setSaveType] = useState<'update' | 'create'>('update');
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+    const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
+    const [isAddingProposalService, setIsAddingProposalService] = useState(false);
 
     // Refs
     const toastShownRef = useRef<string | null>(null);
@@ -588,13 +598,6 @@ export default function EstimateViewPage() {
         });
     }, [slug, loadEstimate, loadCatalogs]);
 
-    // Restore saved template selection when estimate loads
-    useEffect(() => {
-        if (estimate?.templateId && templates.length > 0) {
-            setSelectedTemplateId(String(estimate.templateId));
-        }
-    }, [estimate?.templateId, templates.length]);
-
     // Fetch client details when customerId changes
     useEffect(() => {
         if (!formData?.customerId) {
@@ -623,35 +626,25 @@ export default function EstimateViewPage() {
                                 id: client.contactFullName,
                                 label: client.contactFullName,
                                 value: client.contactFullName,
-                                email: client.email,
-                                phone: client.phone
+                                email: client.contactEmail,
+                                phone: client.contactPhone
                             });
                         }
                     }
                     setContactOptions(contacts);
 
                     // Addresses
-                    const addresses = (client.addresses || []).map((a: string) => ({
-                        id: a,
-                        label: a,
-                        value: a
-                    }));
-                    if (client.businessAddress && !addresses.find((a: any) => a.label === client.businessAddress)) {
-                        addresses.unshift({
-                            id: client.businessAddress,
-                            label: client.businessAddress,
-                            value: client.businessAddress
-                        });
-                    }
-                    setAddressOptions(addresses);
+                    const addrOpts = (client.address || []).map((a: string) => ({ id: a, label: a, value: a }));
+                    setAddressOptions(addrOpts);
                 }
-            } catch (err) {
-                console.error('Error fetching client details:', err);
+            } catch (e) {
+                console.error('Error fetching client details:', e);
             }
         };
 
         fetchClientDetails();
     }, [formData?.customerId]);
+
 
     // Initial Sort & Expand Logic
     useEffect(() => {
@@ -911,6 +904,56 @@ export default function EstimateViewPage() {
         }
         setGeneratingProposal(false);
     };
+
+    // Auto-select template based on services
+    useEffect(() => {
+        if (!templates.length || isEditingTemplate || !formData || !estimate) return;
+
+        const selectedServices = formData.services || [];
+        
+        // If no services selected, clear template and preview
+        if (selectedServices.length === 0) {
+            if (selectedTemplateId !== '' || previewHtml !== '') {
+                setSelectedTemplateId('');
+                setPreviewHtml('');
+            }
+            return;
+        }
+        
+        // Match logic:
+        // Find templates that have the highest number of matching services
+        const matches = templates.map(t => {
+            const templateSvcs = t.services || [];
+            const intersection = selectedServices.filter(s => templateSvcs.includes(s));
+            return { id: t._id, count: intersection.length };
+        }).filter(m => m.count > 0);
+
+        if (matches.length > 0) {
+            // Sort by count descending
+            matches.sort((a, b) => b.count - a.count);
+            const bestMatchId = matches[0].id;
+            
+            if (bestMatchId !== selectedTemplateId) {
+                setSelectedTemplateId(bestMatchId);
+                
+                // Check if we have a saved proposal for this template
+                const savedProposal = estimate.proposals?.find(p => p.templateId === bestMatchId);
+                
+                if (savedProposal && savedProposal.htmlContent) {
+                    // Use the saved proposal content
+                    setPreviewHtml(savedProposal.htmlContent);
+                } else {
+                    // Generate new proposal for this template
+                    handleGenerateProposal(bestMatchId);
+                }
+            }
+        } else {
+            // No matches at all - always clear template and show empty state
+            setSelectedTemplateId('');
+            setPreviewHtml('');
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData?.services, templates, isEditingTemplate]);
 
     const handleHeaderUpdate = async (field: string, value: string | number | boolean) => {
         if (!formData) return;
@@ -1425,27 +1468,78 @@ export default function EstimateViewPage() {
 
                     {/* Proposal Content Section */}
                     {templates.length > 0 && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6">
-                            <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between sticky top-0 z-20 shadow-sm rounded-t-xl transition-all">
-                                <div className="flex items-center gap-2">
-                                    <LayoutTemplate className="w-5 h-5 text-blue-600" />
-                                    <h3 className="font-semibold text-gray-800">Proposal</h3>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <TemplateSelector
-                                        templates={templates}
-                                        selectedId={selectedTemplateId}
-                                        onSelect={(newId) => {
-                                            setSelectedTemplateId(newId);
-                                            if (newId) {
-                                                handleGenerateProposal(newId);
-                                            } else {
-                                                setPreviewHtml('');
-                                            }
-                                        }}
-                                        disabled={isEditingTemplate}
-                                    />
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6 relative">
+                            {/* Sticky Proposal Header */}
+                            <div className="px-3 py-2 border-b border-gray-100 bg-white flex items-center justify-between sticky top-0 z-30 shadow-sm rounded-t-xl transition-all">
+                                <div className="flex items-center gap-3 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                        <LayoutTemplate className="w-4 h-4 text-blue-600" />
+                                        <h3 className="font-semibold text-gray-800 text-sm">Proposal</h3>
+                                    </div>
                                     
+                                    {/* Services Multi-Select using MyDropDown */}
+                                    <div className="relative flex-1 max-w-md">
+                                        <div 
+                                            className="flex items-center gap-1.5 px-2 py-1 border border-gray-200 rounded-lg bg-white cursor-pointer hover:border-blue-300 transition-colors min-h-[28px]"
+                                            onClick={() => setProposalServicesOpen(!proposalServicesOpen)}
+                                        >
+                                            {formData?.services && formData.services.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1 flex-1">
+                                                    {formData.services.map((service: string) => {
+                                                        const opt = serviceOptions.find(o => o.value === service);
+                                                        return (
+                                                            <span 
+                                                                key={service}
+                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded"
+                                                                style={{ 
+                                                                    backgroundColor: opt?.color ? `${opt.color}20` : '#e5e7eb',
+                                                                    color: opt?.color || '#374151'
+                                                                }}
+                                                            >
+                                                                {opt?.label || service}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleServicesChange(formData.services?.filter(s => s !== service) || []);
+                                                                    }}
+                                                                    className="hover:text-red-500 transition-colors"
+                                                                >
+                                                                    ×
+                                                                </button>
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-400">Select services...</span>
+                                            )}
+                                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${proposalServicesOpen ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        
+                                        <MyDropDown
+                                            isOpen={proposalServicesOpen}
+                                            onClose={() => setProposalServicesOpen(false)}
+                                            options={serviceOptions}
+                                            selectedValues={formData?.services || []}
+                                            onSelect={(value) => {
+                                                const currentServices = formData?.services || [];
+                                                if (currentServices.includes(value)) {
+                                                    handleServicesChange(currentServices.filter(s => s !== value));
+                                                } else {
+                                                    handleServicesChange([...currentServices, value]);
+                                                }
+                                            }}
+                                            placeholder="Search services..."
+                                            emptyMessage="No services available"
+                                            width="w-full"
+                                            className="!left-0 !translate-x-0"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                
+                                <div className="flex items-center gap-2">
                                     {!isEditingTemplate && (
                                         <Button
                                             onClick={async () => {
@@ -1455,6 +1549,7 @@ export default function EstimateViewPage() {
                                             variant="secondary"
                                             size="sm"
                                             disabled={generatingProposal || !selectedTemplateId}
+                                            className="text-xs px-2 py-1"
                                         >
                                             {generatingProposal ? 'Generating...' : 'Preview PDF'}
                                         </Button>
@@ -1471,21 +1566,39 @@ export default function EstimateViewPage() {
                                                         }}
                                                         variant="ghost"
                                                         size="sm"
+                                                        className="text-xs px-2 py-1"
                                                     >
                                                         Cancel
                                                     </Button>
-                                                    <Button
-                                                        onClick={() => {
-                                                            setSaveType('create');
-                                                            const currentTitle = templates.find(t => t._id === selectedTemplateId)?.title;
-                                                            setNewTemplateTitle(currentTitle ? `${currentTitle} (Copy)` : 'New Template');
-                                                            setShowSaveTemplateModal(true);
-                                                        }}
-                                                        variant="secondary"
-                                                        size="sm"
-                                                    >
-                                                        Save Copy
-                                                    </Button>
+                                                    {/* Show Create Template only if no template exactly matches all selected services */}
+                                                    {(() => {
+                                                        const selectedServices = formData?.services || [];
+                                                        const currentTemplate = templates.find(t => t._id === selectedTemplateId);
+                                                        const templateServices = currentTemplate?.services || [];
+                                                        
+                                                        // Check if template services exactly match selected services
+                                                        const isExactMatch = selectedServices.length > 0 && 
+                                                            selectedServices.length === templateServices.length &&
+                                                            selectedServices.every(s => templateServices.includes(s));
+                                                        
+                                                        if (isExactMatch) return null;
+                                                        
+                                                        return (
+                                                            <Button
+                                                                onClick={() => {
+                                                                    setSaveType('create');
+                                                                    const currentTitle = templates.find(t => t._id === selectedTemplateId)?.title;
+                                                                    setNewTemplateTitle(currentTitle ? `${currentTitle} (Copy)` : 'New Template');
+                                                                    setShowSaveTemplateModal(true);
+                                                                }}
+                                                                variant="secondary"
+                                                                size="sm"
+                                                                className="text-xs px-2 py-1"
+                                                            >
+                                                                Create Template
+                                                            </Button>
+                                                        );
+                                                    })()}
                                                     <Button
                                                         onClick={() => {
                                                             setSaveType('update');
@@ -1494,6 +1607,7 @@ export default function EstimateViewPage() {
                                                         variant="primary"
                                                         size="sm"
                                                         disabled={isSavingTemplate}
+                                                        className="text-xs px-2 py-1"
                                                     >
                                                         {isSavingTemplate ? 'Saving...' : 'Save Changes'}
                                                     </Button>
@@ -1513,6 +1627,7 @@ export default function EstimateViewPage() {
                                                     variant="secondary"
                                                     size="sm"
                                                     disabled={generatingProposal}
+                                                    className="text-xs px-2 py-1"
                                                 >
                                                     Edit Template
                                                 </Button>
@@ -1522,12 +1637,13 @@ export default function EstimateViewPage() {
                                 </div>
                             </div>
 
-                            {(previewHtml || (estimate?.proposal?.htmlContent)) ? (
-                                <div className="p-8 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
+                            {/* Show content based on: 1) has template selected with preview, 2) has services but no template = blank, 3) no services = empty state */}
+                            {selectedTemplateId && (previewHtml || estimate?.proposal?.htmlContent) ? (
+                                <div className="p-2 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
                                     {isEditingTemplate ? (
-                                        <div className="flex bg-[#e0e5ec] min-h-[800px] -m-8">
+                                        <div className="flex bg-[#e0e5ec] min-h-[800px] -m-2">
                                             {/* Main Editor - Using shared LetterPageEditor */}
-                                            <div className="flex-1 overflow-y-auto py-8 px-12">
+                                            <div className="flex-1 overflow-y-auto py-8 px-4">
                                                 <LetterPageEditor
                                                     pages={editorPages}
                                                     onPagesChange={setEditorPages}
@@ -1607,7 +1723,7 @@ export default function EstimateViewPage() {
                                                             </div>
                                                             <span className="text-[10px] text-slate-400">Letter Size (8.5" × 11")</span>
                                                         </div>
-                                                        {/* Letter page container - exact printable area */}
+                                                        {/* Letter page container - exact printable area with 0.5in margins */}
                                                         <div
                                                             className="bg-white shadow-lg mx-auto relative"
                                                             style={{
@@ -1615,7 +1731,7 @@ export default function EstimateViewPage() {
                                                                 height: '11in',
                                                                 minWidth: '8.5in',
                                                                 minHeight: '11in',
-                                                                padding: '0',
+                                                                padding: '0.5in',
                                                                 fontFamily: 'Arial, sans-serif',
                                                                 fontSize: '11pt',
                                                                 lineHeight: '1.15',
@@ -1625,7 +1741,7 @@ export default function EstimateViewPage() {
                                                         >
                                                             <div
                                                                 className="proposal-content ql-editor h-full"
-                                                                style={{ overflow: 'hidden' }}
+                                                                style={{ overflow: 'hidden', padding: 0 }}
                                                                 dangerouslySetInnerHTML={{ __html: pageHtml }}
                                                             />
                                                         </div>
@@ -1635,18 +1751,69 @@ export default function EstimateViewPage() {
                                         </div>
                                     )}
                                 </div>
+                            ) : formData?.services && formData.services.length > 0 ? (
+                                /* Services selected but no matching template - show blank editable template using MyTemplate */
+                                <div className="bg-[#e0e5ec] min-h-[700px] rounded-b-xl">
+                                    <div className="flex h-full items-start">
+                                        {/* Main Editor Area using MyTemplate */}
+                                        <div className="flex-1 overflow-y-auto py-6 px-2">
+                                            <MyTemplate
+                                                pages={editorPages}
+                                                onPagesChange={setEditorPages}
+                                                quillRefs={quillRefs}
+                                                showAddPage={true}
+                                                showDeletePage={true}
+                                                showPageIndicator={false}
+                                            />
+                                        </div>
+
+                                        {/* RIGHT SIDEBAR: Variables (Sticky, top-aligned) */}
+                                        <div className="w-64 flex-shrink-0 p-4 sticky top-0 self-start h-fit max-h-[calc(100vh-200px)] overflow-y-auto">
+                                            {/* System Variables Accordion */}
+                                            <div className="w-full rounded-[16px] p-4 mb-4" style={{ background: '#e0e5ec', boxShadow: '4px 4px 8px #b8b9be, -4px -4px 8px #ffffff' }}>
+                                                <div className="flex items-center gap-2 mb-3">
+                                                    <ChevronDown className="w-4 h-4 text-gray-500" />
+                                                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider select-none">System Variables</h4>
+                                                </div>
+                                                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                                                    {[
+                                                        { name: 'proposalNo', label: 'Proposal No.' },
+                                                        { name: 'date', label: 'Proposal Date' },
+                                                        { name: 'projectTitle', label: 'Project Name' },
+                                                        { name: 'jobAddress', label: 'Job Address' },
+                                                        { name: 'customerName', label: 'Client Name' },
+                                                        { name: 'contactPerson', label: 'Contact Person' },
+                                                        { name: 'contactAddress', label: 'Contact Address' },
+                                                        { name: 'contactPhone', label: 'Contact Phone' },
+                                                    ].map(v => (
+                                                        <button
+                                                            key={v.name}
+                                                            onClick={() => insertVariable(v.name)}
+                                                            className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 transition-all group flex items-center justify-between"
+                                                            style={{ background: '#e0e5ec', boxShadow: 'inset 2px 2px 4px #b8b9be, inset -2px -2px 4px #ffffff' }}
+                                                        >
+                                                            <span className="font-medium truncate">{v.label}</span>
+                                                            <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 flex-shrink-0" />
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             ) : (
+                                /* No services selected - show empty state */
                                 <div className="p-12 flex flex-col items-center justify-center text-center text-gray-400 bg-gray-50 min-h-[400px] rounded-b-xl">
                                     <div className="relative mb-6 group">
                                         <div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-20 duration-1000"></div>
                                         <div className="relative bg-white p-4 rounded-full shadow-sm border border-gray-100">
                                             <FileText className="w-12 h-12 text-blue-200 animate-pulse" />
-                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-400 rounded-full border-2 border-white animate-bounce"></div>
+                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full border-2 border-white animate-bounce"></div>
                                         </div>
                                     </div>
-                                    <h3 className="text-lg font-semibold text-gray-600 mb-2">Missing Proposal</h3>
+                                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Services Selected</h3>
                                     <p className="text-sm max-w-sm mx-auto text-gray-500">
-                                        Select a template from the dropdown above to generate a professional proposal instantly.
+                                        Select services above to automatically match and display the appropriate proposal template.
                                     </p>
                                 </div>
                             )}

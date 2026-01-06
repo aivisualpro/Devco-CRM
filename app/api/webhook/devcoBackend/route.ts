@@ -1635,14 +1635,30 @@ export async function POST(request: NextRequest) {
                 const estimateObj = estimate.toObject() as any;
                 estimateObj.customVariables = customVariables;
                 const html = resolveTemplateDocument(template, estimateObj, false);
-                estimate.proposal = {
+                
+                const proposalData = {
                     templateId: String(template._id),
                     templateVersion: template.version || 1,
                     generatedAt: new Date(),
                     htmlContent: html,
                     pdfUrl: ''
                 };
+                
+                // Save to single proposal field (for backwards compatibility)
+                estimate.proposal = proposalData;
                 estimate.templateId = String(template._id);
+                
+                // Also save to proposals array (upsert by templateId)
+                const proposals = (estimate as any).proposals || [];
+                const existingIdx = proposals.findIndex((p: any) => p.templateId === String(template._id));
+                if (existingIdx >= 0) {
+                    proposals[existingIdx] = proposalData;
+                } else {
+                    proposals.push(proposalData);
+                }
+                (estimate as any).proposals = proposals;
+                estimate.markModified('proposals');
+                
                 await estimate.save();
                 return NextResponse.json({ success: true, result: { html } });
             }
