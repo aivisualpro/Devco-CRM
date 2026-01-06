@@ -44,6 +44,12 @@ export default function QuickBooksPage() {
     const [projectStatusFilter, setProjectStatusFilter] = useState('In progress');
     const [customerFilter, setCustomerFilter] = useState('');
     const [endDateFilter, setEndDateFilter] = useState('All');
+    const [dateRangeFilter, setDateRangeFilter] = useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('qb_date_range_filter') || 'this_year';
+        }
+        return 'this_year';
+    });
 
     const tabs = [
         { id: 'overview', label: 'Overview' },
@@ -140,16 +146,49 @@ export default function QuickBooksPage() {
         }
     }, [selectedProject?.Id]);
 
+    // Persist date range filter to localStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('qb_date_range_filter', dateRangeFilter);
+        }
+    }, [dateRangeFilter]);
+
+    // Helper function to check if a date falls within the selected range
+    const isWithinDateRange = (dateString: string) => {
+        if (!dateString) return true;
+        const date = new Date(dateString);
+        const now = new Date();
+        
+        switch (dateRangeFilter) {
+            case 'last_year': {
+                const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
+                const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+                return date >= lastYearStart && date <= lastYearEnd;
+            }
+            case 'this_year': {
+                const thisYearStart = new Date(now.getFullYear(), 0, 1);
+                return date >= thisYearStart && date <= now;
+            }
+            case 'this_month': {
+                const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                return date >= thisMonthStart && date <= now;
+            }
+            case 'all':
+            default:
+                return true;
+        }
+    };
+
     const filteredProjects = projects.filter(project => {
         const matchesSearch = project.DisplayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                              project.FullyQualifiedName.toLowerCase().includes(searchQuery.toLowerCase());
         
         const matchesCustomer = !customerFilter || (project.CompanyName && project.CompanyName.toLowerCase().includes(customerFilter.toLowerCase()));
         
-        // Status filter is a bit tricky as QBO 'Active' doesn't map perfectly to 'In progress/Completed'
-        // For now we'll just check Active status if filter is 'All' or match the mock
+        // Apply date range filter based on project creation date
+        const matchesDateRange = isWithinDateRange(project.MetaData?.CreateTime);
         
-        return matchesSearch && matchesCustomer;
+        return matchesSearch && matchesCustomer && matchesDateRange;
     });
 
     const openInvoicesTotal = transactions
@@ -236,6 +275,23 @@ export default function QuickBooksPage() {
                                                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                                             </div>
                                         </div>
+
+                                        <div className="space-y-1.5 min-w-[140px]">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
+                                            <div className="relative group">
+                                                <select 
+                                                    value={dateRangeFilter}
+                                                    onChange={(e) => setDateRangeFilter(e.target.value)}
+                                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                >
+                                                    <option value="all">All Time</option>
+                                                    <option value="this_month">This Month</option>
+                                                    <option value="this_year">This Year</option>
+                                                    <option value="last_year">Last Year</option>
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                            </div>
+                                        </div>
                                     </div>
                                     <button 
                                         onClick={() => fetchProjects(true)}
@@ -254,7 +310,7 @@ export default function QuickBooksPage() {
                                             <DollarSign className="w-4 h-4 text-emerald-500" />
                                         </div>
                                         <div className="text-xl font-black text-slate-900">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(projects.reduce((acc, p) => acc + (p.income || 0), 0))}
+                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(filteredProjects.reduce((acc, p) => acc + (p.income || 0), 0))}
                                         </div>
                                         <div className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
                                             <ChevronDown className="w-3 h-3 rotate-180" /> +12.5%
@@ -267,7 +323,7 @@ export default function QuickBooksPage() {
                                             <Briefcase className="w-4 h-4 text-amber-500" />
                                         </div>
                                         <div className="text-xl font-black text-slate-900">
-                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(projects.reduce((acc, p) => acc + (p.cost || 0), 0))}
+                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(filteredProjects.reduce((acc, p) => acc + (p.cost || 0), 0))}
                                         </div>
                                         <div className="text-[10px] font-bold text-amber-600 flex items-center gap-1">
                                             <ChevronDown className="w-3 h-3 rotate-180" /> +4.2%
@@ -280,7 +336,7 @@ export default function QuickBooksPage() {
                                             <LayoutDashboard className="w-4 h-4 text-[#0F4C75]" />
                                         </div>
                                         <div className="text-xl font-black text-slate-900">
-                                            {projects.length > 0 ? Math.floor(projects.reduce((acc, p) => acc + (p.profitMargin || 0), 0) / projects.length) : 0}%
+                                            {filteredProjects.length > 0 ? Math.floor(filteredProjects.reduce((acc, p) => acc + (p.profitMargin || 0), 0) / filteredProjects.length) : 0}%
                                         </div>
                                         <div className="text-[10px] font-bold text-[#0F4C75] flex items-center gap-1">
                                             Healthy Margin
@@ -293,7 +349,7 @@ export default function QuickBooksPage() {
                                             <RefreshCw className="w-4 h-4 text-purple-500" />
                                         </div>
                                         <div className="text-xl font-black text-slate-900">
-                                            {projects.length}
+                                            {filteredProjects.length}
                                         </div>
                                         <div className="text-[10px] font-bold text-purple-600 flex items-center gap-1">
                                             Syncing
@@ -675,6 +731,23 @@ export default function QuickBooksPage() {
                                                         <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer">
                                                             <option>Payroll Expenses</option>
                                                             <option>Total Expenses</option>
+                                                        </select>
+                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-1 min-w-[140px]">
+                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
+                                                    <div className="relative group">
+                                                        <select 
+                                                            value={dateRangeFilter}
+                                                            onChange={(e) => setDateRangeFilter(e.target.value)}
+                                                            className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                        >
+                                                            <option value="all">All Time</option>
+                                                            <option value="this_month">This Month</option>
+                                                            <option value="this_year">This Year</option>
+                                                            <option value="last_year">Last Year</option>
                                                         </select>
                                                         <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                                                     </div>
