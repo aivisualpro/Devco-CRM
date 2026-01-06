@@ -1612,7 +1612,7 @@ export async function POST(request: NextRequest) {
             }
 
             case 'generateProposal': {
-                const { templateId, estimateId, customVariables = {} } = payload || {};
+                const { templateId, estimateId, customVariables = {}, estimateData = null } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
                 const [template, estimate] = await Promise.all([
                     Template.findById(templateId).lean(),
@@ -1620,6 +1620,16 @@ export async function POST(request: NextRequest) {
                 ]);
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // If estimateData is provided (unsaved changes from frontend), apply them
+                if (estimateData) {
+                    Object.keys(estimateData).forEach(key => {
+                        if (!['_id', '__v', 'createdAt', 'updatedAt'].includes(key)) {
+                            (estimate as any)[key] = estimateData[key];
+                        }
+                    });
+                }
+
                 (estimate as any).customVariables = customVariables;
                 estimate.markModified('customVariables');
                 const estimateObj = estimate.toObject() as any;

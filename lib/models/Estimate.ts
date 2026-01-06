@@ -144,6 +144,16 @@ const EstimateSchema = new Schema({
     prelimAmount: { type: String },
     billingTerms: { type: String },
     otherBillingTerms: { type: String },
+    
+    // Line Items
+    labor: { type: [Object], default: [] },
+    equipment: { type: [Object], default: [] },
+    material: { type: [Object], default: [] },
+    tools: { type: [Object], default: [] },
+    overhead: { type: [Object], default: [] },
+    subcontractor: { type: [Object], default: [] },
+    disposal: { type: [Object], default: [] },
+    miscellaneous: { type: [Object], default: [] },
 
 
     services: { type: [String], default: [] },

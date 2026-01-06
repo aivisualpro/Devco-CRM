@@ -811,10 +811,25 @@ export default function EstimateViewPage() {
             });
         }
 
+        const currentEstimate = {
+            ...estimate,
+            ...formData,
+            ...chartData,
+            labor: estimate.labor,
+            equipment: estimate.equipment,
+            material: estimate.material,
+            tools: estimate.tools,
+            overhead: estimate.overhead,
+            subcontractor: estimate.subcontractor,
+            disposal: estimate.disposal,
+            miscellaneous: estimate.miscellaneous
+        };
+
         const result = await apiCall('generateProposal', {
             templateId: tid,
             estimateId: estimate._id,
-            customVariables
+            customVariables,
+            estimateData: currentEstimate
         });
         if (result.success && result.result) {
             setPreviewHtml(result.result.html);
@@ -910,6 +925,9 @@ export default function EstimateViewPage() {
         processedData.estimateId = estimate._id;
         if (section.id === 'Labor') {
             processedData.labor = `${processedData.classification || ''}-${processedData.fringe || ''}`;
+            if (processedData.otPd === undefined || processedData.otPd === null) {
+                processedData.otPd = 2;
+            }
         }
         setEstimate(prev => {
             if (!prev) return null;
@@ -1085,6 +1103,20 @@ export default function EstimateViewPage() {
         }
     };
 
+    const handleAddService = async (name: string) => {
+        try {
+            const result = await apiCall('addConstant', { item: { type: 'services', description: name, value: name } });
+            if (result.success) {
+                success('Service added');
+                loadCatalogs(); // Refresh catalogs to get the new service
+                return result.result;
+            }
+        } catch (err) {
+            console.error('Error adding service:', err);
+            toastError('Failed to add service');
+        }
+    };
+
     // Loading state
     if (loading) {
         return (
@@ -1220,6 +1252,7 @@ export default function EstimateViewPage() {
                         certifiedPayrollOptions={certifiedPayrollOptions}
                         employeeOptions={employeeOptions}
                         onHeaderUpdate={handleHeaderUpdate}
+                        onAddService={handleAddService}
 
                         onVersionClick={(id) => {
                             const v = versionHistory.find(vh => vh._id === id);

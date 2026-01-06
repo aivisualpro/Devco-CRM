@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, PenSquare, FileSpreadsheet } from 'lucide-react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, PenSquare, FileSpreadsheet, Plus } from 'lucide-react';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { VersionTimeline } from './VersionTimeline';
@@ -74,8 +74,8 @@ interface EstimateHeaderCardProps {
     employeeOptions: { id: string; label: string; value: string; color?: string; profilePicture?: string }[];
 
     onHeaderUpdate: (field: string, value: string | number | boolean) => void;
-
     onVersionClick: (id: string) => void;
+    onAddService?: (name: string) => Promise<any>;
 }
 
 
@@ -96,7 +96,8 @@ export function EstimateHeaderCard({
     employeeOptions,
     onHeaderUpdate,
 
-    onVersionClick
+    onVersionClick,
+    onAddService
 }: EstimateHeaderCardProps) {
 
     const [isEditingCustomer, setIsEditingCustomer] = useState(false);
@@ -106,6 +107,8 @@ export function EstimateHeaderCard({
 
     const [isEditingProjectName, setIsEditingProjectName] = useState(false);
     const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | null>(null);
+    const [serviceSearch, setServiceSearch] = useState('');
+    const [isAddingService, setIsAddingService] = useState(false);
 
 
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -136,6 +139,25 @@ export function EstimateHeaderCard({
     };
 
     const isServiceActive = (value: string) => (formData.services || []).includes(value);
+
+    // Filter services based on search
+    const filteredServices = serviceOptions.filter(opt =>
+        opt.label.toLowerCase().includes(serviceSearch.toLowerCase())
+    );
+
+    const handleAddNewService = async () => {
+        if (!serviceSearch.trim() || !onAddService) return;
+        setIsAddingService(true);
+        try {
+            const newService = await onAddService(serviceSearch.trim());
+            if (newService) {
+                toggleService(newService.description || newService.value);
+                setServiceSearch('');
+            }
+        } finally {
+            setIsAddingService(false);
+        }
+    };
 
     return (
         <div className="bg-[#eef2f6] rounded-[40px] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
@@ -503,8 +525,25 @@ export function EstimateHeaderCard({
                                 {/* Services Dropdown */}
                                 {activeDropdown === 'services' && (
                                     <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 p-4 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40">
+                                        <div className="mb-3">
+                                            <div className="relative shadow-[inset_2px_2px_4px_#d1d9e6,inset_-2px_-2px_4px_#ffffff] rounded-xl p-1 bg-[#eef2f6]">
+                                                <input
+                                                    type="text"
+                                                    value={serviceSearch}
+                                                    onChange={e => setServiceSearch(e.target.value)}
+                                                    placeholder="Search or add..."
+                                                    className="w-full bg-transparent text-sm font-medium text-slate-700 h-8 px-3 outline-none"
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && serviceSearch.trim() && !filteredServices.find(s => s.label.toLowerCase() === serviceSearch.toLowerCase())) {
+                                                            handleAddNewService();
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+
                                         <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                                            {serviceOptions.map((opt) => {
+                                            {filteredServices.map((opt) => {
                                                 const isActive = isServiceActive(opt.value);
                                                 return (
                                                     <div
@@ -533,7 +572,25 @@ export function EstimateHeaderCard({
                                                     </div>
                                                 );
                                             })}
-                                            {serviceOptions.length === 0 && (
+
+                                            {serviceSearch && !filteredServices.find(s => s.label.toLowerCase() === serviceSearch.toLowerCase()) && (
+                                                <div
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleAddNewService();
+                                                    }}
+                                                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/50 border border-dashed border-slate-300 transition-all text-blue-600"
+                                                >
+                                                    <div className="w-4 h-4 rounded border border-blue-400 flex items-center justify-center">
+                                                        <Plus className="w-3 h-3" />
+                                                    </div>
+                                                    <span className="text-xs font-bold uppercase tracking-wider">
+                                                        {isAddingService ? 'Adding...' : `Add "${serviceSearch}"`}
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {filteredServices.length === 0 && !serviceSearch && (
                                                 <div className="text-xs text-slate-400 text-center py-2">No services available</div>
                                             )}
                                         </div>

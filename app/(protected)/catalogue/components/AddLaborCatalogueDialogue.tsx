@@ -42,6 +42,7 @@ export function AddLaborCatalogueDialogue({
                     classification: '-',
                     subClassification: '-',
                     fringe: '-',
+                    otPd: 2,
                     wCompPercent: 12,
                     payrollTaxesPercent: 16
                 });

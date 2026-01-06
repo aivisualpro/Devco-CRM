@@ -111,7 +111,7 @@ export function AddLaborEstimateDialogue({
         for (const item of Array.from(selectedItems)) {
             if (existingIdentifiers.has(getIdentifier(item))) continue;
             const { _id, ...itemData } = item;
-            await onSave(section, { ...itemData, quantity: 1, days: item.days || 1, hours: item.hours || 8 }, false);
+            await onSave(section, { ...itemData, quantity: 1, days: item.days || 1, hours: item.hours || 8, otPd: item.otPd || 2 }, false);
         }
         setSaving(false);
         onClose();
