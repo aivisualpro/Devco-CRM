@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Plus, X, Save, ChevronDown, ChevronRight, ArrowLeft, FileText } from 'lucide-react';
+import { Plus, X, Save, ChevronDown, ChevronRight, ArrowLeft, FileText, Check, Loader2 } from 'lucide-react';
 import { Header, ToastContainer, Badge, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import 'react-quill-new/dist/quill.snow.css';
@@ -15,7 +15,7 @@ const ReactQuill = dynamic(
         const Quill = (mod.default as any).Quill || (mod as any).Quill;
         if (Quill) {
             const Size = Quill.import('attributors/style/size') as any;
-            Size.whitelist = ['8px', '9px', '10px', '11px', '12px'];
+            Size.whitelist = ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'];
             Quill.register(Size, true);
         }
         return mod.default;
@@ -118,7 +118,6 @@ export default function TemplateEditorPage() {
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [formData, setFormData] = useState<Partial<Template>>({ title: '', subTitleDescription: '', status: 'draft' });
     const [pages, setPages] = useState<{ content: string }[]>([{ content: '' }]);
-    const [searchQuery, setSearchQuery] = useState('');
 
     const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
         try {
@@ -285,7 +284,7 @@ export default function TemplateEditorPage() {
     const modules = {
         toolbar: [
             [{ 'header': [1, 2, 3, false] }],
-            [{ 'size': ['8px', '9px', '10px', '11px', '12px'] }],
+            [{ 'size': ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'] }],
             ['bold', 'italic', 'underline', 'strike'],
             [{ 'color': [] }, { 'background': [] }],
             [{ 'align': [] }],
@@ -312,75 +311,26 @@ export default function TemplateEditorPage() {
         <div className="flex flex-col h-full bg-[#e0e5ec]">
             <div className="flex-none">
                 <Header
-                    centerContent={
-                        <div className="flex items-center gap-3">
+                    rightContent={
+                        <div className="flex items-center gap-2">
                             <input
                                 type="text"
                                 value={String(formData.title || '')}
                                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                 placeholder="Untitled Template"
-                                className="text-lg font-bold text-gray-700 border-none focus:ring-0 p-0 placeholder-gray-400 bg-transparent w-64 text-center"
+                                className="text-sm font-semibold text-gray-700 border-none focus:ring-0 p-0 placeholder-gray-400 bg-transparent w-48 text-right"
                             />
                             {saving ? (
-                                <span className="text-sm text-gray-400 flex items-center gap-2">
-                                    <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
-                                    Saving...
-                                </span>
+                                <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
                             ) : lastSaved ? (
-                                <span className="text-sm text-gray-400">Saved</span>
+                                <Check className="w-3.5 h-3.5 text-green-500" />
                             ) : null}
-                        </div>
-                    }
-                    rightContent={
-                        <div className="flex items-center gap-3">
-                            <SearchInput
-                                placeholder="Search in template..."
-                                value={searchQuery}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setSearchQuery(val);
-                                    // Search and highlight in Quill editors
-                                    if (val.length >= 2) {
-                                        quillRefs.current.forEach((ref) => {
-                                            if (ref) {
-                                                const quill = ref.getEditor();
-                                                const text = quill.getText();
-                                                const searchLower = val.toLowerCase();
-                                                const textLower = text.toLowerCase();
-                                                const index = textLower.indexOf(searchLower);
-
-                                                // Remove previous highlights
-                                                quill.formatText(0, text.length, 'background', false);
-
-                                                if (index !== -1) {
-                                                    // Highlight found text
-                                                    quill.formatText(index, val.length, 'background', '#ffeb3b');
-                                                    // Scroll the page container into view
-                                                    const container = ref.editor?.container?.parentElement;
-                                                    if (container) {
-                                                        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                    }
-                                                }
-                                            }
-                                        });
-                                    } else {
-                                        // Clear highlights when search is empty
-                                        quillRefs.current.forEach((ref) => {
-                                            if (ref) {
-                                                const quill = ref.getEditor();
-                                                const text = quill.getText();
-                                                quill.formatText(0, text.length, 'background', false);
-                                            }
-                                        });
-                                    }
-                                }}
-                            />
                             <button
                                 onClick={handleBack}
-                                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all active:scale-95"
-                                style={{ background: '#e0e5ec', boxShadow: '3px 3px 6px #b8b9be, -3px -3px 6px #ffffff' }}
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all active:scale-95 ml-2"
+                                style={{ background: '#e0e5ec', boxShadow: '2px 2px 4px #b8b9be, -2px -2px 4px #ffffff' }}
                             >
-                                <ArrowLeft className="w-4 h-4" />
+                                <ArrowLeft className="w-3.5 h-3.5" />
                             </button>
                         </div>
                     }
@@ -392,27 +342,31 @@ export default function TemplateEditorPage() {
                 /* Size picker labels */
                 .ql-snow .ql-picker.ql-size .ql-picker-label::before,
                 .ql-snow .ql-picker.ql-size .ql-picker-item::before {
-                    content: 'Size';
+                    content: '11pt';
                 }
-                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="8px"]::before,
-                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8px"]::before {
-                    content: '8px';
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="8pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8pt"]::before {
+                    content: '8pt';
                 }
-                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="9px"]::before,
-                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="9px"]::before {
-                    content: '9px';
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="9pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="9pt"]::before {
+                    content: '9pt';
                 }
-                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="10px"]::before,
-                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10px"]::before {
-                    content: '10px';
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="10pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10pt"]::before {
+                    content: '10pt';
                 }
-                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="11px"]::before,
-                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="11px"]::before {
-                    content: '11px';
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="11pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="11pt"]::before {
+                    content: '11pt';
                 }
-                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12px"]::before,
-                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12px"]::before {
-                    content: '12px';
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12pt"]::before {
+                    content: '12pt';
+                }
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14pt"]::before {
+                    content: '14pt';
                 }
                 
                 /* Clean toolbar styling - bigger icons */
@@ -515,12 +469,15 @@ export default function TemplateEditorPage() {
                     background: #f3f4f6 !important;
                 }
                 
-                /* Editor content area - 0.5 inch margins */
+                /* Editor content area - NO margins, user adds spacing */
                 .ql-container.ql-snow .ql-editor {
-                    padding: 32px 48px !important;
-                    font-size: 12px !important;
-                    line-height: 1.6 !important;
-                    min-height: 600px !important;
+                    padding: 0 !important;
+                    font-size: 11pt !important;
+                    line-height: 1.4 !important;
+                    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+                    min-height: calc(11in - 50px) !important;
+                    max-height: calc(11in - 50px) !important;
+                    overflow: hidden !important;
                 }
                 
                 /* Make bullets more visible */
@@ -634,36 +591,50 @@ export default function TemplateEditorPage() {
                 <div className="flex-1 overflow-y-auto py-6 px-8">
 
                     {/* All Pages - Vertical Stack */}
-                    <div className="flex flex-col gap-8">
+                    <div className="flex flex-col gap-12 items-center origin-top-center pb-20" style={{ transform: 'scale(1.25)', transformOrigin: 'top center' }}>
                         {pages.map((page, index) => (
-                            <div key={index} className="relative">
-                                {/* Delete Page Button (only for page 2+) */}
+                            <div key={index} className="relative flex flex-col items-center">
+                                {/* Page Indicator (Subtle) */}
+                                <div className="absolute -left-12 top-2 select-none">
+                                    <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest vertical-text">
+                                        P{index + 1}
+                                    </span>
+                                </div>
+
                                 {index > 0 && (
                                     <button
                                         onClick={() => handleRemovePage(index)}
-                                        className="absolute right-4 top-4 z-20 w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all active:scale-95"
+                                        className="absolute -right-10 top-2 p-2 text-gray-300 hover:text-red-500 transition-colors z-20"
+                                        title="Delete Page"
                                     >
-                                        <X className="w-4 h-4" />
+                                        <X className="w-5 h-5" />
                                     </button>
                                 )}
 
-                                {/* Page Editor - Full Width */}
-                                <div
-                                    className="rounded-[16px] overflow-hidden flex flex-col"
-                                    style={{
-                                        background: '#ffffff',
-                                        boxShadow: '0 4px 20px rgba(0,0,0,0.08)'
-                                    }}
-                                >
-                                    <ReactQuill
-                                        ref={(el: any) => { quillRefs.current[index] = el; }}
-                                        theme="snow"
-                                        value={page.content}
-                                        onChange={(val: string) => handlePageContentChange(index, val)}
-                                        modules={modules}
-                                        className="flex-1 flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-toolbar]:sticky [&_.ql-toolbar]:top-0 [&_.ql-toolbar]:z-10 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:rounded-t-[16px] [&_.ql-editor]:p-8 [&_.ql-editor]:text-[12px] [&_.ql-editor]:leading-relaxed [&_.ql-editor]:min-h-[600px] [&_.ql-editor]:font-sans"
-                                    />
-                                </div>
+                                {/* Page Container - Exact Letter Size */}
+                                    <div
+                                        className="bg-white relative flex-shrink-0 flex flex-col"
+                                        style={{
+                                            width: '8.5in',
+                                            height: 'calc(11in + 38px)',
+                                            minWidth: '8.5in',
+                                            minHeight: 'calc(11in + 38px)',
+                                            boxShadow: '0 10px 30px rgba(0,0,0,0.1), 0 1px 8px rgba(0,0,0,0.05)',
+                                            borderRadius: '2px',
+                                            overflow: 'hidden'
+                                        }}
+                                    >
+                                        <ReactQuill
+                                            ref={(el: any) => { quillRefs.current[index] = el; }}
+                                            theme="snow"
+                                            value={page.content}
+                                            onChange={(val: string) => handlePageContentChange(index, val)}
+                                            modules={modules}
+                                            className="h-full flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-container]:overflow-hidden [&_.ql-toolbar]:flex-shrink-0 [&_.ql-toolbar]:border-none [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-slate-100"
+                                            style={{ height: '100%' }}
+                                        />
+                                    </div>
+
                             </div>
                         ))}
 
@@ -739,6 +710,175 @@ export default function TemplateEditorPage() {
                     </SidebarAccordion>
                 </div>
             </div>
+
+            {/* Global styles for Quill paragraph spacing */}
+            <style jsx global>{`
+                .ql-editor p {
+                    margin-bottom: 0 !important;
+                    padding-bottom: 0 !important;
+                }
+                .ql-editor {
+                    padding: 0 !important;
+                    font-family: Arial, sans-serif !important;
+                    line-height: 1.15 !important;
+                }
+                /* --- ULTRA-PREMIUM TOOLBAR --- */
+                .ql-toolbar.ql-snow {
+                    position: sticky !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    z-index: 100 !important;
+                    background: #ffffff !important;
+                    height: 44px !important; /* Fixed height for single row */
+                    display: flex !important;
+                    flex-wrap: nowrap !important; /* Force single row */
+                    align-items: center !important;
+                    padding: 0 8px !important;
+                    border: none !important;
+                    border-bottom: 1px solid #e2e8f0 !important;
+                    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02) !important;
+                    gap: 2px !important;
+                    white-space: nowrap !important;
+                }
+
+                /* Hide Scrollbars */
+                .ql-toolbar.ql-snow::-webkit-scrollbar { display: none; }
+                
+                /* Compact Groups */
+                .ql-toolbar.ql-snow .ql-formats {
+                    display: flex !important;
+                    align-items: center !important;
+                    margin-right: 8px !important;
+                    padding-right: 8px !important;
+                    border-right: 1px solid #f1f5f9 !important;
+                    gap: 2px !important;
+                }
+                .ql-toolbar.ql-snow .ql-formats:last-child {
+                    border-right: none !important;
+                    margin-right: 0 !important;
+                }
+
+                /* Buttons */
+                .ql-toolbar.ql-snow button {
+                    width: 28px !important;
+                    height: 28px !important;
+                    padding: 4px !important;
+                    border-radius: 4px !important;
+                    color: #64748b !important;
+                    transition: all 0.15s ease !important;
+                }
+                .ql-toolbar.ql-snow button:hover {
+                    background-color: #f1f5f9 !important;
+                    color: #0f172a !important;
+                }
+                .ql-toolbar.ql-snow button.ql-active {
+                    background-color: #eff6ff !important;
+                    color: #2563eb !important;
+                }
+                
+                /* Icon SVG tweaks */
+                .ql-toolbar.ql-snow .ql-stroke {
+                    stroke-width: 2 !important;
+                    stroke: currentColor !important;
+                }
+                .ql-toolbar.ql-snow .ql-fill {
+                    fill: currentColor !important;
+                }
+
+                /* Compact Pickers (Dropdowns) */
+                .ql-toolbar.ql-snow .ql-picker {
+                    height: 28px !important;
+                    display: flex !important;
+                    align-items: center !important;
+                }
+                .ql-toolbar.ql-snow .ql-picker-label {
+                    padding: 0 8px !important;
+                    border: 1px solid transparent !important;
+                    border-radius: 4px !important;
+                    font-size: 11px !important;
+                    font-weight: 600 !important;
+                    color: #475569 !important;
+                    height: 100% !important;
+                    display: flex !important;
+                    align-items: center !important;
+                }
+                .ql-toolbar.ql-snow .ql-picker-label:hover {
+                    background-color: #f8fafc !important;
+                    border-color: #e2e8f0 !important;
+                }
+                
+                /* Picker Widths */
+                .ql-toolbar.ql-snow .ql-picker.ql-header { width: 85px !important; }
+                .ql-toolbar.ql-snow .ql-picker.ql-size { width: 60px !important; }
+                
+                /* Editor Content */
+                .ql-container.ql-snow {
+                    border: none !important;
+                    background: white !important;
+                }
+                /* Force Margin on Content */
+                .ql-container.ql-snow .ql-editor {
+                    padding: 48px !important; /* 0.5 inches */
+                    width: 100% !important;
+                    box-sizing: border-box !important;
+                    font-family: Arial, sans-serif !important;
+                    font-size: 11pt !important;
+                    line-height: 1.15 !important;
+                    min-height: 11in !important;
+                    overflow-x: hidden !important;
+                }
+
+                /* Ensure tables and content respect the margin */
+                .ql-editor > * {
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+                .ql-editor table {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    table-layout: fixed !important; /* Prevents cell expansion */
+                }
+                .ql-editor img {
+                    max-width: 100% !important;
+                    height: auto !important;
+                }
+
+                /* Table Cell Styling */
+                .ql-editor td, .ql-editor th {
+                    padding: 3px 6px !important;
+                    border-color: #cbd5e1 !important;
+                    word-wrap: break-word !important; /* Prevent text overflow */
+                }
+
+                /* Custom Font Sizes */
+                .ql-editor .ql-size-8pt { font-size: 8pt !important; }
+                .ql-editor .ql-size-9pt { font-size: 9pt !important; }
+                .ql-editor .ql-size-10pt { font-size: 10pt !important; }
+                /* 11pt is default, but explicit class helps */
+                .ql-editor .ql-size-11pt { font-size: 11pt !important; } 
+                .ql-editor .ql-size-12pt { font-size: 12pt !important; }
+                .ql-editor .ql-size-14pt { font-size: 14pt !important; }
+                
+                /* Picker Label Overrides for Sizes */
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="8pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="8pt"]::before { content: '8pt'; }
+                
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="9pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="9pt"]::before { content: '9pt'; }
+                
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="10pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="10pt"]::before { content: '10pt'; }
+                
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="11pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="11pt"]::before { content: '11pt'; }
+                
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="12pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="12pt"]::before { content: '12pt'; }
+                
+                .ql-snow .ql-picker.ql-size .ql-picker-label[data-value="14pt"]::before,
+                .ql-snow .ql-picker.ql-size .ql-picker-item[data-value="14pt"]::before { content: '14pt'; }
+            `}</style>
 
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </div>

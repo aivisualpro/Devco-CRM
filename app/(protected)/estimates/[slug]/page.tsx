@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal } from '@/components/ui';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
@@ -16,7 +16,8 @@ import {
     AccordionSection,
     LineItemsTable,
     AddItemModal,
-    LaborCalculationModal
+    LaborCalculationModal,
+    TemplateSelector
 } from './components';
 import {
     getLaborBreakdown,
@@ -71,15 +72,16 @@ const LINE_ITEM_VARIABLES = [
 ];
 
 // Neumorphic Sidebar Accordion
-function SidebarAccordion({ title, children, defaultOpen = false }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) {
+function SidebarAccordion({ title, children, defaultOpen = false, rightAction }: { title: string, children: React.ReactNode, defaultOpen?: boolean, rightAction?: React.ReactNode }) {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
-        <div className="w-full rounded-[16px] p-4 mb-4 bg-gray-100 shadow-sm border border-gray-200">
+        <div className="w-full rounded-[16px] p-4 mb-4" style={{ background: '#e0e5ec', boxShadow: '4px 4px 8px #b8b9be, -4px -4px 8px #ffffff' }}>
             <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
                 <div className="flex items-center gap-2">
-                    {isOpen ? <ChevronsUp className="w-4 h-4 text-gray-500" /> : <ChevronsDown className="w-4 h-4 text-gray-500" />}
+                    {isOpen ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
                     <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider select-none">{title}</h4>
                 </div>
+                {rightAction && <div onClick={(e) => e.stopPropagation()}>{rightAction}</div>}
             </div>
             {isOpen && <div className="mt-3">{children}</div>}
         </div>
@@ -249,7 +251,7 @@ export default function EstimateViewPage() {
     const quillRefs = useRef<any[]>([]);
     
     // Template Editing State
-    const [editorPages, setEditorPages] = useState<string[]>(['']);
+    const [editorPages, setEditorPages] = useState<{ content: string }[]>([{ content: '' }]);
 
     // Insert variable into Quill editor
     const insertVariable = (variableName: string) => {
@@ -704,8 +706,8 @@ export default function EstimateViewPage() {
         const action = saveType === 'create' ? 'addTemplate' : 'updateTemplate';
         const payload: any = {};
         
-        const pagesToSave = editorPages.map(c => ({ content: c }));
-        const contentToSave = editorPages[0] || '';
+        const pagesToSave = editorPages;
+        const contentToSave = editorPages[0]?.content || '';
 
         if (saveType === 'create') {
             payload.item = {
@@ -1265,10 +1267,10 @@ export default function EstimateViewPage() {
                                     <h3 className="font-semibold text-gray-800">Proposal</h3>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <select
-                                        value={selectedTemplateId}
-                                        onChange={(e) => {
-                                            const newId = e.target.value;
+                                    <TemplateSelector
+                                        templates={templates}
+                                        selectedId={selectedTemplateId}
+                                        onSelect={(newId) => {
                                             setSelectedTemplateId(newId);
                                             if (newId) {
                                                 handleGenerateProposal(newId);
@@ -1277,13 +1279,7 @@ export default function EstimateViewPage() {
                                             }
                                         }}
                                         disabled={isEditingTemplate}
-                                        className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
-                                    >
-                                        <option value="">Select Template...</option>
-                                        {templates.map(t => (
-                                            <option key={t._id} value={t._id}>{t.title}</option>
-                                        ))}
-                                    </select>
+                                    />
                                     
                                     {!isEditingTemplate && (
                                         <Button
@@ -1343,9 +1339,9 @@ export default function EstimateViewPage() {
                                                         const tmpl = templates.find(t => t._id === selectedTemplateId);
                                                         // Load pages if available, otherwise fallback to content or empty
                                                         if (tmpl?.pages && tmpl.pages.length > 0) {
-                                                            setEditorPages(tmpl.pages.map(p => p.content));
+                                                            setEditorPages(tmpl.pages);
                                                         } else {
-                                                            setEditorPages([tmpl?.content || '']);
+                                                            setEditorPages([{ content: tmpl?.content || '' }]);
                                                         }
                                                         setIsEditingTemplate(true);
                                                     }}
@@ -1364,65 +1360,21 @@ export default function EstimateViewPage() {
                             {(previewHtml || (estimate?.proposal?.htmlContent)) ? (
                                 <div className="p-8 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
                                     {isEditingTemplate ? (
-                                        <div className="flex gap-6 items-start max-w-[1400px] mx-auto">
-                                            {/* Main Editor */}
-                                            <div className="flex-1 flex flex-col gap-6">
-                                                {editorPages.map((pageContent, idx) => (
-                                                    <div key={idx} className="bg-white shadow-lg rounded-xl overflow-hidden proposal-content p-4 relative group/page">
-                                                        {idx > 0 && (
-                                                            <div className="absolute top-2 right-2 z-20">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const newPages = editorPages.filter((_, i) => i !== idx);
-                                                                        setEditorPages(newPages);
-                                                                    }}
-                                                                    className="p-2 text-gray-400 hover:text-red-500 bg-white/50 hover:bg-red-50 rounded-full transition-colors"
-                                                                    title="Delete Page"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                        <div className="mb-2 px-2 text-xs font-bold text-gray-400 uppercase tracking-widest select-none flex justify-between items-center">
-                                                            <span>Page {idx + 1}</span>
-                                                        </div>
-                                                        <ReactQuill 
-                                                            ref={(el: any) => { quillRefs.current[idx] = el; }}
-                                                            theme="snow"
-                                                            value={pageContent}
-                                                            onChange={(val: string) => {
-                                                                const newPages = [...editorPages];
-                                                                newPages[idx] = val;
-                                                                setEditorPages(newPages);
-                                                            }}
-                                                            className="min-h-[800px] flex flex-col [&_.ql-editor]:min-h-[800px]"
-                                                            modules={{
-                                                                toolbar: [
-                                                                    [{ 'header': [1, 2, 3, false] }],
-                                                                    ['bold', 'italic', 'underline', 'strike'],
-                                                                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                                                                    [{ 'color': [] }, { 'background': [] }],
-                                                                    [{ 'align': [] }],
-                                                                    ['clean'], 
-                                                                    ['code-block']
-                                                                ]
-                                                            }}
-                                                        />
-                                                    </div>
-                                                ))}
-
-                                                <button
-                                                    onClick={() => setEditorPages([...editorPages, ''])}
-                                                    className="w-full py-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-400 hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all flex items-center justify-center gap-2 font-medium"
-                                                >
-                                                    <Plus className="w-5 h-5" />
-                                                    Add New Page
-                                                </button>
+                                        <div className="flex bg-[#e0e5ec] min-h-[800px] -m-8">
+                                            {/* Main Editor - Using shared LetterPageEditor */}
+                                            <div className="flex-1 overflow-y-auto py-8 px-12">
+                                                <LetterPageEditor
+                                                    pages={editorPages}
+                                                    onPagesChange={setEditorPages}
+                                                    quillRefs={quillRefs}
+                                                    showAddPage={true}
+                                                    showDeletePage={true}
+                                                />
                                             </div>
 
                                             {/* Variables Sidebar */}
-                                            <div className="w-80 flex-shrink-0 sticky top-4 h-[calc(100vh-200px)] overflow-y-auto pr-2">
-                                                <div className="mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Insert Variables</div>
+                                            <div className="w-80 flex-shrink-0 p-6 sticky top-0 h-[calc(100vh-200px)] overflow-y-auto">
+                                                <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Insert Variables</div>
                                                 
                                                 <SidebarAccordion title="System Variables" defaultOpen={true}>
                                                     <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
@@ -1430,7 +1382,7 @@ export default function EstimateViewPage() {
                                                             <button 
                                                                 key={v.name}
                                                                 onClick={() => insertVariable(v.name)}
-                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-gray-100 flex items-center justify-between group"
+                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
                                                             >
                                                                 <span className="truncate">{v.label}</span>
                                                                 <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
@@ -1445,7 +1397,7 @@ export default function EstimateViewPage() {
                                                             <button 
                                                                 key={v.name}
                                                                 onClick={() => insertVariable(v.name)}
-                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-gray-100 flex items-center justify-between group"
+                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
                                                             >
                                                                 <span>{v.label}</span>
                                                                 <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
@@ -1460,7 +1412,7 @@ export default function EstimateViewPage() {
                                                             <button 
                                                                 key={v.name}
                                                                 onClick={() => insertVariable(v.name)}
-                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 bg-white hover:bg-blue-50 transition-all border border-gray-100 flex items-center justify-between group"
+                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
                                                             >
                                                                 <div className="flex flex-col items-start gap-1">
                                                                     <span>{v.label}</span>
@@ -1483,18 +1435,35 @@ export default function EstimateViewPage() {
 
                                                 return pageContentArray.map((pageHtml, idx) => (
                                                     <div key={idx} className="flex flex-col items-center w-full">
-                                                        {idx > 0 && (
-                                                            <div className="w-full max-w-[850px] flex items-center gap-4 py-6 select-none opacity-40">
-                                                                <div className="h-px bg-slate-400 flex-1"></div>
-                                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Page {idx + 1}</span>
-                                                                <div className="h-px bg-slate-400 flex-1"></div>
+                                                        {/* Page number indicator */}
+                                                        <div className="w-[8.5in] flex items-center justify-between py-3 select-none">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">Page {idx + 1}</span>
                                                             </div>
-                                                        )}
+                                                            <span className="text-[10px] text-slate-400">Letter Size (8.5" × 11")</span>
+                                                        </div>
+                                                        {/* Letter page container - exact printable area */}
                                                         <div
-                                                            className="bg-white shadow-lg mx-auto max-w-6xl min-h-[800px] proposal-content ql-editor p-12"
-                                                            style={{ fontFamily: 'Inter, sans-serif' }}
-                                                            dangerouslySetInnerHTML={{ __html: pageHtml }}
-                                                        />
+                                                            className="bg-white shadow-lg mx-auto relative"
+                                                            style={{
+                                                                width: '8.5in',
+                                                                height: '11in',
+                                                                minWidth: '8.5in',
+                                                                minHeight: '11in',
+                                                                padding: '0',
+                                                                fontFamily: 'Arial, sans-serif',
+                                                                fontSize: '11pt',
+                                                                lineHeight: '1.15',
+                                                                overflow: 'hidden',
+                                                                boxSizing: 'border-box'
+                                                            }}
+                                                        >
+                                                            <div
+                                                                className="proposal-content ql-editor h-full"
+                                                                style={{ overflow: 'hidden' }}
+                                                                dangerouslySetInnerHTML={{ __html: pageHtml }}
+                                                            />
+                                                        </div>
                                                     </div>
                                                 ));
                                             })()}
@@ -1568,137 +1537,54 @@ export default function EstimateViewPage() {
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => {
-                                        // Use a hidden iframe to avoid opening a new tab (about:blank)
-                                        const iframe = document.createElement('iframe');
-                                        iframe.style.display = 'none';
-                                        iframe.style.position = 'fixed';
-                                        iframe.style.right = '0';
-                                        iframe.style.bottom = '0';
-                                        iframe.style.width = '0';
-                                        iframe.style.height = '0';
-                                        iframe.style.border = '0';
-                                        document.body.appendChild(iframe);
+                                    onClick={async () => {
+                                        try {
+                                            // Get the HTML content for PDF
+                                            const content = (previewHtml || estimate?.proposal?.htmlContent || '')
 
-                                        const content = (previewHtml || estimate?.proposal?.htmlContent || '')
-                                            .replace(/___PAGE_BREAK___/g, '<div class="page-break"></div>')
-                                            .replace(/(?:<!-- PAGEBREAK -->|<div style="page-break-after: always;[^"]*"><\/div>)/g, '<div class="page-break"></div>');
+                                            if (!content.trim()) {
+                                                toastError('No content to generate PDF');
+                                                return;
+                                            }
 
-                                        const doc = iframe.contentWindow?.document;
-                                        if (doc) {
-                                            doc.write(`
-                                                <html>
-                                                <head>
-                                                    <title>Proposal - ${estimate?.proposalNo || 'Print'}</title>
-                                                    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css" rel="stylesheet" />
-                                                    <style>
-                                                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-                                                        
-                                                        body { 
-                                                            font-family: 'Inter', sans-serif; 
-                                                            background: white;
-                                                            margin: 0;
-                                                            padding: 0;
-                                                        }
-                                                        
-                                                        .ql-container.ql-snow {
-                                                            border: none !important;
-                                                        }
-                                                        
-                                                        .ql-editor {
-                                                            padding: 0 !important;
-                                                            height: auto !important;
-                                                            overflow: visible !important;
-                                                        }
+                                            // Call the server-side PDF generation API
+                                            const response = await fetch('/api/generate-pdf', {
+                                                method: 'POST',
+                                                headers: {
+                                                    'Content-Type': 'application/json',
+                                                },
+                                                body: JSON.stringify({
+                                                    html: content,
+                                                    filename: `Proposal-${estimate?.proposalNo || 'Draft'}.pdf`
+                                                })
+                                            });
 
-                                                        /* Explicit Page Break */
-                                                        .page-break {
-                                                            page-break-after: always;
-                                                            break-after: page;
-                                                            height: 0;
-                                                            display: block;
-                                                            clear: both;
-                                                            margin: 0;
-                                                            border: none;
-                                                        }
+                                            if (!response.ok) {
+                                                const errorData = await response.json();
+                                                throw new Error(errorData.error || 'Failed to generate PDF');
+                                            }
 
-                                                        /* Ensure tables have borders */
-                                                        .ql-editor table td, .ql-editor table th {
-                                                            border: 1px solid #000 !important;
-                                                        }
-                                                        
-                                                        /* Table Sizing */
-                                                        .ql-editor table {
-                                                            width: 100% !important; /* Force full width */
-                                                            margin-bottom: 2px;
-                                                        }
-
-                                                        /* Print Settings */
-                                                        @media print {
-                                                            @page { 
-                                                                margin: 0;
-                                                                size: letter;
-                                                            }
-                                                            
-                                                            html, body { 
-                                                                margin: 0; 
-                                                                padding: 0;
-                                                                width: 100%;
-                                                                -webkit-print-color-adjust: exact;
-                                                                /* Scale down content to ensure it fits on the page */
-                                                                zoom: 0.85; 
-                                                            }
-                                                            
-                                                            .ql-editor {
-                                                                /* Minimized padding to maximize vertical space */
-                                                                padding: 30px !important; 
-                                                                width: 100% !important;
-                                                                margin: 0 !important;
-                                                            }
-                                                            
-                                                            /* Ensure page breaks work flawlessly */
-                                                            .page-break {
-                                                                break-after: page;
-                                                                page-break-after: always;
-                                                                height: 0;
-                                                                display: block;
-                                                                visibility: hidden;
-                                                            }
-                                                        }
-                                                    </style>
-                                                </head>
-                                                <body>
-                                                    <div class="ql-container ql-snow">
-                                                        <div class="ql-editor">
-                                                            ${content}
-                                                        </div>
-                                                    </div>
-                                                </body>
-                                                </html>
-                                            `);
-                                            doc.close();
-
-                                            // Wait for resources (CSS/Font) to load then print
-                                            // The iframe needs to be loaded, but checking readystate is tricky with cross-origin cdn?
-                                            // A simple timeout is robust enough for this context.
-                                            setTimeout(() => {
-                                                iframe.contentWindow?.focus();
-                                                iframe.contentWindow?.print();
-                                                // Cleanup after print dialog allows execution to continue
-                                                // Note: 'print()' blocks in some browsers, but not all. 
-                                                // We clean up after a delay to ensure it launched.
-                                                setTimeout(() => {
-                                                    document.body.removeChild(iframe);
-                                                }, 1000);
-                                            }, 800);
+                                            // Get the PDF blob and trigger download
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `Proposal-${estimate?.proposalNo || 'Draft'}.pdf`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                            window.URL.revokeObjectURL(url);
+                                            
+                                            success('PDF saved successfully!');
+                                        } catch (err) {
+                                            console.error('PDF Generation failed:', err);
+                                            toastError('Failed to generate PDF');
                                         }
                                     }}
                                 >
                                     <span className="flex items-center gap-1">
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                        </svg>
-                                        Print / Save PDF
+                                        <Download className="w-4 h-4" />
+                                        Save PDF
                                     </span>
                                 </Button>
                                 <button
@@ -1711,7 +1597,7 @@ export default function EstimateViewPage() {
                                 </button>
                             </div>
                         </div>
-                        <div className="flex-1 overflow-auto p-8 bg-gray-100 flex flex-col gap-8 items-center cursor-default relative">
+                        <div id="pdf-preview-content" className="flex-1 overflow-auto p-8 bg-gray-100 flex flex-col gap-8 items-center cursor-default relative">
                             {generatingProposal && (
                                 <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -1726,18 +1612,33 @@ export default function EstimateViewPage() {
 
                                 return pageContentArray.map((pageHtml, idx) => (
                                     <div key={idx} className="flex flex-col items-center w-full">
-                                        {idx > 0 && (
-                                            <div className="w-full max-w-[850px] flex items-center gap-4 py-6 select-none opacity-40">
-                                                <div className="h-px bg-slate-400 flex-1"></div>
-                                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Page {idx + 1}</span>
-                                                <div className="h-px bg-slate-400 flex-1"></div>
+                                        {/* Page number indicator */}
+                                        <div className="w-[8.5in] flex items-center justify-between py-3 select-none">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">Page {idx + 1}</span>
                                             </div>
-                                        )}
+                                            <span className="text-[10px] text-slate-400">Letter Size (8.5" × 11")</span>
+                                        </div>
+                                        {/* Letter page container - exact printable area */}
                                         <div
-                                            className="bg-white shadow-2xl mx-auto w-[850px] min-h-[1100px] p-12 proposal-content ql-editor"
-                                            style={{ fontFamily: 'Inter, sans-serif' }}
-                                            dangerouslySetInnerHTML={{ __html: pageHtml }}
-                                        />
+                                            className="bg-white shadow-2xl mx-auto relative"
+                                            style={{
+                                                width: '8.5in',
+                                                height: '11in',
+                                                padding: '0.5in',
+                                                fontFamily: 'Inter, sans-serif',
+                                                fontSize: '11pt',
+                                                lineHeight: '1.4',
+                                                overflow: 'hidden',
+                                                boxSizing: 'border-box'
+                                            }}
+                                        >
+                                            <div
+                                                className="proposal-content ql-editor h-full"
+                                                style={{ overflow: 'hidden' }}
+                                                dangerouslySetInnerHTML={{ __html: pageHtml }}
+                                            />
+                                        </div>
                                     </div>
                                 ));
                             })()}
@@ -1777,6 +1678,25 @@ export default function EstimateViewPage() {
                     />
                 </div>
             </Modal>
+            {/* Styles for tight spacing matching Editor */}
+            <style jsx global>{`
+                .ql-editor p {
+                    margin-bottom: 0 !important;
+                    padding-bottom: 0 !important;
+                }
+                .ql-editor td, .ql-editor th {
+                    padding: 2px 4px !important;
+                }
+                .ql-editor li {
+                    margin-bottom: 0 !important;
+                    padding-bottom: 0 !important;
+                }
+                .ql-editor {
+                    padding: 0 !important;
+                    font-family: Arial, sans-serif !important;
+                    line-height: 1.15 !important;
+                }
+            `}</style>
         </div>
     );
 }

@@ -36,6 +36,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Estimates & Proposals', href: '/estimates', icon: <Calculator className="w-5 h-5" />, description: 'Create and manage cost estimates', colorClass: 'text-orange-500' },
             { label: 'Schedules', href: '/jobs/schedules', icon: <Calendar className="w-5 h-5" />, description: 'Project timelines and scheduling', colorClass: 'text-teal-500' },
             { label: 'Time Cards', href: '/jobs/time-cards', icon: <Clock className="w-5 h-5" />, description: 'Employee time cards', colorClass: 'text-purple-500' },
+            { label: 'QuickBooks', href: '/quickbooks', icon: <DollarSign className="w-5 h-5" />, description: 'QuickBooks integration and projects', colorClass: 'text-emerald-500' },
         ]
     },
     {
@@ -71,7 +72,7 @@ const menuStructure: MenuItem[] = [
     }
 ];
 
-const CURRENT_VERSION = 'V.0.57';
+const CURRENT_VERSION = 'V.0.62';
 
 interface HeaderProps {
     rightContent?: React.ReactNode;
@@ -220,7 +221,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                 <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
                                                     <div className={`grid ${gridCols} gap-4`}>
                                                         {group.items.map((item) => {
-                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll'].includes(item.href);
+                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/quickbooks'].includes(item.href);
 
 
                                                             const Content = () => (

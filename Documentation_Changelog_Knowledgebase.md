@@ -1,4 +1,22 @@
-## Current Version: V.0.60
+## Current Version: V.0.62
+
+
+#### V.0.62 - QuickBooks Integration & Authentication Cleanup
+*Timestamp: January 6, 2026*
+
+*   **QuickBooks Projects Dashboard**:
+    *   **Real Financial Data**: Projects now display actual Income and Costs fetched from QuickBooks Invoices, Purchases, and Bills.
+    *   **Automatic Token Refresh**: Implemented auto-persistence of QuickBooks OAuth refresh tokens to `.env.local`, eliminating manual token updates.
+    *   **Profit Margin Calculation**: Real-time calculation of profit margins based on live invoice and expense data.
+    *   **Improved Loading UX**: Replaced spinner with animated Rocket icon for a more engaging loading experience.
+    *   **Layout Alignment**: Content padding now aligns consistently with header navigation.
+    *   **Newest First Sorting**: Projects are now sorted by creation date (newest to oldest) by default.
+
+*   **Authentication Simplification**:
+    *   **Removed Social Login**: Eliminated Google and Apple sign-in buttons from the login page for a cleaner, email-focused authentication flow.
+
+*   **Performance Optimizations**:
+    *   **Bulk Financial Fetch**: Single API calls fetch all invoices and expenses, mapping them to projects efficiently instead of per-project queries.
 
 
 #### V.0.60 - Payroll Automation & UI Refinement

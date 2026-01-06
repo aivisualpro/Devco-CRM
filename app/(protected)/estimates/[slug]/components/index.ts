@@ -9,3 +9,5 @@ export { CustomerSelector } from './CustomerSelector';
 
 export { LaborCalculationModal } from './LaborCalculationModal';
 export { ServiceIcon, servicesList, statusIcon } from './ServiceIcon';
+export { TemplateSelector } from './TemplateSelector';
+

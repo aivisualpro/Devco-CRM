@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ToasterProvider } from "@/components/ui/ToasterProvider";
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   title: "DEVCO | ERP",
   description: "Manage Proposals and Jobs Management System",
   manifest: "/manifest.json",
-  themeColor: "#0F4C75",
+
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -26,12 +26,13 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
+  themeColor: "#0F4C75",
 };
 
 export default function RootLayout({

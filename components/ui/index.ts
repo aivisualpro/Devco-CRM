@@ -24,3 +24,4 @@ export {
     SkeletonAccordion
 } from './Skeleton';
 export { SaveButton, CancelButton } from './ActionButtons';
+export { LetterPageEditor } from './LetterPageEditor';
