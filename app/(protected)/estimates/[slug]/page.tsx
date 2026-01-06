@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight } from 'lucide-react';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet } from 'lucide-react';
 import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -17,7 +17,8 @@ import {
     LineItemsTable,
     AddItemModal,
     LaborCalculationModal,
-    TemplateSelector
+    TemplateSelector,
+    EstimateDetailsModal
 } from './components';
 import {
     getLaborBreakdown,
@@ -302,6 +303,9 @@ export default function EstimateViewPage() {
     const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [certifiedPayrollOptions, setCertifiedPayrollOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [clientOptions, setClientOptions] = useState<{ id: string; label: string; value: string }[]>([]);
+    const [contactOptions, setContactOptions] = useState<{ id: string; label: string; value: string; email?: string; phone?: string }[]>([]);
+    const [addressOptions, setAddressOptions] = useState<{ id: string; label: string; value: string }[]>([]);
     const [catalogsLoaded, setCatalogsLoaded] = useState(false);
 
 
@@ -320,6 +324,7 @@ export default function EstimateViewPage() {
     const [newTemplateTitle, setNewTemplateTitle] = useState('');
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
     const [saveType, setSaveType] = useState<'update' | 'create'>('update');
+    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
     // Refs
     const toastShownRef = useRef<string | null>(null);
@@ -482,8 +487,8 @@ export default function EstimateViewPage() {
                     })
                     .map((c: any) => ({
                         id: c._id,
-                        label: c.description || c.value,
-                        value: c.description || c.value,
+                        label: (c.description || c.value || 'Unnamed Service').trim(),
+                        value: (c.description || c.value || '').trim(),
                         color: c.color
                     }));
                 setServiceOptions(services);
@@ -533,6 +538,17 @@ export default function EstimateViewPage() {
                     setEmployeeOptions(employees);
                 }
 
+                // Fetch Clients
+                const clientRes = await apiCall('getClients');
+                if (clientRes.success && clientRes.result) {
+                    const clients = clientRes.result.map((c: any) => ({
+                        id: c._id || c.recordId,
+                        label: c.name,
+                        value: c._id || c.recordId
+                    })).sort((a: any, b: any) => a.label.localeCompare(b.label));
+                    setClientOptions(clients);
+                }
+
 
             }
         } catch (err) {
@@ -579,19 +595,72 @@ export default function EstimateViewPage() {
         }
     }, [estimate?.templateId, templates.length]);
 
+    // Fetch client details when customerId changes
+    useEffect(() => {
+        if (!formData?.customerId) {
+            setContactOptions([]);
+            setAddressOptions([]);
+            return;
+        }
+
+        const fetchClientDetails = async () => {
+            try {
+                const res = await apiCall('getClientById', { id: formData.customerId });
+                if (res.success && res.result) {
+                    const client = res.result;
+
+                    // Contacts
+                    const contacts = (client.contacts || []).map((c: any) => ({
+                        id: c.name,
+                        label: c.name,
+                        value: c.name,
+                        email: c.email,
+                        phone: c.phone
+                    }));
+                    if (client.contactFullName) {
+                        if (!contacts.find((c: any) => c.label === client.contactFullName)) {
+                            contacts.unshift({
+                                id: client.contactFullName,
+                                label: client.contactFullName,
+                                value: client.contactFullName,
+                                email: client.email,
+                                phone: client.phone
+                            });
+                        }
+                    }
+                    setContactOptions(contacts);
+
+                    // Addresses
+                    const addresses = (client.addresses || []).map((a: string) => ({
+                        id: a,
+                        label: a,
+                        value: a
+                    }));
+                    if (client.businessAddress && !addresses.find((a: any) => a.label === client.businessAddress)) {
+                        addresses.unshift({
+                            id: client.businessAddress,
+                            label: client.businessAddress,
+                            value: client.businessAddress
+                        });
+                    }
+                    setAddressOptions(addresses);
+                }
+            } catch (err) {
+                console.error('Error fetching client details:', err);
+            }
+        };
+
+        fetchClientDetails();
+    }, [formData?.customerId]);
+
     // Initial Sort & Expand Logic
     useEffect(() => {
         if (catalogsLoaded && estimate && !initialLoadComplete) {
             // 1. Calculate sections
             const calculated = calculateSections(estimate, fringeConstants);
 
-            // 2. Determine sort order (desc items total)
-            const sorted = [...calculated].sort((a, b) => {
-                const totalA = a.items.reduce((sum, i) => sum + (i.total || 0), 0);
-                const totalB = b.items.reduce((sum, i) => sum + (i.total || 0), 0);
-                return totalB - totalA;
-            });
-            setSectionOrder(sorted.map(s => s.id));
+            // 2. Determine sort order (original order)
+            setSectionOrder(calculated.map(s => s.id));
 
             // 3. Determine open sections (if items > 0, open it)
             const newOpen: Record<string, boolean> = {};
@@ -614,18 +683,7 @@ export default function EstimateViewPage() {
         }
     }, [estimate]);
 
-    // Save draft to local storage
-    useEffect(() => {
-        if (unsavedChanges && estimate && formData && estimate._id) {
-            const draftKey = `${DRAFT_KEY_PREFIX}${estimate._id}`;
-            const draftData = {
-                estimate,
-                formData,
-                timestamp: Date.now()
-            };
-            localStorage.setItem(draftKey, JSON.stringify(draftData));
-        }
-    }, [unsavedChanges, estimate, formData]);
+
 
     // Memoized Sections for Render (Uses sectionOrder for sorting)
     const sections: SectionConfig[] = useMemo(() => {
@@ -661,6 +719,18 @@ export default function EstimateViewPage() {
 
         return { slices, subTotal, grandTotal, markupPct };
     }, [sections, formData?.bidMarkUp, estimate?.bidMarkUp]);
+
+    // Auto-save logic (debounced 1.5s)
+    useEffect(() => {
+        if (!unsavedChanges || !estimate || !formData || saving) return;
+
+        const timer = setTimeout(() => {
+            handleGlobalSave({ silent: true });
+        }, 1500);
+
+        return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [unsavedChanges, estimate, formData, chartData]);
 
     // Live update current version total in history
     useEffect(() => {
@@ -965,9 +1035,9 @@ export default function EstimateViewPage() {
         setExplanationItem(item);
     };
 
-    const handleGlobalSave = async () => {
+    const handleGlobalSave = async (options: { silent?: boolean } = {}) => {
         if (!estimate || !formData) return;
-        setSaving(true);
+        if (!options.silent) setSaving(true);
         try {
             const payload = {
                 id: estimate._id,
@@ -975,7 +1045,7 @@ export default function EstimateViewPage() {
                 fringe: formData.fringe,
                 bidMarkUp: String(formData.bidMarkUp).includes('%') ? formData.bidMarkUp : `${formData.bidMarkUp}%`,
                 subTotal: chartData.subTotal,
-                margin: chartData.grandTotal - chartData.subTotal,
+                margin: (chartData.grandTotal || 0) - (chartData.subTotal || 0),
                 grandTotal: chartData.grandTotal,
                 contactEmail: formData.contactEmail,
                 contactPhone: formData.contactPhone,
@@ -994,24 +1064,23 @@ export default function EstimateViewPage() {
             const result = await apiCall('updateEstimate', payload);
             if (!result.success) throw new Error(result.error || 'Save failed');
 
-            success('Estimate saved successfully');
-            localStorage.removeItem(`${DRAFT_KEY_PREFIX}${estimate._id}`);
+            if (!options.silent) {
+                success('Estimate saved successfully');
+            }
+            
             setUnsavedChanges(false);
 
-            // Re-Sort on Save
-            const calculated = calculateSections(estimate, fringeConstants);
-            const sorted = [...calculated].sort((a, b) => {
-                const totalA = a.items.reduce((sum, i) => sum + (i.total || 0), 0);
-                const totalB = b.items.reduce((sum, i) => sum + (i.total || 0), 0);
-                return totalB - totalA;
-            });
-            setSectionOrder(sorted.map(s => s.id));
+            // We no longer re-sort on save to maintain original order
+            // Keep existing sectionOrder
+
 
         } catch (err) {
             console.error('Save error:', err);
-            toastError('Failed to save estimate');
+            if (!options.silent) {
+                toastError('Failed to save estimate');
+            }
         } finally {
-            setSaving(false);
+            if (!options.silent) setSaving(false);
         }
     };
 
@@ -1102,18 +1171,74 @@ export default function EstimateViewPage() {
             default: return [];
         }
     };
-
-    const handleAddService = async (name: string) => {
+    
+    const handleAddClient = async (name: string) => {
         try {
-            const result = await apiCall('addConstant', { item: { type: 'services', description: name, value: name } });
+            const res = await apiCall('addClient', { item: { name, status: 'Active' } });
+            if (res.success && res.result) {
+                const newClient = res.result;
+                const opt = {
+                    id: newClient._id || newClient.recordId,
+                    label: newClient.name,
+                    value: newClient._id || newClient.recordId
+                };
+                setClientOptions(prev => [...prev, opt].sort((a, b) => a.label.localeCompare(b.label)));
+                success('Client added');
+                return { id: opt.id, name: opt.label };
+            }
+        } catch (e) {
+            console.error(e);
+            toastError('Error adding client');
+        }
+        return null;
+    };
+
+    const handleUpdateClientContacts = async (updatedContacts: any[]) => {
+        if (!formData?.customerId) return;
+        try {
+            const res = await apiCall('updateClient', { id: formData.customerId, item: { contacts: updatedContacts } });
+            if (res.success) {
+                success('Client contacts updated');
+                // Refresh client details
+                const detailRes = await apiCall('getClientById', { id: formData.customerId });
+                if (detailRes.success && detailRes.result) {
+                    const client = detailRes.result;
+                    const contacts = (client.contacts || []).map((c: any) => ({
+                        id: c.name,
+                        label: c.name,
+                        value: c.name,
+                        email: c.email,
+                        phone: c.phone
+                    }));
+                    setContactOptions(contacts);
+                }
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleUpdateClientAddresses = async (updatedAddresses: string[]) => {
+        if (!formData?.customerId) return;
+        try {
+            const res = await apiCall('updateClient', { id: formData.customerId, item: { addresses: updatedAddresses } });
+            if (res.success) {
+                success('Client addresses updated');
+                setAddressOptions(updatedAddresses.map(a => ({ id: a, label: a, value: a })));
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleAddConstant = async (data: any) => {
+        try {
+            const result = await apiCall('addConstant', { item: data });
             if (result.success) {
-                success('Service added');
+                const label = data.type?.replace(/([A-Z])/g, ' $1').trim() || 'Item';
+                success(`${label.charAt(0).toUpperCase() + label.slice(1)} added`);
                 loadCatalogs(); // Refresh catalogs to get the new service
                 return result.result;
             }
         } catch (err) {
-            console.error('Error adding service:', err);
-            toastError('Failed to add service');
+            console.error('Error adding constant:', err);
+            toastError('Failed to add item');
         }
     };
 
@@ -1125,10 +1250,10 @@ export default function EstimateViewPage() {
                     <Header />
                 </div>
                 <div className="flex-1 overflow-y-auto min-h-0">
-                    <div className="w-full px-8 py-6">
+                    <div className="w-full px-4 md:px-6 py-6">
                         <SkeletonEstimateHeader />
                     </div>
-                    <div className="w-full space-y-4 pb-20 px-8">
+                    <div className="w-full space-y-4 pb-20 px-4 md:px-6">
                         <SkeletonAccordion />
                         <SkeletonAccordion />
                         <SkeletonAccordion />
@@ -1162,11 +1287,11 @@ export default function EstimateViewPage() {
             <div className="flex-none">
             <Header
                 rightContent={
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-">
                         {/* Save Button */}
                         {unsavedChanges && (
                             <button
-                                onClick={handleGlobalSave}
+                                onClick={() => handleGlobalSave()}
                                 disabled={saving}
                                 className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-xs shadow-md disabled:opacity-50"
                             >
@@ -1203,23 +1328,30 @@ export default function EstimateViewPage() {
                         {/* Clone */}
                         <button
                             onClick={handleClone}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-bold text-xs shadow-md"
-                            title="Clone Estimate"
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                            title={`Clone V${formData.versionNumber || 1}`}
                         >
-                            <Copy className="w-3.5 h-3.5" />
-                            Clone V{formData.versionNumber || 1}
+                            <Copy className="w-5 h-5" />
                         </button>
 
                         {/* Copy */}
                         <button
                             onClick={handleCopy}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all font-bold text-xs shadow-md"
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
                             title="Copy to New Estimate"
                         >
-                            <Copy className="w-3.5 h-3.5" />
-                            Copy
+                            <Copy className="w-5 h-5" />
                         </button>
 
+
+                        {/* More Details */}
+                        <button
+                            onClick={() => setIsDetailsModalOpen(true)}
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-xl transition-colors"
+                            title="More Details"
+                        >
+                            <FileSpreadsheet className="w-5 h-5" />
+                        </button>
 
                         {/* Delete */}
                         <button
@@ -1233,8 +1365,8 @@ export default function EstimateViewPage() {
                 }
             />
         </div>
-        <div className="flex-1 overflow-y-auto min-h-0 w-full max-w-[1920px] mx-auto p-2 bg-[#F4F7FA]">
-                <div className="w-full px-8 py-6">
+        <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
+                <div className="w-full px-4 md:px-6 py-6">
                     {/* Header Card */}
                     <EstimateHeaderCard
                         formData={formData}
@@ -1252,7 +1384,13 @@ export default function EstimateViewPage() {
                         certifiedPayrollOptions={certifiedPayrollOptions}
                         employeeOptions={employeeOptions}
                         onHeaderUpdate={handleHeaderUpdate}
-                        onAddService={handleAddService}
+                        onAddConstant={handleAddConstant}
+                        clientOptions={clientOptions}
+                        contactOptions={contactOptions}
+                        addressOptions={addressOptions}
+                        onAddClient={handleAddClient}
+                        onUpdateClientContacts={handleUpdateClientContacts}
+                        onUpdateClientAddresses={handleUpdateClientAddresses}
 
                         onVersionClick={(id) => {
                             const v = versionHistory.find(vh => vh._id === id);
@@ -1730,6 +1868,13 @@ export default function EstimateViewPage() {
                     line-height: 1.15 !important;
                 }
             `}</style>
+            <EstimateDetailsModal
+                isOpen={isDetailsModalOpen}
+                onClose={() => setIsDetailsModalOpen(false)}
+                formData={formData}
+                customerId={formData.customerId}
+                onUpdate={(field, value) => handleHeaderUpdate(field as string, value)}
+            />
         </div>
     );
 }

@@ -1,14 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, PenSquare, FileSpreadsheet, Plus } from 'lucide-react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check } from 'lucide-react';
+import { MyDropDown, Modal, Input, Button } from '@/components/ui';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { VersionTimeline } from './VersionTimeline';
-import { CustomerSelector } from './CustomerSelector';
-import { ContactSelector } from './ContactSelector';
-import { AddressSelector } from './AddressSelector';
-import { EstimateDetailsModal } from './EstimateDetailsModal';
 
 
 
@@ -75,7 +72,14 @@ interface EstimateHeaderCardProps {
 
     onHeaderUpdate: (field: string, value: string | number | boolean) => void;
     onVersionClick: (id: string) => void;
-    onAddService?: (name: string) => Promise<any>;
+    onAddConstant?: (data: any) => Promise<any>;
+
+    clientOptions: { id: string; label: string; value: string }[];
+    contactOptions: { id: string; label: string; value: string; email?: string; phone?: string }[];
+    addressOptions: { id: string; label: string; value: string }[];
+    onAddClient: (name: string) => Promise<{ id: string, name: string } | null>;
+    onUpdateClientContacts: (contacts: any[]) => Promise<void>;
+    onUpdateClientAddresses: (addresses: string[]) => Promise<void>;
 }
 
 
@@ -97,17 +101,20 @@ export function EstimateHeaderCard({
     onHeaderUpdate,
 
     onVersionClick,
-    onAddService
+    onAddConstant,
+
+    clientOptions,
+    contactOptions,
+    addressOptions,
+    onAddClient,
+    onUpdateClientContacts,
+    onUpdateClientAddresses
 }: EstimateHeaderCardProps) {
 
-    const [isEditingCustomer, setIsEditingCustomer] = useState(false);
-    const [isEditingContact, setIsEditingContact] = useState(false);
-    const [isEditingAddress, setIsEditingAddress] = useState(false);
-    const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-
+    const [isAddingContact, setIsAddingContact] = useState(false);
+    const [newContactData, setNewContactData] = useState({ name: '', email: '', phone: '', type: 'Main Contact' });
     const [isEditingProjectName, setIsEditingProjectName] = useState(false);
-    const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | null>(null);
-    const [serviceSearch, setServiceSearch] = useState('');
+    const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | 'client' | 'contact' | 'address' | null>(null);
     const [isAddingService, setIsAddingService] = useState(false);
 
 
@@ -120,9 +127,18 @@ export function EstimateHeaderCard({
                 setActiveDropdown(null);
             }
         }
+
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === 'Escape') {
+                setActiveDropdown(null);
+            }
+        }
+
         document.addEventListener("mousedown", handleClickOutside);
+        document.addEventListener("keydown", handleKeyDown);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
+            document.removeEventListener("keydown", handleKeyDown);
         };
     }, []);
 
@@ -140,164 +156,267 @@ export function EstimateHeaderCard({
 
     const isServiceActive = (value: string) => (formData.services || []).includes(value);
 
-    // Filter services based on search
-    const filteredServices = serviceOptions.filter(opt =>
-        opt.label.toLowerCase().includes(serviceSearch.toLowerCase())
-    );
-
-    const handleAddNewService = async () => {
-        if (!serviceSearch.trim() || !onAddService) return;
+    const handleAddNewService = async (name: string) => {
+        if (!onAddConstant) return;
         setIsAddingService(true);
         try {
-            const newService = await onAddService(serviceSearch.trim());
+            const newService = await onAddConstant({
+                type: 'Services',
+                description: name,
+                value: '', // Value should be empty/dollar value, not description
+                color: '#0F4C75'
+            });
             if (newService) {
                 toggleService(newService.description || newService.value);
-                setServiceSearch('');
             }
         } finally {
             setIsAddingService(false);
         }
     };
 
+    const handleAddNewFringe = async (name: string) => {
+        if (!onAddConstant) return;
+        try {
+            const newItem = await onAddConstant({
+                type: 'Fringe',
+                description: name,
+                value: name,
+                color: '#4A90E2'
+            });
+            if (newItem) {
+                onFringeChange(newItem.description || newItem.value);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleAddNewCertifiedPayroll = async (name: string) => {
+        if (!onAddConstant) return;
+        try {
+            const newItem = await onAddConstant({
+                type: 'Certified Payroll',
+                description: name,
+                value: name,
+                color: '#10B981'
+            });
+            if (newItem) {
+                onHeaderUpdate('certifiedPayroll', newItem.description || newItem.value);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleAddNewStatus = async (name: string) => {
+        if (!onAddConstant) return;
+        try {
+            const newItem = await onAddConstant({
+                type: 'Estimate Status',
+                description: name,
+                value: name,
+                color: '#64748B'
+            });
+            if (newItem) {
+                onStatusChange(newItem.description || newItem.value);
+            }
+        } catch (e) { console.error(e); }
+    };
+
+    const handleSaveNewContact = async () => {
+        if (!newContactData.name) return;
+        const currentContacts = contactOptions.map(c => ({
+            name: c.label,
+            email: c.email,
+            phone: c.phone,
+            type: c.value === c.label ? 'Main Contact' : 'Other' // rough mapping
+        }));
+        
+        // Find existing contact types or use default
+        const updated = [...currentContacts, newContactData];
+        await onUpdateClientContacts(updated);
+        
+        onHeaderUpdate('contactName', newContactData.name);
+        onHeaderUpdate('contactId', newContactData.name);
+        if (newContactData.email) onHeaderUpdate('contactEmail', newContactData.email);
+        if (newContactData.phone) onHeaderUpdate('contactPhone', newContactData.phone);
+        
+        setIsAddingContact(false);
+        setNewContactData({ name: '', email: '', phone: '', type: 'Main Contact' });
+    };
+
     return (
-        <div className="bg-[#eef2f6] rounded-[40px] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
+        <>
+            <div className="bg-[#eef2f6] rounded-[40px] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] p-4 sm:p-6 lg:p-7 mb-6">
             {/* 4-Column Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
 
                 {/* PART 1: Customer Info column */}
-                <div className="flex flex-col gap-4 sm:gap-6 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
                     {/* Customer */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                    <div className="relative group">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
                             Customer
                         </label>
-                        {formData.customerName && !isEditingCustomer ? (
-                            <div
-                                className="text-base sm:text-lg font-bold text-slate-800 tracking-tight truncate cursor-pointer hover:opacity-70 transition-colors"
-                                style={{ color: '#0F4C75' }}
-                                title="Double click to change customer"
-                                onDoubleClick={() => setIsEditingCustomer(true)}
-                            >
-                                {formData.customerName}
-                            </div>
-                        ) : (
-                            <CustomerSelector
-                                value={formData.customerName}
-                                onChange={(val: string, id?: string) => {
-                                    onHeaderUpdate('customerName', val);
-                                    if (id) {
-                                        onHeaderUpdate('customerId', id);
-                                    }
-                                    setIsEditingCustomer(false);
-                                }}
-                            />
-                        )}
+                        <div 
+                            onClick={() => setActiveDropdown(activeDropdown === 'client' ? null : 'client')}
+                            className={`
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                ${activeDropdown === 'client' 
+                                    ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
+                                    : 'bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white'}
+                            `}
+                        >
+                            <span className={`text-xs font-bold leading-tight ${formData.customerName ? 'text-[#0F4C75]' : 'text-slate-400'}`}>
+                                {formData.customerName || 'Select Customer'}
+                            </span>
+                        </div>
+                        <MyDropDown
+                            isOpen={activeDropdown === 'client'}
+                            onClose={() => setActiveDropdown(null)}
+                            options={clientOptions}
+                            selectedValues={formData.customerId ? [formData.customerId] : []}
+                            onSelect={(val) => {
+                                const opt = clientOptions.find(o => o.value === val);
+                                if (opt) {
+                                    onHeaderUpdate('customerName', opt.label);
+                                    onHeaderUpdate('customerId', opt.value);
+                                    onHeaderUpdate('contactName', '');
+                                    onHeaderUpdate('contactId', '');
+                                    onHeaderUpdate('contactEmail', '');
+                                    onHeaderUpdate('contactPhone', '');
+                                    onHeaderUpdate('jobAddress', '');
+                                }
+                                setActiveDropdown(null);
+                            }}
+                            onAdd={async (name) => {
+                                const newClient = await onAddClient(name);
+                                if (newClient) {
+                                    onHeaderUpdate('customerName', newClient.name);
+                                    onHeaderUpdate('customerId', newClient.id);
+                                }
+                                setActiveDropdown(null);
+                            }}
+                            placeholder="Search or add customer..."
+                        />
                     </div>
 
                     {/* Contact */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                    <div className="relative group">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
                             Contact
                         </label>
-                        {formData.contactName && !isEditingContact ? (
-                            <div
-                                className="text-sm font-medium truncate cursor-pointer hover:opacity-70 transition-colors"
-                                style={{ color: '#0F4C75' }}
-                                onDoubleClick={() => setIsEditingContact(true)}
-                                title="Double click to change contact"
-                            >
-                                {formData.contactName}
-                            </div>
-                        ) : (
-                            <ContactSelector
-                                value={formData.contactName}
-                                customerId={formData.customerId}
-                                onChange={(name: string, id?: string, email?: string, phone?: string) => {
-                                    onHeaderUpdate('contactName', name);
-                                    if (id) onHeaderUpdate('contactId', id);
-                                    if (email) onHeaderUpdate('contactEmail', email);
-                                    if (phone) onHeaderUpdate('contactPhone', phone);
-                                    setIsEditingContact(false);
-                                }}
-                            />
-
-                        )}
+                        <div 
+                            onClick={() => {
+                                if (!formData.customerId) return;
+                                setActiveDropdown(activeDropdown === 'contact' ? null : 'contact');
+                            }}
+                            className={`
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                ${!formData.customerId ? 'opacity-50 cursor-not-allowed' : ''}
+                                ${activeDropdown === 'contact' 
+                                    ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
+                                    : 'bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white'}
+                            `}
+                        >
+                            <span className={`text-xs font-bold leading-tight ${formData.contactName ? 'text-[#0F4C75]' : 'text-slate-400'}`}>
+                                {formData.contactName || 'Select Contact'}
+                            </span>
+                        </div>
+                        <MyDropDown
+                            isOpen={activeDropdown === 'contact'}
+                            onClose={() => setActiveDropdown(null)}
+                            options={contactOptions}
+                            selectedValues={formData.contactName ? [formData.contactName] : []}
+                            onSelect={(val) => {
+                                const opt = contactOptions.find(o => o.value === val);
+                                if (opt) {
+                                    onHeaderUpdate('contactName', opt.label);
+                                    onHeaderUpdate('contactId', opt.id);
+                                    onHeaderUpdate('contactEmail', opt.email || '');
+                                    onHeaderUpdate('contactPhone', opt.phone || '');
+                                }
+                                setActiveDropdown(null);
+                            }}
+                            onAdd={async (name) => {
+                                setNewContactData({ ...newContactData, name });
+                                setIsAddingContact(true);
+                                setActiveDropdown(null);
+                            }}
+                            placeholder="Select or add contact..."
+                        />
                     </div>
-
-
 
                     {/* Job Address */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                    <div className="relative group">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
                             Job Address
                         </label>
-                        {formData.jobAddress && !isEditingAddress ? (
-                            <div
-                                className="text-sm text-slate-600 cursor-pointer transition-colors leading-snug"
-                                style={{ color: '#0F4C75' }}
-                                onDoubleClick={() => setIsEditingAddress(true)}
-                                title="Double click to change address"
-                            >
-                                {formData.jobAddress}
-                            </div>
-                        ) : (
-                            <AddressSelector
-                                value={formData.jobAddress}
-                                customerId={formData.customerId}
-                                onChange={(val: string) => {
-                                    onHeaderUpdate('jobAddress', val);
-                                    setIsEditingAddress(false);
-                                }}
-                            />
-                        )}
+                        <div 
+                            onClick={() => {
+                                if (!formData.customerId) return;
+                                setActiveDropdown(activeDropdown === 'address' ? null : 'address');
+                            }}
+                            className={`
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                ${!formData.customerId ? 'opacity-50 cursor-not-allowed' : ''}
+                                ${activeDropdown === 'address' 
+                                    ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
+                                    : 'bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white'}
+                            `}
+                        >
+                            <span className={`text-xs font-bold leading-tight ${formData.jobAddress ? 'text-[#0F4C75]' : 'text-slate-400'}`}>
+                                {formData.jobAddress || 'Select Address'}
+                            </span>
+                        </div>
+                        <MyDropDown
+                            isOpen={activeDropdown === 'address'}
+                            onClose={() => setActiveDropdown(null)}
+                            options={addressOptions}
+                            selectedValues={formData.jobAddress ? [formData.jobAddress] : []}
+                            onSelect={(val) => {
+                                onHeaderUpdate('jobAddress', val);
+                                setActiveDropdown(null);
+                            }}
+                            onAdd={async (address) => {
+                                const current = addressOptions.map(o => o.value);
+                                if (!current.includes(address)) {
+                                    await onUpdateClientAddresses([...current, address]);
+                                }
+                                onHeaderUpdate('jobAddress', address);
+                                setActiveDropdown(null);
+                            }}
+                            placeholder="Select or add address..."
+                        />
                     </div>
-
 
                     {/* Project Name */}
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                    <div className="relative group">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
                             Project Name
                         </label>
-                        {isEditingProjectName ? (
-                            <input
-                                autoFocus
-                                className="w-full bg-transparent border-b outline-none text-sm font-medium text-slate-700 py-1"
-                                style={{ borderColor: '#0F4C75' }}
-                                value={formData.projectName || ''}
-                                onChange={e => onHeaderUpdate('projectName', e.target.value)}
-                                onBlur={() => setIsEditingProjectName(false)}
-                                onKeyDown={e => e.key === 'Enter' && setIsEditingProjectName(false)}
-                                placeholder="Enter Project Name"
-                            />
-                        ) : (
-                            <div
-                                className="text-sm font-medium cursor-pointer hover:opacity-70 transition-colors truncate"
-                                style={{ color: '#0F4C75' }}
-                                onDoubleClick={() => setIsEditingProjectName(true)}
-                                title="Double click to edit"
-                            >
-                                {formData.projectName || <span className="text-slate-400 font-normal italic">No project name</span>}
-                            </div>
-
-                        )}
+                        <div 
+                            onClick={() => setIsEditingProjectName(true)}
+                            className={`
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                ${isEditingProjectName 
+                                    ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
+                                    : 'bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white'}
+                            `}
+                        >
+                            {isEditingProjectName ? (
+                                <input
+                                    autoFocus
+                                    className="w-full bg-transparent outline-none text-xs font-bold text-[#0F4C75]"
+                                    value={formData.projectName || ''}
+                                    onChange={e => onHeaderUpdate('projectName', e.target.value)}
+                                    onBlur={() => setIsEditingProjectName(false)}
+                                    onKeyDown={e => e.key === 'Enter' && setIsEditingProjectName(false)}
+                                    placeholder="Enter Project Name"
+                                />
+                            ) : (
+                                <span className={`text-xs font-bold truncate ${formData.projectName ? 'text-[#0F4C75]' : 'text-slate-400'}`}>
+                                    {formData.projectName || 'Project Title...'}
+                                </span>
+                            )}
+                        </div>
                     </div>
-
-                    {/* Estimate Details Button */}
-                    <button
-                        onClick={() => setIsDetailsModalOpen(true)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 hover:text-[#0F4C75] hover:border-[#0F4C75] hover:bg-blue-50/50 transition-all group"
-                    >
-                        <FileSpreadsheet className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Estimate Details</span>
-                    </button>
-
-                    <EstimateDetailsModal
-                        isOpen={isDetailsModalOpen}
-                        onClose={() => setIsDetailsModalOpen(false)}
-                        formData={formData}
-                        customerId={formData.customerId}
-                        onUpdate={(field, value) => onHeaderUpdate(field, value)}
-                    />
                 </div>
 
                 {/* PART 2: Estimate Details Column */}
@@ -360,53 +479,18 @@ export function EstimateHeaderCard({
                                 })()}
 
                                 {/* Fringe Dropdown */}
-                                {activeDropdown === 'fringe' && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-56 p-2 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40">
-                                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
-                                            <div
-                                                onClick={() => {
-                                                    onFringeChange('');
-                                                    setActiveDropdown(null);
-                                                }}
-                                                className={`
-                                                flex items-center justify-center p-2 rounded-lg cursor-pointer transition-all duration-200
-                                                ${!formData.fringe
-                                                        ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-slate-800'
-                                                        : 'hover:bg-white/50 text-slate-500'}
-                                            `}
-                                            >
-                                                <span className="text-sm font-bold">None</span>
-                                            </div>
-                                            {fringeOptions.map((opt) => {
-                                                const isSelected = formData.fringe === opt.value;
-                                                return (
-                                                    <div
-                                                        key={opt.id}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onFringeChange(opt.value);
-                                                            setActiveDropdown(null);
-                                                        }}
-                                                        className={`
-                                                        flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all duration-200
-                                                        ${isSelected
-                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-slate-800'
-                                                                : 'hover:bg-white/50 text-slate-500'}
-                                                    `}
-                                                    >
-                                                        {opt.color && (
-                                                            <div
-                                                                className="w-2 h-2 rounded-full"
-                                                                style={{ backgroundColor: opt.color }}
-                                                            />
-                                                        )}
-                                                        <span className="text-sm font-bold truncate">{opt.label}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                                <MyDropDown
+                                    isOpen={activeDropdown === 'fringe'}
+                                    onClose={() => setActiveDropdown(null)}
+                                    options={fringeOptions}
+                                    selectedValues={formData.fringe ? [formData.fringe] : []}
+                                    onSelect={(val) => {
+                                        onFringeChange(val === formData.fringe ? '' : val);
+                                        setActiveDropdown(null);
+                                    }}
+                                    onAdd={handleAddNewFringe}
+                                    placeholder="Search fringe rates..."
+                                />
                             </div>
 
                             {/* Certified Payroll */}
@@ -439,53 +523,18 @@ export function EstimateHeaderCard({
                                 })()}
 
                                 {/* Certified Payroll Dropdown */}
-                                {activeDropdown === 'certifiedPayroll' && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-56 p-2 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40">
-                                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
-                                            <div
-                                                onClick={() => {
-                                                    onHeaderUpdate('certifiedPayroll', '');
-                                                    setActiveDropdown(null);
-                                                }}
-                                                className={`
-                                                flex items-center justify-center p-2 rounded-lg cursor-pointer transition-all duration-200
-                                                ${!formData.certifiedPayroll
-                                                        ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-slate-800'
-                                                        : 'hover:bg-white/50 text-slate-500'}
-                                            `}
-                                            >
-                                                <span className="text-sm font-bold">None</span>
-                                            </div>
-                                            {certifiedPayrollOptions.map((opt) => {
-                                                const isSelected = formData.certifiedPayroll === opt.value;
-                                                return (
-                                                    <div
-                                                        key={opt.id}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onHeaderUpdate('certifiedPayroll', opt.value);
-                                                            setActiveDropdown(null);
-                                                        }}
-                                                        className={`
-                                                        flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all duration-200
-                                                        ${isSelected
-                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-slate-800'
-                                                                : 'hover:bg-white/50 text-slate-500'}
-                                                    `}
-                                                    >
-                                                        {opt.color && (
-                                                            <div
-                                                                className="w-2 h-2 rounded-full"
-                                                                style={{ backgroundColor: opt.color }}
-                                                            />
-                                                        )}
-                                                        <span className="text-sm font-bold truncate">{opt.label}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                                <MyDropDown
+                                    isOpen={activeDropdown === 'certifiedPayroll'}
+                                    onClose={() => setActiveDropdown(null)}
+                                    options={certifiedPayrollOptions}
+                                    selectedValues={formData.certifiedPayroll ? [formData.certifiedPayroll] : []}
+                                    onSelect={(val) => {
+                                        onHeaderUpdate('certifiedPayroll', val === formData.certifiedPayroll ? '' : val);
+                                        setActiveDropdown(null);
+                                    }}
+                                    onAdd={handleAddNewCertifiedPayroll}
+                                    placeholder="Search payroll types..."
+                                />
                             </div>
 
                         </div>
@@ -522,79 +571,17 @@ export function EstimateHeaderCard({
                                     );
                                 })()}
 
-                                {/* Services Dropdown */}
                                 {activeDropdown === 'services' && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 p-4 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40">
-                                        <div className="mb-3">
-                                            <div className="relative shadow-[inset_2px_2px_4px_#d1d9e6,inset_-2px_-2px_4px_#ffffff] rounded-xl p-1 bg-[#eef2f6]">
-                                                <input
-                                                    type="text"
-                                                    value={serviceSearch}
-                                                    onChange={e => setServiceSearch(e.target.value)}
-                                                    placeholder="Search or add..."
-                                                    className="w-full bg-transparent text-sm font-medium text-slate-700 h-8 px-3 outline-none"
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' && serviceSearch.trim() && !filteredServices.find(s => s.label.toLowerCase() === serviceSearch.toLowerCase())) {
-                                                            handleAddNewService();
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
-                                            {filteredServices.map((opt) => {
-                                                const isActive = isServiceActive(opt.value);
-                                                return (
-                                                    <div
-                                                        key={opt.id}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            toggleService(opt.value);
-                                                        }}
-                                                        className={`
-                                                        group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
-                                                        ${isActive
-                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
-                                                                : 'hover:bg-white/50'
-                                                            }
-                                    `}
-                                                    >
-                                                        <div className={`
-                                                            w-4 h-4 rounded border flex items-center justify-center transition-colors
-                                                            ${isActive ? 'bg-[#0F4C75] border-[#0F4C75]' : 'border-slate-400 group-hover:border-[#0F4C75]'}
-                                                        `}>
-                                                            {isActive && <ChevronDown className="w-3 h-3 text-white" />}
-                                                        </div>
-                                                        <span className={`text-sm font-medium ${isActive ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
-                                                            {opt.label}
-                                                        </span>
-                                                    </div>
-                                                );
-                                            })}
-
-                                            {serviceSearch && !filteredServices.find(s => s.label.toLowerCase() === serviceSearch.toLowerCase()) && (
-                                                <div
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleAddNewService();
-                                                    }}
-                                                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/50 border border-dashed border-slate-300 transition-all text-blue-600"
-                                                >
-                                                    <div className="w-4 h-4 rounded border border-blue-400 flex items-center justify-center">
-                                                        <Plus className="w-3 h-3" />
-                                                    </div>
-                                                    <span className="text-xs font-bold uppercase tracking-wider">
-                                                        {isAddingService ? 'Adding...' : `Add "${serviceSearch}"`}
-                                                    </span>
-                                                </div>
-                                            )}
-
-                                            {filteredServices.length === 0 && !serviceSearch && (
-                                                <div className="text-xs text-slate-400 text-center py-2">No services available</div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    <MyDropDown
+                                        isOpen={activeDropdown === 'services'}
+                                        onClose={() => setActiveDropdown(null)}
+                                        options={serviceOptions}
+                                        selectedValues={formData.services || []}
+                                        onSelect={toggleService}
+                                        onAdd={handleAddNewService}
+                                        isAdding={isAddingService}
+                                        placeholder="Search or add services..."
+                                    />
                                 )}
                             </div>
 
@@ -726,7 +713,7 @@ export function EstimateHeaderCard({
                                                     {writerLabel.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                                                 </div>
                                             ) : (
-                                                <PenSquare className="w-5 h-5" />
+                                                <span className="text-[10px] uppercase font-bold text-slate-400">Add</span>
                                             )}
 
                                         </div>
@@ -735,57 +722,17 @@ export function EstimateHeaderCard({
 
 
                                 {/* Proposal Writer Dropdown */}
-                                {activeDropdown === 'proposalWriter' && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-64 p-2 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40">
-                                        <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                                            <div
-                                                onClick={() => {
-                                                    onHeaderUpdate('proposalWriter', '');
-                                                    setActiveDropdown(null);
-                                                }}
-                                                className={`
-                                                flex items-center justify-center p-2 rounded-lg cursor-pointer transition-all duration-200
-                                                ${!formData.proposalWriter
-                                                        ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-slate-800'
-                                                        : 'hover:bg-white/50 text-slate-500'
-                                                    }
-                                    `}
-                                            >
-                                                <span className="text-sm font-bold">None</span>
-                                            </div>
-                                            {employeeOptions.map((emp) => {
-                                                const isSelected = formData.proposalWriter === emp.value;
-                                                return (
-                                                    <div
-                                                        key={emp.id}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onHeaderUpdate('proposalWriter', emp.id);
-                                                            setActiveDropdown(null);
-                                                        }}
-                                                        className={`
-                                                        flex items-center gap-2 p-2.5 rounded-xl cursor-pointer transition-all duration-200
-                                                        ${isSelected
-                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff] text-[#0F4C75]'
-                                                                : 'hover:bg-white/50 text-slate-600'
-                                                            }
-                                    `}
-                                                    >
-                                                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-100 shadow-sm overflow-hidden" style={{ borderColor: '#0F4C75' }}>
-                                                            {emp.profilePicture ? (
-                                                                <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                emp.label.split(' ').map(n => n[0]).join('')
-                                                            )}
-                                                        </div>
-
-                                                        <span className="text-sm font-bold truncate">{emp.label}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                                <MyDropDown
+                                    isOpen={activeDropdown === 'proposalWriter'}
+                                    onClose={() => setActiveDropdown(null)}
+                                    options={employeeOptions}
+                                    selectedValues={formData.proposalWriter ? [formData.proposalWriter] : []}
+                                    onSelect={(val) => {
+                                        onHeaderUpdate('proposalWriter', val === formData.proposalWriter ? '' : val);
+                                        setActiveDropdown(null);
+                                    }}
+                                    placeholder="Search writers..."
+                                />
                             </div>
 
 
@@ -821,41 +768,22 @@ export function EstimateHeaderCard({
                                 })()}
 
                                 {/* Status Dropdown */}
-                                {activeDropdown === 'status' && (
-                                    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-56 p-3 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40">
-                                        <div className="space-y-1">
-                                            {[
-                                                { id: 'draft', label: 'Draft', value: 'draft', color: '#94a3b8' },
-                                                { id: 'confirmed', label: 'Confirmed', value: 'confirmed', color: '#10b981' },
-                                                ...statusOptions
-                                            ].map((opt) => {
-                                                const isSelected = formData.status === opt.value;
-                                                return (
-                                                    <div
-                                                        key={opt.id}
-                                                        onClick={() => {
-                                                            onStatusChange(opt.value);
-                                                            setActiveDropdown(null);
-                                                        }}
-                                                        className={`
-                                                        flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all duration-200
-                                                        ${isSelected
-                                                                ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
-                                                                : 'hover:bg-white/50'
-                                                            }
-                                    `}
-                                                    >
-                                                        <div className="w-2 h-2 rounded-full bg-current" style={{ color: opt.color || '#64748b' }} />
-                                                        <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'} `}>
-                                                            {opt.label}
-                                                        </span>
-                                                        {isSelected && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#0F4C75]" />}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
+                                <MyDropDown
+                                    isOpen={activeDropdown === 'status'}
+                                    onClose={() => setActiveDropdown(null)}
+                                    options={[
+                                        { id: 'draft', label: 'Draft', value: 'draft', color: '#94a3b8' },
+                                        { id: 'confirmed', label: 'Confirmed', value: 'confirmed', color: '#10b981' },
+                                        ...statusOptions
+                                    ]}
+                                    selectedValues={formData.status ? [formData.status] : []}
+                                    onSelect={(val) => {
+                                        onStatusChange(val);
+                                        setActiveDropdown(null);
+                                    }}
+                                    onAdd={handleAddNewStatus}
+                                    placeholder="Search status..."
+                                />
                             </div>
                         </div>
                     </div> {/* End dropdownRef container */}
@@ -876,7 +804,58 @@ export function EstimateHeaderCard({
                     currentId={currentEstimateId}
                     onVersionClick={onVersionClick}
                 />
-            </div >
-        </div >
+            </div>
+
+            {/* Modal for adding new contact */}
+            <Modal
+                isOpen={isAddingContact}
+                onClose={() => setIsAddingContact(false)}
+                title="Add New Contact"
+                footer={(
+                    <div className="flex justify-end gap-3">
+                        <Button variant="ghost" onClick={() => setIsAddingContact(false)}>Cancel</Button>
+                        <Button onClick={handleSaveNewContact}>Save Contact</Button>
+                    </div>
+                )}
+            >
+                <div className="space-y-4 p-1">
+                    <Input
+                        label="Full Name"
+                        value={newContactData.name}
+                        onChange={e => setNewContactData({ ...newContactData, name: e.target.value })}
+                        placeholder="John Doe"
+                    />
+                    <Input
+                        label="Email Address"
+                        value={newContactData.email}
+                        onChange={e => setNewContactData({ ...newContactData, email: e.target.value })}
+                        placeholder="john@example.com"
+                    />
+                    <Input
+                        label="Phone Number"
+                        value={newContactData.phone}
+                        onChange={e => setNewContactData({ ...newContactData, phone: e.target.value })}
+                        placeholder="(555) 000-0000"
+                    />
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
+                            Contact Type
+                        </label>
+                        <select
+                            className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:ring-2 focus:ring-[#0F4C75] focus:border-[#0F4C75] outline-none transition-all"
+                            value={newContactData.type}
+                            onChange={e => setNewContactData({ ...newContactData, type: e.target.value })}
+                        >
+                            <option value="Main Contact">Main Contact</option>
+                            <option value="Accounting">Accounting</option>
+                            <option value="Billing">Billing</option>
+                            <option value="Site Contact">Site Contact</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+        </>
     );
 }
