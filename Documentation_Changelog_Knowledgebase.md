@@ -1,4 +1,18 @@
-## Current Version: V.0.62
+## Current Version: V.0.64
+
+
+#### V.0.64 - Date Range Filters & Persistence
+*Timestamp: January 6, 2026*
+
+*   **QuickBooks Advanced Filtering**:
+    *   **New Date Range Filters**: Added "This Year", "Last Year", and "This Month" options to the QuickBooks Projects Dashboard.
+    *   **Filter Persistence**: The selected date range filter is now automatically saved to `localStorage`, ensuring the view remains consistent across browser sessions.
+    *   **Live Data Filtering**: Integrated date range logic into all financial data retrieval, allowing for more precise summary cards and project analysis.
+    *   **Enhanced Financial Accuracy**: Refined how invoices and purchases are filtered by date to ensure the "Overview" and "Summary" tabs reflect the user's selected period.
+
+*   **System & CI/CD**:
+    *   **Version Increment**: System-wide version updated to V.0.64.
+    *   **Git Automation**: Implemented automated commit and push workflows for documentation and code updates.
 
 
 #### V.0.62 - QuickBooks Integration & Authentication Cleanup
