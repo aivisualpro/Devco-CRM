@@ -195,9 +195,9 @@ const baseSectionConfigs = [
     },
     {
         id: 'Material', title: 'Material', key: 'material',
-        headers: ['Material', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'UOM', 'Cost', 'Taxes', 'Total'],
-        fields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'total'],
-        editableFields: ['classification', 'subClassification', 'supplier', 'uom', 'cost', 'taxes', 'quantity']
+        headers: ['Material', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'UOM', 'Cost', 'Taxes', 'Delivery & Pickup', 'Total'],
+        fields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'deliveryPickup', 'total'],
+        editableFields: ['classification', 'subClassification', 'supplier', 'uom', 'cost', 'taxes', 'quantity', 'deliveryPickup']
     },
     {
         id: 'Tools', title: 'Tools', key: 'tools',

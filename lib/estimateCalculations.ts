@@ -162,8 +162,10 @@ export function calculateMaterialTotal(item: Record<string, unknown>): number {
     const qty = parseNum(item.quantity);
     const cost = parseNum(item.cost);
     const taxes = parseNum(item.taxes);
+    const delivery = parseNum(item.deliveryPickup);
     const subTotal = qty * cost;
-    return subTotal * (1 + taxes / 100);
+    const taxedTotal = subTotal * (1 + taxes / 100);
+    return taxedTotal + delivery;
 }
 
 /**
