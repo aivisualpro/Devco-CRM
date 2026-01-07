@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { chromium } from 'playwright';
 
 export async function POST(request: NextRequest) {
     try {
@@ -164,10 +163,32 @@ export async function POST(request: NextRequest) {
             </html>
         `;
 
-        // Launch Playwright browser
-        const browser = await chromium.launch({
-            headless: true
-        });
+        // Launch Browser based on environment
+        let browser;
+        const isProd = process.env.NODE_ENV === 'production' || process.env.VERCEL === '1';
+
+        if (isProd) {
+            // Production (Vercel)
+            const chromium = await import('@sparticuz/chromium-min').then(mod => mod.default);
+            const { chromium: playwrightChromium } = await import('playwright-core');
+            
+            // Standard Vercel configuration
+            const executablePath = await chromium.executablePath(
+                'https://github.com/Sparticuz/chromium/releases/download/v131.0.1/chromium-v131.0.1-pack.tar'
+            );
+            
+            browser = await playwrightChromium.launch({
+                args: chromium.args,
+                executablePath,
+                headless: true, // Standard for serverless
+            });
+        } else {
+            // Development (Local)
+            const { chromium: playwrightChromium } = await import('playwright');
+            browser = await playwrightChromium.launch({
+                headless: true
+            });
+        }
 
         const context = await browser.newContext({
             viewport: { width: 816, height: 1056 },  // Letter at 96 DPI
