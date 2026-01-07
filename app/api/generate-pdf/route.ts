@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const maxDuration = 60; // Increase timeout to 60 seconds
+
 export async function POST(request: NextRequest) {
     try {
         const { html, filename = 'document.pdf' } = await request.json();
