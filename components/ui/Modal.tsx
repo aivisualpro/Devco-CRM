@@ -13,6 +13,18 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4xl' }: ModalProps) {
+    const [shouldRender, setShouldRender] = React.useState(false);
+
+    useEffect(() => {
+        if (isOpen) {
+            // Tiny delay to ensure the browser has a frame to start the transition
+            const timer = setTimeout(() => setShouldRender(true), 10);
+            return () => clearTimeout(timer);
+        } else {
+            setShouldRender(false);
+        }
+    }, [isOpen]);
+
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
@@ -41,8 +53,12 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
 
     return (
         <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
-            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden animate-modal`}>
+            {/* Reduced blur from xl to md for better performance */}
+            <div 
+                className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
+                onClick={onClose}
+            />
+            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden transition-all duration-300 transform ${shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4'}`}>
                 <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 flex-shrink-0">
                     <h3 className="text-lg font-bold text-gray-900">{title}</h3>
                     <button

@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
                     /* CSS @page controls PDF page size and margins */
                     @page {
                         size: letter;
-                        margin: 0;
+                        margin: 0.5in;
                     }
                     
                     /* Reset */
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
                     
                     /* Content container - uses full printable area */
                     .content {
-                        width: 8.5in;
-                        margin: 0 auto;
+                        width: auto;
+                        margin: 0;
                         background: #fff;
                     }
                     
@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
             format: 'Letter',
             printBackground: true,
             preferCSSPageSize: true,  // CSS @page is source of truth
-            margin: { top: '0', right: '0', bottom: '0', left: '0' }  // Margins handled by @page
+            margin: { top: '0.5in', right: '0.5in', bottom: '0.5in', left: '0.5in' }
         });
 
         await browser.close();

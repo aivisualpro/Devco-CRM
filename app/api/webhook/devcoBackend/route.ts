@@ -54,7 +54,6 @@ async function deleteFromCloudinary(url: string): Promise<boolean> {
         const pathWithExt = parts.slice(startIndex).join('/');
         const publicId = pathWithExt.replace(/\.[^/.]+$/, "");
 
-        console.log('Deleting Cloudinary PublicID:', publicId);
         await cloudinary.uploader.destroy(publicId);
         return true;
     } catch (error) {
@@ -153,8 +152,6 @@ function parseNum(val: unknown): number {
 async function updateAppSheet(data: Record<string, unknown>, lineItems: Record<string, unknown[]> | null = null) {
     return { skipped: true }; // Force disable sync
     if (!APPSHEET_APP_ID || !APPSHEET_API_KEY) {
-
-        console.log("AppSheet credentials not configured, skipping sync");
         return { skipped: true, reason: "No AppSheet credentials" };
     }
 
@@ -309,16 +306,37 @@ function getCatalogueModel(type: string) {
     return models[type];
 }
 
+// Helper to normalize services (trim, unique, sorted)
+function normalizeServices(services: any): string[] {
+    if (!Array.isArray(services)) return [];
+    const unique = Array.from(new Set(services.map((s: any) => String(s).trim()).filter(Boolean)));
+    return unique.sort();
+}
+
+// Helper to check for template service conflicts
+async function checkTemplateServicesConflict(services: string[], excludeId?: string) {
+    if (!services || services.length === 0) return null;
+    
+    // Use $size for exact array length and $all to ensure all specific services match
+    return await Template.findOne({
+        services: { $size: services.length, $all: services },
+        ...(excludeId ? { _id: { $ne: excludeId } } : {})
+    }).lean();
+}
+
 export async function POST(request: NextRequest) {
+    let action = 'unknown';
     try {
         const text = await request.text();
         if (!text) {
             return NextResponse.json({ success: false, error: 'Empty body' }, { status: 400 });
         }
         const body = JSON.parse(text);
-        const { action, payload, Data } = body;
+        const { action: bodyAction, payload, Data } = body;
+        action = bodyAction || action;
 
         await connectToDatabase();
+        const { getEmptyTemplate } = await import('@/lib/templateResolver');
 
         // Handle AppSheet webhook payload
         if (Data && Data.recordId) {
@@ -660,9 +678,6 @@ export async function POST(request: NextRequest) {
             case 'updateEstimate': {
                 const { id: estId, ...updateData } = payload || {};
                 if (!estId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-
-                // Debug: Log incoming fringe value
-                console.log('updateEstimate - fringe value:', updateData.fringe);
 
                 // Directly update the specific version document
                 const updated = await Estimate.findByIdAndUpdate(
@@ -1550,13 +1565,37 @@ export async function POST(request: NextRequest) {
             }
 
             case 'addTemplate': {
-                const newTemplate = await Template.create(payload?.item || {});
+                const item = payload?.item || {};
+                const services = normalizeServices(item.services);
+                
+                const conflict = await checkTemplateServicesConflict(services);
+                if (conflict) {
+                    return NextResponse.json({ 
+                        success: false, 
+                        error: `Service conflict: The template "${(conflict as any).title}" already uses this exact set of services.` 
+                    }, { status: 200 }); // Return 200 to avoid red console errors, UI handles success: false
+                }
+
+                const newTemplate = await Template.create({ ...item, services });
                 return NextResponse.json({ success: true, result: newTemplate });
             }
 
             case 'updateTemplate': {
                 const { id: tempId, item: tempItem } = payload || {};
                 if (!tempId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+                
+                if (tempItem.services) {
+                    const services = normalizeServices(tempItem.services);
+                    const conflict = await checkTemplateServicesConflict(services, tempId);
+                    if (conflict) {
+                        return NextResponse.json({ 
+                            success: false, 
+                            error: `Service conflict: The template "${(conflict as any).title}" already uses this exact set of services.` 
+                        }, { status: 200 }); // Return 200 to avoid red console errors
+                    }
+                    tempItem.services = services;
+                }
+
                 const updated = await Template.findByIdAndUpdate(tempId, { ...tempItem, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
             }
@@ -1574,9 +1613,12 @@ export async function POST(request: NextRequest) {
                 const original = await Template.findById(cloneId).lean();
                 if (!original) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 const { _id, createdAt, updatedAt, ...rest } = original as any;
+                
+                // When cloning, we clear services to avoid immediate uniqueness conflict
                 const newTemplate = await Template.create({
                     ...rest,
                     title: `${rest.title} (Copy)`,
+                    services: [], // Clear services as per uniqueness rule
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
@@ -1600,10 +1642,14 @@ export async function POST(request: NextRequest) {
             case 'previewProposal': {
                 const { templateId, estimateId, editMode = true, estimateData } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
-                const [template, dbEstimate] = await Promise.all([
-                    Template.findById(templateId).lean(),
-                    Estimate.findById(estimateId).lean()
-                ]);
+                let template;
+                if (templateId === 'empty') {
+                    template = getEmptyTemplate();
+                } else {
+                    template = await Template.findById(templateId).lean();
+                }
+                const dbEstimate = await Estimate.findById(estimateId).lean();
+
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!dbEstimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
                 const estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
@@ -1614,10 +1660,14 @@ export async function POST(request: NextRequest) {
             case 'generateProposal': {
                 const { templateId, estimateId, customVariables = {}, estimateData = null } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
-                const [template, estimate] = await Promise.all([
-                    Template.findById(templateId).lean(),
-                    Estimate.findById(estimateId)
-                ]);
+                let template;
+                if (templateId === 'empty') {
+                    template = getEmptyTemplate();
+                } else {
+                    template = await Template.findById(templateId).lean();
+                }
+                const estimate = await Estimate.findById(estimateId);
+
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
 
@@ -1637,20 +1687,79 @@ export async function POST(request: NextRequest) {
                 const html = resolveTemplateDocument(template, estimateObj, false);
                 
                 const proposalData = {
-                    templateId: String(template._id),
+                    templateId: templateId === 'empty' ? 'empty' : String(template._id),
                     templateVersion: template.version || 1,
                     generatedAt: new Date(),
                     htmlContent: html,
-                    pdfUrl: ''
+                    pdfUrl: '',
+                    customPages: template.pages || []
+                };
+                
+                // Save to single proposal field (for backwards compatibility)
+                estimate.proposal = proposalData as any;
+                estimate.templateId = templateId === 'empty' ? 'empty' : String(template._id);
+                
+                // Also save to proposals array (upsert by templateId)
+                const proposals = (estimate as any).proposals || [];
+                const existingIdx = proposals.findIndex((p: any) => p.templateId === (templateId === 'empty' ? 'empty' : String(template._id)));
+                if (existingIdx >= 0) {
+                    proposals[existingIdx] = proposalData as any;
+                } else {
+                    proposals.push(proposalData as any);
+                }
+                (estimate as any).proposals = proposals;
+                estimate.markModified('proposals');
+                
+                await estimate.save();
+                return NextResponse.json({ success: true, result: { html } });
+            }
+
+            // Save proposal from custom pages WITHOUT updating the main template
+            case 'generateProposalFromPages': {
+                const { templateId, estimateId, pages, estimateData = null } = payload || {};
+                if (!estimateId) return NextResponse.json({ success: false, error: 'Missing estimateId' }, { status: 400 });
+                if (!pages || !Array.isArray(pages)) return NextResponse.json({ success: false, error: 'Missing or invalid pages' }, { status: 400 });
+                
+                const estimate = await Estimate.findById(estimateId);
+                if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // If estimateData is provided (unsaved changes from frontend), apply them
+                if (estimateData) {
+                    Object.keys(estimateData).forEach(key => {
+                        if (!['_id', '__v', 'createdAt', 'updatedAt'].includes(key)) {
+                            (estimate as any)[key] = estimateData[key];
+                        }
+                    });
+                }
+
+                // Build a temporary template object using the provided pages (NOT updating the real template)
+                const tempTemplate = {
+                    _id: templateId || 'custom',
+                    pages: pages,
+                    content: pages[0]?.content || ''
+                };
+
+                const estimateObj = estimate.toObject() as any;
+                const html = resolveTemplateDocument(tempTemplate, estimateObj, false);
+                
+                const proposalData = {
+                    templateId: templateId ? String(templateId) : 'custom',
+                    templateVersion: 0, // Custom version - not from template
+                    generatedAt: new Date(),
+                    htmlContent: html,
+                    pdfUrl: '',
+                    customPages: pages // Store the custom pages for future editing
                 };
                 
                 // Save to single proposal field (for backwards compatibility)
                 estimate.proposal = proposalData;
-                estimate.templateId = String(template._id);
+                if (templateId) {
+                    estimate.templateId = String(templateId);
+                }
                 
                 // Also save to proposals array (upsert by templateId)
                 const proposals = (estimate as any).proposals || [];
-                const existingIdx = proposals.findIndex((p: any) => p.templateId === String(template._id));
+                const existingIdx = proposals.findIndex((p: any) => p.templateId === (templateId ? String(templateId) : 'custom'));
                 if (existingIdx >= 0) {
                     proposals[existingIdx] = proposalData;
                 } else {
@@ -1737,7 +1846,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
         }
     } catch (error) {
-        console.error('API Error:', error);
+        console.error(`[API Error] Action: ${action || 'unknown'}, Error:`, error);
         return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
     }
 }

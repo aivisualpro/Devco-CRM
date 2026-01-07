@@ -1,0 +1,613 @@
+'use client';
+
+import React, { useRef, useState } from 'react';
+import { LetterPageEditor, SidebarAccordion, MyDropDown } from '@/components/ui';
+import { 
+    ChevronDown, FilePlus, Save, Upload, Download, Pencil, X, 
+    Link as LinkIcon, Image as ImageIcon, Bold, Italic, Underline, 
+    Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, 
+    List, ListOrdered, Eraser, Plus, LayoutTemplate, FileText
+} from 'lucide-react';
+
+// Tooltip wrapper component
+interface TooltipButtonProps {
+    onClick?: () => void;
+    disabled?: boolean;
+    tooltip: string;
+    children: React.ReactNode;
+    className?: string;
+    variant?: 'default' | 'primary' | 'danger' | 'warning' | 'success';
+}
+
+function TooltipButton({ onClick, disabled, tooltip, children, className = '', variant = 'default' }: TooltipButtonProps) {
+    const variantClasses = {
+        default: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+        primary: 'text-blue-600 hover:text-blue-700 hover:bg-blue-50',
+        danger: 'text-gray-400 hover:text-red-600 hover:bg-red-50',
+        warning: 'text-amber-600 hover:text-amber-700 hover:bg-amber-50',
+        success: 'text-green-600 hover:text-green-700 hover:bg-green-50'
+    };
+
+    return (
+        <button
+            onClick={onClick}
+            disabled={disabled}
+            title={tooltip}
+            className={`p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${className}`}
+        >
+            {children}
+        </button>
+    );
+}
+
+// Variable definitions
+const SYSTEM_VARIABLES = [
+    { name: 'proposalNo', label: 'Proposal No.' },
+    { name: 'date', label: 'Proposal Date' },
+    { name: 'projectTitle', label: 'Project Name' },
+    { name: 'jobAddress', label: 'Job Address' },
+    { name: 'customerName', label: 'Client Name' },
+    { name: 'contactPerson', label: 'Contact Person' },
+    { name: 'contactAddress', label: 'Contact Address' },
+    { name: 'contactPhone', label: 'Contact Phone' },
+    { name: 'contactEmail', label: 'Contact Email' },
+    { name: 'aggregations.grandTotal', label: 'Estimate Grand Total' },
+    { name: 'aggregations.subTotal', label: 'Sub Total' },
+    { name: 'aggregations.laborTotal', label: 'Labor Total' },
+    { name: 'aggregations.toolsTotal', label: 'Tools Total' },
+    { name: 'aggregations.materialTotal', label: 'Materials Total' },
+    { name: 'aggregations.equipmentTotal', label: 'Equipment Total' },
+    { name: 'aggregations.overheadTotal', label: 'Overhead Total' },
+    { name: 'aggregations.subcontractorTotal', label: 'Subcontractor Total' },
+    { name: 'aggregations.disposalTotal', label: 'Disposal Total' },
+    { name: 'aggregations.miscellaneousTotal', label: 'Miscellaneous Total' },
+];
+
+const CUSTOM_VARIABLES = [
+    { name: 'customText', label: 'Custom Text' },
+    { name: 'customCurrency', label: 'Custom Currency' },
+    { name: 'customNumber', label: 'Custom Number' },
+];
+
+const LINE_ITEM_VARIABLES = [
+    { name: 'lineItemLabor', label: 'Labor Item', description: 'Insert labor line item' },
+    { name: 'lineItemEquipment', label: 'Equipment Item', description: 'Insert equipment line item' },
+    { name: 'lineItemMaterial', label: 'Material Item', description: 'Insert material line item' },
+    { name: 'lineItemTool', label: 'Tool Item', description: 'Insert tool line item' },
+    { name: 'lineItemOverhead', label: 'Overhead Item', description: 'Insert overhead line item' },
+    { name: 'lineItemSubcontractor', label: 'Subcontractor Item', description: 'Insert subcontractor line item' },
+    { name: 'lineItemDisposal', label: 'Disposal Item', description: 'Insert disposal line item' },
+    { name: 'lineItemMiscellaneous', label: 'Misc Item', description: 'Insert miscellaneous line item' },
+];
+
+interface MyProposalProps {
+    // State
+    isEditing: boolean;
+    pages: { content: string }[];
+    previewHtml?: string;
+    
+    // Template/Service data
+    selectedTemplateId: string | null;
+    templates: any[];
+    services: string[];
+    serviceOptions: { label: string; value: string; color?: string }[];
+    
+    // Loading states
+    isSaving?: boolean;
+    isGenerating?: boolean;
+    
+    // Callbacks
+    onPagesChange: (pages: { content: string }[]) => void;
+    onServicesChange: (services: string[]) => void;
+    onEditStart: () => void;
+    onEditCancel: () => void;
+    onSaveChanges: () => void;
+    onUpdateTemplate: () => void;
+    onCreateTemplate: () => void;
+    onDownloadPdf: () => void;
+    
+    // Quill refs for variable insertion
+    quillRefs?: React.MutableRefObject<any[]>;
+}
+
+export function MyProposal({
+    isEditing,
+    pages,
+    previewHtml,
+    selectedTemplateId,
+    templates,
+    services,
+    serviceOptions,
+    isSaving = false,
+    isGenerating = false,
+    onPagesChange,
+    onServicesChange,
+    onEditStart,
+    onEditCancel,
+    onSaveChanges,
+    onUpdateTemplate,
+    onCreateTemplate,
+    onDownloadPdf,
+    quillRefs,
+}: MyProposalProps) {
+    const internalQuillRefs = useRef<any[]>([]);
+    const activeQuillRefs = quillRefs || internalQuillRefs;
+
+    // Insert variable into the active Quill editor
+    const insertVariable = (variableName: string) => {
+        const quill = activeQuillRefs.current[0]?.getEditor?.();
+        if (quill) {
+            const range = quill.getSelection(true);
+            const text = `{{${variableName}}}`;
+            quill.insertText(range?.index || 0, text);
+            quill.setSelection((range?.index || 0) + text.length);
+        }
+    };
+    
+    // State for local toolbar
+    const [showFontSize, setShowFontSize] = useState(false);
+    const [showTextStyle, setShowTextStyle] = useState(false);
+    const [selectedFontSize, setSelectedFontSize] = useState('11pt');
+    const [selectedTextStyle, setSelectedTextStyle] = useState('Normal');
+
+    // Formatting functions
+    const applyFormat = (format: string, value?: any) => {
+        const quill = activeQuillRefs.current[0]?.getEditor?.();
+        if (!quill) return;
+        
+        const range = quill.getSelection(true);
+        if (!range) return;
+        
+        switch(format) {
+            case 'bold':
+            case 'italic':
+            case 'underline':
+            case 'strike':
+                quill.format(format, !quill.getFormat()[format]);
+                break;
+            case 'header':
+                quill.format('header', value);
+                break;
+            case 'align':
+                quill.format('align', value);
+                break;
+            case 'list':
+                quill.format('list', value);
+                break;
+            case 'link':
+                const url = prompt('Enter URL:');
+                if (url) quill.format('link', url);
+                break;
+            case 'image':
+                const imageUrl = prompt('Enter image URL:');
+                if (imageUrl) quill.insertEmbed(range.index, 'image', imageUrl);
+                break;
+            case 'clean':
+                quill.removeFormat(range.index, range.length);
+                break;
+            case 'size':
+                quill.format('size', value);
+                setSelectedFontSize(value);
+                break;
+        }
+    };
+
+    // Service tag component
+    const ServiceTag = ({ service, onRemove }: { service: string; onRemove: () => void }) => (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
+            {service}
+            <button onClick={onRemove} className="hover:text-blue-900">
+                <X className="w-3 h-3" />
+            </button>
+        </span>
+    );
+
+    // State for services dropdown
+    const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
+
+    // Calculate if current selection matches template exactly
+    const currentTemplate = templates.find(t => t._id === selectedTemplateId);
+    const templateServices = currentTemplate?.services || [];
+    const isExactMatch = services.length > 0 && 
+        services.length === templateServices.length &&
+        services.every(s => templateServices.includes(s));
+
+    return (
+        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 flex flex-col overflow-hidden w-full h-full">
+            {/* Unified Header */}
+            <div className="px-4 py-3 bg-white border-b border-slate-100 flex items-center justify-between transition-all rounded-t-xl z-10">
+                {isEditing ? (
+                    <>
+                        {/* Edit Mode: Document formatting toolbar on left */}
+                        <div className="flex items-center gap-0.5">
+                            {/* Text Style Group */}
+                            <div className="flex items-center gap-1.5 mr-2">
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowTextStyle(!showTextStyle)}
+                                        className="h-8 px-3 text-[11px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-2 min-w-[90px] transition-all"
+                                    >
+                                        {selectedTextStyle}
+                                        <ChevronDown className={`w-3 h-3 ml-auto transition-transform ${showTextStyle ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {showTextStyle && (
+                                        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[120px] py-1 animate-in fade-in zoom-in-95 duration-100">
+                                            {[
+                                                { label: 'Normal', value: false },
+                                                { label: 'Heading 1', value: 1 },
+                                                { label: 'Heading 2', value: 2 },
+                                                { label: 'Heading 3', value: 3 }
+                                            ].map(style => (
+                                                <button
+                                                    key={style.label}
+                                                    onClick={() => {
+                                                        applyFormat('header', style.value);
+                                                        setSelectedTextStyle(style.label);
+                                                        setShowTextStyle(false);
+                                                    }}
+                                                    className="w-full px-4 py-2 text-[11px] font-bold text-left hover:bg-slate-50 text-slate-600 transition-colors"
+                                                >
+                                                    {style.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="relative">
+                                    <button
+                                        onClick={() => setShowFontSize(!showFontSize)}
+                                        className="h-8 px-3 text-[11px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-2 transition-all"
+                                    >
+                                        {selectedFontSize}
+                                        <ChevronDown className={`w-3 h-3 transition-transform ${showFontSize ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {showFontSize && (
+                                        <div className="absolute top-full left-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[80px] py-1 animate-in fade-in zoom-in-95 duration-100">
+                                            {['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'].map(size => (
+                                                <button
+                                                    key={size}
+                                                    onClick={() => {
+                                                        applyFormat('size', size);
+                                                        setShowFontSize(false);
+                                                    }}
+                                                    className="w-full px-4 py-2 text-[11px] font-bold text-left hover:bg-slate-50 text-slate-600 transition-colors"
+                                                >
+                                                    {size}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="w-px h-6 bg-slate-200 mx-2" />
+
+                            {/* Formatting Group */}
+                            <div className="flex items-center gap-0.5">
+                                <button onClick={() => applyFormat('bold')} title="Bold" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <Bold className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('italic')} title="Italic" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <Italic className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('underline')} title="Underline" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <Underline className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('strike')} title="Strikethrough" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <Strikethrough className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="w-px h-6 bg-slate-200 mx-2" />
+
+                            {/* Alignment Group */}
+                            <div className="flex items-center gap-0.5">
+                                <button onClick={() => applyFormat('align', '')} title="Align Left" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <AlignLeft className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('align', 'center')} title="Align Center" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <AlignCenter className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('align', 'right')} title="Align Right" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <AlignRight className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('align', 'justify')} title="Justify" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <AlignJustify className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="w-px h-6 bg-slate-200 mx-2" />
+
+                            {/* Lists Group */}
+                            <div className="flex items-center gap-0.5">
+                                <button onClick={() => applyFormat('list', 'bullet')} title="Bullet List" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <List className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('list', 'ordered')} title="Numbered List" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <ListOrdered className="w-4 h-4" />
+                                </button>
+                            </div>
+
+                            <div className="w-px h-6 bg-slate-200 mx-2" />
+
+                            {/* Insert/Utility Group */}
+                            <div className="flex items-center gap-0.5">
+                                <button onClick={() => applyFormat('link')} title="Insert Link" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <LinkIcon className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('image')} title="Insert Image" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all">
+                                    <ImageIcon className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => applyFormat('clean')} title="Clear Formatting" className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-red-600 hover:bg-red-50 transition-all">
+                                    <Eraser className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Edit Mode: Action icons on right */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={onEditCancel}
+                                title="Cancel"
+                                className="h-8 px-3 rounded-lg text-[11px] font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 flex items-center gap-1.5 transition-all"
+                            >
+                                <X className="w-4 h-4" />
+                                Cancel
+                            </button>
+                            
+                            {!isExactMatch && (
+                                <button
+                                    onClick={onCreateTemplate}
+                                    title="Create New Template"
+                                    className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                >
+                                    <FilePlus className="w-4 h-4" />
+                                </button>
+                            )}
+                            
+                            <button
+                                onClick={onUpdateTemplate}
+                                disabled={isSaving}
+                                title="Update Main Template"
+                                className="p-2 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-50"
+                            >
+                                <Upload className="w-4 h-4" />
+                            </button>
+                            
+                            <button
+                                onClick={onSaveChanges}
+                                disabled={isSaving}
+                                title="Save Changes to Proposal"
+                                className="p-2 rounded-lg text-green-600 hover:text-green-700 hover:bg-green-50 transition-all disabled:opacity-50"
+                            >
+                                <Save className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        {/* View Mode: Proposal title + services on left */}
+                        <div className="flex items-center gap-3 flex-1">
+                            <div className="flex items-center gap-1.5">
+                                <LayoutTemplate className="w-4 h-4 text-blue-600" />
+                                <h3 className="font-semibold text-gray-800 text-sm">Proposal</h3>
+                            </div>
+                            
+                            {/* Services Multi-Select using MyDropDown */}
+                            <div className="relative flex-1 max-w-2xl">
+                                <div 
+                                    className="flex items-center gap-1.5 px-2 py-1 border border-gray-100 rounded-lg bg-[#f8fafc] cursor-pointer hover:border-blue-400 hover:bg-white transition-all min-h-[32px] shadow-sm"
+                                    onClick={() => setProposalServicesOpen(!proposalServicesOpen)}
+                                >
+                                    {services.length > 0 ? (
+                                        <div className="flex items-center gap-1.5 flex-1 overflow-hidden">
+                                            {services.slice(0, 3).map((service: string) => {
+                                                const opt = serviceOptions.find(o => o.value === service);
+                                                return (
+                                                    <span 
+                                                        key={service}
+                                                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md flex-shrink-0 shadow-sm border border-transparent"
+                                                        style={{ 
+                                                            backgroundColor: opt?.color ? `${opt.color}15` : '#f1f5f9',
+                                                            color: opt?.color || '#475569',
+                                                            borderColor: opt?.color ? `${opt.color}30` : '#e2e8f0'
+                                                        }}
+                                                    >
+                                                        {opt?.label || service}
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onServicesChange(services.filter(s => s !== service));
+                                                            }}
+                                                            className="hover:text-red-500 transition-colors ml-0.5"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </span>
+                                                );
+                                            })}
+                                            {services.length > 3 && (
+                                                <span className="inline-flex items-center px-2 py-1 text-[10px] font-extrabold rounded-md bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0">
+                                                    +{services.length - 3} MORE
+                                                </span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-gray-400">Select services...</span>
+                                    )}
+                                    <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${proposalServicesOpen ? 'rotate-180' : ''}`} />
+                                </div>
+                                
+                                <MyDropDown
+                                    isOpen={proposalServicesOpen}
+                                    onClose={() => setProposalServicesOpen(false)}
+                                    options={serviceOptions.map(opt => ({ ...opt, id: opt.value }))}
+                                    selectedValues={services}
+                                    onSelect={(value) => {
+                                        if (services.includes(value)) {
+                                            onServicesChange(services.filter(s => s !== value));
+                                        } else {
+                                            onServicesChange([...services, value]);
+                                        }
+                                    }}
+                                    placeholder="Search services..."
+                                    emptyMessage="No services available"
+                                    width="w-full"
+                                    className="!left-0 !translate-x-0"
+                                />
+                            </div>
+                        </div>
+
+                        {/* View Mode: Action icons on right */}
+                        <div className="flex items-center gap-1">
+                            <button 
+                                onClick={onDownloadPdf} 
+                                title="Download PDF"
+                                className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50"
+                                disabled={isGenerating || !previewHtml}
+                            >
+                                <Download className="w-4 h-4" />
+                            </button>
+                            
+                            <button 
+                                onClick={onEditStart} 
+                                title="Edit Proposal"
+                                className="p-2 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all disabled:opacity-50"
+                                disabled={isGenerating}
+                            >
+                                <Pencil className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* Content Area */}
+            <div className="bg-[#e0e5ec] flex-1 flex flex-col min-h-0 overflow-hidden">
+                {isEditing ? (
+                    <div className="flex flex-1 items-start min-h-0 overflow-hidden">
+                        {/* Main Editor Area */}
+                        <div className="flex-1 overflow-y-auto py-8 px-4 h-full">
+                            <LetterPageEditor
+                                pages={pages}
+                                onPagesChange={onPagesChange}
+                                quillRefs={activeQuillRefs}
+                                showAddPage={true}
+                                showDeletePage={true}
+                                hideToolbar={true}
+                            />
+                        </div>
+
+                        {/* Variables Sidebar */}
+                        <div className="w-80 flex-shrink-0 p-6 h-full overflow-y-auto border-l border-slate-200 bg-slate-50/50">
+                            <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Insert Variables</div>
+                            
+                            <SidebarAccordion title="System Variables" defaultOpen={true}>
+                                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
+                                    {SYSTEM_VARIABLES.map(v => (
+                                        <button 
+                                            key={v.name}
+                                            onClick={() => insertVariable(v.name)}
+                                            className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
+                                        >
+                                            <span className="truncate">{v.label}</span>
+                                            <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </SidebarAccordion>
+
+                            <SidebarAccordion title="Custom Variables" defaultOpen={true}>
+                                <div className="space-y-1.5">
+                                    {CUSTOM_VARIABLES.map(v => (
+                                        <button 
+                                            key={v.name}
+                                            onClick={() => insertVariable(v.name)}
+                                            className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
+                                        >
+                                            <span>{v.label}</span>
+                                            <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </SidebarAccordion>
+
+                            <SidebarAccordion title="Line Item Variables" defaultOpen={false}>
+                                <div className="space-y-1.5">
+                                    {LINE_ITEM_VARIABLES.map(v => (
+                                        <button 
+                                            key={v.name}
+                                            onClick={() => insertVariable(v.name)}
+                                            className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
+                                        >
+                                            <div className="flex flex-col items-start gap-1">
+                                                <span>{v.label}</span>
+                                                <span className="text-[10px] text-gray-400 font-normal">{v.description}</span>
+                                            </div>
+                                            <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
+                                        </button>
+                                    ))}
+                                </div>
+                            </SidebarAccordion>
+                        </div>
+                    </div>
+                ) : (
+                    /* Preview Mode */
+                    <div className="flex-1 overflow-y-auto p-2 bg-gray-50 ql-snow">
+                        {previewHtml ? (
+                            <div className="flex flex-col gap-8 items-center w-full py-6">
+                                {(() => {
+                                    const rawHtml = previewHtml || '';
+                                    const pageContentArray = rawHtml
+                                        .split(/___PAGE_BREAK___|<div class="page-break"><\/div>|<div style="page-break-after: always;"><\/div>/)
+                                        .filter(p => p.trim());
+                                    
+                                    return pageContentArray.map((pageHtml, idx) => (
+                                        <div key={idx} className="flex flex-col items-center">
+                                            <div className="text-[10px] text-gray-400 mb-2 font-medium">
+                                                Page {idx + 1} <span className="text-gray-300">• Letter Size (8.5" × 11")</span>
+                                            </div>
+                                            <div
+                                                className="bg-white relative flex-shrink-0"
+                                                style={{
+                                                    width: '8.5in',
+                                                    height: '11in',
+                                                    padding: '0.5in',
+                                                    boxShadow: '0 10px 30px rgba(0,0,0,0.1), 0 1px 8px rgba(0,0,0,0.05)',
+                                                    borderRadius: '2px',
+                                                    overflow: 'hidden',
+                                                    boxSizing: 'border-box'
+                                                }}
+                                            >
+                                                <div
+                                                    className="proposal-content ql-editor h-full"
+                                                    style={{ overflow: 'hidden', padding: 0 }}
+                                                    dangerouslySetInnerHTML={{ __html: pageHtml }}
+                                                />
+                                            </div>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        ) : (
+                            /* Empty state */
+                            <div className="p-12 flex flex-col items-center justify-center text-center text-gray-400 min-h-[400px]">
+                                <div className="relative mb-6">
+                                    <div className="bg-white p-4 rounded-full shadow-sm border border-gray-100">
+                                        <FileText className="w-12 h-12 text-blue-200" />
+                                    </div>
+                                </div>
+                                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Proposal Generated</h3>
+                                <p className="text-sm max-w-sm mx-auto text-gray-500">
+                                    Click the edit button to start creating your proposal.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}

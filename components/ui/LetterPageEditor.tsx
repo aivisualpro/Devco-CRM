@@ -27,6 +27,7 @@ interface LetterPageEditorProps {
     showAddPage?: boolean;
     showDeletePage?: boolean;
     readOnly?: boolean;
+    hideToolbar?: boolean;
 }
 
 // Quill toolbar modules
@@ -52,9 +53,10 @@ interface LetterPageProps {
     showDelete?: boolean;
     quillRef?: (el: any) => void;
     readOnly?: boolean;
+    hideToolbar?: boolean;
 }
 
-function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, readOnly }: LetterPageProps) {
+function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, readOnly, hideToolbar }: LetterPageProps) {
     return (
         <div className="relative flex flex-col items-center">
             {/* Page Header (Subtle Side Indicator) */}
@@ -80,9 +82,9 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                 style={{
                     width: '8.5in',
                     /* IMPORTANT: The toolbar height (44px) + 11in content height */
-                    height: !readOnly ? 'calc(11in + 44px)' : '11in',
+                    height: !readOnly && !hideToolbar ? 'calc(11in + 44px)' : '11in',
                     minWidth: '8.5in',
-                    minHeight: !readOnly ? 'calc(11in + 44px)' : '11in',
+                    minHeight: !readOnly && !hideToolbar ? 'calc(11in + 44px)' : '11in',
                     boxShadow: '0 10px 30px rgba(0,0,0,0.1), 0 1px 8px rgba(0,0,0,0.05)',
                     borderRadius: '2px',
                     overflow: 'hidden'
@@ -94,7 +96,7 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                     value={content}
                     onChange={onChange}
                     readOnly={readOnly}
-                    modules={readOnly ? { toolbar: false } : quillModules}
+                    modules={readOnly || hideToolbar ? { toolbar: false } : quillModules}
                     className="h-full flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-container]:overflow-hidden [&_.ql-toolbar]:flex-shrink-0"
                     style={{ height: '100%' }}
                 />
@@ -110,7 +112,8 @@ export function LetterPageEditor({
     quillRefs,
     showAddPage = true,
     showDeletePage = true,
-    readOnly = false
+    readOnly = false,
+    hideToolbar = false
 }: LetterPageEditorProps) {
     
     const handlePageContentChange = (index: number, value: string) => {
@@ -140,6 +143,7 @@ export function LetterPageEditor({
                     showDelete={showDeletePage && index > 0}
                     quillRef={quillRefs ? (el: any) => { quillRefs.current[index] = el; } : undefined}
                     readOnly={readOnly}
+                    hideToolbar={hideToolbar}
                 />
             ))}
 

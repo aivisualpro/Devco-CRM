@@ -129,7 +129,7 @@ export default function TemplatesPage() {
                 setTemplates(prev => prev.map(t => t._id === id ? { ...t, subTitleDescription: tempDesc } : t));
                 success('Description updated');
             } else {
-                toastError('Failed to update description');
+                toastError(result.error || 'Failed to update description');
             }
         }
         setEditingDescId(null);
@@ -157,7 +157,7 @@ export default function TemplatesPage() {
             setTemplates(prev => prev.map(t => t._id === templateId ? { ...t, services } : t));
             success('Template services updated');
         } else {
-            toastError('Failed to update services');
+            toastError(result.error || 'Failed to update services');
         }
     };
 
@@ -261,43 +261,46 @@ export default function TemplatesPage() {
                                         boxShadow: '9px 9px 16px rgb(163,177,198,0.6), -9px -9px 16px rgba(255,255,255, 0.5)'
                                     }}
                                 >
-                                    {/* Action Buttons */}
-                                    <div className="absolute top-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2 z-10">
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleClone(item); }}
-                                            className="p-3 text-blue-500 rounded-full transition-all active:scale-95 hover:text-blue-600 cursor-pointer"
-                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
-                                            title="Clone Template"
-                                        >
-                                            <Copy className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
-                                            className="p-3 text-blue-600 rounded-full transition-all active:scale-95 hover:text-blue-700 cursor-pointer"
-                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
-                                            title="Edit Template"
-                                        >
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                            onClick={(e) => { e.stopPropagation(); confirmDelete(item._id); }}
-                                            className="p-3 text-red-500 rounded-full transition-all active:scale-95 hover:text-red-600 cursor-pointer"
-                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
-                                            title="Delete Template"
-                                        >
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    </div>
-
                                     {/* Content */}
                                     <div className="flex-1 mt-2">
-                                        <h3 className="text-xl font-bold text-gray-700 mb-2 truncate pr-16" title={item.title}>{item.title}</h3>
-                                        <div
-                                            className="flex items-center gap-2 text-xs font-medium text-gray-500 mb-4 px-3 py-1.5 rounded-full w-fit"
-                                            style={{ boxShadow: 'inset 3px 3px 6px #b8b9be, inset -3px -3px 6px #ffffff' }}
-                                        >
-                                            <Calendar className="w-3 h-3" />
-                                            <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Unknown Date'}</span>
+                                        <h3 className="text-lg font-bold text-gray-700 mb-3 truncate" title={item.title}>{item.title}</h3>
+                                        
+                                        <div className="flex items-center justify-between mb-4 h-10">
+                                            <div
+                                                className="flex items-center gap-2 text-[10px] font-medium text-gray-500 px-3 py-1.5 rounded-full w-fit"
+                                                style={{ boxShadow: 'inset 3px 3px 6px #b8b9be, inset -3px -3px 6px #ffffff' }}
+                                            >
+                                                <Calendar className="w-3 h-3" />
+                                                <span>{item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Unknown Date'}</span>
+                                            </div>
+
+                                            {/* Action Buttons */}
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleClone(item); }}
+                                                    className="p-2 text-blue-500 rounded-full transition-all active:scale-95 hover:text-blue-600 cursor-pointer"
+                                                    style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                                    title="Clone Template"
+                                                >
+                                                    <Copy className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
+                                                    className="p-2 text-blue-600 rounded-full transition-all active:scale-95 hover:text-blue-700 cursor-pointer"
+                                                    style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                                    title="Edit Template"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); confirmDelete(item._id); }}
+                                                    className="p-2 text-red-500 rounded-full transition-all active:scale-95 hover:text-red-600 cursor-pointer"
+                                                    style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                                    title="Delete Template"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Description with Double Click Edit */}

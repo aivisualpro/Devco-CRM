@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock } from 'lucide-react';
+import { MyDropDown } from './MyDropDown';
 
 interface SubItem {
     label: string;
@@ -97,6 +98,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const [searchQuery, setSearchQuery] = useState('');
     const [user, setUser] = useState<User | null>(null);
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+    const [openMenu, setOpenMenu] = useState<string | null>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -180,7 +182,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
     return (
         <>
-            <header className="md:sticky top-0 z-50 bg-[#f0f2f5] border-b border-gray-200">
+            <header className="md:sticky top-0 z-[100] bg-[#f0f2f5] border-b border-gray-200">
                 <div className="w-full px-4 md:px-6">
                     <div className="flex items-center justify-between h-16 relative">
                         {/* Left Content + Navigation Menu */}
@@ -195,70 +197,41 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 {menuStructure.map((group) => {
                                     const active = isGroupActive(group.items);
 
-                                    let dropdownWidth = 'w-72';
-                                    let gridCols = 'grid-cols-1';
-
-                                    if (group.items.length > 8) {
-                                        dropdownWidth = 'w-[800px]';
-                                        gridCols = 'grid-cols-3';
-                                    } else if (group.items.length > 4) {
-                                        dropdownWidth = 'w-[500px]';
-                                        gridCols = 'grid-cols-2';
-                                    }
-
                                     return (
-                                        <div key={group.label} className="relative group">
+                                        <div 
+                                            key={group.label} 
+                                            className="relative"
+                                            onMouseEnter={() => setOpenMenu(group.label)}
+                                            onMouseLeave={() => setOpenMenu(null)}
+                                        >
                                             <button
-                                                className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                                className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                                                     }`}
                                             >
                                                 {group.label}
-                                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 group-hover:rotate-180 ${active ? '' : 'text-gray-400'}`} style={active ? { color: '#0F4C75' } : {}} />
+                                                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${openMenu === group.label ? 'rotate-180' : ''} ${active ? '' : 'text-gray-400'}`} style={active ? { color: '#0F4C75' } : {}} />
                                             </button>
 
-                                            {/* Mega Dropdown */}
-                                            <div className={`absolute top-full left-0 mt-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 transform origin-top-left z-50 ${dropdownWidth}`}>
-                                                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-4 overflow-hidden ring-1 ring-black/5">
-                                                    <div className={`grid ${gridCols} gap-4`}>
-                                                        {group.items.map((item) => {
-                                                            const isImplemented = ['/catalogue', '/templates', '/estimates', '/constants', '/clients', '/employees', '/knowledgebase', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/quickbooks'].includes(item.href);
-
-
-                                                            const Content = () => (
-                                                                <div className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group/item">
-                                                                    <div className={`mt-1 bg-gray-50 p-2 rounded-lg group-hover/item:bg-white group-hover/item:shadow-sm transition-all ${item.colorClass && item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100').replace('700', '100')}`}>
-                                                                        {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
-                                                                            className: `w-5 h-5 ${item.colorClass}`
-                                                                        })}
-                                                                    </div>
-                                                                    <div>
-                                                                        <h3 className={`font-bold text-base ${item.colorClass}`}>
-                                                                            {item.label}
-                                                                        </h3>
-                                                                        <p className="text-xs text-gray-400 font-medium leading-relaxed mt-0.5">
-                                                                            {item.description}
-                                                                        </p>
-                                                                    </div>
-                                                                </div>
-                                                            );
-
-                                                            if (!isImplemented) {
-                                                                return (
-                                                                    <div key={item.href} className="opacity-60 cursor-not-allowed grayscale">
-                                                                        <Content />
-                                                                    </div>
-                                                                );
-                                                            }
-
-                                                            return (
-                                                                <Link key={item.href} href={item.href}>
-                                                                    <Content />
-                                                                </Link>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <MyDropDown
+                                                isOpen={openMenu === group.label}
+                                                onClose={() => setOpenMenu(null)}
+                                                options={group.items.map(item => ({
+                                                    id: item.href,
+                                                    label: item.label,
+                                                    value: item.href,
+                                                    icon: item.icon
+                                                }))}
+                                                selectedValues={[pathname]}
+                                                onSelect={(value) => {
+                                                    router.push(value);
+                                                    setOpenMenu(null);
+                                                }}
+                                                placeholder={`Search ${group.label}...`}
+                                                emptyMessage="No pages found"
+                                                width="w-64"
+                                                className="!left-0 !translate-x-0"
+                                                hideSelectionIndicator={true}
+                                            />
                                         </div>
                                     );
                                 })}

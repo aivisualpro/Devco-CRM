@@ -1,8 +1,6 @@
-'use client';
-
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { Modal, Button } from '@/components/ui';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { AddMaterialCatalogueDialogue } from '@/app/(protected)/catalogue/components/AddMaterialCatalogueDialogue';
 import { useToast } from '@/hooks/useToast';
 
@@ -34,6 +32,43 @@ interface AddMaterialEstimateDialogueProps {
     onSave: (section: SectionConfig, data: Record<string, unknown>, isManual: boolean) => Promise<void>;
 }
 
+const MaterialRow = memo(({ 
+    item, 
+    isAdded, 
+    isSelected, 
+    onToggle, 
+    displayCols 
+}: { 
+    item: CatalogItem; 
+    isAdded: boolean; 
+    isSelected: boolean; 
+    onToggle: (item: CatalogItem) => void;
+    displayCols: string[];
+}) => {
+    return (
+        <tr
+            className={`cursor-pointer transition-colors ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : isSelected ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}
+            onClick={() => !isAdded && onToggle(item)}
+        >
+            <td className="p-3">
+                <input 
+                    type="checkbox" 
+                    checked={isSelected || isAdded} 
+                    readOnly
+                    className="rounded border-gray-300 pointer-events-none" 
+                />
+            </td>
+            {displayCols.map((col) => (
+                <td key={col} className="p-3 text-gray-700">
+                    {['cost'].includes(col) ? `$${Number(item[col] || 0).toLocaleString()}` : String(item[col] || '')}
+                </td>
+            ))}
+        </tr>
+    );
+});
+
+MaterialRow.displayName = 'MaterialRow';
+
 export function AddMaterialEstimateDialogue({
     isOpen,
     onClose,
@@ -42,65 +77,82 @@ export function AddMaterialEstimateDialogue({
     catalog,
     onSave
 }: AddMaterialEstimateDialogueProps) {
-    const [mode, setMode] = useState<'catalog' | 'manual'>('catalog');
     const [selectedItems, setSelectedItems] = useState<Set<CatalogItem>>(new Set());
+    const [inputValue, setInputValue] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
     const [saving, setSaving] = useState(false);
-
-    // New state for Catalogue Add
     const [isAddNewCatalogue, setIsAddNewCatalogue] = useState(false);
     const { success, error: toastError } = useToast();
+
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setSearchTerm(inputValue);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [inputValue]);
 
     useEffect(() => {
         if (isOpen) {
             setSelectedItems(new Set());
+            setInputValue('');
             setSearchTerm('');
-            setMode('catalog');
         }
     }, [isOpen]);
 
-    const getIdentifier = (item: CatalogItem): string => {
+    const getIdentifier = useCallback((item: CatalogItem): string => {
         const normalize = (val: unknown) => String(val || '').toLowerCase().trim();
         return `mat|${normalize(item.material)}|${normalize(item.classification)}`;
-    };
+    }, []);
 
-    const existingIdentifiers = useMemo(() => new Set(existingItems.map(getIdentifier)), [existingItems]);
+    const existingIdentifiers = useMemo(() => new Set(existingItems.map(getIdentifier)), [existingItems, getIdentifier]);
 
     const filteredCatalog = useMemo(() => {
-        let filtered = (catalog || []).filter(item => {
-            const searchStr = searchTerm.toLowerCase();
-            const text = Object.values(item).join(' ').toLowerCase();
-            return text.includes(searchStr);
-        });
+        const searchStr = searchTerm.toLowerCase().trim();
+        let list = (catalog || []);
+        
+        if (searchStr) {
+            list = list.filter(item => {
+                const material = String(item.material || '').toLowerCase();
+                const classification = String(item.classification || '').toLowerCase();
+                const supplier = String(item.supplier || '').toLowerCase();
+                return material.includes(searchStr) || classification.includes(searchStr) || supplier.includes(searchStr);
+            });
+        }
 
         const uniqueContent = new Set<string>();
-        filtered = filtered.filter(item => {
+        const filtered = list.filter(item => {
             const key = getIdentifier(item);
             if (uniqueContent.has(key)) return false;
             uniqueContent.add(key);
             return true;
         });
 
-        return filtered;
-    }, [catalog, searchTerm]);
+        return filtered.slice(0, 80);
+    }, [catalog, searchTerm, getIdentifier]);
 
-    const toggleSelection = (item: CatalogItem) => {
-        const newSet = new Set(selectedItems);
-        if (newSet.has(item)) newSet.delete(item);
-        else newSet.add(item);
-        setSelectedItems(newSet);
-    };
+    const toggleSelection = useCallback((item: CatalogItem) => {
+        setSelectedItems(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(item)) newSet.delete(item);
+            else newSet.add(item);
+            return newSet;
+        });
+    }, []);
 
     const handleAddSelected = async () => {
         if (selectedItems.size === 0) return;
         setSaving(true);
-        for (const item of Array.from(selectedItems)) {
-            if (existingIdentifiers.has(getIdentifier(item))) continue;
-            const { _id, ...itemData } = item;
-            await onSave(section, { ...itemData, quantity: 1 }, false);
+        try {
+            for (const item of Array.from(selectedItems)) {
+                if (existingIdentifiers.has(getIdentifier(item))) continue;
+                const { _id, ...itemData } = item;
+                await onSave(section, { ...itemData, quantity: 1 }, false);
+            }
+            onClose();
+        } finally {
+            setSaving(false);
         }
-        setSaving(false);
-        onClose();
     };
 
     const handleCatalogueSave = async (data: any) => {
@@ -126,9 +178,7 @@ export function AddMaterialEstimateDialogue({
         }
     };
 
-    const displayCols = ['material', 'classification', 'subClassification', 'supplier', 'uom', 'cost'];
-
-    // Remove manual mode return block
+    const displayCols = useMemo(() => ['material', 'classification', 'subClassification', 'supplier', 'uom', 'cost'], []);
 
     return (
         <>
@@ -150,39 +200,51 @@ export function AddMaterialEstimateDialogue({
                         <input
                             type="text"
                             autoFocus
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
+                            value={inputValue}
+                            onChange={e => setInputValue(e.target.value)}
                             placeholder="Search material catalog..."
                             className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                         />
                         <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                        {inputValue && (
+                            <button 
+                                onClick={() => setInputValue('')}
+                                className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
-                    <div className="max-h-[50vh] overflow-y-auto border border-gray-100 rounded-xl">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10">
+                    <div className="max-h-[50vh] overflow-y-auto border border-gray-100 rounded-xl scrollbar-thin overflow-x-hidden">
+                        <table className="w-full text-sm text-left border-collapse">
+                            <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10 shadow-sm">
                                 <tr>
                                     <th className="p-3 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
                                     {displayCols.map(col => <th key={col} className="p-3 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {filteredCatalog.map((item, idx) => {
-                                    const isAdded = existingIdentifiers.has(getIdentifier(item));
-                                    return (
-                                        <tr
-                                            key={String(item._id) || idx}
-                                            className={`cursor-pointer transition-colors ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : selectedItems.has(item) ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}
-                                            onClick={() => !isAdded && toggleSelection(item)}
-                                        >
-                                            <td className="p-3"><input type="checkbox" checked={selectedItems.has(item) || isAdded} disabled className="rounded border-gray-300 pointer-events-none" /></td>
-                                            {displayCols.map((col) => (
-                                                <td key={col} className="p-3 text-gray-700">
-                                                    {['cost'].includes(col) ? `$${Number(item[col] || 0).toLocaleString()}` : String(item[col] || '')}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    );
-                                })}
+                                {filteredCatalog.length > 0 ? (
+                                    filteredCatalog.map((item) => {
+                                        const identifier = getIdentifier(item);
+                                        return (
+                                            <MaterialRow 
+                                                key={item._id || identifier}
+                                                item={item}
+                                                isAdded={existingIdentifiers.has(identifier)}
+                                                isSelected={selectedItems.has(item)}
+                                                onToggle={toggleSelection}
+                                                displayCols={displayCols}
+                                            />
+                                        );
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={displayCols.length + 1} className="p-8 text-center text-gray-400 italic">
+                                            {inputValue ? 'No results found' : 'Start typing to search...'}
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

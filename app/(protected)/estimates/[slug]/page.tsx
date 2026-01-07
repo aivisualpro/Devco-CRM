@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor, MyDropDown, MyTemplate } from '@/components/ui';
+import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check, Pencil, X, FilePlus, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Link, Image, Eraser } from 'lucide-react';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
@@ -32,62 +32,6 @@ import {
     type LaborBreakdown,
     type FringeConstant
 } from '@/lib/estimateCalculations';
-
-const SYSTEM_VARIABLES = [
-    { name: 'proposalNo', label: 'Proposal No.' },
-    { name: 'date', label: 'Proposal Date' },
-    { name: 'projectTitle', label: 'Project Name' },
-    { name: 'jobAddress', label: 'Job Address' },
-    { name: 'customerName', label: 'Client Name' },
-    { name: 'contactPerson', label: 'Contact Person' },
-    { name: 'contactAddress', label: 'Contact Address' },
-    { name: 'contactPhone', label: 'Contact Phone' },
-    { name: 'contactEmail', label: 'Contact Email' },
-    { name: 'aggregations.grandTotal', label: 'Estimate Grand Total' },
-    { name: 'aggregations.subTotal', label: 'Estimate Sub Total' },
-    { name: 'aggregations.laborTotal', label: 'Estimate Labor' },
-    { name: 'aggregations.toolsTotal', label: 'Estimate Tools' },
-    { name: 'aggregations.materialTotal', label: 'Estimate Materials' },
-    { name: 'aggregations.equipmentTotal', label: 'Estimate Equipment' },
-    { name: 'aggregations.overheadTotal', label: 'Estimate Overhead' },
-    { name: 'aggregations.subcontractorTotal', label: 'Estimate Subcontractor' },
-    { name: 'aggregations.disposalTotal', label: 'Estimate Disposal' },
-    { name: 'aggregations.miscellaneousTotal', label: 'Estimate Miscellaneous' },
-];
-
-const CUSTOM_VARIABLES = [
-    { name: 'customText', label: 'Custom Text', type: 'text', description: 'Plain text field' },
-    { name: 'customCurrency', label: 'Custom Currency', type: 'currency', description: 'Shows as $X,XXX.XX' },
-    { name: 'customNumber', label: 'Custom Number', type: 'decimal', description: 'Shows as X,XXX.XX' },
-];
-
-const LINE_ITEM_VARIABLES = [
-    { name: 'lineItemLabor', label: 'Labor Item', category: 'labor', description: 'Select & insert labor item' },
-    { name: 'lineItemEquipment', label: 'Equipment Item', category: 'equipment', description: 'Select & insert equipment item' },
-    { name: 'lineItemMaterial', label: 'Material Item', category: 'material', description: 'Select & insert material item' },
-    { name: 'lineItemTool', label: 'Tool Item', category: 'tool', description: 'Select & insert tool item' },
-    { name: 'lineItemOverhead', label: 'Overhead Item', category: 'overhead', description: 'Select & insert overhead item' },
-    { name: 'lineItemSubcontractor', label: 'Subcontractor Item', category: 'subcontractor', description: 'Select & insert subcontractor item' },
-    { name: 'lineItemDisposal', label: 'Disposal Item', category: 'disposal', description: 'Select & insert disposal item' },
-    { name: 'lineItemMiscellaneous', label: 'Miscellaneous Item', category: 'miscellaneous', description: 'Select & insert misc item' },
-];
-
-// Neumorphic Sidebar Accordion
-function SidebarAccordion({ title, children, defaultOpen = false, rightAction }: { title: string, children: React.ReactNode, defaultOpen?: boolean, rightAction?: React.ReactNode }) {
-    const [isOpen, setIsOpen] = useState(defaultOpen);
-    return (
-        <div className="w-full rounded-[16px] p-4 mb-4" style={{ background: '#e0e5ec', boxShadow: '4px 4px 8px #b8b9be, -4px -4px 8px #ffffff' }}>
-            <div className="flex items-center justify-between cursor-pointer" onClick={() => setIsOpen(!isOpen)}>
-                <div className="flex items-center gap-2">
-                    {isOpen ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
-                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider select-none">{title}</h4>
-                </div>
-                {rightAction && <div onClick={(e) => e.stopPropagation()}>{rightAction}</div>}
-            </div>
-            {isOpen && <div className="mt-3">{children}</div>}
-        </div>
-    );
-}
 
 const DRAFT_KEY_PREFIX = 'estimate_draft_';
 
@@ -137,6 +81,7 @@ interface Estimate {
         generatedAt: Date | string;
         pdfUrl?: string;
         htmlContent: string;
+        customPages?: { content: string }[];
     };
     proposals?: Array<{
         templateId: string;
@@ -144,6 +89,7 @@ interface Estimate {
         generatedAt: Date | string;
         pdfUrl?: string;
         htmlContent: string;
+        customPages?: { content: string }[];
     }>;
     [key: string]: unknown;
 }
@@ -295,6 +241,58 @@ export default function EstimateViewPage() {
     const [chartAnimate, setChartAnimate] = useState(false);
     const [sectionOrder, setSectionOrder] = useState<string[]>([]);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+    const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+
+    const handleDownloadPdf = async () => {
+        setIsDownloadingPdf(true);
+        try {
+            // First ensure we have the latest preview HTML generated from current state
+            const generatedHtml = await handlePreview(false);
+            
+            // Get the HTML content for PDF
+            const content = (generatedHtml || previewHtml || estimate?.proposal?.htmlContent || '');
+
+            if (!content.trim()) {
+                toastError('No content to generate PDF');
+                return;
+            }
+
+            // Call the server-side PDF generation API
+            const response = await fetch('/api/generate-pdf', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    html: content,
+                    filename: `Proposal-${estimate?.proposalNo || 'Draft'}.pdf`
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate PDF');
+            }
+
+            // Get the PDF blob and trigger download
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Proposal-${estimate?.proposalNo || 'Draft'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            success('PDF downloaded successfully!');
+        } catch (err) {
+            console.error('PDF Generation failed:', err);
+            toastError('Failed to generate PDF');
+        } finally {
+            setIsDownloadingPdf(false);
+        }
+    };
 
     // Catalogs
     const [laborCatalog, setLaborCatalog] = useState<LineItem[]>([]);
@@ -335,9 +333,14 @@ export default function EstimateViewPage() {
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
     const [isAddingProposalService, setIsAddingProposalService] = useState(false);
+    const [hasCustomProposal, setHasCustomProposal] = useState(false); // Track if proposal has custom edits
 
-    // Refs
-    const toastShownRef = useRef<string | null>(null);
+    const handleCreateTemplate = () => {
+        setSaveType('create');
+        const currentTitle = templates.find(t => t._id === selectedTemplateId)?.title;
+        setNewTemplateTitle(currentTitle ? `${currentTitle} (Copy)` : 'New Template');
+        setShowSaveTemplateModal(true);
+    };
 
     // API helpers
     const apiCall = async (action: string, payload: Record<string, unknown> = {}) => {
@@ -473,8 +476,6 @@ export default function EstimateViewPage() {
                 setMiscellaneousCatalog(miscellaneous || []);
                 setFringeConstants((constant || []) as unknown as FringeConstant[]);
 
-                console.log('Loaded Constants:', constant);
-
                 // Process Status Options
                 const statuses = (constant || [])
                     .filter((c: any) => {
@@ -515,7 +516,6 @@ export default function EstimateViewPage() {
                         value: (c.description || c.value || '').trim(), // Ensure trim
                         color: c.color
                     }));
-                console.log('Loaded Fringe Options:', fringes);
                 setFringeOptions(fringes);
 
                 // Process Certified Payroll Options
@@ -530,7 +530,6 @@ export default function EstimateViewPage() {
                         value: (c.description || c.value || '').trim(),
                         color: c.color
                     }));
-                console.log('Loaded Certified Payroll Options:', certifiedPayroll);
                 setCertifiedPayrollOptions(certifiedPayroll);
 
                 // Fetch Employees for Proposal Writer
@@ -747,9 +746,21 @@ export default function EstimateViewPage() {
     }, [chartData.grandTotal, estimate?._id]);
 
     // Auto-refresh preview when data changes (debounce 1s)
+    // IMPORTANT: Skip if we have a custom proposal saved to avoid overwriting user edits
     useEffect(() => {
         // Run if we have a template selected and not in manual edit mode
         if (!selectedTemplateId || isEditingTemplate || generatingProposal || !estimate) return;
+        
+        // If we have a saved custom proposal for this template, don't auto-refresh from template
+        // This preserves the user's custom edits
+        const savedProposal = estimate?.proposals?.find((p: any) => p.templateId === selectedTemplateId);
+        if (savedProposal?.customPages && savedProposal.customPages.length > 0) {
+            // Use the saved proposal content instead of regenerating from template
+            if (!previewHtml && savedProposal.htmlContent) {
+                setPreviewHtml(savedProposal.htmlContent);
+            }
+            return;
+        }
 
         const timer = setTimeout(() => {
             handlePreview(false);
@@ -757,13 +768,64 @@ export default function EstimateViewPage() {
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData, chartData, estimate, selectedTemplateId]);
+    }, [formData, chartData, estimate, selectedTemplateId, isEditingTemplate]);
 
 
 
     // Handlers
-    const handleSaveTemplate = async () => {
-        // if (!editorContent) return; // Allow empty
+    // Save changes only to the current estimate's proposal (does NOT update main template)
+    const handleSaveProposalChanges = async () => {
+        if (!estimate) return;
+        setIsSavingTemplate(true);
+
+        try {
+            // Generate the HTML with current editor pages content
+            const pagesToSave = editorPages;
+            const contentToSave = editorPages[0]?.content || '';
+            
+            const currentEstimate = {
+                ...estimate,
+                ...formData,
+                ...chartData,
+                labor: estimate.labor,
+                equipment: estimate.equipment,
+                material: estimate.material,
+                tools: estimate.tools,
+                overhead: estimate.overhead,
+                subcontractor: estimate.subcontractor,
+                disposal: estimate.disposal,
+                miscellaneous: estimate.miscellaneous
+            };
+
+            // Generate proposal with the edited pages (but don't update template)
+            const result = await apiCall('generateProposalFromPages', {
+                templateId: selectedTemplateId,
+                estimateId: estimate._id,
+                pages: pagesToSave,
+                estimateData: currentEstimate
+            });
+
+            if (result.success && result.result) {
+                setPreviewHtml(result.result.html);
+                setHasCustomProposal(true); // Mark that we have custom proposal edits
+                setIsEditingTemplate(false);
+                success('Proposal changes saved');
+                // Reload estimate to get updated proposal data from database
+                await loadEstimate(true); // true = silent mode, no loading spinner
+            } else {
+                console.error('Save proposal error:', result.error);
+                toastError(result.error || 'Failed to save proposal changes');
+            }
+        } catch (e) {
+            console.error(e);
+            toastError('Error saving proposal changes');
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    };
+
+    // Update the main template (only when explicitly requested)
+    const handleUpdateMainTemplate = async () => {
         setIsSavingTemplate(true);
 
         const action = saveType === 'create' ? 'addTemplate' : 'updateTemplate';
@@ -776,7 +838,8 @@ export default function EstimateViewPage() {
             payload.item = {
                 title: newTemplateTitle,
                 content: contentToSave,
-                pages: pagesToSave
+                pages: pagesToSave,
+                services: formData?.services || []
             };
         } else {
             payload.id = selectedTemplateId;
@@ -789,7 +852,7 @@ export default function EstimateViewPage() {
         try {
             const res = await apiCall(action, payload);
             if (res.success) {
-                success(saveType === 'create' ? 'Template created' : 'Template updated');
+                success(saveType === 'create' ? 'Template created' : 'Main template updated');
                 setShowSaveTemplateModal(false);
                 setIsEditingTemplate(false);
                 
@@ -838,10 +901,13 @@ export default function EstimateViewPage() {
 
         if (result.success && result.result) {
             setPreviewHtml(result.result.html);
+            setGeneratingProposal(false);
+            return result.result.html;
         } else {
             toastError('Failed to generate preview');
+            setGeneratingProposal(false);
+            return null;
         }
-        setGeneratingProposal(false);
     };
 
     const handleGenerateProposal = async (explicitTemplateId?: string) => {
@@ -948,9 +1014,11 @@ export default function EstimateViewPage() {
                 }
             }
         } else {
-            // No matches at all - always clear template and show empty state
-            setSelectedTemplateId('');
-            setPreviewHtml('');
+            // No matches at all - use empty template instead of generic empty state
+            if (selectedTemplateId !== 'empty') {
+                setSelectedTemplateId('empty');
+                handleGenerateProposal('empty');
+            }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData?.services, templates, isEditingTemplate]);
@@ -1326,7 +1394,7 @@ export default function EstimateViewPage() {
 
 
     return (
-        <div className="flex flex-col h-full min-h-0 bg-[#f8fafc]">
+        <div className="flex flex-col h-screen bg-[#f8fafc] overflow-hidden">
             <div className="flex-none">
             <Header
                 rightContent={
@@ -1401,7 +1469,8 @@ export default function EstimateViewPage() {
                 }
             />
         </div>
-        <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
+            <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
+                {/* Section 1: Header Card */}
                 <div className="w-full px-4 md:px-6 py-6">
                     {/* Header Card */}
                     <EstimateHeaderCard
@@ -1439,387 +1508,88 @@ export default function EstimateViewPage() {
                     />
                 </div>
 
-                {/* Accordion Sections */}
-                <div className="w-full space-y-4 pb-20 px-8">
-                    {sections.map(section => (
-                        <AccordionSection
-                            key={section.id}
-                            title={section.title}
-                            isOpen={openSections[section.id] || false}
-                            onToggle={() => setOpenSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
-                            itemCount={section.items.length}
-                            sectionTotal={section.items.reduce((sum, i) => sum + (i.total || 0), 0)}
-                            grandTotal={chartData.subTotal}
-                            color={section.color}
-                            onAdd={() => setActiveSection(section)}
-                        >
-                            <LineItemsTable
-                                sectionId={section.id}
-                                headers={section.headers}
-                                items={section.items}
-                                fields={section.fields}
-                                editableFields={section.editableFields}
-                                onUpdateItem={(item, field, value) => handleItemUpdate(section, item, field, value)}
-                                onExplain={section.id === 'Labor' ? handleExplain : undefined}
-                                onDelete={(item) => handleDeleteItem(section, item)}
-                            />
-                        </AccordionSection>
-                    ))}
-
-                    {/* Proposal Content Section */}
-                    {templates.length > 0 && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mt-6 relative">
-                            {/* Sticky Proposal Header */}
-                            <div className="px-3 py-2 border-b border-gray-100 bg-white flex items-center justify-between sticky top-0 z-30 shadow-sm rounded-t-xl transition-all">
-                                <div className="flex items-center gap-3 flex-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <LayoutTemplate className="w-4 h-4 text-blue-600" />
-                                        <h3 className="font-semibold text-gray-800 text-sm">Proposal</h3>
-                                    </div>
-                                    
-                                    {/* Services Multi-Select using MyDropDown */}
-                                    <div className="relative flex-1 max-w-md">
-                                        <div 
-                                            className="flex items-center gap-1.5 px-2 py-1 border border-gray-200 rounded-lg bg-white cursor-pointer hover:border-blue-300 transition-colors min-h-[28px]"
-                                            onClick={() => setProposalServicesOpen(!proposalServicesOpen)}
-                                        >
-                                            {formData?.services && formData.services.length > 0 ? (
-                                                <div className="flex flex-wrap gap-1 flex-1">
-                                                    {formData.services.map((service: string) => {
-                                                        const opt = serviceOptions.find(o => o.value === service);
-                                                        return (
-                                                            <span 
-                                                                key={service}
-                                                                className="inline-flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium rounded"
-                                                                style={{ 
-                                                                    backgroundColor: opt?.color ? `${opt.color}20` : '#e5e7eb',
-                                                                    color: opt?.color || '#374151'
-                                                                }}
-                                                            >
-                                                                {opt?.label || service}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleServicesChange(formData.services?.filter(s => s !== service) || []);
-                                                                    }}
-                                                                    className="hover:text-red-500 transition-colors"
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </span>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ) : (
-                                                <span className="text-xs text-gray-400">Select services...</span>
-                                            )}
-                                            <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform flex-shrink-0 ${proposalServicesOpen ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        
-                                        <MyDropDown
-                                            isOpen={proposalServicesOpen}
-                                            onClose={() => setProposalServicesOpen(false)}
-                                            options={serviceOptions}
-                                            selectedValues={formData?.services || []}
-                                            onSelect={(value) => {
-                                                const currentServices = formData?.services || [];
-                                                if (currentServices.includes(value)) {
-                                                    handleServicesChange(currentServices.filter(s => s !== value));
-                                                } else {
-                                                    handleServicesChange([...currentServices, value]);
-                                                }
-                                            }}
-                                            placeholder="Search services..."
-                                            emptyMessage="No services available"
-                                            width="w-full"
-                                            className="!left-0 !translate-x-0"
-                                        />
-                                    </div>
-                                </div>
-                                
-                                
-                                <div className="flex items-center gap-2">
-                                    {!isEditingTemplate && (
-                                        <Button
-                                            onClick={async () => {
-                                                await handlePreview(false);
-                                                setShowPdfPreview(true);
-                                            }}
-                                            variant="secondary"
-                                            size="sm"
-                                            disabled={generatingProposal || !selectedTemplateId}
-                                            className="text-xs px-2 py-1"
-                                        >
-                                            {generatingProposal ? 'Generating...' : 'Preview PDF'}
-                                        </Button>
-                                    )}
-
-                                    {(previewHtml || estimate?.proposal?.htmlContent) && (
-                                        <>
-                                            {isEditingTemplate ? (
-                                                <>
-                                                    <Button
-                                                        onClick={() => {
-                                                            setIsEditingTemplate(false);
-                                                            handlePreview(false);
-                                                        }}
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-xs px-2 py-1"
-                                                    >
-                                                        Cancel
-                                                    </Button>
-                                                    {/* Show Create Template only if no template exactly matches all selected services */}
-                                                    {(() => {
-                                                        const selectedServices = formData?.services || [];
-                                                        const currentTemplate = templates.find(t => t._id === selectedTemplateId);
-                                                        const templateServices = currentTemplate?.services || [];
-                                                        
-                                                        // Check if template services exactly match selected services
-                                                        const isExactMatch = selectedServices.length > 0 && 
-                                                            selectedServices.length === templateServices.length &&
-                                                            selectedServices.every(s => templateServices.includes(s));
-                                                        
-                                                        if (isExactMatch) return null;
-                                                        
-                                                        return (
-                                                            <Button
-                                                                onClick={() => {
-                                                                    setSaveType('create');
-                                                                    const currentTitle = templates.find(t => t._id === selectedTemplateId)?.title;
-                                                                    setNewTemplateTitle(currentTitle ? `${currentTitle} (Copy)` : 'New Template');
-                                                                    setShowSaveTemplateModal(true);
-                                                                }}
-                                                                variant="secondary"
-                                                                size="sm"
-                                                                className="text-xs px-2 py-1"
-                                                            >
-                                                                Create Template
-                                                            </Button>
-                                                        );
-                                                    })()}
-                                                    <Button
-                                                        onClick={() => {
-                                                            setSaveType('update');
-                                                            handleSaveTemplate();
-                                                        }}
-                                                        variant="primary"
-                                                        size="sm"
-                                                        disabled={isSavingTemplate}
-                                                        className="text-xs px-2 py-1"
-                                                    >
-                                                        {isSavingTemplate ? 'Saving...' : 'Save Changes'}
-                                                    </Button>
-                                                </>
-                                            ) : (
-                                                <Button
-                                                    onClick={() => {
-                                                        const tmpl = templates.find(t => t._id === selectedTemplateId);
-                                                        // Load pages if available, otherwise fallback to content or empty
-                                                        if (tmpl?.pages && tmpl.pages.length > 0) {
-                                                            setEditorPages(tmpl.pages);
-                                                        } else {
-                                                            setEditorPages([{ content: tmpl?.content || '' }]);
-                                                        }
-                                                        setIsEditingTemplate(true);
-                                                    }}
-                                                    variant="secondary"
-                                                    size="sm"
-                                                    disabled={generatingProposal}
-                                                    className="text-xs px-2 py-1"
-                                                >
-                                                    Edit Template
-                                                </Button>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Show content based on: 1) has template selected with preview, 2) has services but no template = blank, 3) no services = empty state */}
-                            {selectedTemplateId && (previewHtml || estimate?.proposal?.htmlContent) ? (
-                                <div className="p-2 bg-gray-50 min-h-[400px] ql-snow rounded-b-xl">
-                                    {isEditingTemplate ? (
-                                        <div className="flex bg-[#e0e5ec] min-h-[800px] -m-2">
-                                            {/* Main Editor - Using shared LetterPageEditor */}
-                                            <div className="flex-1 overflow-y-auto py-8 px-4">
-                                                <LetterPageEditor
-                                                    pages={editorPages}
-                                                    onPagesChange={setEditorPages}
-                                                    quillRefs={quillRefs}
-                                                    showAddPage={true}
-                                                    showDeletePage={true}
-                                                />
-                                            </div>
-
-                                            {/* Variables Sidebar */}
-                                            <div className="w-80 flex-shrink-0 p-6 sticky top-0 h-[calc(100vh-200px)] overflow-y-auto">
-                                                <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Insert Variables</div>
-                                                
-                                                <SidebarAccordion title="System Variables" defaultOpen={true}>
-                                                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                                                        {SYSTEM_VARIABLES.map(v => (
-                                                            <button 
-                                                                key={v.name}
-                                                                onClick={() => insertVariable(v.name)}
-                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
-                                                            >
-                                                                <span className="truncate">{v.label}</span>
-                                                                <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </SidebarAccordion>
-
-                                                <SidebarAccordion title="Custom Variables" defaultOpen={true}>
-                                                    <div className="space-y-1.5">
-                                                        {CUSTOM_VARIABLES.map(v => (
-                                                            <button 
-                                                                key={v.name}
-                                                                onClick={() => insertVariable(v.name)}
-                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
-                                                            >
-                                                                <span>{v.label}</span>
-                                                                <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </SidebarAccordion>
-
-                                                <SidebarAccordion title="Line Item Variables" defaultOpen={false}>
-                                                    <div className="space-y-1.5">
-                                                        {LINE_ITEM_VARIABLES.map(v => (
-                                                            <button 
-                                                                key={v.name}
-                                                                onClick={() => insertVariable(v.name)}
-                                                                className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 hover:bg-white/50 transition-all flex items-center justify-between group"
-                                                            >
-                                                                <div className="flex flex-col items-start gap-1">
-                                                                    <span>{v.label}</span>
-                                                                    <span className="text-[10px] text-gray-400 font-normal">{v.description}</span>
-                                                                </div>
-                                                                <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500" />
-                                                            </button>
-                                                        ))}
-                                                    </div>
-                                                </SidebarAccordion>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col gap-8 items-center w-full">
-                                            {(() => {
-                                                const rawHtml = previewHtml || estimate?.proposal?.htmlContent || '';
-                                                const pageContentArray = rawHtml
-                                                    .split('___PAGE_BREAK___')
-                                                    .flatMap(p => p.split(/(?:<!-- PAGEBREAK -->|<div style="page-break-after: always;[^"]*"><\/div>)/));
-
-                                                return pageContentArray.map((pageHtml, idx) => (
-                                                    <div key={idx} className="flex flex-col items-center w-full">
-                                                        {/* Page number indicator */}
-                                                        <div className="w-[8.5in] flex items-center justify-between py-3 select-none">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">Page {idx + 1}</span>
-                                                            </div>
-                                                            <span className="text-[10px] text-slate-400">Letter Size (8.5" × 11")</span>
-                                                        </div>
-                                                        {/* Letter page container - exact printable area with 0.5in margins */}
-                                                        <div
-                                                            className="bg-white shadow-lg mx-auto relative"
-                                                            style={{
-                                                                width: '8.5in',
-                                                                height: '11in',
-                                                                minWidth: '8.5in',
-                                                                minHeight: '11in',
-                                                                padding: '0.5in',
-                                                                fontFamily: 'Arial, sans-serif',
-                                                                fontSize: '11pt',
-                                                                lineHeight: '1.15',
-                                                                overflow: 'hidden',
-                                                                boxSizing: 'border-box'
-                                                            }}
-                                                        >
-                                                            <div
-                                                                className="proposal-content ql-editor h-full"
-                                                                style={{ overflow: 'hidden', padding: 0 }}
-                                                                dangerouslySetInnerHTML={{ __html: pageHtml }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                ));
-                                            })()}
-                                        </div>
-                                    )}
-                                </div>
-                            ) : formData?.services && formData.services.length > 0 ? (
-                                /* Services selected but no matching template - show blank editable template using MyTemplate */
-                                <div className="bg-[#e0e5ec] min-h-[700px] rounded-b-xl">
-                                    <div className="flex h-full items-start">
-                                        {/* Main Editor Area using MyTemplate */}
-                                        <div className="flex-1 overflow-y-auto py-6 px-2">
-                                            <MyTemplate
-                                                pages={editorPages}
-                                                onPagesChange={setEditorPages}
-                                                quillRefs={quillRefs}
-                                                showAddPage={true}
-                                                showDeletePage={true}
-                                                showPageIndicator={false}
-                                            />
-                                        </div>
-
-                                        {/* RIGHT SIDEBAR: Variables (Sticky, top-aligned) */}
-                                        <div className="w-64 flex-shrink-0 p-4 sticky top-0 self-start h-fit max-h-[calc(100vh-200px)] overflow-y-auto">
-                                            {/* System Variables Accordion */}
-                                            <div className="w-full rounded-[16px] p-4 mb-4" style={{ background: '#e0e5ec', boxShadow: '4px 4px 8px #b8b9be, -4px -4px 8px #ffffff' }}>
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    <ChevronDown className="w-4 h-4 text-gray-500" />
-                                                    <h4 className="text-xs font-bold text-gray-600 uppercase tracking-wider select-none">System Variables</h4>
-                                                </div>
-                                                <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
-                                                    {[
-                                                        { name: 'proposalNo', label: 'Proposal No.' },
-                                                        { name: 'date', label: 'Proposal Date' },
-                                                        { name: 'projectTitle', label: 'Project Name' },
-                                                        { name: 'jobAddress', label: 'Job Address' },
-                                                        { name: 'customerName', label: 'Client Name' },
-                                                        { name: 'contactPerson', label: 'Contact Person' },
-                                                        { name: 'contactAddress', label: 'Contact Address' },
-                                                        { name: 'contactPhone', label: 'Contact Phone' },
-                                                    ].map(v => (
-                                                        <button
-                                                            key={v.name}
-                                                            onClick={() => insertVariable(v.name)}
-                                                            className="w-full text-left px-3 py-2 rounded-lg text-xs text-gray-600 hover:text-blue-600 transition-all group flex items-center justify-between"
-                                                            style={{ background: '#e0e5ec', boxShadow: 'inset 2px 2px 4px #b8b9be, inset -2px -2px 4px #ffffff' }}
-                                                        >
-                                                            <span className="font-medium truncate">{v.label}</span>
-                                                            <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 flex-shrink-0" />
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ) : (
-                                /* No services selected - show empty state */
-                                <div className="p-12 flex flex-col items-center justify-center text-center text-gray-400 bg-gray-50 min-h-[400px] rounded-b-xl">
-                                    <div className="relative mb-6 group">
-                                        <div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-20 duration-1000"></div>
-                                        <div className="relative bg-white p-4 rounded-full shadow-sm border border-gray-100">
-                                            <FileText className="w-12 h-12 text-blue-200 animate-pulse" />
-                                            <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-400 rounded-full border-2 border-white animate-bounce"></div>
-                                        </div>
-                                    </div>
-                                    <h3 className="text-lg font-semibold text-gray-600 mb-2">No Services Selected</h3>
-                                    <p className="text-sm max-w-sm mx-auto text-gray-500">
-                                        Select services above to automatically match and display the appropriate proposal template.
-                                    </p>
-                                </div>
-                            )}
+                {/* Section 2: All Line Items (Full Screen Height with Scroll) */}
+                <div className="w-full px-6 pb-8 h-[calc(100vh-64px)] flex flex-col">
+                    <div className="flex-1 h-full overflow-y-auto bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+                        <div className="space-y-6">
+                            {sections.map(section => (
+                                <AccordionSection
+                                    key={section.id}
+                                    title={section.title}
+                                    isOpen={openSections[section.id] || false}
+                                    onToggle={() => setOpenSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                                    itemCount={section.items.length}
+                                    sectionTotal={section.items.reduce((sum, i) => sum + (i.total || 0), 0)}
+                                    grandTotal={chartData.subTotal}
+                                    color={section.color}
+                                    onAdd={() => setActiveSection(section)}
+                                >
+                                    <LineItemsTable
+                                        sectionId={section.id}
+                                        headers={section.headers}
+                                        items={section.items}
+                                        fields={section.fields}
+                                        editableFields={section.editableFields}
+                                        onUpdateItem={(item, field, value) => handleItemUpdate(section, item, field, value)}
+                                        onExplain={section.id === 'Labor' ? handleExplain : undefined}
+                                        onDelete={(item) => handleDeleteItem(section, item)}
+                                    />
+                                </AccordionSection>
+                            ))}
                         </div>
-                    )}
+                    </div>
                 </div>
+
+                {/* Section 3: Proposal (Full Screen Height with Scroll) */}
+                {templates.length > 0 && (
+                    <div className="w-full px-6 pb-8 h-[calc(100vh-64px)] flex flex-col">
+                        <div className="flex-1 h-full overflow-hidden">
+                            <MyProposal
+                                isEditing={isEditingTemplate}
+                                pages={editorPages}
+                                previewHtml={(formData?.services && formData.services.length > 0) ? (previewHtml || estimate?.proposal?.htmlContent) : ''}
+                                selectedTemplateId={selectedTemplateId}
+                                templates={templates}
+                                services={formData?.services || []}
+                                serviceOptions={serviceOptions}
+                                isSaving={isSavingTemplate}
+                                isGenerating={generatingProposal}
+                                onPagesChange={setEditorPages}
+                                onServicesChange={handleServicesChange}
+                                onEditStart={() => {
+                                    const savedProposal = estimate?.proposals?.find((p: any) => p.templateId === selectedTemplateId);
+                                    const tmpl = templates.find(t => t._id === selectedTemplateId);
+                                    
+                                    if (savedProposal?.customPages && savedProposal.customPages.length > 0) {
+                                        setEditorPages(savedProposal.customPages);
+                                    } else if (tmpl?.pages && tmpl.pages.length > 0) {
+                                        setEditorPages(tmpl.pages);
+                                    } else if (selectedTemplateId === 'empty') {
+                                        // Fallback for empty template if not yet generated/saved
+                                        setEditorPages([{ 
+                                            content: `<p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"> </strong></p><table><tbody><tr><td data-row="1"><strong style="color: rgb(0, 0, 0);">Proposal / Contract Number:</strong><span style="color: rgb(0, 0, 0);"> {{proposalNo}} </span></td><td data-row="1"><strong style="color: rgb(0, 0, 0);">Date: </strong><span style="color: rgb(0, 0, 0);">{{date}} </span></td></tr><tr><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Name:</strong><span style="color: rgb(0, 0, 0);"> {{projectTitle}} </span></td><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Address: </strong><span style="color: rgb(0, 0, 0);">{{jobAddress}} </span></td></tr></tbody></table><h2><br></h2><p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"><u>Customer Contact:</u></strong></p><p class="ql-align-justify">{{customerName}}</p><p class="ql-align-justify"><span style="color: rgb(0, 0, 0);">{{contactPerson}} </span></p><p class="ql-align-justify">{{contactEmail}}</p><p class="ql-align-justify">{{contactPhone}}</p><h2><br></h2><p class="ql-align-center"><strong style="color: rgb(0, 0, 0);"><u>PROJECT SCOPE OF WORK</u></strong></p><p><br></p><p>Insert scope of work here...</p>` 
+                                        }]);
+                                    } else {
+                                        setEditorPages([{ content: tmpl?.content || '' }]);
+                                    }
+                                    setIsEditingTemplate(true);
+                                }}
+                                onEditCancel={() => {
+                                    setIsEditingTemplate(false);
+                                    handlePreview(false);
+                                }}
+                                onSaveChanges={handleSaveProposalChanges}
+                                onUpdateTemplate={() => {
+                                    setSaveType('update');
+                                    handleUpdateMainTemplate();
+                                }}
+                                onCreateTemplate={handleCreateTemplate}
+                                onDownloadPdf={handleDownloadPdf}
+                                quillRefs={quillRefs}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Modals */}
@@ -1990,7 +1760,7 @@ export default function EstimateViewPage() {
                         <Button variant="secondary" onClick={() => setShowSaveTemplateModal(false)}>Cancel</Button>
                         <Button 
                             variant="primary" 
-                            onClick={handleSaveTemplate}
+                            onClick={handleUpdateMainTemplate}
                             disabled={!newTemplateTitle.trim() || isSavingTemplate}
                         >
                             {isSavingTemplate ? 'Saving...' : 'Save Template'}

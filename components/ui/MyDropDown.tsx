@@ -9,6 +9,7 @@ interface Option {
     value: string;
     color?: string;
     profilePicture?: string;
+    icon?: React.ReactNode;
 }
 
 interface MyDropDownProps {
@@ -23,6 +24,7 @@ interface MyDropDownProps {
     emptyMessage?: string;
     width?: string;
     className?: string;
+    hideSelectionIndicator?: boolean;
 }
 
 export function MyDropDown({
@@ -36,7 +38,8 @@ export function MyDropDown({
     placeholder = "Search or add...",
     emptyMessage = "No options available",
     width = "w-80",
-    className = ""
+    className = "",
+    hideSelectionIndicator = false
 }: MyDropDownProps) {
     const [search, setSearch] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -91,7 +94,7 @@ export function MyDropDown({
     return (
         <div 
             ref={dropdownRef}
-            className={`absolute top-full left-1/2 -translate-x-1/2 mt-3 p-4 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-50 border border-white/40 ${width} ${className}`}
+            className={`absolute top-full left-1/2 -translate-x-1/2 mt-2 p-4 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] z-[999] border border-white/40 ${width} ${className} before:content-[''] before:absolute before:-top-2 before:left-0 before:right-0 before:h-2 before:bg-transparent`}
         >
             {/* Search Input */}
             <div className="mb-3">
@@ -131,18 +134,23 @@ export function MyDropDown({
                                 }
                             `}
                         >
-                            {/* Selection Indicator (Checkbox) */}
-                            <div className={`
-                                w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 mt-0.5
-                                ${active ? 'bg-[#0F4C75] border-[#0F4C75]' : 'border-slate-300 group-hover:border-[#0F4C75]'}
-                            `}>
-                                {active && <Check className="w-2.5 h-2.5 text-white" />}
-                            </div>
+                            {!hideSelectionIndicator && (
+                                <div className={`
+                                    w-4 h-4 rounded border flex items-center justify-center transition-colors flex-shrink-0 mt-0.5
+                                    ${active ? 'bg-[#0F4C75] border-[#0F4C75]' : 'border-slate-300 group-hover:border-[#0F4C75]'}
+                                `}>
+                                    {active && <Check className="w-2.5 h-2.5 text-white" />}
+                                </div>
+                            )}
 
                             {/* Visual Representation (Avatar/Color/Initials) */}
                             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-50 shadow-sm overflow-hidden border-white/50">
                                 {opt.profilePicture ? (
                                     <img src={opt.profilePicture} alt={opt.label} className="w-full h-full object-cover" />
+                                ) : opt.icon ? (
+                                    <div className="flex items-center justify-center w-full h-full text-[#0F4C75]">
+                                        {opt.icon}
+                                    </div>
                                 ) : opt.color ? (
                                     <div className="w-full h-full" style={{ backgroundColor: opt.color }} />
                                 ) : (

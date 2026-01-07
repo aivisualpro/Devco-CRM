@@ -49,22 +49,23 @@ body {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+  background: #F5F2F2;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: #CBCBCB;
+  border-radius: 5px;
+  border: 2px solid #F5F2F2;
+  transition: all 0.2s ease;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #BDBDBD;
 }
 
 /* Table scroll container - ensure scrollbar doesn't overlap header */
@@ -80,23 +81,22 @@ thead.sticky {
 /* Custom table scrollbar that's more subtle */
 .overflow-y-auto::-webkit-scrollbar {
   width: 8px;
+  height: 8px;
 }
 
 .overflow-y-auto::-webkit-scrollbar-track {
-  background: transparent;
-  /* Height of the sticky header */
+  background: #F5F2F2;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
+  background: #CBCBCB;
   border-radius: 4px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+  border: 1px solid #F5F2F2;
+  background-clip: padding-box;
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
-  background-clip: content-box;
+  background: #BDBDBD;
 }
 
 /* Modal animation */
