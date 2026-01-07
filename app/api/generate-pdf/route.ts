@@ -61,9 +61,9 @@ export async function POST(request: NextRequest) {
                     
                     html, body {
                         background: #ffffff;
-                        font-family: Arial, sans-serif;
+                        font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                         font-size: 11pt;
-                        line-height: 1.15;
+                        line-height: 1.4;
                         color: #1a1a1a;
                         margin: 0;
                         padding: 0;
@@ -71,26 +71,24 @@ export async function POST(request: NextRequest) {
                     
                     /* Content container - uses full printable area */
                     .content {
-                        width: auto;
+                        width: 100%;
                         margin: 0;
                         background: #fff;
                     }
                     
                     /* Page break element - CSS handles pagination */
                     .page-break {
-                        break-after: page;
-                        page-break-after: always;
                         height: 0;
-                        margin: 0;
-                        padding: 0;
-                        border: none;
-                        display: block;
+                        page-break-after: always;
+                        break-after: page;
                     }
                     
                     /* Page section wrapper - each page section starts fresh */
                     .page-section {
-                        break-inside: avoid-page;
-                        page-break-inside: avoid;
+                        width: 100%;
+                        min-height: 10in; /* 11in - 0.5in - 0.5in */
+                        position: relative;
+                        overflow: hidden;
                     }
                     
                     /* Quill editor reset */
@@ -109,38 +107,38 @@ export async function POST(request: NextRequest) {
                     table {
                         width: 100% !important;
                         border-collapse: collapse;
-                        margin-bottom: 10px;
+                        margin-bottom: 12px;
                     }
                     
                     table td, table th {
                         border: 1px solid #333 !important;
-                        padding: 2px 4px;
+                        padding: 4px 6px;
                         vertical-align: top;
                     }
                     
                     /* Typography */
                     h1, h2, h3, h4, h5, h6 {
                         margin-top: 0;
-                        margin-bottom: 6px;
+                        margin-bottom: 8px;
                         font-weight: 600;
                     }
                     
-                    h1 { font-size: 16pt; }
-                    h2 { font-size: 14pt; }
-                    h3 { font-size: 12pt; }
+                    h1 { font-size: 18pt; }
+                    h2 { font-size: 16pt; }
+                    h3 { font-size: 14pt; }
                     h4 { font-size: 11pt; }
                     
                     p {
-                        margin: 0;
+                        margin-bottom: 4px;
                     }
                     
                     ul, ol {
-                        margin: 0;
+                        margin-bottom: 8px;
                         padding-left: 1.5em;
                     }
                     
                     li {
-                        margin-bottom: 0;
+                        margin-bottom: 2px;
                     }
                     
                     strong, b {
@@ -215,7 +213,7 @@ export async function POST(request: NextRequest) {
             format: 'Letter',
             printBackground: true,
             preferCSSPageSize: true,  // CSS @page is source of truth
-            margin: { top: '0.5in', right: '0.5in', bottom: '0.5in', left: '0.5in' }
+            margin: { top: '0', right: '0', bottom: '0', left: '0' }
         });
 
         await browser.close();
