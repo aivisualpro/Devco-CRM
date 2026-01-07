@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
                     
                     /* Reset */
                     * {
-                        box-sizing: border-box;
+                        box-sizing: border-box !important;
                         margin: 0;
                         padding: 0;
                     }
@@ -63,16 +63,18 @@ export async function POST(request: NextRequest) {
                         background: #ffffff;
                         font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                         font-size: 11pt;
-                        line-height: 1.4;
+                        line-height: 1.2;
                         color: #1a1a1a;
                         margin: 0;
                         padding: 0;
+                        -webkit-print-color-adjust: exact;
                     }
                     
                     /* Content container - uses full printable area */
                     .content {
                         width: 100%;
                         margin: 0;
+                        padding: 0;
                         background: #fff;
                     }
                     
@@ -81,64 +83,73 @@ export async function POST(request: NextRequest) {
                         height: 0;
                         page-break-after: always;
                         break-after: page;
+                        clear: both;
                     }
                     
-                    /* Page section wrapper - each page section starts fresh */
+                    /* Page section wrapper - Each section is EXACTLY one page */
                     .page-section {
                         width: 100%;
-                        min-height: 10in; /* 11in - 0.5in - 0.5in */
+                        height: 9.98in; /* Slightly less than 10in to ensure no spillover due to rounding */
+                        max-height: 9.98in;
                         position: relative;
-                        overflow: hidden;
+                        overflow: hidden !important;
+                        display: block;
+                        clear: both;
                     }
                     
                     /* Quill editor reset */
                     .ql-container.ql-snow { 
                         border: none !important;
                         font-size: inherit;
+                        height: 100%;
                     }
                     
                     .ql-editor { 
                         padding: 0 !important;
-                        min-height: 0 !important;
-                        overflow: visible !important;
+                        height: 100% !important;
+                        overflow: hidden !important;
+                        line-height: 1.2;
                     }
                     
                     /* Tables */
                     table {
                         width: 100% !important;
                         border-collapse: collapse;
-                        margin-bottom: 12px;
+                        margin-bottom: 8px;
+                        table-layout: fixed;
                     }
                     
                     table td, table th {
                         border: 1px solid #333 !important;
-                        padding: 4px 6px;
+                        padding: 3px 5px;
                         vertical-align: top;
+                        word-wrap: break-word;
                     }
                     
-                    /* Typography */
+                    /* Typography matching */
                     h1, h2, h3, h4, h5, h6 {
                         margin-top: 0;
-                        margin-bottom: 8px;
+                        margin-bottom: 6px;
                         font-weight: 600;
+                        line-height: 1.1;
                     }
                     
                     h1 { font-size: 18pt; }
-                    h2 { font-size: 16pt; }
-                    h3 { font-size: 14pt; }
+                    h2 { font-size: 15pt; }
+                    h3 { font-size: 13pt; }
                     h4 { font-size: 11pt; }
                     
                     p {
-                        margin-bottom: 4px;
+                        margin-bottom: 0px; /* Quill handles spacing usually with empty paragraphs */
                     }
                     
                     ul, ol {
-                        margin-bottom: 8px;
+                        margin-bottom: 0px;
                         padding-left: 1.5em;
                     }
                     
                     li {
-                        margin-bottom: 2px;
+                        margin-bottom: 0px;
                     }
                     
                     strong, b {
