@@ -52,7 +52,7 @@ const MiscRow = memo(({
             className={`cursor-pointer transition-colors ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : isSelected ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}
             onClick={() => !isAdded && onToggle(item)}
         >
-            <td className="p-3">
+            <td className="p-2">
                 <input 
                     type="checkbox" 
                     checked={isSelected || isAdded} 
@@ -61,7 +61,7 @@ const MiscRow = memo(({
                 />
             </td>
             {displayCols.map((col) => (
-                <td key={col} className="p-3 text-gray-700">
+                <td key={col} className="p-2 text-gray-700">
                     {['cost'].includes(col) ? `$${Number(item[col] || 0).toLocaleString()}` : String(item[col] || '')}
                 </td>
             ))}
@@ -84,6 +84,7 @@ export function AddMiscellaneousEstimateDialogue({
     const [searchTerm, setSearchTerm] = useState('');
     const [saving, setSaving] = useState(false);
     const [isAddNewCatalogue, setIsAddNewCatalogue] = useState(false);
+    const [localNewItems, setLocalNewItems] = useState<CatalogItem[]>([]);
     const { success, error: toastError } = useToast();
 
     // Debounce search term
@@ -99,6 +100,7 @@ export function AddMiscellaneousEstimateDialogue({
             setSelectedItems(new Set());
             setInputValue('');
             setSearchTerm('');
+            setLocalNewItems([]);
         }
     }, [isOpen]);
 
@@ -111,7 +113,7 @@ export function AddMiscellaneousEstimateDialogue({
 
     const filteredCatalog = useMemo(() => {
         const searchStr = searchTerm.toLowerCase().trim();
-        let list = (catalog || []);
+        let list = [...(catalog || []), ...localNewItems];
 
         if (searchStr) {
             list = list.filter(item => {
@@ -130,7 +132,7 @@ export function AddMiscellaneousEstimateDialogue({
         });
 
         return filtered.slice(0, 80);
-    }, [catalog, searchTerm, getIdentifier]);
+    }, [catalog, searchTerm, getIdentifier, localNewItems]);
 
     const toggleSelection = useCallback((item: CatalogItem) => {
         setSelectedItems(prev => {
@@ -169,6 +171,16 @@ export function AddMiscellaneousEstimateDialogue({
             const result = await res.json();
 
             if (result.success) {
+                const newItem = {
+                    ...data,
+                    _id: result.data?._id || `temp-${Date.now()}`
+                };
+                setLocalNewItems(prev => [...prev, newItem]);
+                setSelectedItems(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(newItem);
+                    return newSet;
+                });
                 success('Added to catalogue');
                 setIsAddNewCatalogue(false);
             } else {
@@ -218,11 +230,11 @@ export function AddMiscellaneousEstimateDialogue({
                         )}
                     </div>
                     <div className="max-h-[50vh] overflow-y-auto border border-gray-100 rounded-xl scrollbar-thin overflow-x-hidden">
-                        <table className="w-full text-sm text-left border-collapse">
+                        <table className="w-full text-[10px] text-left border-collapse">
                             <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10 shadow-sm">
                                 <tr>
-                                    <th className="p-3 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
-                                    {displayCols.map(col => <th key={col} className="p-3 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
+                                    <th className="p-2 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
+                                    {displayCols.map(col => <th key={col} className="p-2 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">

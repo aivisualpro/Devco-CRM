@@ -59,7 +59,7 @@ export function VersionTimeline({
                                 key={ver._id}
                                 onClick={() => onVersionClick?.(ver._id)}
                                 className={`
-                                    relative group flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer
+                                    relative group flex items-center gap-2 p-2 rounded-xl transition-colors cursor-pointer
                                     ${isCurrent
                                         ? 'bg-blue-50/80 shadow-sm border border-blue-100'
                                         : 'hover:bg-white/40 border border-transparent'}

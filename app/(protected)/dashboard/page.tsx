@@ -546,9 +546,9 @@ export default function DashboardPage() {
 
                                                     {/* PM / Foreman / SD - right side */}
                                                     <div className="flex -space-x-1.5">
-                                                        {[item.projectManager, item.foremanName, item.SDName].filter(Boolean).map((email, i) => {
+                                                        {[item.projectManager, item.foremanName].filter(Boolean).map((email, i) => {
                                                             const emp = employees.find(e => e.value === email);
-                                                            const labels = ['PM', 'FM', 'SD'];
+                                                            const labels = ['PM', 'FM'];
                                                             return (
                                                                 <div
                                                                     key={i}
@@ -819,8 +819,7 @@ export default function DashboardPage() {
                         <div className="space-y-3">
                             {[
                                 { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
-                                { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' },
-                                { label: 'Site Director', val: selectedSchedule.SDName, color: 'bg-purple-600' }
+                                { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
                             ].map((role, idx) => {
                                 if (!role.val) return null;
                                 const emp = employees.find(e => e.value === role.val);

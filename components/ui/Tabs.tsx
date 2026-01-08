@@ -167,7 +167,7 @@ export function BadgeTabs({ tabs, activeTab, onChange, size = 'md', className = 
         >
             {/* Sliding Blue Pill Indicator */}
             <div
-                className="absolute top-1 bottom-1 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] rounded-full shadow-lg shadow-[#0F4C75]/30"
+                className="absolute top-1 bottom-1 bg-gradient-to-r from-[#0F4C75] to-[#3282B8] rounded-full"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,

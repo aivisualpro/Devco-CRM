@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { SearchableSelect } from '@/components/ui/SearchableSelect';
+import { X, ChevronDown } from 'lucide-react';
+import { MyDropDown } from '@/components/ui/MyDropDown';
 
 interface AddOverheadCatalogueDialogueProps {
     isOpen: boolean;
@@ -23,6 +23,7 @@ export function AddOverheadCatalogueDialogue({
 }: AddOverheadCatalogueDialogueProps) {
     const [formData, setFormData] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
+    const [activeField, setActiveField] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -56,7 +57,7 @@ export function AddOverheadCatalogueDialogue({
             .filter(val => val !== undefined && val !== null && val !== '');
         const uniqueValues = Array.from(new Set(values)).filter(v => v !== '-') as string[];
         uniqueValues.sort();
-        return uniqueValues;
+        return ['-', ...uniqueValues];
     };
 
     const handleSave = async () => {
@@ -96,9 +97,9 @@ export function AddOverheadCatalogueDialogue({
     return (
         <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
-            <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden animate-modal" >
+            <div className="relative w-[75%] h-[96vh] bg-white rounded-3xl shadow-2xl overflow-hidden animate-modal flex flex-col" >
                 {/* Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+                <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                     <h2 className="text-lg font-bold text-gray-900">
                         {isEditing ? 'Edit Overhead' : 'Add New Overhead'}
                     </h2>
@@ -108,8 +109,8 @@ export function AddOverheadCatalogueDialogue({
                 </div>
 
                 {/* Body */}
-                <div className="p-6 max-h-[85vh] overflow-y-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pb-40 md:pb-0">
+                <div className="px-4 pb-4 flex-1 overflow-y-auto">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div className="col-span-1">
                             <label className="block text-sm font-medium text-gray-700 mb-1.5">Overhead Description</label>
                             <input
@@ -118,7 +119,7 @@ export function AddOverheadCatalogueDialogue({
                                 value={formData.overhead || ''}
                                 onChange={(e) => setFormData({ ...formData, overhead: e.target.value })}
                                 placeholder="Enter overhead description"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                className="w-full p-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
                                 autoFocus={!isEditing}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
@@ -130,26 +131,70 @@ export function AddOverheadCatalogueDialogue({
                         </div>
 
                         <div className="col-span-1">
-                            <SearchableSelect
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+                                Classification
+                            </label>
+                            <div
                                 id="field-classification"
-                                label="Classification"
-                                value={formData.classification || ''}
-                                onChange={(val) => setFormData({ ...formData, classification: val })}
-                                options={getOptions('classification')}
-                                onNext={() => focusNextField(1)}
-                                onAddNew={(val) => setFormData({ ...formData, classification: val })}
+                                className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
+                                onClick={() => setActiveField('classification')}
+                            >
+                                {formData.classification || '-'}
+                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <MyDropDown
+                                isOpen={activeField === 'classification'}
+                                onClose={() => setActiveField(null)}
+                                options={getOptions('classification').map(opt => ({ id: opt, label: opt, value: opt }))}
+                                selectedValues={formData.classification ? [formData.classification] : []}
+                                onSelect={(val) => {
+                                    setFormData({ ...formData, classification: val });
+                                    setActiveField(null);
+                                    focusNextField(1);
+                                }}
+                                onAdd={async (val) => {
+                                    setFormData({ ...formData, classification: val });
+                                    setActiveField(null);
+                                    focusNextField(1);
+                                }}
+                                placeholder="Select or add classification..."
+                                width="w-full"
+                                anchorId="field-classification"
+                                positionMode="overlay"
                             />
                         </div>
 
                         <div className="col-span-1">
-                            <SearchableSelect
+                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
+                                Sub Classification
+                            </label>
+                            <div
                                 id="field-subClassification"
-                                label="Sub Classification"
-                                value={formData.subClassification || ''}
-                                onChange={(val) => setFormData({ ...formData, subClassification: val })}
-                                options={getOptions('subClassification')}
-                                onNext={() => focusNextField(2)}
-                                onAddNew={(val) => setFormData({ ...formData, subClassification: val })}
+                                className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
+                                onClick={() => setActiveField('subClassification')}
+                            >
+                                {formData.subClassification || '-'}
+                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                            </div>
+                            <MyDropDown
+                                isOpen={activeField === 'subClassification'}
+                                onClose={() => setActiveField(null)}
+                                options={getOptions('subClassification').map(opt => ({ id: opt, label: opt, value: opt }))}
+                                selectedValues={formData.subClassification ? [formData.subClassification] : []}
+                                onSelect={(val) => {
+                                    setFormData({ ...formData, subClassification: val });
+                                    setActiveField(null);
+                                    focusNextField(2);
+                                }}
+                                onAdd={async (val) => {
+                                    setFormData({ ...formData, subClassification: val });
+                                    setActiveField(null);
+                                    focusNextField(2);
+                                }}
+                                placeholder="Select or add sub-classification..."
+                                width="w-full"
+                                anchorId="field-subClassification"
+                                positionMode="overlay"
                             />
                         </div>
 
@@ -228,7 +273,7 @@ export function AddOverheadCatalogueDialogue({
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50/50">
+                <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
                     <button
                         onClick={onClose}
                         className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"

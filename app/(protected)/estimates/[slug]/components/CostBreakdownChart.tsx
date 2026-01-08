@@ -110,14 +110,14 @@ export function CostBreakdownChart({
                     <div className="text-2xl font-black text-slate-800 tracking-tight leading-none">
                         {formatMoney(grandTotal)}
                     </div>
-                    <div className="text-xs font-bold text-slate-400 ">
+                    <div className="text-xs font-bold text-slate-400 mt-2">
                         {formatMoney(subTotal)}
                     </div>
                 </div>
             </div>
 
             {/* Legend */}
-            <div className="w-full mt-2 space-y-1 flex-1 overflow-y-auto max-h-[140px]">
+            <div className="w-full space-y-1 flex-1 overflow-y-auto pl-2">
                 {sortedSlices.map(slice => {
                     const percent = subTotal > 0 ? ((slice.value / subTotal) * 100).toFixed(1) : '0';
                     const marginedValue = slice.value * (1 + markupPct / 100);

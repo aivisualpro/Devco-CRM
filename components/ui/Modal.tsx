@@ -58,8 +58,8 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
                 className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
                 onClick={onClose}
             />
-            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[85vh] md:max-h-[85vh] flex flex-col overflow-hidden transition-all duration-300 transform ${shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4'}`}>
-                <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4 border-b border-gray-100 flex-shrink-0">
+            <div className={`relative bg-white rounded-3xl shadow-2xl w-[75%] h-[96vh] flex flex-col overflow-hidden transition-all duration-300 transform ${shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4'}`}>
+                <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                     <h3 className="text-lg font-bold text-gray-900">{title}</h3>
                     <button
                         onClick={onClose}
@@ -68,11 +68,11 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
                         <X className="w-5 h-5 text-gray-500" />
                     </button>
                 </div>
-                <div className="p-4 md:p-6 overflow-y-auto">
+                <div className="px-4 pb-4 flex-1 overflow-y-auto">
                     {children}
                 </div>
                 {footer && (
-                    <div className="flex items-center justify-end gap-3 px-4 py-3 md:px-6 md:py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+                    <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-100 bg-gray-50 flex-shrink-0">
                         {footer}
                     </div>
                 )}

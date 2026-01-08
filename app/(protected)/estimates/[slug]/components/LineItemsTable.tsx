@@ -1,6 +1,7 @@
 'use client';
 
 import { Trash2, Info } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface LineItem {
     _id?: string;
@@ -16,6 +17,7 @@ interface LineItemsTableProps {
     onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
     onExplain?: (item: LineItem) => void;
     onDelete?: (item: LineItem) => void;
+    onEdit?: (item: LineItem) => void;
     // Datalist options
     suppliers?: string[];
     uoms?: string[];
@@ -87,18 +89,52 @@ export function LineItemsTable({
         return undefined;
     };
 
-    const getInputWidth = (field: string): string => {
-        if (['quantity', 'times', 'fuelAdditiveCost', 'days', 'otPd', 'hours'].includes(field)) {
-            return 'w-12';
-        }
-        if (['uom'].includes(field)) {
-            return 'w-16';
-        }
-        if (['supplier', 'classification', 'subClassification'].includes(field)) {
-            return 'w-24';
-        }
-        return 'w-16';
+    // Determine if a field should be compact (numeric) or expanded (text)
+    const isNumericField = (field: string): boolean => {
+        const numericFields = [
+            'quantity', 'days', 'otPd', 'basePay', 'dailyCost', 'weeklyCost',
+            'monthlyCost', 'fuelAdditiveCost', 'cost', 'wCompPercent',
+            'payrollTaxesPercent', 'taxes', 'hourlyRate', 'dailyRate', 'times', 'hours',
+            'qty', 'fuel'
+        ];
+        return numericFields.includes(field);
     };
+
+    function AutoWidthInput({
+        defaultValue,
+        inputType,
+        datalistId,
+        onBlur,
+        placeholder = ""
+    }: {
+        defaultValue: string | number;
+        inputType: string;
+        datalistId?: string;
+        onBlur: (value: string | number) => void;
+        placeholder?: string;
+    }) {
+        const [val, setVal] = useState(String(defaultValue ?? ''));
+
+        useEffect(() => {
+            setVal(String(defaultValue ?? ''));
+        }, [defaultValue]);
+
+        return (
+            <input
+                type={inputType}
+                list={datalistId}
+                value={val}
+                onChange={(e) => setVal(e.target.value)}
+                onBlur={() => {
+                    const result = inputType === 'number' ? parseFloat(val) || 0 : val;
+                    onBlur(result);
+                }}
+                onFocus={(e) => e.target.select()}
+                placeholder={placeholder}
+                className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-left text-slate-600 shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+        );
+    }
 
     return (
         <div className="overflow-x-auto">
@@ -127,27 +163,27 @@ export function LineItemsTable({
             <table className="w-full text-left border-collapse">
                 <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                        <th className="px-4 py-1 text-[11px] font-medium text-gray-500 uppercase tracking-wider w-8 text-center">
+                        <th className="p-1 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">
                             #
                         </th>
                         {headers.map((header, i) => (
                             <th
                                 key={i}
-                                className="px-4 py-1 text-[11px] font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                                className="p-1 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap"
                             >
                                 {header}
                             </th>
                         ))}
-                        <th className="px-4 py-1 text-[11px] font-medium text-gray-500 uppercase tracking-wider w-10 text-center" />
+                        <th className="p-1 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-px" />
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                     {items.map((item, i) => {
-                        const itemKey = `${item._id || i}-${item.updatedAt || ''}-${item.quantity || 0}-${item.cost || 0}`;
+                        const itemKey = `${item._id || i}-${item.updatedAt || ''}-${item.quantity || 0}-${item.cost || 0}-${item.labor || ''}-${item.classification || ''}`;
 
                         return (
                             <tr key={itemKey} className="hover:bg-gray-50/50 transition-colors group">
-                                <td className="px-4 py-1 text-xs text-gray-400 text-center font-medium">
+                                <td className="p-2 text-xs text-gray-400 text-center font-medium">
                                     {i + 1}
                                 </td>
                                 {fields.map((field, j) => {
@@ -158,7 +194,7 @@ export function LineItemsTable({
                                     // Clickable total for Labor
                                     if (field === 'total' && onExplain && sectionId === 'Labor') {
                                         return (
-                                            <td key={j} className="px-4 py-1 text-xs whitespace-nowrap">
+                                            <td key={j} className="p-2 text-xs whitespace-nowrap">
                                                 <div
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -177,11 +213,11 @@ export function LineItemsTable({
                                     // Equipment UOM dropdown
                                     if (isEditable && field === 'uom' && sectionId === 'Equipment') {
                                         return (
-                                            <td key={j} className="px-4 py-1 text-xs text-gray-700 whitespace-nowrap">
+                                            <td key={j} className="p-1 text-xs text-gray-700 whitespace-nowrap">
                                                 <select
                                                     value={String(val || 'Daily')}
                                                     onChange={(e) => onUpdateItem?.(item, field, e.target.value)}
-                                                    className="w-16 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-center"
+                                                    className="w-20 bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-left"
                                                 >
                                                     <option value="Daily">Daily</option>
                                                     <option value="Weekly">Weekly</option>
@@ -195,35 +231,29 @@ export function LineItemsTable({
                                     if (isEditable) {
                                         const datalistId = getDatalistId(field, sectionId);
                                         const inputType = getInputType(field);
-                                        const inputWidth = getInputWidth(field);
 
                                         return (
-                                            <td key={j} className="px-4 py-1 text-xs text-gray-700 whitespace-nowrap">
-                                                <input
-                                                    type={inputType}
-                                                    list={datalistId}
+                                            <td key={j} className="p-1 text-xs text-gray-700">
+                                                <AutoWidthInput
                                                     defaultValue={val !== undefined && val !== null ? String(val) : ''}
-                                                    onBlur={(e) => {
-                                                        const newVal = inputType === 'number'
-                                                            ? parseFloat(e.target.value) || 0
-                                                            : e.target.value;
-                                                        onUpdateItem?.(item, field, newVal);
-                                                    }}
-                                                    onFocus={(e) => e.target.select()}
-                                                    className={`${inputWidth} bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors text-center`}
+                                                    inputType={inputType}
+                                                    datalistId={datalistId}
+                                                    onBlur={(newVal) => onUpdateItem?.(item, field, newVal)}
+                                                    placeholder={headers[j]}
                                                 />
+
                                             </td>
                                         );
                                     }
 
                                     // Read-only display
                                     return (
-                                        <td key={j} className="px-4 py-1 text-xs text-gray-700 whitespace-nowrap">
+                                        <td key={j} className="p-2 text-xs text-gray-700 whitespace-nowrap">
                                             <span>{displayVal}</span>
                                         </td>
                                     );
                                 })}
-                                <td className="px-4 py-1 text-center">
+                                <td className="p-2 text-center w-px">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();

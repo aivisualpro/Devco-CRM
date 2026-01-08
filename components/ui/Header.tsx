@@ -16,7 +16,8 @@ interface SubItem {
 
 interface MenuItem {
     label: string;
-    items: SubItem[];
+    items?: SubItem[];
+    href?: string;
 }
 
 const menuStructure: MenuItem[] = [
@@ -61,6 +62,10 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Constants', href: '/constants', icon: <Sliders className="w-5 h-5" />, description: 'System-wide configuration settings', colorClass: 'text-fuchsia-500' },
         ]
+    },
+    {
+        label: 'CHAT',
+        href: '/chat'
     },
     {
         label: 'REPORTS',
@@ -171,7 +176,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
     // All searchable items
     const allItems = menuStructure.flatMap(group =>
-        group.items.map(item => ({ ...item, group: group.label }))
+        (group.items || []).map(item => ({ ...item, group: group.label }))
     );
     const filteredItems = searchQuery
         ? allItems.filter(item =>
@@ -182,20 +187,33 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
     return (
         <>
-            <header className="md:sticky top-0 z-[100] bg-[#f0f2f5] border-b border-gray-200">
-                <div className="w-full px-4 md:px-6">
-                    <div className="flex items-center justify-between h-16 relative">
+            <header className="md:sticky top-0 z-[100] bg-[#eef2f6] border-b border-gray-200">
+                <div className="w-full px-4">
+                    <div className="flex items-center justify-between h-12 relative">
                         {/* Left Content + Navigation Menu */}
                         <div className="flex items-center gap-4">
                             {!hideLogo && (
-                                <Link href="/" className="hidden md:block text-2xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                <Link href="/" className="hidden md:block text-xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                     DEVCO
                                 </Link>
                             )}
                             {leftContent}
                             <nav className="hidden md:flex items-center gap-2">
                                 {menuStructure.map((group) => {
-                                    const active = isGroupActive(group.items);
+                                    const active = isGroupActive(group.items || []);
+
+                                    if (group.href) {
+                                        const isLinkActive = pathname.startsWith(group.href);
+                                        return (
+                                            <Link
+                                                key={group.label}
+                                                href={group.href}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 focus:outline-none ${isLinkActive ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'}`}
+                                            >
+                                                {group.label}
+                                            </Link>
+                                        );
+                                    }
 
                                     return (
                                         <div 
@@ -205,7 +223,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             onMouseLeave={() => setOpenMenu(null)}
                                         >
                                             <button
-                                                className={`px-4 py-2 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                                                     }`}
                                             >
                                                 {group.label}
@@ -215,7 +233,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             <MyDropDown
                                                 isOpen={openMenu === group.label}
                                                 onClose={() => setOpenMenu(null)}
-                                                options={group.items.map(item => ({
+                                                options={(group.items || []).map(item => ({
                                                     id: item.href,
                                                     label: item.label,
                                                     value: item.href,
@@ -241,7 +259,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                         {/* Mobile Centered Logo */}
                         {!hideLogo && (
                             <div className="md:hidden absolute left-1/2 -translate-x-1/2">
-                                <Link href="/" className="text-2xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                <Link href="/" className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                     DEVCO
                                 </Link>
                             </div>
@@ -261,7 +279,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Search Button with Shortcut */}
                                     <button
                                         onClick={() => setSearchOpen(true)}
-                                        className="flex items-center gap-2 px-3 md:px-4 py-2 bg-white border border-slate-200 rounded-full text-sm text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
                                         style={{ border: searchOpen ? '1px solid #0F4C75' : '' }}
                                     >
                                         <Search size={18} className="shrink-0 group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
@@ -274,7 +292,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Version Badge - Links to Knowledgebase */}
                                     <Link
                                         href="/knowledgebase"
-                                        className="flex items-center gap-2 px-3 md:px-4 py-2 text-white rounded-full text-sm font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-3 py-1.5 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
                                         style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
                                     >
                                         <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
@@ -290,7 +308,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             <div className="relative ml-2" ref={dropdownRef}>
                                 <button
                                     onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                                    className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#0F4C75]/20 transition-all focus:outline-none"
+                                    className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden hover:ring-2 hover:ring-[#0F4C75]/20 transition-all focus:outline-none"
                                 >
                                     {user?.profilePicture ? (
                                         <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />

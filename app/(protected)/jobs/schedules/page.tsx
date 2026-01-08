@@ -29,7 +29,6 @@ interface ScheduleItem {
     jobLocation: string;
     projectManager: string;
     foremanName: string;
-    SDName: string;
     assignees: string[];
     description: string;
     service: string;
@@ -92,6 +91,9 @@ export default function SchedulePage() {
         setFilterPerDiem('');
     };
 
+    // Mobile filters visibility
+    const [showMobileFilters, setShowMobileFilters] = useState(false);
+
     // Initial data for dropdowns
     const [initialData, setInitialData] = useState<{
         clients: any[];
@@ -102,6 +104,7 @@ export default function SchedulePage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const timesheetInputRef = useRef<HTMLInputElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
     const INCREMENT = 20;
 
     const openCreateModal = () => {
@@ -170,7 +173,7 @@ export default function SchedulePage() {
 
     // Generate day tabs based on selected dates
     const dayTabs = useMemo(() => {
-        const dayOrder = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         const daysInSelection = new Set<string>();
 
         selectedDates.forEach(dateStr => {
@@ -233,7 +236,6 @@ export default function SchedulePage() {
             const matchesEmployee = !filterEmployee || (
                 s.projectManager === filterEmployee ||
                 s.foremanName === filterEmployee ||
-                s.SDName === filterEmployee ||
                 (s.assignees && s.assignees.some(a => String(a) === String(filterEmployee))) // Check if value matches
             );
 
@@ -726,10 +728,31 @@ export default function SchedulePage() {
             <Header
                 rightContent={
 
-
-
                     <div className="flex items-center gap-2 sm:gap-3">
+                        {/* Mobile Search Button */}
+                        <button
+                            onClick={() => {
+                                if (searchInputRef.current) {
+                                    searchInputRef.current.focus();
+                                }
+                            }}
+                            className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
+                            title="Search"
+                        >
+                            <Search size={18} />
+                        </button>
+                        
+                        {/* Mobile Filter Button */}
+                        <button
+                            onClick={() => setShowMobileFilters(!showMobileFilters)}
+                            className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
+                            title="Filters"
+                        >
+                            <Filter size={18} />
+                        </button>
+
                         <SearchInput
+                            ref={searchInputRef}
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Search schedules..."
@@ -751,111 +774,155 @@ export default function SchedulePage() {
                         />
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
                             title="Import Schedules"
                         >
                             <Upload size={18} className={isImporting ? 'animate-pulse' : ''} />
                         </button>
                         <button
                             onClick={() => timesheetInputRef.current?.click()}
-                            className="p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
                             title="Import Timesheets"
                         >
                             <Clock size={18} className={isImporting ? 'animate-pulse' : ''} />
                         </button>
-                        <AddButton
+                        <button
                             onClick={openCreateModal}
-                            label="Create Schedule"
-                        />
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                            title="Create Schedule"
+                        >
+                            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                        </button>
                     </div>
                 }
             />
             </div>
 
-            <main className="flex-1 overflow-y-auto max-w-[1800px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6">
-                <div className="flex flex-col lg:flex-row gap-4 lg:gap-0 h-full">
+            <main className="flex-1 overflow-y-auto max-w-[1800px] w-full mx-auto px-4 py-4">
+                <div className="flex flex-col lg:flex-row gap-4 lg:gap-4 h-full">
 
                     {/* LEFT COLUMN - CALENDAR - Full width on mobile, 25% on desktop */}
-                    <div className="w-full lg:w-[25%] lg:h-full overflow-y-auto custom-scrollbar">
-                        <div className="bg-[#F2F6FA] rounded-[24px] lg:rounded-[32px] p-3 sm:p-4 border border-white/40">
+                    <div className="w-full lg:w-[25%] lg:h-full lg:overflow-y-auto custom-scrollbar bg-[#F0F5FA] rounded-[32px] p-4">
+                        <div className="">
 
-                            {/* Switcher Removed */}
-
-                            {/* Days Mapping */}
-                            <div className="grid grid-cols-7 mb-2 px-2">
-                                {['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'].map(day => (
-                                    <div key={day} className="text-center text-[10px] font-black text-slate-400 tracking-widest">{day}</div>
-                                ))}
+                            {/* Mobile: Simple Date Range Inputs */}
+                            <div className="lg:hidden space-y-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">From Date</label>
+                                    <input
+                                        type="date"
+                                        value={selectedDates[0] || ''}
+                                        onChange={(e) => {
+                                            if (e.target.value) {
+                                                setSelectedDates([e.target.value]);
+                                            }
+                                        }}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:border-transparent"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">To Date</label>
+                                    <input
+                                        type="date"
+                                        value={selectedDates[selectedDates.length - 1] || ''}
+                                        onChange={(e) => {
+                                            if (e.target.value && selectedDates[0]) {
+                                                // Create range from first selected date to this date
+                                                const start = new Date(selectedDates[0]);
+                                                const end = new Date(e.target.value);
+                                                const range = [];
+                                                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                                                    const year = d.getFullYear();
+                                                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                                                    const day = String(d.getDate()).padStart(2, '0');
+                                                    range.push(`${year}-${month}-${day}`);
+                                                }
+                                                setSelectedDates(range);
+                                            }
+                                        }}
+                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:border-transparent"
+                                    />
+                                </div>
                             </div>
 
-                            {/* Calendar Grid Container */}
-                            <div className="bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] p-4 sm:p-6 shadow-[inset_8px_8px_16px_#d1d9e6,inset_-8px_-8px_16px_#ffffff]">
-                                <div className="flex items-center justify-between mb-4 px-2">
-                                    <button
-                                        onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}
-                                        className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
-                                    >
-                                        <ChevronLeft size={24} />
-                                    </button>
-                                    <span className="text-sm sm:text-base font-black text-[#0F4C75] tracking-tight">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
-                                    <button
-                                        onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}
-                                        className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
-                                    >
-                                        <ChevronRight size={24} />
-                                    </button>
+                            {/* Desktop: Full Calendar */}
+                            <div className="hidden lg:block">
+                                {/* Days Mapping */}
+                                <div className="grid grid-cols-7 mb-2 px-2">
+                                    {['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'].map(day => (
+                                        <div key={day} className="text-center text-[10px] font-black text-slate-400 tracking-widest">{day}</div>
+                                    ))}
                                 </div>
 
-                                <div className="grid grid-cols-7 gap-y-1">
-                                    {getDaysInMonth(currentDate).map((day, idx) => {
-                                        if (!day) return <div key={idx} className="flex justify-center items-center h-8 sm:h-9" />;
+                                {/* Calendar Grid Container */}
+                                <div className="bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] p-4 shadow-[inset_8px_8px_16px_#d1d9e6,inset_-8px_-8px_16px_#ffffff]">
+                                    <div className="flex items-center justify-between mb-4 px-2">
+                                        <button
+                                            onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))}
+                                            className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
+                                        >
+                                            <ChevronLeft size={24} />
+                                        </button>
+                                        <span className="text-sm sm:text-base font-black text-[#0F4C75] tracking-tight">{monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
+                                        <button
+                                            onClick={() => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))}
+                                            className="text-slate-400 hover:text-[#0F4C75] transition-colors scale-75"
+                                        >
+                                            <ChevronRight size={24} />
+                                        </button>
+                                    </div>
 
-                                        const dateForCheck = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-                                        const year = dateForCheck.getFullYear();
-                                        const month = String(dateForCheck.getMonth() + 1).padStart(2, '0');
-                                        const d = String(dateForCheck.getDate()).padStart(2, '0');
-                                        const dateStr = `${year}-${month}-${d}`;
+                                    <div className="grid grid-cols-7 gap-y-1">
+                                        {getDaysInMonth(currentDate).map((day, idx) => {
+                                            if (!day) return <div key={idx} className="flex justify-center items-center h-8 sm:h-9" />;
 
-                                        const isSelected = selectedDates.includes(dateStr);
-                                        const hasSchedule = scheduledDatesRaw.has(dateStr);
+                                            const dateForCheck = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+                                            const year = dateForCheck.getFullYear();
+                                            const month = String(dateForCheck.getMonth() + 1).padStart(2, '0');
+                                            const d = String(dateForCheck.getDate()).padStart(2, '0');
+                                            const dateStr = `${year}-${month}-${d}`;
 
-                                        return (
-                                            <div key={idx} className="flex justify-center items-center h-8 w-8 sm:h-10 sm:w-10 mx-auto">
-                                                <button
-                                                    onClick={() => toggleDate(day)}
-                                                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all relative
-                                                        ${isSelected
-                                                            ? 'bg-[#0F4C75] text-white shadow-[4px_4px_8px_rgba(15,76,117,0.4)] scale-110 z-10'
-                                                            : hasSchedule
-                                                                ? 'bg-[#D1E9FA] text-[#0F4C75] shadow-sm hover:bg-[#B3D7F8]'
-                                                                : 'text-slate-400 hover:bg-white hover:text-[#0F4C75] hover:shadow-sm'
-                                                        }
-                                                    `}
-                                                >
-                                                    {day}
-                                                    {isSelected && <div className="absolute -bottom-1.5 w-1 h-1 bg-[#0F4C75] rounded-full opacity-0"></div>}
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                            const isSelected = selectedDates.includes(dateStr);
+                                            const hasSchedule = scheduledDatesRaw.has(dateStr);
 
-                                <div className="mt-4 text-center pt-3 border-t border-slate-200/50">
-                                    <p className="text-[10px] font-black text-slate-500 tracking-tight pb-1">
-                                        Friday, {currentDate.getDate()} {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-                                    </p>
-                                    <div className="flex justify-center gap-1.5 mt-2">
-                                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
-                                        <div className="w-3 h-1 rounded-full bg-[#0F4C75]"></div>
-                                        <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                            return (
+                                                <div key={idx} className="flex justify-center items-center h-8 w-8 sm:h-10 sm:w-10 mx-auto">
+                                                    <button
+                                                        onClick={() => toggleDate(day)}
+                                                        className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all relative
+                                                            ${isSelected
+                                                                ? 'bg-[#0F4C75] text-white shadow-[4px_4px_8px_rgba(15,76,117,0.4)] scale-110 z-10'
+                                                                : hasSchedule
+                                                                    ? 'bg-[#D1E9FA] text-[#0F4C75] shadow-sm hover:bg-[#B3D7F8]'
+                                                                    : 'text-slate-400 hover:bg-white hover:text-[#0F4C75] hover:shadow-sm'
+                                                            }
+                                                        `}
+                                                    >
+                                                        {day}
+                                                        {isSelected && <div className="absolute -bottom-1.5 w-1 h-1 bg-[#0F4C75] rounded-full opacity-0"></div>}
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <div className="mt-4 text-center pt-3 border-t border-slate-200/50">
+                                        <p className="text-[10px] font-black text-slate-500 tracking-tight pb-1">
+                                            Friday, {currentDate.getDate()} {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+                                        </p>
+                                        <div className="flex justify-center gap-1.5 mt-2">
+                                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                            <div className="w-3 h-1 rounded-full bg-[#0F4C75]"></div>
+                                            <div className="w-1 h-1 rounded-full bg-slate-300"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         {/* Filters Section */}
-                        <div className="bg-[#F2F6FA] rounded-[24px] lg:rounded-[32px] p-4 sm:p-5 border border-white/40 mt-4">
-                            <div className="flex justify-between items-center mb-5">
+                        <div className={`mt-4 ${showMobileFilters ? 'block' : 'hidden'} lg:block`}>
+                            <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                     <Filter size={12} />
                                     FILTERS
@@ -935,12 +1002,12 @@ export default function SchedulePage() {
 
                     {/* MIDDLE COLUMN - SCHEDULE FEED - Full width on mobile */}
                     <div
-                        className={`w-full ${selectedSchedule ? 'lg:w-[30%]' : 'lg:w-[60%]'} lg:h-full overflow-y-auto px-2 sm:px-6 custom-scrollbar pb-10 bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}
+                        className={`w-full ${selectedSchedule ? 'lg:w-[30%]' : 'lg:w-[60%]'} lg:h-full lg:overflow-y-auto p-4 custom-scrollbar bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}
                         onScroll={handleScroll}
                     >
 
                         {/* Day Filter Tabs */}
-                        <div className="pt-4 pb-2 overflow-x-auto">
+                        <div className="pt-0 pb-4 overflow-x-auto">
                             <BadgeTabs
                                 tabs={dayTabs}
                                 activeTab={activeDayTab}
@@ -953,15 +1020,15 @@ export default function SchedulePage() {
                         {loading ? (
                             <SkeletonTable rows={8} columns={6} />
                         ) : filteredSchedules.length > 0 ? (
-                            <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 sm:gap-6 pt-4 sm:pt-6 transition-all duration-500`}>
+                            <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 pt-0 transition-all duration-500`}>
                                 {displayedSchedules.map((item) => (
                                     <div
                                         key={item._id}
                                         onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
-                                        className={`group relative bg-white rounded-[24px] sm:rounded-[40px] p-4 sm:p-7 cursor-pointer transition-all duration-300 transform border
+                                        className={`group relative bg-white rounded-[24px] sm:rounded-[40px] p-4 cursor-pointer transition-all duration-300 transform border
                                             ${selectedSchedule?._id === item._id
-                                                ? 'border-[#0F4C75] ring-4 ring-[#0F4C75]/10 shadow-[25px_25px_70px_#d1d9e6,-25px_-25px_70px_#ffffff] scale-[1.02]'
-                                                : 'border-white/60 shadow-[20px_20px_60px_#d1d9e6,-20px_-20px_60px_#ffffff] hover:shadow-[25px_25px_70px_#d1d9e6,-25px_-25px_70px_#ffffff] hover:-translate-y-1'
+                                                ? 'border-[#0F4C75] ring-1 ring-[#0F4C75] scale-[1.01]'
+                                                : 'border-slate-100 hover:border-[#0F4C75]/30 hover:-translate-y-1'
                                             }
                                         `}
                                     >
@@ -1046,7 +1113,7 @@ export default function SchedulePage() {
                                             <div className="flex items-center gap-2 mb-3">
                                                 {item.estimate && (
                                                     <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
-                                                        {item.estimate}
+                                                        {item.estimate.replace(/-[vV]\d+$/, '')}
                                                     </span>
                                                 )}
                                                 {item.description && (
@@ -1128,9 +1195,9 @@ export default function SchedulePage() {
 
                                                 {/* PM / Foreman / SD - right side */}
                                                 <div className="flex -space-x-1.5">
-                                                    {[item.projectManager, item.foremanName, item.SDName].filter(Boolean).map((email, i) => {
+                                                    {[item.projectManager, item.foremanName].filter(Boolean).map((email, i) => {
                                                         const emp = initialData.employees.find(e => e.value === email);
-                                                        const labels = ['PM', 'FM', 'SD'];
+                                                        const labels = ['PM', 'FM'];
                                                         return (
                                                             <div
                                                                 key={i}
@@ -1168,12 +1235,14 @@ export default function SchedulePage() {
                     </div>
 
                     {/* RIGHT COLUMN - DETAILS OR STATS - Hidden on mobile/tablet */}
-                    <div className={`${selectedSchedule ? 'xl:w-[45%]' : 'xl:w-[15%]'} h-full border-l border-slate-100 pl-6 hidden xl:block overflow-y-auto custom-scrollbar transition-all duration-500 ease-in-out`}>
-                        <div className="space-y-10 pt-4">
+                    {/* RIGHT COLUMN - DETAILS OR STATS - Hidden on mobile/tablet */}
+                    {/* RIGHT COLUMN - DETAILS OR STATS - Hidden on mobile/tablet */}
+                    <div className={`${selectedSchedule ? 'xl:w-[45%]' : 'xl:w-[15%]'} h-full hidden xl:flex flex-col items-center overflow-y-auto custom-scrollbar transition-all duration-500 ease-in-out bg-[#F0F5FA] rounded-[32px] p-4`}>
+                        <div className="space-y-4 w-full">
                             {selectedSchedule ? (
                                 <div className="animate-in slide-in-from-right duration-300">
                                     <div className="animate-in slide-in-from-right duration-300">
-                                        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm space-y-5">
+                                        <div className="bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
 
                                             {/* Row 1: Tag Icon & Client Name */}
                                             <div className="flex items-center gap-4">
@@ -1204,87 +1273,55 @@ export default function SchedulePage() {
                                                     }
                                                 })()}
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Client</p>
-                                                    <p className="text-xl font-black text-[#0F4C75] leading-none">{selectedSchedule.customerName}</p>
-                                                </div>
-                                            </div>
-
-                                            {/* Row 2: Location */}
-                                            <div className="flex items-start gap-3 bg-slate-50/50 p-3 rounded-2xl border border-slate-100/50">
-                                                <div className="mt-0.5 text-slate-400"><MapPin size={18} /></div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</p>
-                                                    <p className="text-sm font-bold text-slate-700 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
+                                                    <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{selectedSchedule.customerName}</p>
+                                                    <div className="flex items-center gap-1.5 text-slate-500">
+                                                        <MapPin size={14} className="text-slate-400 shrink-0" />
+                                                        <p className="text-xs font-bold text-slate-500 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
+                                                    </div>
                                                 </div>
                                             </div>
 
                                             {/* Row 3: Title & Date */}
                                             <div className="grid grid-cols-1 gap-1">
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Title</p>
                                                     <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
                                                 </div>
-                                                <div className="mt-2 flex items-center gap-2">
-                                                    <CalendarIcon size={14} className="text-slate-400" />
-                                                    <span className="text-xs font-bold text-slate-700">Date: {formatDate(selectedSchedule.fromDate)}</span>
-                                                </div>
-                                            </div>
-
-                                            {/* Row 4: Estimate & Project Name */}
-                                            <div className="flex items-center gap-4">
-                                                {selectedSchedule.estimate && (
-                                                    <div className="shrink-0">
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Estimate #</p>
-                                                        <Badge variant="info">{selectedSchedule.estimate}</Badge>
+                                                <div className="mt-2 flex items-center gap-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <CalendarIcon size={14} className="text-slate-400" />
+                                                        <span className="text-xs font-bold text-slate-700">Date: {new Date(selectedSchedule.fromDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
                                                     </div>
-                                                )}
+                                                    {selectedSchedule.estimate && (
+                                                        <Badge variant="info" className="py-0 h-5">{selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}</Badge>
+                                                    )}
+                                                </div>
                                             </div>
 
                                             <div className="h-px bg-slate-100 my-2" />
 
                                             {/* Rows 5, 6, 7: PM, Foreman, SD */}
-                                            <div className="space-y-3">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {[
                                                     { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
-                                                    { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' },
-                                                    { label: 'Site Director', val: selectedSchedule.SDName, color: 'bg-purple-600' }
+                                                    { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
                                                 ].map((role, idx) => {
                                                     if (!role.val) return null;
                                                     const emp = initialData.employees.find(e => e.value === role.val);
                                                     return (
-                                                        <div key={idx} className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
+                                                        <div key={idx} className="flex items-center gap-2 p-2 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
                                                                 {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || role.val[0])}
                                                             </div>
                                                             <div className="min-w-0 flex-1">
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
-                                                                <p className="text-sm font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
-                                                                {/* Assuming phone exists on emp object, otherwise hidden */}
-                                                                {emp?.phone && <p className="text-xs text-slate-500 font-medium flex items-center gap-1 mt-0.5"><Phone size={10} /> {emp.phone}</p>}
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
+                                                                <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
                                                             </div>
-                                                            {emp?.phone && (
-                                                                <a href={`tel:${emp.phone}`} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:bg-green-100 hover:text-green-600 transition-colors">
-                                                                    <Phone size={14} />
-                                                                </a>
-                                                            )}
                                                         </div>
                                                     );
                                                 })}
                                             </div>
 
                                             <div className="h-px bg-slate-100 my-2" />
-
-                                            {/* Row 8: Service & Tab (Inline) */}
-                                            <div className="flex items-center justify-between gap-4">
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
-                                                    <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
-                                                    <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
-                                                </div>
-                                            </div>
 
                                             {/* Row 9: Assignees (Inline Chips) */}
                                             <div>
@@ -1307,16 +1344,30 @@ export default function SchedulePage() {
                                                 </div>
                                             </div>
 
-                                            {/* Row 10: Notify & Per Diem */}
-                                            <div className="flex flex-wrap gap-3 pt-2">
-                                                <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                    Notify: {selectedSchedule.notifyAssignees || 'No'}
-                                                </Badge>
-                                                <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                    Per Diem: {selectedSchedule.perDiem || 'No'}
-                                                </Badge>
+                                            {/* Row 8: Service, Tag, Notify, Per Diem (Inline) */}
+                                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
+                                                    <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
+                                                    <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
+                                                    <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                        <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                        {selectedSchedule.notifyAssignees || 'No'}
+                                                    </Badge>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
+                                                    <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                        <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                        {selectedSchedule.perDiem || 'No'}
+                                                    </Badge>
+                                                </div>
                                             </div>
 
                                             {/* Row 11: Scope / Notes (Moved to end) */}
@@ -1331,7 +1382,7 @@ export default function SchedulePage() {
 
                                             {/* Row 12: Timesheets - Grouped */}
                                             {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 && (
-                                                <div className="pt-6 border-t border-slate-100">
+                                                <div className="pt-4 border-t border-slate-100">
                                                     <div className="flex items-center justify-between mb-4">
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
                                                         <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">{selectedSchedule.timesheet.length} Entries</Badge>
@@ -1354,12 +1405,12 @@ export default function SchedulePage() {
                                                                 <table className="w-full text-left border-collapse">
                                                                     <thead>
                                                                         <tr className="bg-slate-50/80 border-b border-slate-100">
-                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider w-[25%]">Employee</th>
-                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">In</th>
-                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Out</th>
-                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Dist.</th>
-                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Hrs</th>
-                                                                            <th className="px-4 py-2.5 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right w-20">Actions</th>
+                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider w-[25%]">Employee</th>
+                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">In</th>
+                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">Out</th>
+                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Dist.</th>
+                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right">Hrs</th>
+                                                                            <th className="p-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider text-right w-20">Actions</th>
                                                                         </tr>
                                                                     </thead>
                                                                     <tbody className="text-xs text-slate-600 divide-y divide-slate-50">
@@ -1368,7 +1419,7 @@ export default function SchedulePage() {
                                                                             const { hours, distance } = calculateTimesheetData(ts, selectedSchedule.fromDate);
                                                                             return (
                                                                                 <tr key={idx} className="group hover:bg-blue-50/30 transition-colors">
-                                                                                    <td className="px-4 py-3">
+                                                                                    <td className="p-2">
                                                                                         <div className="flex items-center gap-2.5">
                                                                                             <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
                                                                                                 {emp?.image ? (
@@ -1382,23 +1433,23 @@ export default function SchedulePage() {
                                                                                             </div>
                                                                                         </div>
                                                                                     </td>
-                                                                                    <td className="px-4 py-3 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
+                                                                                    <td className="p-2 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
                                                                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100/50">
                                                                                             {formatTimeOnly(ts.clockIn)}
                                                                                         </div>
                                                                                     </td>
-                                                                                    <td className="px-4 py-3 text-center font-medium">
+                                                                                    <td className="p-2 text-center font-medium">
                                                                                          <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
                                                                                             {formatTimeOnly(ts.clockOut)}
                                                                                          </div>
                                                                                     </td>
-                                                                                    <td className="px-4 py-3 text-right font-medium text-slate-500">
+                                                                                    <td className="p-2 text-right font-medium text-slate-500">
                                                                                         {distance > 0 ? `${distance.toFixed(1)} mi` : '-'}
                                                                                     </td>
-                                                                                    <td className="px-4 py-3 text-right font-bold text-[#0F4C75]">
+                                                                                    <td className="p-2 text-right font-bold text-[#0F4C75]">
                                                                                         {hours > 0 ? hours.toFixed(2) : '-'}
                                                                                     </td>
-                                                                                    <td className="px-4 py-3 text-right">
+                                                                                    <td className="p-2 text-right">
                                                                                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
                                                                                             <button 
                                                                                                 onClick={(e) => { e.stopPropagation(); /* TODO: Edit logic */ }}
@@ -1435,29 +1486,29 @@ export default function SchedulePage() {
                                 </div>
                             ) : (
                                 <>
-                                    <div>
-                                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">QUICK STATS</h4>
-                                        <div className="space-y-6">
-                                            <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm">
+                                    <div className="w-full text-center">
+                                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center w-full">QUICK STATS</h4>
+                                        <div className="space-y-4 w-full">
+                                            <div className="bg-white p-4 rounded-[32px] border border-slate-50 shadow-sm flex flex-col items-center justify-center text-center">
                                                 <p className="text-3xl font-black text-slate-800">{filteredSchedules.length}</p>
-                                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1">TOTAL JOBS</p>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">TOTAL JOBS</p>
                                             </div>
-                                            <div className="bg-[#0F4C75] p-6 rounded-[32px] shadow-lg shadow-blue-900/20">
+                                            <div className="bg-[#0F4C75] p-4 rounded-[32px] shadow-lg shadow-blue-900/20 flex flex-col items-center justify-center text-center">
                                                 <p className="text-3xl font-black text-white">84%</p>
-                                                <p className="text-[11px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
+                                                <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">NOTIFICATIONS</h4>
-                                        <div className="space-y-4">
-                                            <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl border border-white">
-                                                <div className="w-2 h-2 bg-rose-500 rounded-full mt-1.5 shrink-0 shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
+                                    <div className="w-full text-center">
+                                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center w-full">NOTIFICATIONS</h4>
+                                        <div className="space-y-4 w-full">
+                                            <div className="flex flex-col items-center gap-2 p-4 bg-slate-50 rounded-2xl border border-white text-center">
+                                                <div className="w-2 h-2 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
                                                 <p className="text-xs font-bold text-slate-600 leading-snug">New import completed successfully.</p>
                                             </div>
-                                            <div className="flex gap-4 p-4 bg-slate-50 rounded-2xl border border-white opacity-60">
-                                                <div className="w-2 h-2 bg-slate-300 rounded-full mt-1.5 shrink-0"></div>
+                                            <div className="flex flex-col items-center gap-2 p-4 bg-slate-50 rounded-2xl border border-white opacity-60 text-center">
+                                                <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
                                                 <p className="text-xs font-bold text-slate-600 leading-snug">System backup finished.</p>
                                             </div>
                                         </div>
@@ -1469,6 +1520,16 @@ export default function SchedulePage() {
 
                 </div>
             </main >
+
+            {/* Floating Action Button - Mobile Only */}
+            <button
+                onClick={openCreateModal}
+                className="sm:hidden fixed bottom-24 right-6 z-50 w-14 h-14 bg-[#0F4C75] text-white rounded-full shadow-2xl hover:bg-[#0a3a5c] transition-all flex items-center justify-center group active:scale-95"
+                title="Create Schedule"
+            >
+                <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+            </button>
+
 
             {/* Create/Edit Modal */}
             < Modal
@@ -1521,7 +1582,7 @@ export default function SchedulePage() {
                     </div>
 
                     {/* Row 2: Proposal #, From Date, To Date */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className={`grid grid-cols-1 ${!editingItem?._id ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 mb-6`}>
                         <div>
                             <SearchableSelect
                                 id="schedProposal"
@@ -1539,7 +1600,7 @@ export default function SchedulePage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">From Date</label>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{editingItem?._id ? 'Date' : 'From Date'}</label>
                             <input
                                 id="schedFromDate"
                                 type="date"
@@ -1549,27 +1610,33 @@ export default function SchedulePage() {
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault();
-                                        document.getElementById('schedToDate')?.focus();
+                                        if (!editingItem?._id) {
+                                            document.getElementById('schedToDate')?.focus();
+                                        } else {
+                                            document.getElementById('schedDesc')?.focus();
+                                        }
                                     }
                                 }}
                             />
                         </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">To Date</label>
-                            <input
-                                id="schedToDate"
-                                type="date"
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all"
-                                value={editingItem?.toDate ? formatLocalDate(editingItem.toDate) : ''}
-                                onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        document.getElementById('schedDesc')?.focus();
-                                    }
-                                }}
-                            />
-                        </div>
+                        {!editingItem?._id && (
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">To Date</label>
+                                <input
+                                    id="schedToDate"
+                                    type="date"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all"
+                                    value={editingItem?.toDate ? formatLocalDate(editingItem.toDate) : ''}
+                                    onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            document.getElementById('schedDesc')?.focus();
+                                        }
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Row 3: Description & Scope (left) + PM/Foreman/SD stacked (right) */}
@@ -1613,25 +1680,12 @@ export default function SchedulePage() {
                                 }))}
                                 value={editingItem?.foremanName || ''}
                                 onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
-                                onNext={() => document.getElementById('schedSD')?.focus()}
-                            />
-                            <SearchableSelect
-                                id="schedSD"
-                                label="SD"
-                                placeholder="Select SD"
-                                options={initialData.employees.map(e => ({
-                                    label: e.label,
-                                    value: e.value,
-                                    image: e.image
-                                }))}
-                                value={editingItem?.SDName || ''}
-                                onChange={(val) => setEditingItem({ ...editingItem, SDName: val })}
                                 onNext={() => document.getElementById('schedService')?.focus()}
                             />
                         </div>
                     </div>
 
-                    {/* Row 5: Service, Tag (Schedule Item) */}
+                    {/* Grid for Service, Tag, Notify, Per Diem, Fringe, CP - 3 Rows of 2 Cols */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
                             <SearchableSelect
@@ -1662,13 +1716,48 @@ export default function SchedulePage() {
                                 }))}
                                 value={editingItem?.item || ''}
                                 onChange={(val) => setEditingItem({ ...editingItem, item: val })}
+                                onNext={() => document.getElementById('schedNotify')?.focus()}
+                            />
+                        </div>
+                        <div>
+                            <SearchableSelect
+                                id="schedNotify"
+                                label="Notify Assignees"
+                                placeholder="Select"
+                                disableBlank={true}
+                                options={[
+                                    { label: 'No', value: 'No', color: '#ef4444' }, // Red-500
+                                    { label: 'Yes', value: 'Yes', color: '#22c55e' } // Green-500
+                                ]}
+                                value={editingItem?.notifyAssignees || 'No'}
+                                onChange={(val) => {
+                                    setEditingItem({
+                                        ...editingItem,
+                                        notifyAssignees: val
+                                    });
+                                }}
+                                onNext={() => document.getElementById('schedPerDiem')?.focus()}
+                            />
+                        </div>
+                        <div>
+                            <SearchableSelect
+                                id="schedPerDiem"
+                                label="Per Diem Eligible"
+                                placeholder="Select"
+                                disableBlank={true}
+                                submitOnEnter={true}
+                                openOnFocus={true}
+                                options={[
+                                    { label: 'No', value: 'No', color: '#ef4444' },
+                                    { label: 'Yes', value: 'Yes', color: '#22c55e' }
+                                ]}
+                                value={editingItem?.perDiem || 'No'}
+                                onChange={(val) => {
+                                    setEditingItem({ ...editingItem, perDiem: val });
+                                }}
                                 onNext={() => document.getElementById('schedFringe')?.focus()}
                             />
                         </div>
-                    </div>
-
-                    {/* Row 6: Fringe, Certified Payroll */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
                             <SearchableSelect
                                 id="schedFringe"
@@ -1719,50 +1808,7 @@ export default function SchedulePage() {
                             onChange={(val) => {
                                 setEditingItem(prev => ({ ...prev, assignees: val }));
                             }}
-                            onNext={() => document.getElementById('schedNotify')?.focus()}
                         />
-                    </div>
-
-                    {/* Row 8: Notify & Per Diem (Dropdowns) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div>
-                            <SearchableSelect
-                                id="schedNotify"
-                                label="Notify Assignees"
-                                placeholder="Select Option"
-                                disableBlank={true}
-                                options={[
-                                    { label: 'No', value: 'No', color: '#ef4444' }, // Red-500
-                                    { label: 'Yes', value: 'Yes', color: '#22c55e' } // Green-500
-                                ]}
-                                value={editingItem?.notifyAssignees || 'No'}
-                                onChange={(val) => {
-                                    setEditingItem({
-                                        ...editingItem,
-                                        notifyAssignees: val
-                                    });
-                                }}
-                                onNext={() => document.getElementById('schedPerDiem')?.focus()}
-                            />
-                        </div>
-                        <div>
-                            <SearchableSelect
-                                id="schedPerDiem"
-                                label="Per Diem Eligible"
-                                placeholder="Select Option"
-                                disableBlank={true}
-                                submitOnEnter={true}
-                                openOnFocus={true}
-                                options={[
-                                    { label: 'No', value: 'No', color: '#ef4444' },
-                                    { label: 'Yes', value: 'Yes', color: '#22c55e' }
-                                ]}
-                                value={editingItem?.perDiem || 'No'}
-                                onChange={(val) => {
-                                    setEditingItem({ ...editingItem, perDiem: val });
-                                }}
-                            />
-                        </div>
                     </div>
 
                     <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-100">

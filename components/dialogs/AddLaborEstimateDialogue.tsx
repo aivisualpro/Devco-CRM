@@ -54,7 +54,7 @@ const LaborRow = memo(({
             className={`cursor-pointer transition-colors ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : isSelected ? 'bg-indigo-100' : isSuggested ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
             onClick={() => !isAdded && onToggle(item)}
         >
-            <td className="p-3">
+            <td className="p-2">
                 <input 
                     type="checkbox" 
                     checked={isSelected || isAdded} 
@@ -63,7 +63,7 @@ const LaborRow = memo(({
                 />
             </td>
             {displayCols.map((col, cIdx) => (
-                <td key={col} className="p-3 text-gray-700">
+                <td key={col} className="p-2 text-gray-700">
                     {col === 'classification' ? (
                         <span className="font-medium text-slate-700">{String(item.classification || '')}</span>
                     ) : col === 'basePay' ? (
@@ -99,6 +99,7 @@ export function AddLaborEstimateDialogue({
     const [searchTerm, setSearchTerm] = useState('');
     const [saving, setSaving] = useState(false);
     const [isAddNewCatalogue, setIsAddNewCatalogue] = useState(false);
+    const [localNewItems, setLocalNewItems] = useState<CatalogItem[]>([]);
     const { success, error: toastError } = useToast();
 
     // Debounce search term
@@ -114,6 +115,7 @@ export function AddLaborEstimateDialogue({
             setSelectedItems(new Set());
             setInputValue('');
             setSearchTerm('');
+            setLocalNewItems([]);
         }
     }, [isOpen]);
 
@@ -127,7 +129,7 @@ export function AddLaborEstimateDialogue({
 
     const filteredCatalog = useMemo(() => {
         const searchStr = searchTerm.toLowerCase().trim();
-        let list = (catalog || []);
+        let list = (catalog || []).concat(localNewItems);
         
         if (searchStr) {
             list = list.filter(item => {
@@ -159,7 +161,7 @@ export function AddLaborEstimateDialogue({
         }
 
         return filtered.slice(0, 80); // Slightly smaller batch for better rendering
-    }, [catalog, searchTerm, fringe, getIdentifier]);
+    }, [catalog, searchTerm, fringe, getIdentifier, localNewItems]);
 
     const toggleSelection = useCallback((item: CatalogItem) => {
         setSelectedItems(prev => {
@@ -199,6 +201,16 @@ export function AddLaborEstimateDialogue({
 
             if (result.success) {
                 success('Added to catalogue');
+                const newItem = { ...data, _id: result.result?._id || `temp_${Date.now()}` };
+                setLocalNewItems(prev => [newItem, ...prev]);
+                
+                // Auto-select
+                setSelectedItems(prev => {
+                    const newSet = new Set(prev);
+                    newSet.add(newItem);
+                    return newSet;
+                });
+
                 setIsAddNewCatalogue(false);
             } else {
                 toastError('Failed to add to catalogue');
@@ -246,11 +258,11 @@ export function AddLaborEstimateDialogue({
                         )}
                     </div>
                     <div className="max-h-[50vh] overflow-y-auto border border-gray-100 rounded-xl scrollbar-thin overflow-x-hidden">
-                        <table className="w-full text-sm text-left border-collapse">
+                        <table className="w-full text-[10px] text-left border-collapse">
                             <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10 shadow-sm">
                                 <tr>
-                                    <th className="p-3 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
-                                    {displayCols.map(col => <th key={col} className="p-3 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
+                                    <th className="p-2 w-10"><input type="checkbox" className="rounded border-gray-300" disabled /></th>
+                                    {displayCols.map(col => <th key={col} className="p-2 capitalize">{col.replace(/([A-Z])/g, ' $1').trim()}</th>)}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">

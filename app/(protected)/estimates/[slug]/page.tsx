@@ -18,7 +18,8 @@ import {
     AddItemModal,
     LaborCalculationModal,
     TemplateSelector,
-    EstimateDetailsModal
+    EstimateDetailsModal,
+    EstimateLineItemsCard
 } from './components';
 import {
     getLaborBreakdown,
@@ -131,25 +132,25 @@ const baseSectionConfigs = [
         fields: ['labor', 'classification', 'subClassification', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent', 'total'],
         formFields: ['classification', 'subClassification', 'fringe', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent'],
         formHeaders: ['Classification', 'Sub Classification', 'Fringe', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp %', 'Payroll Tax %'],
-        editableFields: ['quantity', 'days', 'otPd', 'basePay']
+        editableFields: ['labor', 'classification', 'subClassification', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent']
     },
     {
         id: 'Equipment', title: 'Equipment', key: 'equipment',
         headers: ['Equipment / Machine', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'Times', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Fuel', 'Delivery & Pickup', 'Total'],
         fields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup', 'total'],
-        editableFields: ['supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup']
+        editableFields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup']
     },
     {
         id: 'Material', title: 'Material', key: 'material',
         headers: ['Material', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'UOM', 'Cost', 'Taxes', 'Delivery & Pickup', 'Total'],
         fields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'deliveryPickup', 'total'],
-        editableFields: ['classification', 'subClassification', 'supplier', 'uom', 'cost', 'taxes', 'quantity', 'deliveryPickup']
+        editableFields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'deliveryPickup']
     },
     {
         id: 'Tools', title: 'Tools', key: 'tools',
         headers: ['Tool', 'Classification', 'Sub Classification', 'UOM', 'Supplier', 'Cost', 'Quantity', 'Taxes', 'Total'],
         fields: ['tool', 'classification', 'subClassification', 'uom', 'supplier', 'cost', 'quantity', 'taxes', 'total'],
-        editableFields: ['quantity', 'cost']
+        editableFields: ['tool', 'classification', 'subClassification', 'uom', 'supplier', 'cost', 'quantity', 'taxes']
     },
     {
         id: 'Overhead', title: 'Overhead', key: 'overhead',
@@ -157,7 +158,7 @@ const baseSectionConfigs = [
         fields: ['overhead', 'classification', 'subClassification', 'days', 'hours', 'hourlyRate', 'dailyRate', 'total'],
         formFields: ['overhead', 'classification', 'subClassification', 'hourlyRate', 'dailyRate'],
         formHeaders: ['Overhead', 'Classification', 'Sub Classification', 'Hourly Cost', 'Daily Cost'],
-        editableFields: ['classification', 'subClassification', 'days', 'hourlyRate']
+        editableFields: ['overhead', 'classification', 'subClassification', 'days', 'hours', 'hourlyRate', 'dailyRate']
     },
     {
         id: 'Subcontractor', title: 'Subcontractor', key: 'subcontractor',
@@ -173,7 +174,7 @@ const baseSectionConfigs = [
         fields: ['disposalAndHaulOff', 'classification', 'subClassification', 'uom', 'quantity', 'cost', 'total'],
         formFields: ['disposalAndHaulOff', 'classification', 'subClassification', 'uom', 'quantity', 'cost'],
         formHeaders: ['Disposal And Haul OFF', 'Classification', 'Sub Classification', 'UOM', 'Quantity', 'Cost'],
-        editableFields: ['classification', 'subClassification', 'uom', 'quantity', 'cost']
+        editableFields: ['disposalAndHaulOff', 'classification', 'subClassification', 'uom', 'quantity', 'cost']
     },
     {
         id: 'Miscellaneous', title: 'Miscellaneous', key: 'miscellaneous',
@@ -181,7 +182,7 @@ const baseSectionConfigs = [
         fields: ['item', 'classification', 'quantity', 'uom', 'cost', 'total'],
         formFields: ['item', 'classification', 'uom', 'cost'],
         formHeaders: ['Item', 'Classification', 'UOM', 'Cost'],
-        editableFields: ['classification', 'quantity', 'uom', 'cost']
+        editableFields: ['item', 'classification', 'quantity', 'uom', 'cost']
     }
 ];
 
@@ -596,22 +597,22 @@ export default function EstimateViewPage() {
             }
         });
     }, [slug, loadEstimate, loadCatalogs]);
-
-    // Fetch client details when customerId changes
+    
+    // Synchronize client options (contacts/addresses) when customer changes
     useEffect(() => {
-        if (!formData?.customerId) {
-            setContactOptions([]);
-            setAddressOptions([]);
-            return;
-        }
-
-        const fetchClientDetails = async () => {
+        const syncClientOptions = async () => {
+            const cid = formData?.customerId;
+            if (!cid) {
+                setContactOptions([]);
+                setAddressOptions([]);
+                return;
+            }
             try {
-                const res = await apiCall('getClientById', { id: formData.customerId });
+                const res = await apiCall('getClientById', { id: cid });
                 if (res.success && res.result) {
                     const client = res.result;
-
-                    // Contacts
+                    
+                    // Update Contacts
                     const contacts = (client.contacts || []).map((c: any) => ({
                         id: c.name,
                         label: c.name,
@@ -625,24 +626,37 @@ export default function EstimateViewPage() {
                                 id: client.contactFullName,
                                 label: client.contactFullName,
                                 value: client.contactFullName,
-                                email: client.contactEmail,
-                                phone: client.contactPhone
+                                email: client.email || client.contactEmail,
+                                phone: client.phone || client.contactPhone
                             });
                         }
                     }
                     setContactOptions(contacts);
 
-                    // Addresses
-                    const addrOpts = (client.address || []).map((a: string) => ({ id: a, label: a, value: a }));
-                    setAddressOptions(addrOpts);
+                    // Update Addresses
+                    const addresses = [...(client.addresses || []), ...(client.address || [])].map((a: string) => ({
+                        id: a,
+                        label: a,
+                        value: a
+                    }));
+                    
+                    if (client.businessAddress && !addresses.find(a => a.value === client.businessAddress)) {
+                        addresses.unshift({
+                            id: client.businessAddress,
+                            label: client.businessAddress,
+                            value: client.businessAddress
+                        });
+                    }
+                    setAddressOptions(addresses);
                 }
-            } catch (e) {
-                console.error('Error fetching client details:', e);
+            } catch (err) {
+                console.error('Error syncing client options:', err);
             }
         };
 
-        fetchClientDetails();
+        syncClientOptions();
     }, [formData?.customerId]);
+
 
 
     // Initial Sort & Expand Logic
@@ -1471,7 +1485,7 @@ export default function EstimateViewPage() {
         </div>
             <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
                 {/* Section 1: Header Card */}
-                <div className="w-full px-4 md:px-6 py-6">
+                <div className="w-full p-4">
                     {/* Header Card */}
                     <EstimateHeaderCard
                         formData={formData}
@@ -1509,35 +1523,30 @@ export default function EstimateViewPage() {
                 </div>
 
                 {/* Section 2: All Line Items (Full Screen Height with Scroll) */}
-                <div className="w-full px-6 pb-8 h-[calc(100vh-64px)] flex flex-col">
-                    <div className="flex-1 h-full overflow-y-auto bg-white rounded-xl shadow-lg border border-slate-200 p-6">
-                        <div className="space-y-6">
-                            {sections.map(section => (
-                                <AccordionSection
-                                    key={section.id}
-                                    title={section.title}
-                                    isOpen={openSections[section.id] || false}
-                                    onToggle={() => setOpenSections(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
-                                    itemCount={section.items.length}
-                                    sectionTotal={section.items.reduce((sum, i) => sum + (i.total || 0), 0)}
-                                    grandTotal={chartData.subTotal}
-                                    color={section.color}
-                                    onAdd={() => setActiveSection(section)}
-                                >
-                                    <LineItemsTable
-                                        sectionId={section.id}
-                                        headers={section.headers}
-                                        items={section.items}
-                                        fields={section.fields}
-                                        editableFields={section.editableFields}
-                                        onUpdateItem={(item, field, value) => handleItemUpdate(section, item, field, value)}
-                                        onExplain={section.id === 'Labor' ? handleExplain : undefined}
-                                        onDelete={(item) => handleDeleteItem(section, item)}
-                                    />
-                                </AccordionSection>
-                            ))}
-                        </div>
-                    </div>
+                <div className="w-full px-4 pb-4 h-[calc(100vh-64px)] flex flex-col">
+                    <EstimateLineItemsCard
+                        sections={sections}
+                        openSections={openSections}
+                        setOpenSections={setOpenSections}
+                        chartData={chartData}
+                        setActiveSection={setActiveSection}
+
+                        onAddItem={(sectionId) => {
+                            const section = sections.find(s => s.id === sectionId);
+                            if (section) setActiveSection(section);
+                        }}
+                        onEditItem={(sectionId, item, field, value) => {
+                            const section = sections.find(s => s.id === sectionId);
+                            if (section && field && value !== undefined) {
+                                handleItemUpdate(section, item, field, value);
+                            }
+                        }}
+                        onDeleteItem={(sectionId, item) => {
+                            const section = sections.find(s => s.id === sectionId);
+                            if (section) handleDeleteItem(section, item);
+                        }}
+                        onExplain={handleExplain}
+                    />
                 </div>
 
                 {/* Section 3: Proposal (Full Screen Height with Scroll) */}

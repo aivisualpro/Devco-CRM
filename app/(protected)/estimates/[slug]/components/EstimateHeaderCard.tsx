@@ -247,9 +247,9 @@ export function EstimateHeaderCard({
 
     return (
         <>
-            <div className="bg-[#eef2f6] rounded-[40px] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] p-4 sm:p-6 lg:p-7 mb-6">
+            <div className="bg-[#eef2f6] rounded-[40px] p-4">
             {/* 4-Column Grid Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
 
                 {/* PART 1: Customer Info column */}
                 <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
@@ -273,6 +273,7 @@ export function EstimateHeaderCard({
                             )}
                         </div>
                         <div 
+                            id="field-client"
                             onClick={() => setActiveDropdown(activeDropdown === 'client' ? null : 'client')}
                             className={`
                                 flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
@@ -312,6 +313,8 @@ export function EstimateHeaderCard({
                                 setActiveDropdown(null);
                             }}
                             placeholder="Search or add customer..."
+                            anchorId="field-client"
+                            positionMode="overlay"
                         />
                     </div>
 
@@ -320,7 +323,8 @@ export function EstimateHeaderCard({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
                             Contact
                         </label>
-                        <div 
+                        <div
+                            id="field-contact"
                             onClick={() => {
                                 if (!formData.customerId) return;
                                 setActiveDropdown(activeDropdown === 'contact' ? null : 'contact');
@@ -358,6 +362,8 @@ export function EstimateHeaderCard({
                                 setActiveDropdown(null);
                             }}
                             placeholder="Select or add contact..."
+                            anchorId="field-contact"
+                            positionMode="overlay"
                         />
                     </div>
 
@@ -366,7 +372,8 @@ export function EstimateHeaderCard({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
                             Job Address
                         </label>
-                        <div 
+                        <div
+                            id="field-address"
                             onClick={() => {
                                 if (!formData.customerId) return;
                                 setActiveDropdown(activeDropdown === 'address' ? null : 'address');
@@ -401,6 +408,8 @@ export function EstimateHeaderCard({
                                 setActiveDropdown(null);
                             }}
                             placeholder="Select or add address..."
+                            anchorId="field-address"
+                            positionMode="overlay"
                         />
                     </div>
 
@@ -438,10 +447,10 @@ export function EstimateHeaderCard({
                 </div>
 
                 {/* PART 2: Estimate Details Column */}
-                <div className="flex flex-col gap-5 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
 
                     {/* Row 1: Date & Est No */}
-                    <div className="flex flex-col sm:flex-row gap-4 border-b border-slate-200/50 pb-4">
+                    <div className="flex flex-col sm:flex-row gap-2 border-b border-slate-200/50 pb-2">
                         <div className="flex-1 text-center">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
                                 Date
@@ -466,9 +475,9 @@ export function EstimateHeaderCard({
                     {/* Dropdown Container-ref for click-outside handling */}
                     <div ref={dropdownRef}>
                         {/* Row 2: Fringe Rate & Certified Payroll */}
-                        <div className="flex gap-4 mb-4">
+                        <div className="flex gap-2 mb-2">
                             {/* Fringe */}
-                            <div className="flex-1 relative flex flex-col items-center">
+                            <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                                     Fringe Rate
                                 </label>
@@ -480,6 +489,7 @@ export function EstimateHeaderCard({
 
                                     return (
                                         <div
+                                            id="field-fringe"
                                             onClick={() => setActiveDropdown(activeDropdown === 'fringe' ? null : 'fringe')}
                                             className={`
                                             w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
@@ -508,11 +518,13 @@ export function EstimateHeaderCard({
                                     }}
                                     onAdd={handleAddNewFringe}
                                     placeholder="Search fringe rates..."
+                                    anchorId="field-fringe"
+                                    positionMode="overlay"
                                 />
                             </div>
 
                             {/* Certified Payroll */}
-                            <div className="flex-1 relative flex flex-col items-center">
+                            <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                                     Certified Payroll
                                 </label>
@@ -524,6 +536,7 @@ export function EstimateHeaderCard({
 
                                     return (
                                         <div
+                                            id="field-certifiedPayroll"
                                             onClick={() => setActiveDropdown(activeDropdown === 'certifiedPayroll' ? null : 'certifiedPayroll')}
                                             className={`
                                             w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
@@ -552,15 +565,17 @@ export function EstimateHeaderCard({
                                     }}
                                     onAdd={handleAddNewCertifiedPayroll}
                                     placeholder="Search payroll types..."
+                                    anchorId="field-certifiedPayroll"
+                                    positionMode="overlay"
                                 />
                             </div>
 
                         </div>
 
                         {/* Row 3: Services & Markup % */}
-                        <div className="flex gap-4 mb-4">
+                        <div className="flex gap-2 mb-2">
                             {/* Services Column */}
-                            <div className="flex-1 relative flex flex-col items-center">
+                            <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block text-center">
                                     Services
                                 </label>
@@ -571,6 +586,7 @@ export function EstimateHeaderCard({
 
                                     return (
                                         <div
+                                            id="field-services"
                                             onClick={() => setActiveDropdown(isOpen ? null : 'services')}
                                             className={`
                                                 w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
@@ -590,21 +606,24 @@ export function EstimateHeaderCard({
                                 })()}
 
                                 {activeDropdown === 'services' && (
-                                    <MyDropDown
-                                        isOpen={activeDropdown === 'services'}
-                                        onClose={() => setActiveDropdown(null)}
-                                        options={serviceOptions}
-                                        selectedValues={formData.services || []}
-                                        onSelect={toggleService}
-                                        onAdd={handleAddNewService}
-                                        isAdding={isAddingService}
-                                        placeholder="Search or add services..."
-                                    />
+                                        <MyDropDown
+                                            isOpen={activeDropdown === 'services'}
+                                            onClose={() => setActiveDropdown(null)}
+                                            options={serviceOptions}
+                                            selectedValues={formData.services || []}
+                                            onSelect={toggleService}
+                                            onAdd={handleAddNewService}
+                                            isAdding={isAddingService}
+                                            placeholder="Search or add services..."
+                                            anchorId="field-services"
+                                            positionMode="overlay"
+                                            multiSelect={true}
+                                        />
                                 )}
                             </div>
 
                             {/* Markup */}
-                            <div className="flex-1 relative flex flex-col items-center">
+                            <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                                     Markup %
                                 </label>
@@ -694,9 +713,9 @@ export function EstimateHeaderCard({
                         </div>
 
                         {/* Row 4: Proposal Writer & Status */}
-                        <div className="flex gap-4">
+                        <div className="flex gap-2">
                             {/* Proposal Writer */}
-                            <div className="flex-1 relative flex flex-col items-center">
+                            <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block text-center">
                                     Proposal Writer
                                 </label>
@@ -709,6 +728,7 @@ export function EstimateHeaderCard({
 
                                     return (
                                         <div
+                                            id="field-writer"
                                             onClick={() => setActiveDropdown(isOpen ? null : 'proposalWriter')}
                                             className={`
                                     w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
@@ -750,12 +770,14 @@ export function EstimateHeaderCard({
                                         setActiveDropdown(null);
                                     }}
                                     placeholder="Search writers..."
+                                    anchorId="field-writer"
+                                    positionMode="overlay"
                                 />
                             </div>
 
 
                             {/* Status Column */}
-                            <div className="flex-1 relative flex flex-col items-center">
+                            <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block text-center">
                                     Status
                                 </label>
@@ -768,6 +790,7 @@ export function EstimateHeaderCard({
 
                                     return (
                                         <div
+                                            id="field-status"
                                             onClick={() => setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
                                             className={`
                                     w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
@@ -801,6 +824,8 @@ export function EstimateHeaderCard({
                                     }}
                                     onAdd={handleAddNewStatus}
                                     placeholder="Search status..."
+                                    anchorId="field-status"
+                                    positionMode="overlay"
                                 />
                             </div>
                         </div>

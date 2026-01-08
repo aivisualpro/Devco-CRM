@@ -11,7 +11,6 @@ export interface ISchedule extends Document {
     jobLocation: string;
     projectManager: string;
     foremanName: string;
-    SDName: string;
     assignees: string[];
     description: string;
     service: string;
@@ -86,7 +85,6 @@ const ScheduleSchema = new Schema({
     jobLocation: { type: String },
     projectManager: { type: String },
     foremanName: { type: String },
-    SDName: { type: String },
     assignees: { type: [String], default: [] },
     description: { type: String },
     service: { type: String },

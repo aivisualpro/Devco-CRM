@@ -1,7 +1,5 @@
-'use client';
-
 import { ReactNode } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { AddButton } from '@/components/ui';
 
 interface AccordionSectionProps {
@@ -37,20 +35,20 @@ export function AccordionSection({
     const percentage = grandTotal > 0 ? (sectionTotal / grandTotal) * 100 : 0;
 
     return (
-        <div className="mb-6">
+        <div className="">
             {/* Header */}
             <div
                 className="cursor-pointer group select-none"
                 onClick={onToggle}
             >
                 <div className="flex items-center justify-between pb-2">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-4">
                         <div
                             className={`transition-transform duration-300 text-gray-400 group-hover:text-gray-600 ${isOpen ? 'rotate-180' : ''}`}
                         >
                             <ChevronDown className="w-6 h-6" />
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-gray-900 tracking-tight flex items-center gap-2">
                             {title}
                             {itemCount > 0 && (
                                 <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full font-bold">
@@ -58,19 +56,21 @@ export function AccordionSection({
                                 </span>
                             )}
                         </h3>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                        <AddButton
+                        <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 onAdd();
                             }}
-                            label={`Add ${title}`}
-                            variant="outline"
-                            className="w-48 justify-start bg-white hover:bg-slate-50 border-slate-200 text-slate-600"
-                        />
-                        <span className="text-xl font-bold text-gray-900 w-32 text-right">
+                            className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
+                            title={`Add to ${title}`}
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+
+                        <span className="text-sm font-bold text-gray-900 w-32 text-right">
                             {formatMoney(sectionTotal)}
                         </span>
                     </div>

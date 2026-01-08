@@ -94,9 +94,14 @@ export function SearchableSelect({
     if (multiple) {
         const vals = Array.isArray(value) ? value : [];
         if (vals.length > 0) {
+            const maxVisible = 5;
+            const showAll = vals.length <= maxVisible;
+            const visibleVals = showAll ? vals : vals.slice(0, maxVisible - 1);
+            const remaining = vals.length - visibleVals.length;
+
             displayLabel = (
-                <div className="flex flex-wrap gap-1">
-                    {vals.map(v => {
+                <div className="flex flex-wrap gap-1.5 py-1">
+                    {visibleVals.map(v => {
                         const opt = normalizedOptions.find(o => o.value === v);
                         const label = opt?.label || v;
                         return (
@@ -114,6 +119,11 @@ export function SearchableSelect({
                             </span>
                         );
                     })}
+                    {remaining > 0 && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
+                            +{remaining} more
+                        </span>
+                    )}
                 </div>
             );
         }
@@ -291,7 +301,7 @@ export function SearchableSelect({
                             onKeyDown(e);
                         }
                     }}
-                    className="w-full h-[46px] px-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                    className="w-full min-h-[46px] h-auto p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
                 >
                     <div className="flex items-center gap-3 overflow-hidden flex-1">
                         {(!multiple && (selectedOption?.image || selectedOption?.color || selectedOption?.initials || (displayLabel && displayLabel !== placeholder))) ? (
