@@ -41,7 +41,7 @@ export function AccordionSection({
                 className="cursor-pointer group select-none"
                 onClick={onToggle}
             >
-                <div className="flex items-center justify-between pb-2">
+                <div className="flex items-center justify-between p-2">
                     <div className="flex items-center gap-4">
                         <div
                             className={`transition-transform duration-300 text-gray-400 group-hover:text-gray-600 ${isOpen ? 'rotate-180' : ''}`}

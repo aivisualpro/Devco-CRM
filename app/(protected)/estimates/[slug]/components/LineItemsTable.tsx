@@ -205,7 +205,7 @@ export function LineItemsTable({
     }
 
     return (
-        <div className="overflow-x-auto py-2">
+        <div className="overflow-x-auto p-2">
             {/* Datalists */}
             {suppliers.length > 0 && (
                 <datalist id={`${sectionId}-suppliers`}>

@@ -276,7 +276,7 @@ export function EstimateHeaderCard({
                             id="field-client"
                             onClick={() => setActiveDropdown(activeDropdown === 'client' ? null : 'client')}
                             className={`
-                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300 h-10
                                 ${activeDropdown === 'client' 
                                     ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
                                     : 'bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white'}
@@ -330,7 +330,7 @@ export function EstimateHeaderCard({
                                 setActiveDropdown(activeDropdown === 'contact' ? null : 'contact');
                             }}
                             className={`
-                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300 h-10
                                 ${!formData.customerId ? 'opacity-50 cursor-not-allowed' : ''}
                                 ${activeDropdown === 'contact' 
                                     ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
@@ -379,7 +379,7 @@ export function EstimateHeaderCard({
                                 setActiveDropdown(activeDropdown === 'address' ? null : 'address');
                             }}
                             className={`
-                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300 h-10
                                 ${!formData.customerId ? 'opacity-50 cursor-not-allowed' : ''}
                                 ${activeDropdown === 'address' 
                                     ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
@@ -421,7 +421,7 @@ export function EstimateHeaderCard({
                         <div 
                             onClick={() => setIsEditingProjectName(true)}
                             className={`
-                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300
+                                flex items-center gap-2 px-3 py-2 rounded-xl cursor-pointer transition-all duration-300 h-10
                                 ${isEditingProjectName 
                                     ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
                                     : 'bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white'}

@@ -123,9 +123,9 @@ export function AddLaborCatalogueDialogue({
 
     const focusNextField = (currentIndex: number) => {
         const fieldIds = [
-            'field-classification',
-            'field-subClassification',
-            'field-fringe',
+            'labor-modal-classification',
+            'labor-modal-subClassification',
+            'labor-modal-fringe',
             'field-basePay',
             'field-wComp',
             'field-payrollTax'
@@ -165,7 +165,7 @@ export function AddLaborCatalogueDialogue({
                                     Classification
                                 </label>
                                 <div
-                                    id="field-classification"
+                                    id="labor-modal-classification"
                                     className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
                                     onClick={() => setActiveField('classification')}
                                 >
@@ -189,7 +189,7 @@ export function AddLaborCatalogueDialogue({
                                     }}
                                     placeholder="Select or add classification..."
                                     width="w-full"
-                                    anchorId="field-classification"
+                                    anchorId="labor-modal-classification"
                                     positionMode="overlay"
                                 />
                             </div>
@@ -199,7 +199,7 @@ export function AddLaborCatalogueDialogue({
                                     Sub Classification
                                 </label>
                                 <div
-                                    id="field-subClassification"
+                                    id="labor-modal-subClassification"
                                     className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
                                     onClick={() => setActiveField('subClassification')}
                                 >
@@ -223,7 +223,7 @@ export function AddLaborCatalogueDialogue({
                                     }}
                                     placeholder="Select or add sub-classification..."
                                     width="w-full"
-                                    anchorId="field-subClassification"
+                                    anchorId="labor-modal-subClassification"
                                     positionMode="overlay"
                                 />
                             </div>
@@ -233,7 +233,7 @@ export function AddLaborCatalogueDialogue({
                                     Fringe Benefits
                                 </label>
                                 <div
-                                    id="field-fringe"
+                                    id="labor-modal-fringe"
                                     className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
                                     onClick={() => setActiveField('fringe')}
                                 >
@@ -257,7 +257,7 @@ export function AddLaborCatalogueDialogue({
                                     }}
                                     placeholder="Select or add fringe..."
                                     width="w-full"
-                                    anchorId="field-fringe"
+                                    anchorId="labor-modal-fringe"
                                     positionMode="overlay"
                                 />
                             </div>
