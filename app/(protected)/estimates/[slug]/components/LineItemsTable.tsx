@@ -1,7 +1,7 @@
 'use client';
 
 import { Trash2, Info } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface LineItem {
     _id?: string;
@@ -105,30 +105,98 @@ export function LineItemsTable({
         inputType,
         datalistId,
         onBlur,
-        placeholder = ""
+        placeholder = "",
+        inputId = ""
     }: {
         defaultValue: string | number;
         inputType: string;
         datalistId?: string;
         onBlur: (value: string | number) => void;
         placeholder?: string;
+        inputId?: string;
     }) {
         const [val, setVal] = useState(String(defaultValue ?? ''));
+        const [hasChanged, setHasChanged] = useState(false);
+        const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
         useEffect(() => {
+
             setVal(String(defaultValue ?? ''));
+            setHasChanged(false);
         }, [defaultValue]);
+
+        const saveValue = () => {
+            if (hasChanged) {
+                const result = inputType === 'number' ? parseFloat(val) || 0 : val;
+                const originalValue = inputType === 'number' ? parseFloat(String(defaultValue)) || 0 : String(defaultValue);
+                
+                // Only save if value actually changed
+                if (result !== originalValue) {
+                    onBlur(result);
+                }
+                setHasChanged(false);
+            }
+        };
+
+        const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            setVal(e.target.value);
+            setHasChanged(true);
+            
+            // Clear existing timeout
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+            
+            // Set new timeout for auto-save after 1 second
+            saveTimeoutRef.current = setTimeout(() => {
+                saveValue();
+            }, 1000);
+        };
+
+        const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === 'Tab' || e.key === 'Enter') {
+                e.preventDefault();
+                
+                // Clear any pending auto-save
+                if (saveTimeoutRef.current) {
+                    clearTimeout(saveTimeoutRef.current);
+                }
+                
+                // Save immediately
+                saveValue();
+                
+                // Find next focusable input
+                const currentInput = e.currentTarget;
+                const allInputs = Array.from(
+                    document.querySelectorAll('input[data-input-id], select')
+                ).filter(el => !el.hasAttribute('disabled')) as HTMLElement[];
+                
+                const currentIndex = allInputs.indexOf(currentInput);
+                
+                if (currentIndex !== -1 && currentIndex < allInputs.length - 1) {
+                    // Move to next input
+                    allInputs[currentIndex + 1].focus();
+                }
+            }
+        };
+
+        const handleBlur = () => {
+            // Clear any pending auto-save
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+            saveValue();
+        };
 
         return (
             <input
                 type={inputType}
                 list={datalistId}
                 value={val}
-                onChange={(e) => setVal(e.target.value)}
-                onBlur={() => {
-                    const result = inputType === 'number' ? parseFloat(val) || 0 : val;
-                    onBlur(result);
-                }}
+                data-input-id={inputId}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
                 onFocus={(e) => e.target.select()}
                 placeholder={placeholder}
                 className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-left text-slate-600 shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -137,7 +205,7 @@ export function LineItemsTable({
     }
 
     return (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto py-2">
             {/* Datalists */}
             {suppliers.length > 0 && (
                 <datalist id={`${sectionId}-suppliers`}>
@@ -163,18 +231,22 @@ export function LineItemsTable({
             <table className="w-full text-left border-collapse">
                 <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                        <th className="p-1 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">
+                        <th className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap">
                             #
                         </th>
-                        {headers.map((header, i) => (
-                            <th
-                                key={i}
-                                className="p-1 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap"
-                            >
-                                {header}
-                            </th>
-                        ))}
-                        <th className="p-1 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-px" />
+                        {headers.map((header, i) => {
+                            const field = fields[i] || '';
+                            const isCompact = isNumericField(field);
+                            return (
+                                <th
+                                    key={i}
+                                    className={`px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap ${isCompact ? 'w-20' : ''} ${field === 'total' ? 'text-right' : ''}`}
+                                >
+                                    {header}
+                                </th>
+                            );
+                        })}
+                        <th className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-px" />
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -183,7 +255,7 @@ export function LineItemsTable({
 
                         return (
                             <tr key={itemKey} className="hover:bg-gray-50/50 transition-colors group">
-                                <td className="p-2 text-xs text-gray-400 text-center font-medium">
+                                <td className="px-2 py-1 text-xs text-gray-400 text-center font-medium">
                                     {i + 1}
                                 </td>
                                 {fields.map((field, j) => {
@@ -194,13 +266,13 @@ export function LineItemsTable({
                                     // Clickable total for Labor
                                     if (field === 'total' && onExplain && sectionId === 'Labor') {
                                         return (
-                                            <td key={j} className="p-2 text-xs whitespace-nowrap">
+                                            <td key={j} className="px-2 py-1 text-xs whitespace-nowrap text-right">
                                                 <div
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         onExplain(item);
                                                     }}
-                                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1"
+                                                    className="font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer flex items-center gap-1 justify-end"
                                                     title="View Calculation Breakdown"
                                                 >
                                                     {displayVal}
@@ -213,7 +285,7 @@ export function LineItemsTable({
                                     // Equipment UOM dropdown
                                     if (isEditable && field === 'uom' && sectionId === 'Equipment') {
                                         return (
-                                            <td key={j} className="p-1 text-xs text-gray-700 whitespace-nowrap">
+                                            <td key={j} className="px-2 py-1 text-xs text-gray-700 whitespace-nowrap">
                                                 <select
                                                     value={String(val || 'Daily')}
                                                     onChange={(e) => onUpdateItem?.(item, field, e.target.value)}
@@ -233,27 +305,27 @@ export function LineItemsTable({
                                         const inputType = getInputType(field);
 
                                         return (
-                                            <td key={j} className="p-1 text-xs text-gray-700">
+                                            <td key={j} className="px-2 py-1 text-xs text-gray-700">
                                                 <AutoWidthInput
                                                     defaultValue={val !== undefined && val !== null ? String(val) : ''}
                                                     inputType={inputType}
                                                     datalistId={datalistId}
                                                     onBlur={(newVal) => onUpdateItem?.(item, field, newVal)}
                                                     placeholder={headers[j]}
+                                                    inputId={`${sectionId}-${i}-${j}`}
                                                 />
-
                                             </td>
                                         );
                                     }
 
                                     // Read-only display
                                     return (
-                                        <td key={j} className="p-2 text-xs text-gray-700 whitespace-nowrap">
+                                        <td key={j} className={`px-2 py-1 text-xs text-gray-700 whitespace-nowrap ${field === 'total' ? 'text-right' : ''}`}>
                                             <span>{displayVal}</span>
                                         </td>
                                     );
                                 })}
-                                <td className="p-2 text-center w-px">
+                                <td className="px-2 py-1 text-center w-px">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();

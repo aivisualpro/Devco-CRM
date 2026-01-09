@@ -117,7 +117,7 @@ export function CostBreakdownChart({
             </div>
 
             {/* Legend */}
-            <div className="w-full space-y-1 flex-1 overflow-y-auto pl-2">
+            <div className="w-full space-y-1 flex-1 overflow-y-auto pl-2 pt-4">
                 {sortedSlices.map(slice => {
                     const percent = subTotal > 0 ? ((slice.value / subTotal) * 100).toFixed(1) : '0';
                     const marginedValue = slice.value * (1 + markupPct / 100);
