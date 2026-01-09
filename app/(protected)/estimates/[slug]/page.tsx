@@ -732,7 +732,7 @@ export default function EstimateViewPage() {
 
         const timer = setTimeout(() => {
             handleGlobalSave({ silent: true });
-        }, 1500);
+        }, 800);
 
         return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -892,37 +892,7 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handlePreview = async (forceEditMode?: boolean, explicitTemplateId?: string) => {
-        const tid = explicitTemplateId || selectedTemplateId;
-        if (!tid || !estimate) return;
-        setGeneratingProposal(true);
 
-        // Construct current estimate state (merging unsaved changes)
-        // We need to merge header form data + calculated totals + current line items
-        const currentEstimate = {
-            ...estimate,
-            ...formData, // Overwrite with header form data (Project Name, etc.)
-            ...chartData // Overwrite with calculated totals (Grand Total, etc.)
-        };
-
-        const editMode = forceEditMode !== undefined ? forceEditMode : isEditingTemplate;
-        const result = await apiCall('previewProposal', {
-            templateId: tid,
-            estimateId: estimate._id,
-            editMode,
-            estimateData: currentEstimate // Pass overrides
-        });
-
-        if (result.success && result.result) {
-            setPreviewHtml(result.result.html);
-            setGeneratingProposal(false);
-            return result.result.html;
-        } else {
-            toastError('Failed to generate preview');
-            setGeneratingProposal(false);
-            return null;
-        }
-    };
 
     const handleGenerateProposal = async (explicitTemplateId?: string) => {
         const tid = explicitTemplateId || selectedTemplateId;
@@ -1206,6 +1176,45 @@ export default function EstimateViewPage() {
             }
         } finally {
             if (!options.silent) setSaving(false);
+        }
+    };
+
+    const handlePreview = async (forceEditMode?: boolean, explicitTemplateId?: string) => {
+        const tid = explicitTemplateId || selectedTemplateId;
+        if (!tid || !estimate) return;
+        
+        // Force save if unsaved changes exist to ensure DB consistency for preview generation
+        // This fixes issues where backend might ignore overrides or rely on DB state
+        if (unsavedChanges) {
+            await handleGlobalSave({ silent: true });
+        }
+
+        setGeneratingProposal(true);
+
+        // Construct current estimate state (merging unsaved changes)
+        // We need to merge header form data + calculated totals + current line items
+        const currentEstimate = {
+            ...estimate,
+            ...formData, // Overwrite with header form data (Project Name, etc.)
+            ...chartData // Overwrite with calculated totals (Grand Total, etc.)
+        };
+
+        const editMode = forceEditMode !== undefined ? forceEditMode : isEditingTemplate;
+        const result = await apiCall('previewProposal', {
+            templateId: tid,
+            estimateId: estimate._id,
+            editMode,
+            estimateData: currentEstimate // Pass overrides
+        });
+
+        if (result.success && result.result) {
+            setPreviewHtml(result.result.html);
+            setGeneratingProposal(false);
+            return result.result.html;
+        } else {
+            toastError('Failed to generate preview');
+            setGeneratingProposal(false);
+            return null;
         }
     };
 

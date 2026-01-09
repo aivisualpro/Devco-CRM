@@ -51,6 +51,8 @@ const SYSTEM_VARIABLES = [
     { name: 'contactAddress', label: 'Contact Address' },
     { name: 'contactPhone', label: 'Contact Phone' },
     { name: 'contactEmail', label: 'Contact Email' },
+    { name: 'proposalWriter', label: 'Proposal Writer' },
+    { name: 'status', label: 'Estimate Status' },
     { name: 'aggregations.grandTotal', label: 'Estimate Grand Total' },
     { name: 'aggregations.subTotal', label: 'Sub Total' },
     { name: 'aggregations.laborTotal', label: 'Labor Total' },
