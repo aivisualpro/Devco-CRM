@@ -79,7 +79,7 @@ const prepareContext = (estimate: IEstimate) => {
         customerName: e.customerName || e.customer || 'Valued Customer',
         clientName: e.customerName || e.customer || 'Valued Customer',
         projectName: e.projectName || e.projectTitle || '',
-        projectTitle: e.projectTitle || e.projectName || 'Project Proposal',
+        projectTitle: e.projectTitle || e.projectName || '',
         contactName: e.contactName || '',
         contactPerson: e.contactName || '',
         contactPhone: e.contactPhone || '',

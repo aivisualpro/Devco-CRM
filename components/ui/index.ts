@@ -21,7 +21,9 @@ export {
     SkeletonHeader,
     SkeletonTable,
     SkeletonEstimateHeader,
-    SkeletonAccordion
+    SkeletonAccordion,
+    SkeletonProposal,
+    FullEstimateSkeleton
 } from './Skeleton';
 export { SaveButton, CancelButton } from './ActionButtons';
 export { LetterPageEditor } from './LetterPageEditor';

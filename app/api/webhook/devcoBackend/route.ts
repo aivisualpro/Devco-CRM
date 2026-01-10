@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { resolveTemplate, resolveTemplateDocument } from '@/lib/templateResolver';
 import {
@@ -1640,11 +1641,24 @@ export async function POST(request: NextRequest) {
             }
 
             case 'previewProposal': {
-                const { templateId, estimateId, editMode = true, estimateData } = payload || {};
+                const { templateId, estimateId, editMode = true, estimateData, pages } = payload || {};
                 if (!templateId || !estimateId) return NextResponse.json({ success: false, error: 'Missing ids' }, { status: 400 });
                 let template;
                 if (templateId === 'empty') {
                     template = getEmptyTemplate();
+                } else if (templateId === 'custom') {
+                    // If previewing a custom proposal that isn't saved as a template
+                    const dbEstimate = await Estimate.findById(estimateId).lean() as any;
+                    const proposal = dbEstimate?.proposals?.find((p: any) => p.templateId === 'custom') || dbEstimate?.proposal;
+                    if (proposal) {
+                        template = {
+                            _id: 'custom',
+                            pages: proposal.customPages || [],
+                            content: proposal.htmlContent || ''
+                        };
+                    } else {
+                        template = getEmptyTemplate();
+                    }
                 } else {
                     template = await Template.findById(templateId).lean();
                 }
@@ -1653,7 +1667,10 @@ export async function POST(request: NextRequest) {
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!dbEstimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
                 const estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
-                const html = resolveTemplateDocument(template, estimate as any, editMode);
+
+                // Resolve with custom pages if provided (to reflect manual edits in preview)
+                const currentTemplate = pages ? { ...template, pages } : template;
+                const html = resolveTemplateDocument(currentTemplate, estimate as any, editMode);
                 return NextResponse.json({ success: true, result: { html } });
             }
 
@@ -1692,21 +1709,21 @@ export async function POST(request: NextRequest) {
                     generatedAt: new Date(),
                     htmlContent: html,
                     pdfUrl: '',
-                    customPages: template.pages || []
+                    customPages: template.pages || [],
+                    services: estimateData?.services || estimate.services || []
                 };
                 
-                // Save to single proposal field (for backwards compatibility)
-                estimate.proposal = proposalData as any;
-                estimate.templateId = templateId === 'empty' ? 'empty' : String(template._id);
+                // Removed legacy singular proposal/templateId updates in favor of proposals array
                 
-                // Also save to proposals array (upsert by templateId)
+                // Also save to proposals array - ALWAYS push new for version history
                 const proposals = (estimate as any).proposals || [];
-                const existingIdx = proposals.findIndex((p: any) => p.templateId === (templateId === 'empty' ? 'empty' : String(template._id)));
-                if (existingIdx >= 0) {
-                    proposals[existingIdx] = proposalData as any;
-                } else {
-                    proposals.push(proposalData as any);
-                }
+                
+                // Add unique ID for the new proposal version
+                (proposalData as any)._id = new Types.ObjectId();
+                
+                // Push new version
+                proposals.push(proposalData as any);
+                
                 (estimate as any).proposals = proposals;
                 estimate.markModified('proposals');
                 
@@ -1748,28 +1765,28 @@ export async function POST(request: NextRequest) {
                     generatedAt: new Date(),
                     htmlContent: html,
                     pdfUrl: '',
-                    customPages: pages // Store the custom pages for future editing
+                    customPages: pages, // Store the custom pages for future editing
+                    services: estimateData?.services || estimate.services || []
                 };
                 
-                // Save to single proposal field (for backwards compatibility)
-                estimate.proposal = proposalData;
-                if (templateId) {
-                    estimate.templateId = String(templateId);
-                }
-                
-                // Also save to proposals array (upsert by templateId)
+                // Save to proposals array - ALWAYS push new for version history
                 const proposals = (estimate as any).proposals || [];
-                const existingIdx = proposals.findIndex((p: any) => p.templateId === (templateId ? String(templateId) : 'custom'));
-                if (existingIdx >= 0) {
-                    proposals[existingIdx] = proposalData;
-                } else {
-                    proposals.push(proposalData);
-                }
+                
+                // Add unique ID for the new proposal version
+                (proposalData as any)._id = new Types.ObjectId();
+                
+                // Push new version
+                proposals.push(proposalData);
+                
+                // Removed legacy singular proposal/templateId updates
+
                 (estimate as any).proposals = proposals;
                 estimate.markModified('proposals');
                 
                 await estimate.save();
-                return NextResponse.json({ success: true, result: { html } });
+                
+                // Return the FULL proposal object so frontend can grab the new ID
+                return NextResponse.json({ success: true, result: proposalData });
             }
 
             case 'getEmployees': {

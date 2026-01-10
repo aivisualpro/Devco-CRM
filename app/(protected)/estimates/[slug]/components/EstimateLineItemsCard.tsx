@@ -1,5 +1,12 @@
 import { AccordionSection } from './AccordionSection';
-import { LineItemsTable } from './LineItemsTable';
+import { LaborLineItemsTable } from './LaborLineItemsTable';
+import { EquipmentLineItemsTable } from './EquipmentLineItemsTable';
+import { MaterialLineItemsTable } from './MaterialLineItemsTable';
+import { ToolsLineItemsTable } from './ToolsLineItemsTable';
+import { OverheadLineItemsTable } from './OverheadLineItemsTable';
+import { SubcontractorLineItemsTable } from './SubcontractorLineItemsTable';
+import { DisposalLineItemsTable } from './DisposalLineItemsTable';
+import { MiscellaneousLineItemsTable } from './MiscellaneousLineItemsTable';
 import { Copy, FileSpreadsheet, Trash2 } from 'lucide-react';
 import React from 'react';
 
@@ -43,16 +50,60 @@ export function EstimateLineItemsCard({
                         color={section.color}
                         onAdd={() => setActiveSection(section)}
                     >
-                        <LineItemsTable
-                            sectionId={section.id}
-                            headers={section.headers}
-                            fields={section.fields}
-                            editableFields={section.editableFields}
-                            items={section.items}
-                            onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
-                            onDelete={(item) => onDeleteItem(section.id, item)}
-                            onExplain={section.id === 'Labor' ? onExplain : undefined}
-                        />
+                        {section.id === 'Labor' ? (
+                            <LaborLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                                onExplain={onExplain}
+                            />
+                        ) : section.id === 'Equipment' ? (
+                            <EquipmentLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : section.id === 'Material' ? (
+                            <MaterialLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : section.id === 'Tools' ? (
+                            <ToolsLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : section.id === 'Overhead' ? (
+                            <OverheadLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : section.id === 'Subcontractor' ? (
+                            <SubcontractorLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : section.id === 'Disposal' ? (
+                            <DisposalLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : section.id === 'Miscellaneous' ? (
+                            <MiscellaneousLineItemsTable
+                                items={section.items}
+                                onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
+                                onDelete={(item) => onDeleteItem(section.id, item)}
+                            />
+                        ) : (
+                            <div className="p-8 text-center text-red-500 text-sm">
+                                Unknown section type: {section.id}
+                            </div>
+                        )}
                     </AccordionSection>
                 ))}
             </div>

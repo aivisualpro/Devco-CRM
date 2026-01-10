@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check, Pencil, X, FilePlus, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Link, Image, Eraser } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal } from '@/components/ui';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
@@ -14,7 +14,6 @@ const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false }) as a
 import {
     EstimateHeaderCard,
     AccordionSection,
-    LineItemsTable,
     AddItemModal,
     LaborCalculationModal,
     TemplateSelector,
@@ -76,21 +75,15 @@ interface Estimate {
     subcontractor?: LineItem[];
     disposal?: LineItem[];
     miscellaneous?: LineItem[];
-    proposal?: {
-        templateId: string;
-        templateVersion: number;
-        generatedAt: Date | string;
-        pdfUrl?: string;
-        htmlContent: string;
-        customPages?: { content: string }[];
-    };
     proposals?: Array<{
+        _id?: string;
         templateId: string;
         templateVersion?: number;
         generatedAt: Date | string;
         pdfUrl?: string;
         htmlContent: string;
         customPages?: { content: string }[];
+        services?: string[];
     }>;
     [key: string]: unknown;
 }
@@ -136,13 +129,13 @@ const baseSectionConfigs = [
     },
     {
         id: 'Equipment', title: 'Equipment', key: 'equipment',
-        headers: ['Equipment / Machine', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'Times', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Fuel', 'Delivery & Pickup', 'Total'],
+        headers: ['Equipment / Machine', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'Times', 'UOM', 'Daily Cost', 'Weekly Cost', 'Monthly Cost', 'Fuel', 'Del & Pick', 'Total'],
         fields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup', 'total'],
         editableFields: ['equipmentMachine', 'classification', 'subClassification', 'supplier', 'quantity', 'times', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'fuelAdditiveCost', 'deliveryPickup']
     },
     {
         id: 'Material', title: 'Material', key: 'material',
-        headers: ['Material', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'UOM', 'Cost', 'Taxes', 'Delivery & Pickup', 'Total'],
+        headers: ['Material', 'Classification', 'Sub Classification', 'Supplier', 'Qty', 'UOM', 'Cost', 'Taxes', 'Del & Pick', 'Total'],
         fields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'deliveryPickup', 'total'],
         editableFields: ['material', 'classification', 'subClassification', 'supplier', 'quantity', 'uom', 'cost', 'taxes', 'deliveryPickup']
     },
@@ -202,6 +195,8 @@ export default function EstimateViewPage() {
     const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
     const [previewHtml, setPreviewHtml] = useState<string>('');
     const [isEditingTemplate, setIsEditingTemplate] = useState(false);
+    const [viewingProposalId, setViewingProposalId] = useState<string | null>(null);
+    const lastPreviewRequestTime = useRef<number>(0);
     const proposalRef = useRef<HTMLDivElement>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const quillRefs = useRef<any[]>([]);
@@ -244,6 +239,42 @@ export default function EstimateViewPage() {
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
+    // Template Matching Utility
+    const findBestTemplate = (selectedServices: string[], allTemplates: Template[]) => {
+        if (!selectedServices || selectedServices.length === 0) {
+            return allTemplates.find(t => t._id === 'empty') || null;
+        }
+
+        // 1. Exact Match (Exact same set of services)
+        const exactMatch = allTemplates.find(t => {
+            const ts = t.services || [];
+            return ts.length === selectedServices.length && 
+                   ts.every(s => selectedServices.includes(s)) &&
+                   selectedServices.every(s => ts.includes(s));
+        });
+        if (exactMatch) return exactMatch;
+
+        // 2. Best Subset Match (Template services are a subset of selected services)
+        // This find templates that are "contained" within our selection, sorted by highest coverage
+        const subsetMatches = allTemplates
+            .filter(t => (t.services || []).length > 0 && (t.services || []).every(s => selectedServices.includes(s)))
+            .sort((a, b) => (b.services?.length || 0) - (a.services?.length || 0));
+        if (subsetMatches.length > 0) return subsetMatches[0];
+
+        // 3. Best Overlap Match (Any overlapping services)
+        const overlapMatches = allTemplates
+            .map(t => {
+                const overlap = (t.services || []).filter(s => selectedServices.includes(s)).length;
+                return { template: t, overlap };
+            })
+            .filter(m => m.overlap > 0)
+            .sort((a, b) => b.overlap - a.overlap);
+        if (overlapMatches.length > 0) return overlapMatches[0].template;
+
+        // 4. Default to Blank Template
+        return allTemplates.find(t => t._id === 'empty') || null;
+    };
+
     const handleDownloadPdf = async () => {
         setIsDownloadingPdf(true);
         try {
@@ -251,7 +282,7 @@ export default function EstimateViewPage() {
             const generatedHtml = await handlePreview(false);
             
             // Get the HTML content for PDF
-            const content = (generatedHtml || previewHtml || estimate?.proposal?.htmlContent || '');
+            const content = (generatedHtml || previewHtml || '');
 
             if (!content.trim()) {
                 toastError('No content to generate PDF');
@@ -424,6 +455,21 @@ export default function EstimateViewPage() {
 
                 if (data.estimate) {
                     loadVersionHistory(data.estimate);
+                }
+
+                // Default to the latest proposal version if available
+                if (data.proposals && data.proposals.length > 0) {
+                    const sorted = [...data.proposals].sort((a: any, b: any) => 
+                        new Date(b.generatedAt || b.createdAt || 0).getTime() - 
+                        new Date(a.generatedAt || a.createdAt || 0).getTime()
+                    );
+                    const latest = sorted[0];
+                    const latestId = latest._id || (latest.generatedAt ? String(latest.generatedAt) : null);
+                    if (latestId) {
+                        setViewingProposalId(latestId);
+                        // Ensure we have the latest content loaded
+                        if (latest.htmlContent) setPreviewHtml(latest.htmlContent);
+                    }
                 }
 
                 // Check for local draft using the fetched ID
@@ -726,11 +772,14 @@ export default function EstimateViewPage() {
         return { slices, subTotal, grandTotal, markupPct };
     }, [sections, formData?.bidMarkUp, estimate?.bidMarkUp]);
 
-    // Auto-save logic (debounced 1.5s)
+    // Auto-save logic (debounced 800ms)
     useEffect(() => {
         if (!unsavedChanges || !estimate || !formData || saving) return;
 
         const timer = setTimeout(() => {
+            // Skip auto-save if user is currently editing an input
+            if (document.body.dataset.inputFocused === 'true') return;
+            
             handleGlobalSave({ silent: true });
         }, 800);
 
@@ -759,38 +808,86 @@ export default function EstimateViewPage() {
         });
     }, [chartData.grandTotal, estimate?._id]);
 
-    // Auto-refresh preview when data changes (debounce 1s)
-    // IMPORTANT: Skip if we have a custom proposal saved to avoid overwriting user edits
+    // Auto-refresh preview when SERVICES change (debounce 500ms)
+    // Only regenerate if services change - preserve saved proposal otherwise
+    // Auto-refresh preview when data changes (debounce 800ms)
     useEffect(() => {
         // Run if we have a template selected and not in manual edit mode
-        if (!selectedTemplateId || isEditingTemplate || generatingProposal || !estimate) return;
-        
-        // If we have a saved custom proposal for this template, don't auto-refresh from template
-        // This preserves the user's custom edits
-        const savedProposal = estimate?.proposals?.find((p: any) => p.templateId === selectedTemplateId);
-        if (savedProposal?.customPages && savedProposal.customPages.length > 0) {
-            // Use the saved proposal content instead of regenerating from template
-            if (!previewHtml && savedProposal.htmlContent) {
-                setPreviewHtml(savedProposal.htmlContent);
-            }
+        if (!selectedTemplateId || isEditingTemplate || generatingProposal || saving || isSavingTemplate || !estimate) {
             return;
         }
-
+        
+        // Debounce the preview generation to handle rapid typing
         const timer = setTimeout(() => {
-            handlePreview(false);
-        }, 1000);
+            handlePreview(true); // silent refresh
+        }, 800);
 
         return () => clearTimeout(timer);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData, chartData, estimate, selectedTemplateId, isEditingTemplate]);
+    }, [formData, chartData, selectedTemplateId, isEditingTemplate, viewingProposalId, estimate?.proposals, saving, isSavingTemplate]);
 
 
+    // Unified Template Matching & Versioning Effect
+    // Triggers when services change (debounced to simulate "blur/focus change")
+    useEffect(() => {
+        if (!initialLoadComplete || !templates.length || isEditingTemplate || generatingProposal || saving || isSavingTemplate) return;
+        
+        const services = formData?.services || [];
+        
+        const timer = setTimeout(() => {
+            handleAutoTemplateMatch(services);
+        }, 1500);
+
+        return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData?.services, templates, initialLoadComplete]);
+
+    const handleAutoTemplateMatch = async (services: string[]) => {
+        if (!estimate) return;
+
+        // Find Best Template based on the Hierarchy (Exact -> Subset -> Overlap -> Blank)
+        const bestTemplate = findBestTemplate(services, templates);
+        const newTid = bestTemplate?._id || 'empty';
+
+        // Only proceed if the template recommendation actually changes
+        if (newTid === selectedTemplateId) return;
+
+        console.log(`Matching template ${newTid} for services: ${services.join(', ')}`);
+        
+        // Before changing, check if we already have versions for the NEW template
+        const existingVersions = (estimate?.proposals || []).filter((p: any) => p.templateId === newTid);
+        
+        setSelectedTemplateId(newTid);
+
+        if (existingVersions.length > 0) {
+            // Pick the latest version
+            const sorted = [...existingVersions].sort((a: any, b: any) => 
+                new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime()
+            );
+            const latest = sorted[0];
+            const latestId = latest._id || String(latest.generatedAt);
+            setViewingProposalId(latestId);
+            setPreviewHtml(latest.htmlContent);
+            if (latest.customPages) setEditorPages(latest.customPages);
+            success(`Loaded existing proposal for ${bestTemplate?.title || 'template'}`);
+        } else if (newTid !== 'empty') {
+            // Generate a fresh version for this new template selection from scratch
+            await handleGenerateProposal(newTid);
+        } else {
+            // For empty template, reset viewing ID and trigger a standard preview 
+            // handlePreview DOES NOT save a new version to the database.
+            setViewingProposalId(null);
+            handlePreview(false, 'empty');
+        }
+    };
 
     // Handlers
     // Save changes only to the current estimate's proposal (does NOT update main template)
     const handleSaveProposalChanges = async () => {
         if (!estimate) return;
         setIsSavingTemplate(true);
+        // Invalidate any pending auto-prefix refreshes
+        lastPreviewRequestTime.current = Date.now();
 
         try {
             // Generate the HTML with current editor pages content
@@ -820,12 +917,35 @@ export default function EstimateViewPage() {
             });
 
             if (result.success && result.result) {
-                setPreviewHtml(result.result.html);
-                setHasCustomProposal(true); // Mark that we have custom proposal edits
+                const newProposal = result.result;
+                setPreviewHtml(newProposal.html);
+                setHasCustomProposal(true);
                 setIsEditingTemplate(false);
+                
+                const newId = newProposal._id || (newProposal.generatedAt ? String(newProposal.generatedAt) : null);
+                if (newId) {
+                    setViewingProposalId(newId);
+                }
+
+                // Update local list immediately to prevent stale refreshes
+                // CRITICAL: We push to TOP so that our "latest proposal" finder sees it first!
+                setEstimate(prev => {
+                    if (!prev) return prev;
+                    // Safely handle existing proposals array
+                    const existingProposals = Array.isArray(prev.proposals) ? prev.proposals : [];
+                    
+                    // Filter out any temp/duplicate ID if it exists (unlikely with new ID, but safe)
+                    const filtered = existingProposals.filter((p: any) => p._id !== newProposal._id);
+                    
+                    // Return new state with our new proposal AT THE TOP (index 0)
+                    return { ...prev, proposals: [newProposal, ...filtered] };
+                });
+                
+                // ALSO update the charts/form data to sync everything
+                setFormData(currentEstimate);
+
                 success('Proposal changes saved');
-                // Reload estimate to get updated proposal data from database
-                await loadEstimate(true); // true = silent mode, no loading spinner
+                await loadEstimate(true);
             } else {
                 console.error('Save proposal error:', result.error);
                 toastError(result.error || 'Failed to save proposal changes');
@@ -898,6 +1018,9 @@ export default function EstimateViewPage() {
         const tid = explicitTemplateId || selectedTemplateId;
         if (!tid || !estimate) return;
         setGeneratingProposal(true);
+        // Invalidate pending previews
+        lastPreviewRequestTime.current = Date.now();
+        const tidToUse = tid === 'empty' ? null : tid;
 
         // Extract custom variable values from the DOM
         const customVariables: Record<string, string> = {};
@@ -945,10 +1068,26 @@ export default function EstimateViewPage() {
             estimateData: currentEstimate
         });
         if (result.success && result.result) {
-            setPreviewHtml(result.result.html);
-            setIsEditingTemplate(false); // Exit edit mode after generating
+            const newProposal = result.result;
+            setPreviewHtml(newProposal.html);
+            setIsEditingTemplate(false);
+            
+            const newId = newProposal._id || (newProposal.generatedAt ? String(newProposal.generatedAt) : null);
+            if (newId) {
+                setViewingProposalId(newId);
+            }
+
+            // Update local list immediately to prevent stale refreshes
+            setEstimate(prev => {
+                if (!prev) return prev;
+                const existingProposals = prev.proposals || [];
+                // Replace or add
+                const filtered = existingProposals.filter((p: any) => p._id !== newProposal._id);
+                return { ...prev, proposals: [newProposal, ...filtered] };
+            });
+
             if (!explicitTemplateId) success('Proposal generated and saved');
-            loadEstimate(true); // Reload to get snapshot info
+            loadEstimate(true);
         } else {
             toastError('Failed to generate proposal');
         }
@@ -957,7 +1096,7 @@ export default function EstimateViewPage() {
 
     // Auto-select template based on services
     useEffect(() => {
-        if (!templates.length || isEditingTemplate || !formData || !estimate) return;
+        if (!templates.length || isEditingTemplate || !formData || !estimate || viewingProposalId) return;
 
         const selectedServices = formData.services || [];
         
@@ -1005,7 +1144,7 @@ export default function EstimateViewPage() {
             }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData?.services, templates, isEditingTemplate]);
+    }, [formData?.services, templates, isEditingTemplate, viewingProposalId]);
 
     const handleHeaderUpdate = async (field: string, value: string | number | boolean) => {
         if (!formData) return;
@@ -1200,21 +1339,54 @@ export default function EstimateViewPage() {
         };
 
         const editMode = forceEditMode !== undefined ? forceEditMode : isEditingTemplate;
-        const result = await apiCall('previewProposal', {
-            templateId: tid,
-            estimateId: estimate._id,
-            editMode,
-            estimateData: currentEstimate // Pass overrides
-        });
+        
+        // Find current proposal to preserve its custom edits during preview
+        // Sort by date descending to always pick the latest version if multiple exist for the template
+        const sortedProposals = [...(estimate.proposals || [])].sort((a: any, b: any) => 
+            new Date(b.generatedAt || b.createdAt || 0).getTime() - 
+            new Date(a.generatedAt || a.createdAt || 0).getTime()
+        );
 
-        if (result.success && result.result) {
-            setPreviewHtml(result.result.html);
-            setGeneratingProposal(false);
-            return result.result.html;
-        } else {
+        const currentProposal = viewingProposalId 
+            ? sortedProposals.find((p: any) => (p._id && String(p._id) === viewingProposalId) || (p.generatedAt && String(p.generatedAt) === viewingProposalId))
+            : sortedProposals.find((p: any) => p.templateId === selectedTemplateId);
+
+        const requestTime = Date.now();
+        lastPreviewRequestTime.current = requestTime;
+
+        try {
+            const result = await apiCall('previewProposal', {
+                templateId: tid,
+                estimateId: estimate._id,
+                editMode,
+                estimateData: currentEstimate,
+                // CRITICAL FIX: If we are actively editing, use local editorPages state.
+                // If we are just viewing, use the saved pages from the current proposal version.
+                // This prevents the preview from reverting to the database version while you are typing.
+                pages: isEditingTemplate ? editorPages : (currentProposal?.customPages || undefined)
+            });
+
+            // Ignore if a newer request has been started
+            if (requestTime < lastPreviewRequestTime.current) {
+                return null; // Return null as the result is stale
+            }
+
+            if (result.success && result.result) {
+                setPreviewHtml(result.result.html);
+                return result.result.html;
+            } else {
+                toastError('Failed to generate preview');
+                return null;
+            }
+        } catch (error) {
+            console.error('Preview generation error:', error);
             toastError('Failed to generate preview');
-            setGeneratingProposal(false);
             return null;
+        } finally {
+            // Only clear generating state if this was the latest request
+            if (requestTime === lastPreviewRequestTime.current) {
+                setGeneratingProposal(false);
+            }
         }
     };
 
@@ -1379,20 +1551,11 @@ export default function EstimateViewPage() {
     // Loading state
     if (loading) {
         return (
-            <div className="flex flex-col h-full bg-[#f8fafc]">
+            <div className="flex flex-col h-screen bg-[#F4F7FA]">
                 <div className="flex-none">
                     <Header />
                 </div>
-                <div className="flex-1 overflow-y-auto min-h-0">
-                    <div className="w-full px-4 md:px-6 py-6">
-                        <SkeletonEstimateHeader />
-                    </div>
-                    <div className="w-full space-y-4 pb-20 px-4 md:px-6">
-                        <SkeletonAccordion />
-                        <SkeletonAccordion />
-                        <SkeletonAccordion />
-                    </div>
-                </div>
+                <FullEstimateSkeleton />
             </div>
         );
     }
@@ -1400,7 +1563,7 @@ export default function EstimateViewPage() {
     // Empty state
     if (!estimate || !formData) {
         return (
-            <div className="flex flex-col h-full bg-[#f8fafc]">
+            <div className="flex flex-col h-screen bg-[#F4F7FA]">
                 <div className="flex-none">
                     <Header />
                 </div>
@@ -1565,7 +1728,7 @@ export default function EstimateViewPage() {
                             <MyProposal
                                 isEditing={isEditingTemplate}
                                 pages={editorPages}
-                                previewHtml={(formData?.services && formData.services.length > 0) ? (previewHtml || estimate?.proposal?.htmlContent) : ''}
+                                previewHtml={(formData?.services && formData.services.length > 0) ? (previewHtml || '') : ''}
                                 selectedTemplateId={selectedTemplateId}
                                 templates={templates}
                                 services={formData?.services || []}
@@ -1575,11 +1738,17 @@ export default function EstimateViewPage() {
                                 onPagesChange={setEditorPages}
                                 onServicesChange={handleServicesChange}
                                 onEditStart={() => {
-                                    const savedProposal = estimate?.proposals?.find((p: any) => p.templateId === selectedTemplateId);
+                                    const sorted = [...(estimate?.proposals || [])].sort((a: any, b: any) => 
+                                        new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime()
+                                    );
+                                    const proposalToEdit = viewingProposalId 
+                                        ? sorted.find((p: any) => String(p._id) === viewingProposalId || String(p.generatedAt) === viewingProposalId)
+                                        : sorted.find((p: any) => p.templateId === selectedTemplateId);
+
                                     const tmpl = templates.find(t => t._id === selectedTemplateId);
                                     
-                                    if (savedProposal?.customPages && savedProposal.customPages.length > 0) {
-                                        setEditorPages(savedProposal.customPages);
+                                    if (proposalToEdit?.customPages && proposalToEdit.customPages.length > 0) {
+                                        setEditorPages(proposalToEdit.customPages);
                                     } else if (tmpl?.pages && tmpl.pages.length > 0) {
                                         setEditorPages(tmpl.pages);
                                     } else if (selectedTemplateId === 'empty') {
@@ -1603,6 +1772,52 @@ export default function EstimateViewPage() {
                                 }}
                                 onCreateTemplate={handleCreateTemplate}
                                 onDownloadPdf={handleDownloadPdf}
+                                proposals={[...(estimate?.proposals || [])].sort((a: any, b: any) => 
+                                    new Date(b.generatedAt || b.createdAt || 0).getTime() - 
+                                    new Date(a.generatedAt || a.createdAt || 0).getTime()
+                                )}
+                                selectedProposalId={viewingProposalId}
+                                onRefreshFromTemplate={() => {
+                                    if (selectedTemplateId === 'empty') {
+                                        handlePreview(false, 'empty');
+                                        success('Refreshed blank template');
+                                        return;
+                                    }
+                                    if (selectedTemplateId) {
+                                        // "Fetch Latest" ALWAYS creates a new version from the base template
+                                        handleGenerateProposal(selectedTemplateId);
+                                        success('Fetched latest content from template (New version created)');
+                                    }
+                                }}
+                                onSelectProposal={(proposalId) => {
+                                    if (proposalId === 'current' || !proposalId) {
+                                        setViewingProposalId(null);
+                                        // Reset to current state services
+                                        if (estimate?.services) {
+                                            setFormData(prev => prev ? { ...prev, services: estimate.services } : null);
+                                        }
+                                        handlePreview();
+                                        return;
+                                    }
+                                    const proposal = estimate?.proposals?.find((p: any) => 
+                                        (p._id && String(p._id) === proposalId) || 
+                                        (p.generatedAt && String(p.generatedAt) === proposalId)
+                                    );
+                                    if (proposal?.htmlContent) {
+                                        setViewingProposalId(proposalId);
+                                        setPreviewHtml(proposal.htmlContent);
+                                        setSelectedTemplateId(proposal.templateId);
+                                        
+                                        // Restore the services active at the time of this version
+                                        if (proposal.services && Array.isArray(proposal.services)) {
+                                            setFormData(prev => prev ? { ...prev, services: proposal.services } : null);
+                                        }
+
+                                        if (proposal.customPages && proposal.customPages.length > 0) {
+                                            setEditorPages(proposal.customPages);
+                                        }
+                                    }
+                                }}
                                 quillRefs={quillRefs}
                             />
                         </div>
@@ -1660,7 +1875,7 @@ export default function EstimateViewPage() {
                                     onClick={async () => {
                                         try {
                                             // Get the HTML content for PDF
-                                            const content = (previewHtml || estimate?.proposal?.htmlContent || '')
+                                            const content = (previewHtml || '')
 
                                             if (!content.trim()) {
                                                 toastError('No content to generate PDF');
@@ -1717,14 +1932,14 @@ export default function EstimateViewPage() {
                                 </button>
                             </div>
                         </div>
-                        <div id="pdf-preview-content" className="flex-1 overflow-auto p-8 bg-gray-100 flex flex-col gap-8 items-center cursor-default relative">
+                        <div id="pdf-preview-content" className="flex-1 overflow-auto bg-gray-100 flex flex-col gap-8 items-center cursor-default relative">
                             {generatingProposal && (
                                 <div className="absolute inset-0 z-10 bg-white/50 backdrop-blur-sm flex items-center justify-center">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                                 </div>
                             )}
                             {(() => {
-                                const rawHtml = previewHtml || estimate?.proposal?.htmlContent || '';
+                                const rawHtml = previewHtml || '';
                                 // Robust split: First by the explicit new text marker, then by legacy markers
                                 const pageContentArray = rawHtml
                                     .split('___PAGE_BREAK___')
@@ -1732,13 +1947,6 @@ export default function EstimateViewPage() {
 
                                 return pageContentArray.map((pageHtml, idx) => (
                                     <div key={idx} className="flex flex-col items-center w-full">
-                                        {/* Page number indicator */}
-                                        <div className="w-[8.5in] flex items-center justify-between py-3 select-none">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">Page {idx + 1}</span>
-                                            </div>
-                                            <span className="text-[10px] text-slate-400">Letter Size (8.5" × 11")</span>
-                                        </div>
                                         {/* Letter page container - exact printable area */}
                                         <div
                                             className="bg-white shadow-2xl mx-auto relative"

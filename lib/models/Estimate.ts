@@ -80,13 +80,17 @@ export interface IEstimate extends Document {
     };
     // Store multiple proposals keyed by templateId
     proposals?: Array<{
+        _id?: string;
         templateId: string;
         templateVersion?: number;
         generatedAt: Date;
         pdfUrl?: string;
         htmlContent: string;
+        customPages?: Array<{ content: string }>;
+        services?: string[];
     }>;
     customVariables?: Record<string, string>;
+    services?: string[];
 }
 
 const EstimateSchema = new Schema({
@@ -182,13 +186,15 @@ const EstimateSchema = new Schema({
         pdfUrl: { type: String },
         htmlContent: { type: String }
     },
-    // Array to store multiple proposals
     proposals: [{
+        _id: { type: Schema.Types.ObjectId },
         templateId: { type: String },
         templateVersion: { type: Number },
         generatedAt: { type: Date },
         pdfUrl: { type: String },
-        htmlContent: { type: String }
+        htmlContent: { type: String },
+        customPages: { type: [Object], default: [] },
+        services: { type: [String], default: [] }
     }],
     customVariables: { type: Object, default: {} }
 }, {

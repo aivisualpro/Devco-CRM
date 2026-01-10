@@ -94,7 +94,6 @@ interface MyProposalProps {
     services: string[];
     serviceOptions: { label: string; value: string; color?: string }[];
     proposals?: any[];  // Array of saved proposals
-    selectedProposalId?: string | null; // Currently viewed proposal ID
     
     // Loading states
     isSaving?: boolean;
@@ -125,7 +124,6 @@ export function MyProposal({
     services,
     serviceOptions,
     proposals = [],
-    selectedProposalId = null,
     isSaving = false,
     isGenerating = false,
     onPagesChange,
@@ -381,9 +379,9 @@ export function MyProposal({
                             
                             <button
                                 onClick={() => setShowUpdateConfirm(true)}
-                                disabled={isSaving || selectedTemplateId === 'empty' || selectedTemplateId === 'custom'}
-                                title={selectedTemplateId === 'empty' || selectedTemplateId === 'custom' ? "Select a template to update" : "Update Main Template"}
-                                className="p-2 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                disabled={isSaving}
+                                title="Update Main Template"
+                                className="p-2 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-50"
                             >
                                 <Upload className="w-4 h-4" />
                             </button>
@@ -421,7 +419,7 @@ export function MyProposal({
                                                 return (
                                                     <span 
                                                         key={service}
-                                                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md flex-shrink-0 shadow-sm border border-transparent transition-colors"
+                                                        className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-bold rounded-md flex-shrink-0 shadow-sm border border-transparent"
                                                         style={{ 
                                                             backgroundColor: isInTemplate 
                                                                 ? (opt?.color ? `${opt.color}15` : '#f1f5f9')
@@ -449,22 +447,11 @@ export function MyProposal({
                                                     </span>
                                                 );
                                             })}
-                                            {services.length > 3 && (() => {
-                                                const hiddenServices = services.slice(3);
-                                                const hasMismatch = hiddenServices.some(s => !templateServices.includes(s));
-                                                return (
-                                                    <span 
-                                                        className="inline-flex items-center px-2 py-1 text-[10px] font-extrabold rounded-md flex-shrink-0 transition-colors"
-                                                        style={{
-                                                            backgroundColor: !hasMismatch ? '#eff6ff' : '#fee2e2',
-                                                            color: !hasMismatch ? '#2563eb' : '#dc2626',
-                                                            border: `1px solid ${!hasMismatch ? '#dbeafe' : '#fca5a5'}`
-                                                        }}
-                                                    >
-                                                        +{services.length - 3} MORE
-                                                    </span>
-                                                );
-                                            })()}
+                                            {services.length > 3 && (
+                                                <span className="inline-flex items-center px-2 py-1 text-[10px] font-extrabold rounded-md bg-blue-50 text-blue-600 border border-blue-100 flex-shrink-0">
+                                                    +{services.length - 3} MORE
+                                                </span>
+                                            )}
                                         </div>
                                     ) : (
                                         <span className="text-xs text-gray-400">Select services...</span>
@@ -506,21 +493,15 @@ export function MyProposal({
                             {onSelectProposal && proposals.length > 0 && (
                                 <select
                                     onChange={(e) => onSelectProposal?.(e.target.value)}
-                                    value={selectedProposalId || ''}
+                                    value={selectedTemplateId || ''}
                                     className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg bg-white hover:border-blue-400 transition-all cursor-pointer"
                                     title="Select Proposal Version"
                                 >
-                                    {proposals.map((proposal, index) => {
-                                        const pId = proposal._id || proposal.generatedAt;
-                                        return (
-                                            <option key={pId || index} value={pId}>
-                                                v{proposals.length - index}
-                                            </option>
-                                        );
-                                    })}
                                 </select>
                             )}
                         </div>
+
+                        {/* View Mode: Action icons on right */}
                         <div className="flex items-center gap-1">
                             {!isExactMatch && (
                                 <button
@@ -559,7 +540,7 @@ export function MyProposal({
                 {isEditing ? (
                     <div className="flex flex-1 items-start min-h-0 overflow-hidden">
                         {/* Main Editor Area */}
-                        <div className="flex-1 overflow-y-auto h-full">
+                        <div className="flex-1 overflow-y-auto py-8 px-4 h-full">
                             <LetterPageEditor
                                 pages={pages}
                                 onPagesChange={onPagesChange}
@@ -571,7 +552,8 @@ export function MyProposal({
                         </div>
 
                         {/* Variables Sidebar */}
-                        <div className="w-80 flex-shrink-0 p-4 h-full overflow-y-auto border-l border-slate-200 bg-slate-50/50">
+                        <div className="w-80 flex-shrink-0 p-6 h-full overflow-y-auto border-l border-slate-200 bg-slate-50/50">
+                            <div className="mb-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Insert Variables</div>
                             
                             <SidebarAccordion title="System Variables" defaultOpen={true}>
                                 <div className="space-y-1.5 max-h-[300px] overflow-y-auto pr-1">
@@ -626,7 +608,7 @@ export function MyProposal({
                     /* Preview Mode */
                     <div className="flex-1 overflow-y-auto p-2 bg-gray-50 ql-snow">
                         {previewHtml ? (
-                            <div className="flex flex-col gap-8 items-center w-full">
+                            <div className="flex flex-col gap-8 items-center w-full py-6">
                                 {(() => {
                                     const rawHtml = previewHtml || '';
                                     const pageContentArray = rawHtml
@@ -635,6 +617,9 @@ export function MyProposal({
                                     
                                     return pageContentArray.map((pageHtml, idx) => (
                                         <div key={idx} className="flex flex-col items-center">
+                                            <div className="text-[10px] text-gray-400 mb-2 font-medium">
+                                                Page {idx + 1} <span className="text-gray-300">• Letter Size (8.5" × 11")</span>
+                                            </div>
                                             <div
                                                 className="bg-white relative flex-shrink-0"
                                                 style={{

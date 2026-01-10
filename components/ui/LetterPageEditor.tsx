@@ -87,7 +87,7 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                     minHeight: !readOnly && !hideToolbar ? 'calc(11in + 44px)' : '11in',
                     boxShadow: '0 10px 30px rgba(0,0,0,0.1), 0 1px 8px rgba(0,0,0,0.05)',
                     borderRadius: '2px',
-                    overflow: 'hidden'
+                    overflow: 'visible'
                 }}
             >
                 <ReactQuill
@@ -132,7 +132,7 @@ export function LetterPageEditor({
     };
 
     return (
-        <div className="flex flex-col gap-12 items-center origin-top-center pb-20" style={{ transform: 'scale(1.25)', transformOrigin: 'top center' }}>
+        <div className="flex flex-col gap-6 items-center origin-top-center pb-8">
             {pages.map((page, index) => (
                 <LetterPage
                     key={index}
@@ -261,6 +261,8 @@ export function LetterPageEditor({
                     font-size: 11pt !important;
                     line-height: 1.15 !important;
                     min-height: 11in !important;
+                    max-height: 11in !important;
+                    overflow-y: auto !important;
                     overflow-x: hidden !important;
                 }
                 
@@ -316,3 +318,4 @@ export function LetterPageEditor({
         </div>
     );
 }
+

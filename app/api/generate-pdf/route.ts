@@ -25,12 +25,25 @@ export async function POST(request: NextRequest) {
         });
         
         // Split into pages and wrap each in a section
-        const pageSections = normalizedHtml.split('___PAGE_BREAK___').filter((s: string) => s.trim());
+        const pageSections = normalizedHtml
+            .split('___PAGE_BREAK___')
+            .map((s: string) => {
+                // Trim trailing empty paragraphs/breaks that cause extra pages
+                let trimmed = s.trim();
+                // Remove trailing <p><br></p> or similar empty blocks
+                while (trimmed.endsWith('<p><br></p>') || trimmed.endsWith('<p></p>') || trimmed.endsWith('<br>')) {
+                    if (trimmed.endsWith('<p><br></p>')) trimmed = trimmed.slice(0, -11).trim();
+                    else if (trimmed.endsWith('<p></p>')) trimmed = trimmed.slice(0, -7).trim();
+                    else if (trimmed.endsWith('<br>')) trimmed = trimmed.slice(0, -4).trim();
+                }
+                return trimmed;
+            })
+            .filter((s: string) => s.length > 0);
+
         const cleanedHtml = pageSections
-            .map((section: string, index: number) => {
-                const isLastSection = index === pageSections.length - 1;
-                // Wrap each section - add page break after except for last section
-                return `<div class="page-section">${section}</div>${isLastSection ? '' : '<div class="page-break"></div>'}`;
+            .map((section: string) => {
+                // Return each section wrapped in a page-section div
+                return `<div class="page-section">${section}</div>`;
             })
             .join('');
 
@@ -78,23 +91,23 @@ export async function POST(request: NextRequest) {
                         background: #fff;
                     }
                     
-                    /* Page break element - CSS handles pagination */
-                    .page-break {
-                        height: 0;
-                        page-break-after: always;
-                        break-after: page;
-                        clear: both;
-                    }
+
                     
-                    /* Page section wrapper - Each section is EXACTLY one page */
+                    /* Page section wrapper - Each section starts on a new page */
                     .page-section {
                         width: 100%;
-                        height: 9.98in; /* Slightly less than 10in to ensure no spillover due to rounding */
-                        max-height: 9.98in;
                         position: relative;
                         overflow: hidden !important;
                         display: block;
                         clear: both;
+                        page-break-after: always;
+                        break-after: page;
+                    }
+                    
+                    /* Don't break after the last section to avoid trailing empty page */
+                    .page-section:last-child {
+                        page-break-after: avoid;
+                        break-after: avoid;
                     }
                     
                     /* Quill editor reset */

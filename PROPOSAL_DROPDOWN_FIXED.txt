@@ -1,0 +1,22 @@
+                            {/* Proposal History Dropdown */}
+                            {onSelectProposal && proposals.length > 0 && (
+                                <select
+                                    onChange={(e) => onSelectProposal?.(e.target.value)}
+                                    value={selectedTemplateId || ''}
+                                    className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg bg-white hover:border-blue-400 transition-all cursor-pointer"
+                                    title="Select Proposal Version"
+                                >
+                                    <option value="">Current</option>
+                                    {proposals.map((proposal, index) => {
+                                        const template = templates.find(t => t._id === proposal.templateId);
+                                        const templateName = template?.title || 'Unnamed Template';
+                                        const date = proposal.createdAt || proposal.updatedAt || proposal.savedAt;
+                                        const dateStr = date ? new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+                                        return (
+                                            <option key={proposal._id || index} value={proposal.templateId}>
+                                                v{proposals.length - index} - {templateName}{dateStr ? ` (${dateStr})` : ''}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                            )}

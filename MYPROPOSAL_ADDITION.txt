@@ -1,0 +1,29 @@
+// Add these lines after line 479 in MyProposal.tsx (after the services div closes)
+
+                            {/* Refresh from Template Icon */}
+                            {onRefreshFromTemplate && (
+                                <button
+                                    onClick={onRefreshFromTemplate}
+                                    title="Fetch Latest Template"
+                                    className="p-1.5 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                            
+                            {/* Proposal History Dropdown */}
+                            {onSelectProposal && proposals.length > 0 && (
+                                <select
+                                    onChange={(e) => onSelectProposal?.(e.target.value)}
+                                    value={selectedTemplateId || ''}
+                                    className="text-[11px] px-2 py-1 border border-gray-200 rounded-lg bg-white hover:border-blue-400 transition-all cursor-pointer"
+                                    title="Select Proposal Version"
+                                >
+                                    <option value="">Current</option>
+                                    {proposals.map((proposal, index) => (
+                                        <option key={proposal._id || index} value={proposal.templateId}>
+                                            v{proposals.length - index} - {new Date(proposal.createdAt || proposal.updatedAt).toLocaleDateString()}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
