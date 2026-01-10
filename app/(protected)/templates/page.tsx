@@ -252,7 +252,7 @@ export default function TemplatesPage() {
                 ) : (
                     <>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {paginatedTemplates.map((item) => (
+                            {filteredTemplates.map((item) => (
                                 <div
                                     key={item._id}
                                     className="group relative flex flex-col rounded-[30px] p-8 transition-all duration-300 min-h-[300px]"
@@ -404,16 +404,6 @@ export default function TemplatesPage() {
                                     </div>
                                 </div>
                             ))}
-                        </div>
-
-                        {/* Pagination */}
-                        <div className="mt-10 flex justify-center">
-                            <div
-                                className="rounded-full px-2 py-2"
-                                style={{ background: '#e0e5ec', boxShadow: '6px 6px 12px #b8b9be, -6px -6px 12px #ffffff' }}
-                            >
-                                <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
-                            </div>
                         </div>
                     </>
                 )}

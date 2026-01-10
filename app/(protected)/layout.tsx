@@ -2,6 +2,7 @@
 
 
 import MobileNav from '@/components/ui/MobileNav';
+import { PermissionProvider } from '@/hooks/usePermissions';
 
 export default function ProtectedLayout({
     children,
@@ -12,10 +13,12 @@ export default function ProtectedLayout({
     // No need for client-side auth check - if we're here, user is authenticated
 
     return (
-        <div className="h-screen overflow-hidden flex flex-col relative pb-20 md:pb-0" style={{ background: '#f0f2f5' }}>
-            {children}
+        <PermissionProvider>
+            <div className="h-screen overflow-hidden flex flex-col relative pb-20 md:pb-0" style={{ background: '#f0f2f5' }}>
+                {children}
 
-            <MobileNav />
-        </div>
+                <MobileNav />
+            </div>
+        </PermissionProvider>
     );
 }

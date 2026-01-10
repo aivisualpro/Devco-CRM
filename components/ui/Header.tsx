@@ -26,7 +26,7 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Clients', href: '/clients', icon: <Users className="w-5 h-5" />, description: 'Manage client relationships and data', colorClass: 'text-cyan-500' },
             { label: 'Employees', href: '/employees', icon: <Briefcase className="w-5 h-5" />, description: 'Manage company employees', colorClass: 'text-green-500' },
-
+            { label: 'Roles & Permissions', href: '/roles', icon: <Settings className="w-5 h-5" />, description: 'Manage access control and permissions', colorClass: 'text-red-500' },
             { label: 'Leads', href: '/leads', icon: <Briefcase className="w-5 h-5" />, description: 'Track potential sales opportunities', colorClass: 'text-pink-500' },
         ]
     },

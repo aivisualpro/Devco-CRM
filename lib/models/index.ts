@@ -18,3 +18,4 @@ export { default as GlobalCustomVariable } from './GlobalCustomVariable';
 export { default as Message } from './Communication';
 export { default as Channel } from './Channel';
 export { default as Schedule } from './Schedule';
+export { default as Role, UserPermissionOverride, PermissionAuditLog, Department } from './Role';
