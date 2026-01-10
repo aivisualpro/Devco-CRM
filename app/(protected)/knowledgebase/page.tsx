@@ -450,7 +450,7 @@ export default function KnowledgebasePage() {
                 <Header showDashboardActions={true} />
             </div>
             <div className="flex-1 overflow-y-auto bg-[#f8fafc]">
-                <div className="max-w-[1400px] mx-auto px-6 py-8">
+                <div className="max-w-[1400px] mx-auto p-4">
 
                     {/* Hero Section */}
                     <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F4C75] via-[#3282B8] to-[#0F4C75] p-8 md:p-12 mb-8 ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
@@ -523,7 +523,7 @@ export default function KnowledgebasePage() {
                             <h2 className="text-xl font-bold text-slate-900">Changelog</h2>
                         </div>
 
-                        <div className="grid grid-cols-12 gap-6">
+                        <div className="grid grid-cols-12 gap-4">
                             {/* Version Sidebar */}
                             <div className="col-span-12 lg:col-span-3">
                                 <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sticky top-24">

@@ -49,7 +49,7 @@ export function SkeletonTableRow({ columns = 5 }: { columns?: number }) {
     return (
         <tr className="border-b border-gray-100">
             {Array.from({ length: columns }).map((_, i) => (
-                <td key={i} className="p-3">
+                <td key={i} className="p-1">
                     <Skeleton className="h-4 w-full" />
                 </td>
             ))}
@@ -95,7 +95,7 @@ export function SkeletonTable({ rows = 5, columns = 5 }: { rows?: number; column
                 <thead className="bg-gray-50">
                     <tr>
                         {Array.from({ length: columns }).map((_, i) => (
-                            <th key={i} className="p-3 text-left">
+                            <th key={i} className="p-1 text-left">
                                 <Skeleton className="h-4 w-24" />
                             </th>
                         ))}

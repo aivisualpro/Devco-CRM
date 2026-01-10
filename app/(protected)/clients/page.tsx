@@ -353,7 +353,7 @@ export default function ClientsPage() {
             />
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
                 {/* Tabs - Hidden on Mobile */}
                 <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
@@ -444,7 +444,11 @@ export default function ClientsPage() {
 
                         {/* Desktop Table View */}
                         <div className="hidden md:block">
-                            <Table>
+                        <Table
+                            footer={
+                                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                            }
+                        >
                                 <TableHead>
                                     <TableRow>
                                         <TableHeader>
@@ -571,9 +575,6 @@ export default function ClientsPage() {
                         </div>
                     </>
                 )}
-                <div className="hidden md:block">
-                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-                </div>
             </div>
 
             {/* Add/Edit Modal */}

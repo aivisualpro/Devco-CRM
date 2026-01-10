@@ -38,8 +38,8 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
     const formatRate = (val?: number) => val ? `$${val.toFixed(2)}` : '$0.00';
 
     return (
-        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
 
                 {/* PART 1: Identity */}
                 <div className="flex flex-col gap-4 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">

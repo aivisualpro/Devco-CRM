@@ -208,7 +208,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             <Link
                                                 key={group.label}
                                                 href={group.href}
-                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 focus:outline-none ${isLinkActive ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'}`}
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${isLinkActive ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'}`}
                                             >
                                                 {group.label}
                                             </Link>
@@ -223,7 +223,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             onMouseLeave={() => setOpenMenu(null)}
                                         >
                                             <button
-                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold tracking-wide transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                                                     }`}
                                             >
                                                 {group.label}

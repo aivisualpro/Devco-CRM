@@ -236,7 +236,7 @@ export default function EmployeeViewPage() {
             </div>
 
             <main className="flex-1 overflow-y-auto">
-                <div className="w-full px-4 sm:px-6 lg:px-8 py-6 pb-24 max-w-[1600px] mx-auto">
+                <div className="w-full p-4 pb-24 max-w-[1600px] mx-auto">
 
                     {/* Hero Header Card */}
                     <EmployeeHeaderCard
@@ -246,7 +246,7 @@ export default function EmployeeViewPage() {
                     />
 
                     {/* Accordions Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
 
                         {/* Personal Info */}
                         <AccordionCard

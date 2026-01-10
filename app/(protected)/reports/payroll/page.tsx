@@ -954,7 +954,7 @@ export default function PayrollReportPage() {
                 </div>
 
                 {/* Neumorphic Footer Summary */}
-                <div className="mt-8 p-8 bg-[#F4F7FA] neu-outset rounded-[40px] flex flex-col md:flex-row items-center justify-between gap-8">
+                <div className="mt-8 p-4 bg-[#F4F7FA] neu-outset rounded-[40px] flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-12">
                         <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.4em] opacity-40">Global Expense</span>
@@ -1103,7 +1103,7 @@ export default function PayrollReportPage() {
                         </div>
 
                         <div className="pt-6 border-t border-white/20">
-                            <div className="p-6 rounded-[32px] bg-[#0F4C75] text-white flex items-center justify-between">
+                            <div className="p-4 rounded-[32px] bg-[#0F4C75] text-white flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                     <div className="p-3 bg-white/10 rounded-2xl">
                                         <Info size={24} className="text-blue-300" />
@@ -1146,7 +1146,7 @@ export default function PayrollReportPage() {
                 }
             >
                 {editingRecord && (
-                    <div className="grid grid-cols-2 gap-6 p-4">
+                    <div className="grid grid-cols-2 gap-4 p-4">
                         <div className="col-span-2">
                             <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Employee</label>
                             <input 

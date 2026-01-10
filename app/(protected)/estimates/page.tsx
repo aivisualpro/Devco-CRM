@@ -484,13 +484,13 @@ export default function EstimatesPage() {
                             }}
                             placeholder="Search estimates..."
                         />
-                        <AddButton onClick={handleCreate} disabled={isCreating} label={isCreating ? "Creating..." : "New Estimate"} />
                         <button
-                            onClick={() => setShowKnowledgeBase(true)}
-                            className="p-2 text-gray-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 rounded-lg transition-colors"
-                            title="Template Knowledge Base"
+                            onClick={handleCreate}
+                            disabled={isCreating}
+                            className="p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                            title="New Estimate"
                         >
-                            <HelpCircle className="w-5 h-5" />
+                            <Plus size={20} className={`duration-300 transition-transform ${isCreating ? 'animate-spin text-white/50' : 'group-hover:rotate-90'}`} />
                         </button>
 
                         <button
@@ -513,7 +513,7 @@ export default function EstimatesPage() {
                 }
             />
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
 
                 {/* Filter Tabs & Toggle */}
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
@@ -539,7 +539,11 @@ export default function EstimatesPage() {
                     {loading ? (
                         <SkeletonTable rows={10} columns={14} />
                     ) : (
-                        <Table>
+                        <Table
+                            footer={
+                                <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
+                            }
+                        >
                             <TableHead>
                                 <TableRow>
                                     <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-xs">
@@ -713,7 +717,6 @@ export default function EstimatesPage() {
                             </TableBody>
                         </Table>
                     )}
-                    <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                 </div>
 
                 </div>
@@ -751,16 +754,16 @@ export default function EstimatesPage() {
                                 <table className="w-full text-sm">
                                     <thead className="bg-gray-50 text-gray-500 text-xs uppercase text-left">
                                         <tr>
-                                            <th className="px-4 py-3 font-medium">Variable</th>
-                                            <th className="px-4 py-3 font-medium">Description</th>
+                                            <th className="p-1 font-medium">Variable</th>
+                                            <th className="p-1 font-medium">Description</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 bg-white">
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{customerName}}`}</td><td className="px-4 py-2">Customer Name</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{projectTitle}}`}</td><td className="px-4 py-2">Project Title</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{date}}`}</td><td className="px-4 py-2">Estimate Date</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{proposalNo}}`}</td><td className="px-4 py-2">Proposal Number</td></tr>
-                                        <tr><td className="px-4 py-2 font-mono text-xs text-[#0F4C75]">{`{{aggregations.grandTotal}}`}</td><td className="px-4 py-2">Total Project Cost</td></tr>
+                                        <tr><td className="p-1 font-mono text-xs text-[#0F4C75]">{`{{customerName}}`}</td><td className="p-1">Customer Name</td></tr>
+                                        <tr><td className="p-1 font-mono text-xs text-[#0F4C75]">{`{{projectTitle}}`}</td><td className="p-1">Project Title</td></tr>
+                                        <tr><td className="p-1 font-mono text-xs text-[#0F4C75]">{`{{date}}`}</td><td className="p-1">Estimate Date</td></tr>
+                                        <tr><td className="p-1 font-mono text-xs text-[#0F4C75]">{`{{proposalNo}}`}</td><td className="p-1">Proposal Number</td></tr>
+                                        <tr><td className="p-1 font-mono text-xs text-[#0F4C75]">{`{{aggregations.grandTotal}}`}</td><td className="p-1">Total Project Cost</td></tr>
                                     </tbody>
                                 </table>
                             </div>

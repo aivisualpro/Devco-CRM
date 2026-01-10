@@ -184,7 +184,7 @@ export default function ConstantsPage() {
                 </div>
             } />
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
                 <ToastContainer toasts={toasts} removeToast={removeToast} />
 
                 {/* Tabs */}

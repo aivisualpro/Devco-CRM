@@ -6,14 +6,22 @@ interface TableProps {
     children: React.ReactNode;
     className?: string;
     containerClassName?: string;
+    footer?: React.ReactNode;
 }
 
-export function Table({ children, className = '', containerClassName = 'h-[calc(100vh-190px)]' }: TableProps) {
+export function Table({ children, className = '', containerClassName = 'h-[calc(100vh-170px)] min-h-[400px]', footer }: TableProps) {
     return (
-        <div className={`rounded-xl border border-gray-200 bg-white overflow-auto ${containerClassName}`}>
-            <table className={`w-full text-xs ${className}`}>
-                {children}
-            </table>
+        <div className={`rounded-xl border border-gray-200 bg-white flex flex-col overflow-hidden ${containerClassName}`}>
+            <div className="flex-1 overflow-auto">
+                <table className={`w-full text-xs ${className}`}>
+                    {children}
+                </table>
+            </div>
+            {footer && (
+                <div className="flex-none border-t border-gray-100">
+                    {footer}
+                </div>
+            )}
         </div>
     );
 }
@@ -68,7 +76,7 @@ interface TableHeaderProps {
 export function TableHeader({ children, className = '', onClick, sortable, sortDirection }: TableHeaderProps) {
     return (
         <th
-            className={`px-4 py-1.5 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick || sortable ? 'cursor-pointer hover:bg-white select-none transition-colors group' : ''} ${className}`}
+            className={`p-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick || sortable ? 'cursor-pointer hover:bg-white select-none transition-colors group' : ''} ${className}`}
             onClick={onClick}
         >
             <div className="flex items-center gap-1">
@@ -108,7 +116,7 @@ export function TableCell({ children, className = '', colSpan, rowSpan, ...props
         <td
             colSpan={colSpan}
             rowSpan={rowSpan}
-            className={`px-4 py-1.5 text-xs text-gray-600 whitespace-nowrap ${className}`}
+            className={`p-1 text-xs text-gray-600 whitespace-nowrap ${className}`}
             {...props}
         >
             {children}

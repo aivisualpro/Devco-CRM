@@ -217,11 +217,11 @@ export default function TemplatesPage() {
                     }
                 />
             </div>
-            <div className="flex-1 overflow-y-auto p-6 bg-[#e0e5ec]">
+            <div className="flex-1 overflow-y-auto p-4 bg-[#e0e5ec]">
                 <ToastContainer toasts={toasts} removeToast={removeToast} />
 
                 {loading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {[1, 2, 3].map(i => (
                             <div
                                 key={i}
@@ -251,7 +251,7 @@ export default function TemplatesPage() {
                     </div>
                 ) : (
                     <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {paginatedTemplates.map((item) => (
                                 <div
                                     key={item._id}

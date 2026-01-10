@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Upload, Pencil, Trash2, Plus, Phone, Mail } from 'lucide-react';
-import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SearchableSelect, SaveButton, CancelButton } from '@/components/ui';
+import { Upload, Pencil, Trash2, Plus, Phone, Mail, ChevronDown } from 'lucide-react';
+import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SaveButton, CancelButton, MyDropDown } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface Employee {
@@ -106,8 +106,80 @@ const formatPhoneNumber = (value: string) => {
     return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 };
 
+const FormSelect = ({ label, value, onChange, options, placeholder, allowAdd = true, multiSelect = false }: { label: string, value: string, onChange: (val: string) => void, options: string[], placeholder?: string, allowAdd?: boolean, multiSelect?: boolean }) => {
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleSelect = (val: string) => {
+        if (multiSelect) {
+            const current = value ? value.split(',').map(s => s.trim()).filter(Boolean) : [];
+            const idx = current.indexOf(val);
+            let newValues;
+            if (idx >= 0) {
+                newValues = current.filter(c => c !== val);
+            } else {
+                newValues = [...current, val];
+            }
+            onChange(newValues.join(', '));
+        } else {
+            onChange(val);
+            setIsOpen(false);
+        }
+    };
+
+    return (
+        <div className="relative">
+            {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+            <div 
+                className="w-full h-10 px-3 py-2 bg-white border border-gray-300 rounded-lg flex items-center justify-between cursor-pointer hover:border-[#0F4C75] transition-colors"
+                onClick={() => setIsOpen(!isOpen)}
+            >
+                <div className="flex-1 truncate mr-2">
+                    <span className={`text-sm ${value ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {value || placeholder || 'Select...'}
+                    </span>
+                </div>
+                <ChevronDown size={16} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </div>
+            
+            <MyDropDown
+                isOpen={isOpen}
+                onClose={() => setIsOpen(false)}
+                options={options.map(o => ({ id: o, label: o, value: o }))}
+                selectedValues={value ? value.split(',').map(s => s.trim()).filter(Boolean) : []}
+                onSelect={handleSelect}
+                onAdd={allowAdd ? async (val) => {
+                    handleSelect(val);
+                } : undefined}
+                width="w-full"
+                placeholder={`Search ${label || 'options'}...`}
+                multiSelect={multiSelect}
+            />
+        </div>
+    );
+};
 
 import { useRouter } from 'next/navigation';
+
+const RoleBadge = ({ value, color }: { value: string, color?: string }) => {
+    if (!value) return null;
+    const items = value.split(',').map(s => s.trim()).filter(Boolean);
+    return (
+        <div className="flex flex-wrap gap-1">
+            {items.map((item, i) => (
+                <div 
+                    key={i} 
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${
+                        color 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : 'bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                >
+                    {item}
+                </div>
+            ))}
+        </div>
+    );
+};
 
 export default function EmployeesPage() {
     const router = useRouter();
@@ -280,9 +352,16 @@ export default function EmployeesPage() {
         return Array.from(unique) as string[];
     };
 
+    // Helper to get split options
+    const getSplitOptions = (key: keyof Employee) => {
+        const raw = employees.map(e => e[key]).filter(Boolean) as string[];
+        const split = raw.flatMap(s => s.split(',').map(x => x.trim()));
+        return Array.from(new Set(split));
+    };
+
     const appRoleOptions = getOptions('appRole');
     const positionOptions = getOptions('companyPosition');
-    const designationOptions = getOptions('designation');
+    const designationOptions = Array.from(new Set(['Foreman', 'Project Manager', 'SITE Coordinator', ...getSplitOptions('designation')]));
     const cityOptions = getOptions('city');
     const stateOptions = getOptions('state');
 
@@ -440,34 +519,30 @@ export default function EmployeesPage() {
                             onChange={handleImport}
                         />
                         <div className="hidden lg:block">
-                            <Button
-                                variant="secondary"
+                            <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="bg-white border text-gray-700 hover:bg-gray-50"
                                 disabled={isImporting}
+                                className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
+                                title={isImporting ? 'Importing...' : 'Import CSV'}
                             >
-                                <Upload className="w-4 h-4 mr-2" />
-                                {isImporting ? 'Importing...' : 'Import CSV'}
-                            </Button>
+                                <Upload size={18} />
+                            </button>
                         </div>
 
                         <button
                             onClick={openAddModal}
-                            className="md:hidden w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                            className="w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 hover:bg-[#0b3c5d] transition-all"
+                            title="Add New"
                         >
                             <Plus size={24} />
                         </button>
-
-                        <div className="hidden md:block">
-                            <AddButton onClick={openAddModal} label="Add New " />
-                        </div>
                     </div>
                 }
             />
 
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto md:overflow-hidden md:flex md:flex-col pt-4 px-4 pb-0">
                 {/* Tabs - Hidden on Mobile */}
                 <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
@@ -548,8 +623,13 @@ export default function EmployeesPage() {
                         </div>
 
                         {/* Desktop Table View */}
-                        <div className="hidden md:block">
-                            <Table>
+                        <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 pb-4">
+                        <Table
+                            containerClassName="h-full min-h-[400px]"
+                            footer={
+                                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                            }
+                        >
                                 <TableHead>
                                     <TableRow>
                                         <TableHeader
@@ -579,6 +659,13 @@ export default function EmployeesPage() {
                                             sortDirection={sortConfig?.key === 'mobile' ? sortConfig.direction : null}
                                         >
                                             Phone
+                                        </TableHeader>
+                                        <TableHeader
+                                            onClick={() => handleSort('designation')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'designation' ? sortConfig.direction : null}
+                                        >
+                                            Designation
                                         </TableHeader>
                                         <TableHeader
                                             onClick={() => handleSort('appRole')}
@@ -635,7 +722,12 @@ export default function EmployeesPage() {
                                                     </a>
 
                                                 </TableCell>
-                                                <TableCell>{emp.appRole || '-'}</TableCell>
+                                                <TableCell>
+                                                    <RoleBadge value={emp.designation || ''} color="bg-emerald-600" />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <RoleBadge value={emp.appRole || ''} />
+                                                </TableCell>
                                                 <TableCell>
                                                     <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>
                                                         {emp.status || 'Active'}
@@ -648,9 +740,9 @@ export default function EmployeesPage() {
                                                                 e.stopPropagation();
                                                                 openEditModal(emp);
                                                             }}
-                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                            className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
                                                         >
-                                                            <Pencil className="w-4 h-4" />
+                                                            <Pencil className="w-3.5 h-3.5" />
                                                         </button>
 
                                                         <button
@@ -658,9 +750,9 @@ export default function EmployeesPage() {
                                                                 e.stopPropagation();
                                                                 openDeleteModal(emp);
                                                             }}
-                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                            className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
                                                         >
-                                                            <Trash2 className="w-4 h-4" />
+                                                            <Trash2 className="w-3.5 h-3.5" />
                                                         </button>
 
                                                     </div>
@@ -673,9 +765,6 @@ export default function EmployeesPage() {
                         </div>
                     </>
                 )}
-                <div className="hidden md:block">
-                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-                </div>
             </div>
 
             {/* Add/Edit Modal */}
@@ -815,7 +904,7 @@ export default function EmployeesPage() {
                             </div>
 
                             <div className="col-span-12 md:col-span-4">
-                                <SearchableSelect
+                                <FormSelect
                                     label="City"
                                     value={currentEmployee.city || ''}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, city: val })}
@@ -824,7 +913,7 @@ export default function EmployeesPage() {
                                 />
                             </div>
                             <div className="col-span-12 md:col-span-4">
-                                <SearchableSelect
+                                <FormSelect
                                     label="State"
                                     value={currentEmployee.state || ''}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, state: val })}
@@ -853,28 +942,32 @@ export default function EmployeesPage() {
                     {modalTab === 'employment' && (
                         <div className="grid grid-cols-12 gap-4">
                             <div className="col-span-12 md:col-span-6">
-                                <SearchableSelect
+                                <FormSelect
                                     label="App Role"
                                     value={currentEmployee.appRole || ''}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, appRole: val })}
                                     options={appRoleOptions}
+                                    allowAdd={true}
                                 />
                             </div>
                             <div className="col-span-12 md:col-span-6">
-                                <SearchableSelect
+                                <FormSelect
                                     label="Company Position"
                                     value={currentEmployee.companyPosition || ''}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, companyPosition: val })}
                                     options={positionOptions}
+                                    allowAdd={true}
                                 />
                             </div>
 
                             <div className="col-span-12 md:col-span-4">
-                                <SearchableSelect
+                                <FormSelect
                                     label="Designation"
                                     value={currentEmployee.designation || ''}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, designation: val })}
                                     options={designationOptions}
+                                    allowAdd={true}
+                                    multiSelect={true}
                                 />
                             </div>
                             <div className="col-span-12 md:col-span-4">
@@ -911,20 +1004,22 @@ export default function EmployeesPage() {
                             </div>
 
                             <div className="col-span-12 md:col-span-6">
-                                <SearchableSelect
+                                <FormSelect
                                     label="Status"
                                     value={currentEmployee.status || 'Active'}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, status: val })}
                                     options={['Active', 'Inactive', 'Terminated']}
+                                    allowAdd={false}
                                 />
                             </div>
 
                             <div className="col-span-12 md:col-span-6">
-                                <SearchableSelect
+                                <FormSelect
                                     label="Schedule Active"
                                     value={currentEmployee.isScheduleActive ? 'Yes' : 'No'}
                                     onChange={(val) => setCurrentEmployee({ ...currentEmployee, isScheduleActive: val === 'Yes' })}
                                     options={['Yes', 'No']}
+                                    allowAdd={false}
                                 />
                             </div>
 
@@ -971,12 +1066,13 @@ export default function EmployeesPage() {
                                 { key: 'unionPaperwork1184', label: 'Union Paperwork (1184)' },
                             ].map((field) => (
                                 <div key={field.key} className="col-span-1">
-                                    <SearchableSelect
+                                    <FormSelect
                                         label={field.label}
                                         value={(currentEmployee as any)[field.key] || ''}
                                         onChange={(val) => setCurrentEmployee({ ...currentEmployee, [field.key]: val })}
                                         options={getComplianceOptions(field.key as keyof Employee)}
                                         placeholder="Select status..."
+                                        allowAdd={true}
                                     />
                                 </div>
                             ))}

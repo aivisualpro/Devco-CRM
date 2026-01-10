@@ -468,7 +468,7 @@ export default function CataloguePage() {
                 }
             />
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
 
                 {/* Tabs - Scrollable on mobile */}
                 <div className="flex justify-start md:justify-center mb-4 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
@@ -481,7 +481,7 @@ export default function CataloguePage() {
                 </div>
 
                 {/* Main Content */}
-                <div className="pb-20">
+                <div>
                     {loading ? (
                         <>
                             <div className="md:hidden grid grid-cols-2 gap-2">
@@ -572,7 +572,11 @@ export default function CataloguePage() {
 
                             {/* Desktop Table View */}
                             <div className="hidden md:block">
-                                <Table>
+                                <Table
+                                    footer={
+                                        <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
+                                    }
+                                >
                                     <TableHead>
                                         <TableRow>
                                             {config.headers.map((h, index) => {
@@ -642,7 +646,6 @@ export default function CataloguePage() {
                                         )}
                                     </TableBody>
                                 </Table>
-                                <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                             </div>
                         </>
                     )}
@@ -788,7 +791,7 @@ export default function CataloguePage() {
                         onClick={() => setActionSheetItem(null)}
                     >
                         <div
-                            className="w-full max-w-lg bg-white rounded-[32px] p-6 pb-8 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 select-none"
+                            className="w-full max-w-lg bg-white rounded-[32px] p-4 pb-6 shadow-2xl animate-in slide-in-from-bottom-10 duration-300 select-none"
                             style={{ WebkitTouchCallout: 'none' }}
                             onClick={e => e.stopPropagation()}
                         >

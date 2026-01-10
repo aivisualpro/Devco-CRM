@@ -549,8 +549,8 @@ export default function TimeCardPage() {
                 />
             </div>
 
-            <main className="flex-1 min-h-0 p-6 flex flex-col max-w-[1920px] w-full mx-auto">
-                <div className="flex-1 flex gap-6 min-h-0">
+            <main className="flex-1 min-h-0 p-4 flex flex-col max-w-[1920px] w-full mx-auto">
+                <div className="flex-1 flex gap-4 min-h-0">
                     
                     {/* Left Sidebar - Tree View */}
                     <div className="w-[300px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
@@ -847,7 +847,7 @@ export default function TimeCardPage() {
                     </>
                 }
             >
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Employee</label>
                         <input 

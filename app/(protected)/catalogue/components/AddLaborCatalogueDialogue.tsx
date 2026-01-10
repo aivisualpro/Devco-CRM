@@ -159,7 +159,7 @@ export function AddLaborCatalogueDialogue({
 
                     {/* Body */}
                     <div className="px-4 pb-4 flex-1 overflow-y-auto">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="col-span-1">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
                                     Classification

@@ -203,7 +203,7 @@ export default function QuickBooksPage() {
         <div className="flex flex-col h-screen overflow-hidden">
             <Header showDashboardActions={true} />
             
-            <main className="flex-1 overflow-y-auto px-4 md:px-6 py-8 bg-[#f8fafc]">
+            <main className="flex-1 overflow-y-auto p-4 bg-[#f8fafc]">
                 <div className="space-y-6">
                     {/* Project Detail Header */}
                     {selectedProject && (
@@ -303,7 +303,7 @@ export default function QuickBooksPage() {
                                     </button>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <Card className="p-5 space-y-1.5 border-l-4 border-l-emerald-500 shadow-sm">
                                         <div className="flex items-center justify-between">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Total Project Income</span>
@@ -523,7 +523,7 @@ export default function QuickBooksPage() {
                                             )}
 
                                             {activeDetailTab === 'Summary' && (
-                                                <div className="p-8 space-y-10 animate-fade-in max-w-6xl">
+                                                <div className="p-4 space-y-10 animate-fade-in max-w-6xl">
                                                     {/* Filter Section */}
                                                     <div className="space-y-1.5">
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">See info based on</label>
@@ -635,7 +635,7 @@ export default function QuickBooksPage() {
                                                     </div>
 
                                                     {/* Invoices Section */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
                                                         <Card className="p-6 space-y-4 border-slate-100 shadow-sm hover:border-emerald-100 transition-colors">
                                                             <div className="space-y-1">
                                                                 <div className="text-3xl font-black text-slate-800 tracking-tighter">
