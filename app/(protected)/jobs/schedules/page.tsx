@@ -5,8 +5,10 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus
 } from 'lucide-react';
+
+import SignaturePad from './SignaturePad';
 
 import {
     Header, AddButton, Card, SearchInput, Table, TableHead,
@@ -40,6 +42,9 @@ interface ScheduleItem {
     createdAt?: string;
     updatedAt?: string;
     timesheet?: any[];
+    hasJHA?: boolean;
+    jha?: any;
+    JHASignatures?: any[];
 }
 
 export default function SchedulePage() {
@@ -71,6 +76,12 @@ export default function SchedulePage() {
     const [editingItem, setEditingItem] = useState<Partial<ScheduleItem> | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isImporting, setIsImporting] = useState(false);
+    
+    // JHA Modal State
+    const [jhaModalOpen, setJhaModalOpen] = useState(false);
+    const [selectedJHA, setSelectedJHA] = useState<any>(null);
+    const [isJhaEditMode, setIsJhaEditMode] = useState(false);
+    const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
 
     // Filter States
     const [filterEstimate, setFilterEstimate] = useState('');
@@ -104,6 +115,8 @@ export default function SchedulePage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const timesheetInputRef = useRef<HTMLInputElement>(null);
+    const jhaInputRef = useRef<HTMLInputElement>(null);
+    const jhaSignatureInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const INCREMENT = 20;
 
@@ -146,6 +159,15 @@ export default function SchedulePage() {
         fetchPageData();
     }, []);
 
+    const getCustomerName = (schedule: ScheduleItem) => {
+        if (schedule.customerName && schedule.customerName !== 'Client') return schedule.customerName;
+        if (schedule.customerId) {
+            const client = initialData.clients.find(c => String(c._id) === String(schedule.customerId) || String(c.recordId) === String(schedule.customerId));
+            return client ? client.name : 'Client';
+        }
+        return 'Client';
+    };
+
     // Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
     const formatLocalDate = (dateInput: string | Date) => {
         const date = new Date(dateInput);
@@ -153,6 +175,16 @@ export default function SchedulePage() {
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    };
+
+    const formatLocalDateTime = (dateInput: string | Date) => {
+        const date = new Date(dateInput);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
     const scheduledDatesRaw = useMemo(() => {
@@ -189,7 +221,7 @@ export default function SchedulePage() {
             if (selectedDates.length === 0 || selectedDates.includes(scheduleDate)) {
                 const matchesSearch =
                     s.title?.toLowerCase().includes(search.toLowerCase()) ||
-                    s.customerName?.toLowerCase().includes(search.toLowerCase()) ||
+                    getCustomerName(s).toLowerCase().includes(search.toLowerCase()) ||
                     s.estimate?.toLowerCase().includes(search.toLowerCase()) ||
                     s.jobLocation?.toLowerCase().includes(search.toLowerCase());
                 if (matchesSearch) {
@@ -214,7 +246,7 @@ export default function SchedulePage() {
         return schedules.filter(s => {
             const matchesSearch =
                 s.title?.toLowerCase().includes(search.toLowerCase()) ||
-                s.customerName?.toLowerCase().includes(search.toLowerCase()) ||
+                getCustomerName(s).toLowerCase().includes(search.toLowerCase()) ||
                 s.estimate?.toLowerCase().includes(search.toLowerCase()) ||
                 s.jobLocation?.toLowerCase().includes(search.toLowerCase());
 
@@ -491,6 +523,7 @@ export default function SchedulePage() {
 
     const [currentDate, setCurrentDate] = useState(new Date());
     const [viewType, setViewType] = useState<'calendar' | 'timeline'>('calendar');
+    const [showImportMenu, setShowImportMenu] = useState(false);
 
     const toggleDate = (day: number) => {
         const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
@@ -578,6 +611,185 @@ export default function SchedulePage() {
             }
         };
         reader.readAsText(file);
+    };
+
+    const handleImportJHA = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsedRows = parseCSV(text);
+
+                if (parsedRows.length < 2) throw new Error("File must contain at least a header and one data row.");
+
+                const headers = parsedRows[0].map(h => h.replace(/^"|"$/g, '').trim());
+
+                const data = parsedRows.slice(1).map(values => {
+                    const obj: any = {};
+                    headers.forEach((h, i) => {
+                        if (values[i] !== undefined) {
+                            let val = values[i].replace(/^"|"$/g, '').trim();
+                            obj[h] = val;
+                        }
+                    });
+
+                    if ((obj as any).recordId) {
+                        (obj as any)._id = (obj as any).recordId;
+                        delete (obj as any).recordId;
+                    }
+                    return obj;
+                });
+
+                const res = await fetch('/api/jha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importJHA', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} JHA records`);
+                    // We don't fetch page data here as JHAs are not shown on schedule list directly
+                } else {
+                    toastError(resData.error || 'JHA import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (jhaInputRef.current) jhaInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleImportJHASignatures = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsedRows = parseCSV(text);
+
+                // Parse CSV
+                // Assuming simple CSV parsing or use library if available
+                const Papa = require('papaparse');
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                
+                // Process records
+                const res = await fetch('/api/jha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importJHASignatures', payload: { records: data } })
+                });
+
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} signature records`);
+                    // Refresh data
+                    fetchPageData();
+                } else {
+                    toastError(resData.error || 'Signature import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (jhaSignatureInputRef.current) jhaSignatureInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleSaveJHAForm = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            // Include schedule_id in the payload
+            const payload = {
+                ...selectedJHA,
+                schedule_id: selectedJHA.schedule_id || selectedJHA._id // Ensure link backing
+            };
+
+            const res = await fetch('/api/jha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'saveJHA', payload })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success('JHA Saved Successfully');
+                // Update local state or refresh
+                fetchPageData();
+                // Switch to view mode or close? Keep in edit mode?
+                setIsJhaEditMode(false);
+            } else {
+                toastError(data.error || 'Failed to save JHA');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Error saving JHA');
+        }
+    };
+
+    const handleSaveJHASignature = async (dataUrl: string) => {
+        if (!activeSignatureEmployee || !selectedJHA) return;
+        
+        // Get Location
+        let location = 'Unknown';
+        if (navigator.geolocation) {
+             try {
+                 const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                     navigator.geolocation.getCurrentPosition(resolve, reject);
+                 });
+                 location = `${pos.coords.latitude},${pos.coords.longitude}`;
+             } catch (e) {
+                 console.log('Location access denied or failed');
+             }
+        }
+
+        try {
+            const payload = {
+                schedule_id: selectedJHA.schedule_id,
+                employee: activeSignatureEmployee,
+                signature: dataUrl,
+                createdBy: 'jt@devco-inc.com', // TODO: Get logged in user
+                location
+            };
+
+            const res = await fetch('/api/jha', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'saveJHASignature', payload })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                success('Signature Saved');
+                // Add to local state
+                const newSig = data.result;
+                setSelectedJHA((prev: any) => ({
+                    ...prev,
+                    signatures: [...(prev.signatures || []), newSig]
+                }));
+                setActiveSignatureEmployee(null); // Close pad
+                
+                // Refresh schedules to update the card icon if first JHA action?
+                // Actually JHA existence relies on the main JHA record, but signatures are part of the detailed view.
+            } else {
+                toastError(data.error || 'Failed to save signature');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Error saving signature');
+        }
     };
 
     // Helper to format time strings
@@ -772,6 +984,20 @@ export default function SchedulePage() {
                             className="hidden"
                             accept=".csv"
                         />
+                        <input
+                            type="file"
+                            ref={jhaInputRef}
+                            onChange={handleImportJHA}
+                            className="hidden"
+                            accept=".csv"
+                        />
+                        <input
+                            type="file"
+                            ref={jhaSignatureInputRef}
+                            onChange={handleImportJHASignatures}
+                            className="hidden"
+                            accept=".csv"
+                        />
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
@@ -785,6 +1011,20 @@ export default function SchedulePage() {
                             title="Import Timesheets"
                         >
                             <Clock size={18} className={isImporting ? 'animate-pulse' : ''} />
+                        </button>
+                        <button
+                            onClick={() => jhaInputRef.current?.click()}
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            title="Import JHA"
+                        >
+                            <Import size={18} className={isImporting ? 'animate-pulse' : ''} />
+                        </button>
+                        <button
+                            onClick={() => jhaSignatureInputRef.current?.click()}
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            title="Import JHA Signatures"
+                        >
+                            <ClipboardList size={18} className={isImporting ? 'animate-pulse' : ''} />
                         </button>
                         <button
                             onClick={openCreateModal}
@@ -886,7 +1126,7 @@ export default function SchedulePage() {
                                             const hasSchedule = scheduledDatesRaw.has(dateStr);
 
                                             return (
-                                                <div key={idx} className="flex justify-center items-center h-8 w-8 sm:h-10 sm:w-10 mx-auto">
+                                                <div key={idx} className="flex justify-center items-center h-8 w-8 sm:h-9 sm:w-10 mx-auto">
                                                     <button
                                                         onClick={() => toggleDate(day)}
                                                         className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-bold transition-all relative
@@ -1095,7 +1335,20 @@ export default function SchedulePage() {
                                                             );
                                                         }
                                                     })()}
-                                                    <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{item.customerName || 'Client'}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{getCustomerName(item)}</span>
+                                                        {(() => {
+                                                            const est = initialData.estimates.find(e => e.value === item.estimate);
+                                                            if (est?.jobAddress) {
+                                                                return (
+                                                                    <span className="text-[10px] text-slate-400 font-medium truncate max-w-[150px] mt-0.5">
+                                                                        {est.jobAddress}
+                                                                    </span>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -1189,8 +1442,47 @@ export default function SchedulePage() {
                                                         <Clock size={12} />
                                                     </div>
                                                     <span className="text-[11px] sm:text-xs font-bold text-slate-700">
-                                                        {new Date(item.fromDate).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                        {new Date(item.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                                     </span>
+                                                    {item.hasJHA ? (
+                                                        <div 
+                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-100 text-orange-600 ml-1 hover:bg-orange-200 transition-colors cursor-pointer" 
+                                                            title="View JHA"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const jhaWithSigs = { 
+                                                                    ...item.jha, 
+                                                                    signatures: item.JHASignatures || [] 
+                                                                };
+                                                                setSelectedJHA(jhaWithSigs);
+                                                                setIsJhaEditMode(false);
+                                                                setJhaModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <ClipboardList size={12} />
+                                                        </div>
+                                                    ) : (
+                                                        <div 
+                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-blue-100 hover:text-blue-600 transition-colors cursor-pointer" 
+                                                            title="Create JHA"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                // Initialize new JHA
+                                                                setSelectedJHA({
+                                                                    schedule_id: item._id,
+                                                                    date: new Date(),
+                                                                    jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // Default time
+                                                                    emailCounter: 0,
+                                                                    signatures: [], // Empty signatures initially
+                                                                    scheduleRef: item // Pass reference for assignees access
+                                                                });
+                                                                setIsJhaEditMode(true);
+                                                                setJhaModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <FilePlus size={12} />
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* PM / Foreman / SD - right side */}
@@ -1273,7 +1565,14 @@ export default function SchedulePage() {
                                                     }
                                                 })()}
                                                 <div>
-                                                    <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{selectedSchedule.customerName}</p>
+                                                    <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
+                                                    {(() => {
+                                                        const est = initialData.estimates.find(e => e.value === selectedSchedule.estimate);
+                                                        if (est?.jobAddress) {
+                                                            return <p className="text-xs font-bold text-slate-400 mb-1">{est.jobAddress}</p>;
+                                                        }
+                                                        return null;
+                                                    })()}
                                                     <div className="flex items-center gap-1.5 text-slate-500">
                                                         <MapPin size={14} className="text-slate-400 shrink-0" />
                                                         <p className="text-xs font-bold text-slate-500 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
@@ -1287,9 +1586,21 @@ export default function SchedulePage() {
                                                     <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
                                                 </div>
                                                 <div className="mt-2 flex items-center gap-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <CalendarIcon size={14} className="text-slate-400" />
-                                                        <span className="text-xs font-bold text-slate-700">Date: {new Date(selectedSchedule.fromDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <CalendarIcon size={14} className="text-slate-400" />
+                                                            <span className="text-xs font-bold text-slate-700">
+                                                                From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                            </span>
+                                                        </div>
+                                                        {selectedSchedule.toDate && (
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="w-3.5" />
+                                                                <span className="text-xs font-bold text-slate-700">
+                                                                    To: {new Date(selectedSchedule.toDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     {selectedSchedule.estimate && (
                                                         <Badge variant="info" className="py-0 h-5">{selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}</Badge>
@@ -1366,6 +1677,13 @@ export default function SchedulePage() {
                                                     <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
                                                         <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
                                                         {selectedSchedule.perDiem || 'No'}
+                                                    </Badge>
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Certified Payroll</p>
+                                                    <Badge variant={selectedSchedule.certifiedPayroll ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                        <div className={`w-2 h-2 rounded-full ${selectedSchedule.certifiedPayroll ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                        {selectedSchedule.certifiedPayroll || 'No'}
                                                     </Badge>
                                                 </div>
                                             </div>
@@ -1600,12 +1918,12 @@ export default function SchedulePage() {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{editingItem?._id ? 'Date' : 'From Date'}</label>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{editingItem?._id ? 'Date & Time' : 'From Date & Time'}</label>
                             <input
                                 id="schedFromDate"
-                                type="date"
+                                type="datetime-local"
                                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all"
-                                value={editingItem?.fromDate ? formatLocalDate(editingItem.fromDate) : ''}
+                                value={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : ''}
                                 onChange={(e) => setEditingItem({ ...editingItem, fromDate: e.target.value })}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
@@ -1621,12 +1939,12 @@ export default function SchedulePage() {
                         </div>
                         {!editingItem?._id && (
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">To Date</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">To Date & Time</label>
                                 <input
                                     id="schedToDate"
-                                    type="date"
+                                    type="datetime-local"
                                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all"
-                                    value={editingItem?.toDate ? formatLocalDate(editingItem.toDate) : ''}
+                                    value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
@@ -1660,10 +1978,10 @@ export default function SchedulePage() {
                                 id="schedPM"
                                 label="Project Manager"
                                 placeholder="Select PM"
-                                options={initialData.employees.map(e => ({
-                                    label: e.label,
-                                    value: e.value,
-                                    image: e.image
+                                options={initialData.employees.map(emp => ({
+                                    label: emp.label,
+                                    value: emp.value,
+                                    image: emp.image
                                 }))}
                                 value={editingItem?.projectManager || ''}
                                 onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
@@ -1673,10 +1991,10 @@ export default function SchedulePage() {
                                 id="schedForeman"
                                 label="Foreman"
                                 placeholder="Select Foreman"
-                                options={initialData.employees.map(e => ({
-                                    label: e.label,
-                                    value: e.value,
-                                    image: e.image
+                                options={initialData.employees.map(emp => ({
+                                    label: emp.label,
+                                    value: emp.value,
+                                    image: emp.image
                                 }))}
                                 value={editingItem?.foremanName || ''}
                                 onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
@@ -1840,6 +2158,437 @@ export default function SchedulePage() {
                 cancelText="Cancel"
                 variant="danger"
             />
-        </div >
+            {/* JHA Details Modal */}
+            <Modal
+                isOpen={jhaModalOpen}
+                onClose={() => setJhaModalOpen(false)}
+                title="Job Hazard Analysis (JHA)"
+                maxWidth="4xl"
+            >
+                {selectedJHA ? (
+                    isJhaEditMode ? (
+                        <form onSubmit={handleSaveJHAForm} className="space-y-6">
+                            {/* Header Inputs */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Date</label>
+                                    <input 
+                                        type="date" 
+                                        required
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                                        value={formatLocalDate(selectedJHA.date)}
+                                        onChange={(e) => setSelectedJHA({...selectedJHA, date: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Time</label>
+                                    <input 
+                                        type="time"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                                        value={selectedJHA.jhaTime?.includes('M') ? '' : selectedJHA.jhaTime} // Handle AM/PM format display vs input? Inputs accept HH:mm
+                                        onChange={(e) => setSelectedJHA({...selectedJHA, jhaTime: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">USA No.</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                                        value={selectedJHA.usaNo || ''}
+                                        onChange={(e) => setSelectedJHA({...selectedJHA, usaNo: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Subcontractor USA</label>
+                                    <input 
+                                        type="text"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                                        value={selectedJHA.subcontractorUSANo || ''}
+                                        onChange={(e) => setSelectedJHA({...selectedJHA, subcontractorUSANo: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Signatures Section (Prioritized) */}
+                            <div className="border rounded-xl p-4 border-slate-200 bg-blue-50/50">
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-blue-100 pb-2 flex justify-between">
+                                    <span>Signatures</span>
+                                    <span className="text-[10px] font-normal text-slate-500 normal-case">All assignees must sign</span>
+                                </h4>
+                                
+                                {activeSignatureEmployee ? (
+                                    <div className="max-w-md mx-auto">
+                                        <SignaturePad 
+                                            employeeName={initialData.employees.find(e => e.value === activeSignatureEmployee)?.label || activeSignatureEmployee}
+                                            onSave={handleSaveJHASignature} 
+                                        />
+                                        <button 
+                                            type="button" 
+                                            onClick={() => setActiveSignatureEmployee(null)} 
+                                            className="mt-2 w-full text-xs text-slate-500 hover:text-slate-800"
+                                        >
+                                            Cancel Signing
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        {(() => {
+                                            // Get Assignees
+                                            const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
+                                            const assignees = schedule?.assignees || [];
+                                            
+                                            // Ensure uniqueness and filter legacy
+                                            const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
+
+                                            return uniqueAssignees.map((email: string) => {
+                                                const emp = initialData.employees.find(e => e.value === email);
+                                                const sig = selectedJHA.signatures?.find((s: any) => s.employee === email);
+                                                
+                                                return (
+                                                    <div key={email} className={`relative p-3 rounded-xl border transition-all ${sig ? 'bg-white border-green-200 shadow-sm' : 'bg-white border-dashed border-slate-300 hover:border-[#0F4C75]'}`}>
+                                                        <div className="flex items-center gap-3 mb-2">
+                                                            <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-white shadow-sm flex items-center justify-center shrink-0">
+                                                                {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold text-slate-500">{emp?.label?.[0]}</span>}
+                                                            </div>
+                                                            <div className="overflow-hidden">
+                                                                <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || email}</p>
+                                                                <p className="text-[10px] text-slate-400">{sig ? 'Signed' : 'Pending Signature'}</p>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {sig ? (
+                                                            <div className="h-12 border-t border-slate-50 mt-2 flex items-center justify-center">
+                                                                <img src={sig.signature} className="max-h-full max-w-full object-contain opacity-80" />
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setActiveSignatureEmployee(email)}
+                                                                className="w-full py-1.5 mt-1 text-xs font-bold text-white bg-[#0F4C75] hover:bg-[#0b3d61] rounded-lg transition-colors flex items-center justify-center gap-1"
+                                                            >
+                                                                <FilePlus size={12} /> Sign Now
+                                                            </button>
+                                                        )}
+                                                        {sig && (
+                                                             <div className="absolute top-2 right-2 text-green-500"><CheckCircle2 size={14} /></div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Daily Work Checkboxes */}
+                            <div>
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Daily Work</h4>
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {[
+                                        { key: 'operatingMiniEx', label: 'Operating Mini Ex' },
+                                        { key: 'operatingAVacuumTruck', label: 'Vacuum Truck' },
+                                        { key: 'excavatingTrenching', label: 'Excavating/Trenching' },
+                                        { key: 'acConcWork', label: 'AC/Concrete Work' },
+                                        { key: 'operatingBackhoe', label: 'Operating Backhoe' },
+                                        { key: 'workingInATrench', label: 'Working in Trench' },
+                                        { key: 'trafficControl', label: 'Traffic Control' },
+                                        { key: 'roadWork', label: 'Road Work' },
+                                        { key: 'operatingHdd', label: 'Operating HDD' },
+                                        { key: 'confinedSpace', label: 'Confined Space' },
+                                        { key: 'settingUgBoxes', label: 'Setting UG Boxes' },
+                                        { key: 'sidewalks', label: 'Sidewalks' },
+                                        { key: 'heatAwareness', label: 'Heat Awareness' },
+                                        { key: 'ladderWork', label: 'Ladder Work' },
+                                        { key: 'overheadLifting', label: 'Overhead Lifting' },
+                                        { key: 'materialHandling', label: 'Material Handling' },
+                                        { key: 'roadHazards', label: 'Road Hazards' },
+                                        { key: 'heavyLifting', label: 'Heavy Lifting' },
+                                        { key: 'highNoise', label: 'High Noise' },
+                                        { key: 'pinchPoints', label: 'Pinch Points' },
+                                        { key: 'sharpObjects', label: 'Sharp Objects' },
+                                        { key: 'trippingHazards', label: 'Tripping Hazards' },
+                                        { key: 'otherJobsiteHazards', label: 'Other Hazards' },
+                                    ].map((item) => (
+                                        <label key={item.key} className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-colors ${selectedJHA[item.key] ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 text-[#0F4C75] rounded focus:ring-[#0F4C75]"
+                                                checked={!!selectedJHA[item.key]}
+                                                onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
+                                            />
+                                            <span className={`text-xs font-bold ${selectedJHA[item.key] ? 'text-blue-900' : 'text-slate-600'}`}>{item.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            {/* Emergency Plan */}
+                             <div>
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Emergency Plan</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     {[
+                                        { key: 'stagingAreaDiscussed', label: 'Staging Area Discussed' },
+                                        { key: 'rescueProceduresDiscussed', label: 'Rescue Procedures Discussed' },
+                                        { key: 'evacuationRoutesDiscussed', label: 'Evacuation Routes Discussed' },
+                                        { key: 'emergencyContactNumberWillBe911', label: 'Emergency Contact is 911' },
+                                        { key: 'firstAidAndCPREquipmentOnsite', label: 'First Aid/CPR Onsite' },
+                                        { key: 'closestHospitalDiscussed', label: 'Closest Hospital Discussed' },
+                                     ].map((item) => (
+                                        <label key={item.key} className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-600"
+                                                checked={!!selectedJHA[item.key]}
+                                                onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
+                                            />
+                                            <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                                        </label>
+                                     ))}
+                                </div>
+                             </div>
+
+                             {/* Hospital Info */}
+                             <div className="bg-red-50 p-4 rounded-xl border border-red-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                 <div>
+                                     <label className="text-[10px] font-bold text-red-400 uppercase block mb-1">Nearest Hospital Name</label>
+                                     <input 
+                                        type="text"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-200"
+                                        value={selectedJHA.nameOfHospital || ''}
+                                        onChange={(e) => setSelectedJHA({...selectedJHA, nameOfHospital: e.target.value})}
+                                        placeholder="Enter Hospital Name"
+                                     />
+                                 </div>
+                                 <div>
+                                     <label className="text-[10px] font-bold text-red-400 uppercase block mb-1">Hospital Address</label>
+                                     <input 
+                                        type="text"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-200"
+                                        value={selectedJHA.addressOfHospital || ''}
+                                        onChange={(e) => setSelectedJHA({...selectedJHA, addressOfHospital: e.target.value})}
+                                        placeholder="Enter Hospital Address"
+                                     />
+                                 </div>
+                             </div>
+
+                             <div className="flex justify-end pt-4 border-t border-slate-100">
+                                <button
+                                    type="submit"
+                                    className="px-6 py-2 bg-[#0F4C75] hover:bg-[#0b3d61] text-white font-bold rounded-xl shadow-lg transition-all"
+                                >
+                                    Save Entire JHA
+                                </button>
+                             </div>
+                        </form>
+                    ) : (
+                    <div className="space-y-8">
+                        {/* Section 1: JHA Info */}
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                            <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-200 pb-2">JHA Info</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date).toLocaleDateString()}</p></div>
+                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.jhaTime}</p></div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
+                                    {(() => {
+                                        const creator = initialData.employees.find(e => e.value === selectedJHA.createdBy);
+                                        if (creator) {
+                                            return (
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                                                        {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-500">{creator.label?.[0]}</div>}
+                                                    </div>
+                                                    <p className="text-sm font-bold text-slate-700 truncate">{creator.label}</p>
+                                                </div>
+                                            );
+                                        }
+                                        return <p className="text-sm font-bold text-slate-700 truncate">{selectedJHA.createdBy}</p>;
+                                    })()}
+                                </div>
+                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">USA No.</p><p className="text-sm font-bold text-slate-700">{selectedJHA.usaNo || '-'}</p></div>
+                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Subcontractor USA</p><p className="text-sm font-bold text-slate-700">{selectedJHA.subcontractorUSANo || '-'}</p></div>
+                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Client Email</p><p className="text-sm font-bold text-slate-700">{selectedJHA.clientEmail || '-'}</p></div>
+                            </div>
+                        </div>
+
+                        {/* Section 2: Daily Work */}
+                        <div>
+                            <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Daily Work</h4>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                                {[
+                                    { label: 'Operating Mini Ex', val: selectedJHA.operatingMiniEx },
+                                    { label: 'Vacuum Truck', val: selectedJHA.operatingAVacuumTruck },
+                                    { label: 'Excavating/Trenching', val: selectedJHA.excavatingTrenching },
+                                    { label: 'AC/Concrete Work', val: selectedJHA.acConcWork },
+                                    { label: 'Operating Backhoe', val: selectedJHA.operatingBackhoe },
+                                    { label: 'Working in Trench', val: selectedJHA.workingInATrench },
+                                    { label: 'Traffic Control', val: selectedJHA.trafficControl },
+                                    { label: 'Road Work', val: selectedJHA.roadWork },
+                                    { label: 'Operating HDD', val: selectedJHA.operatingHdd },
+                                    { label: 'Confined Space', val: selectedJHA.confinedSpace },
+                                    { label: 'Setting UG Boxes', val: selectedJHA.settingUgBoxes },
+                                    { label: 'Other Daily Work', val: selectedJHA.otherDailyWork, comment: selectedJHA.commentsOtherDailyWork },
+                                ].map((item, i) => (
+                                    <div key={i} className={`p-3 rounded-lg border flex flex-col gap-2 ${item.val ? 'bg-blue-50 border-blue-100' : 'bg-white border-slate-100 opacity-60'}`}>
+                                        <div className="flex items-center gap-2">
+                                            {item.val ? <CheckCircle2 size={16} className="text-blue-600 shrink-0" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0" />}
+                                            <span className={`text-xs font-bold ${item.val ? 'text-blue-900' : 'text-slate-500'}`}>{item.label}</span>
+                                        </div>
+                                        {item.val && item.comment && (
+                                            <p className="text-[10px] italic text-slate-600 bg-white/50 p-1.5 rounded ml-6 border border-blue-100/50">{item.comment}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Section 3: Jobsite Hazards */}
+                        <div>
+                            <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Jobsite Hazards</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                                {[
+                                    { label: 'Sidewalks', val: selectedJHA.sidewalks, c: selectedJHA.commentsOnSidewalks },
+                                    { label: 'Heat Awareness', val: selectedJHA.heatAwareness, c: selectedJHA.commentsOnHeatAwareness },
+                                    { label: 'Ladder Work', val: selectedJHA.ladderWork, c: selectedJHA.commentsOnLadderWork },
+                                    { label: 'Overhead Lifting', val: selectedJHA.overheadLifting, c: selectedJHA.commentsOnOverheadLifting },
+                                    { label: 'Material Handling', val: selectedJHA.materialHandling, c: selectedJHA.commentsOnMaterialHandling },
+                                    { label: 'Road Hazards', val: selectedJHA.roadHazards, c: selectedJHA.commentsOnRoadHazards },
+                                    { label: 'Heavy Lifting', val: selectedJHA.heavyLifting, c: selectedJHA.commentsOnHeavyLifting },
+                                    { label: 'High Noise', val: selectedJHA.highNoise, c: selectedJHA.commentsOnHighNoise },
+                                    { label: 'Pinch Points', val: selectedJHA.pinchPoints, c: selectedJHA.commentsOnPinchPoints },
+                                    { label: 'Sharp Objects', val: selectedJHA.sharpObjects, c: selectedJHA.commentsOnSharpObjects },
+                                    { label: 'Tripping Hazards', val: selectedJHA.trippingHazards, c: selectedJHA.commentsOnTrippingHazards },
+                                    { label: 'Other Hazards', val: selectedJHA.otherJobsiteHazards, c: selectedJHA.commentsOnOther },
+                                ].map((item, i) => (
+                                    <div key={i} className="group">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <div className="flex items-center gap-2">
+                                                {item.val ? <AlertCircle size={14} className="text-orange-500" /> : <div className="w-3.5 h-3.5 rounded-full border border-slate-300" />}
+                                                <span className={`text-xs font-bold ${item.val ? 'text-slate-800' : 'text-slate-400'}`}>{item.label}</span>
+                                            </div>
+                                            <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.val ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                {item.val ? 'YES' : 'NO'}
+                                            </span>
+                                        </div>
+                                        {item.c && (
+                                            <div className="pl-6 text-[11px] text-slate-600 bg-orange-50/50 p-2 rounded border border-orange-100/50 mt-1">
+                                                <span className="font-semibold text-orange-800/70">Note:</span> {item.c}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {selectedJHA.anySpecificNotes && (
+                                <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-100">
+                                    <p className="text-xs font-bold text-yellow-800 mb-1">Specific Notes:</p>
+                                    <p className="text-xs text-yellow-900/80">{selectedJHA.anySpecificNotes}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            {/* Section 4: Emergency Action Plan */}
+                            <div>
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Emergency Action Plan</h4>
+                                <div className="space-y-3">
+                                    {[
+                                        { label: 'Staging Area Discussed', val: selectedJHA.stagingAreaDiscussed },
+                                        { label: 'Rescue Procedures Discussed', val: selectedJHA.rescueProceduresDiscussed },
+                                        { label: 'Evacuation Routes Discussed', val: selectedJHA.evacuationRoutesDiscussed },
+                                        { label: 'Emergency Contact is 911', val: selectedJHA.emergencyContactNumberWillBe911 },
+                                        { label: 'First Aid & CPR Equipment Onsite', val: selectedJHA.firstAidAndCPREquipmentOnsite },
+                                        { label: 'Closest Hospital Discussed', val: selectedJHA.closestHospitalDiscussed },
+                                    ].map((item, i) => (
+                                        <div key={i} className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                                            <span className="text-xs font-medium text-slate-700">{item.label}</span>
+                                            {item.val ? 
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
+                                                    <CheckCircle2 size={10} /> DONE
+                                                </div> 
+                                                : 
+                                                <div className="flex items-center gap-1.5 text-[10px] font-bold bg-slate-100 text-slate-400 px-2 py-1 rounded-full">
+                                                    PENDING
+                                                </div>
+                                            }
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Section 5: Hospital */}
+                            <div>
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Hospital Information</h4>
+                                <div className="bg-red-50 p-5 rounded-xl border border-red-100">
+                                    <div className="flex items-start gap-4">
+                                        <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-500 shrink-0">
+                                            <Plus size={20} strokeWidth={3} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-1">Nearest Hospital</p>
+                                            <p className="text-base font-black text-red-900 mb-1">{selectedJHA.nameOfHospital || 'Not Specified'}</p>
+                                            <p className="text-sm text-red-800/80 leading-relaxed">{selectedJHA.addressOfHospital || 'No address provided'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 6: Signatures */}
+                        <div>
+                            <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Employee Signatures</h4>
+                            {selectedJHA.signatures && selectedJHA.signatures.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                    {selectedJHA.signatures.map((sig: any, index: number) => {
+                                        const emp = initialData.employees.find(e => e.value === sig.employee);
+                                        return (
+                                            <div key={index} className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col items-center gap-1.5 hover:shadow-md transition-all">
+                                                <div className="w-full h-24 bg-slate-50 rounded border border-slate-100 flex items-center justify-center overflow-hidden relative">
+                                                    {sig.signature ? (
+                                                        <img src={sig.signature} alt="Signature" className="max-w-full max-h-full object-contain" />
+                                                    ) : (
+                                                        <span className="text-xs text-slate-400 italic">No Image</span>
+                                                    )}
+                                                </div>
+                                                
+                                                <div className="flex items-center gap-2 mt-1">
+                                                     <div className="w-5 h-5 rounded-full bg-slate-200 border border-white shadow-sm flex items-center justify-center overflow-hidden shrink-0">
+                                                        {emp?.image ? (
+                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <span className="text-[9px] font-bold text-slate-500">{emp?.label?.[0] || 'U'}</span>
+                                                        )}
+                                                     </div>
+                                                     <p className="text-xs font-bold text-slate-700 truncate max-w-[140px]" title={emp?.label || sig.employee}>
+                                                        {emp?.label || sig.employee}
+                                                     </p>
+                                                </div>
+
+                                                <p className="text-[10px] text-slate-400 font-medium">
+                                                    {new Date(sig.createdAt || Date.now()).toLocaleString('en-US', { 
+                                                        year: 'numeric', 
+                                                        month: 'numeric', 
+                                                        day: 'numeric', 
+                                                        hour: 'numeric', 
+                                                        minute: 'numeric', 
+                                                        hour12: true 
+                                                    })}
+                                                </p>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                    <p className="text-sm text-slate-400 italic">No signatures recorded.</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    )
+                ) : (
+                    <EmptyState title="No Data" message="Unable to load JHA details." />
+                )}
+            </Modal>
+        </div>
     );
 }

@@ -603,6 +603,14 @@ export default function EstimateViewPage() {
                         value: c._id || c.recordId
                     })).sort((a: any, b: any) => a.label.localeCompare(b.label));
                     setClientOptions(clients);
+
+                    // If we have a customerId but no customerName in formData, try to resolve it now
+                    if (formData?.customerId && !formData.customerName) {
+                        const client = clients.find((c: any) => c.value === formData.customerId);
+                        if (client) {
+                            setFormData(prev => prev ? { ...prev, customerName: client.label } : null);
+                        }
+                    }
                 }
 
 
@@ -702,6 +710,16 @@ export default function EstimateViewPage() {
 
         syncClientOptions();
     }, [formData?.customerId]);
+
+    // Resolve Customer Name if missing
+    useEffect(() => {
+        if (formData?.customerId && !formData.customerName && clientOptions.length > 0) {
+            const client = clientOptions.find(c => c.value === formData.customerId);
+            if (client) {
+                setFormData(prev => prev ? { ...prev, customerName: client.label } : null);
+            }
+        }
+    }, [formData?.customerId, formData?.customerName, clientOptions]);
 
 
 

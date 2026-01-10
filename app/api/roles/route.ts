@@ -279,26 +279,28 @@ export async function DELETE(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'Role not found' }, { status: 404 });
         }
 
-        if (role.isSystem) {
-            return NextResponse.json({ success: false, error: 'Cannot delete system roles' }, { status: 400 });
+        if (role.name === 'Super Admin') {
+            return NextResponse.json({ success: false, error: 'Cannot delete Super Admin role' }, { status: 400 });
         }
 
         // Check if any employees have this role
         const employeeCount = await Employee.countDocuments({ appRole: role.name });
         if (employeeCount > 0) {
+            console.log(`DELETE /api/roles - Blocked: ${employeeCount} employees assigned to ${role.name}`);
             return NextResponse.json({ 
                 success: false, 
                 error: `Cannot delete role. ${employeeCount} employee(s) are assigned to this role.` 
             }, { status: 400 });
         }
 
-        await Role.deleteOne({ _id: id });
+        console.log(`DELETE /api/roles - Deleting role: ${role.name} (${role._id})`);
+        await Role.deleteOne({ _id: role._id });
 
         // Audit log
         await PermissionAuditLog.create({
             action: 'delete',
             targetType: 'role',
-            targetId: id,
+            targetId: String(role._id),
             targetName: role.name,
             changes: { deleted: { from: role.toObject(), to: null } },
             performedBy: user.userId,

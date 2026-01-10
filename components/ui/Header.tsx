@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 
 interface SubItem {
@@ -26,7 +26,6 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Clients', href: '/clients', icon: <Users className="w-5 h-5" />, description: 'Manage client relationships and data', colorClass: 'text-cyan-500' },
             { label: 'Employees', href: '/employees', icon: <Briefcase className="w-5 h-5" />, description: 'Manage company employees', colorClass: 'text-green-500' },
-            { label: 'Roles & Permissions', href: '/roles', icon: <Settings className="w-5 h-5" />, description: 'Manage access control and permissions', colorClass: 'text-red-500' },
             { label: 'Leads', href: '/leads', icon: <Briefcase className="w-5 h-5" />, description: 'Track potential sales opportunities', colorClass: 'text-pink-500' },
         ]
     },
@@ -57,12 +56,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Scope Change', href: '/docs/scope-change', icon: <FileText className="w-5 h-5" />, description: 'Document change orders', colorClass: 'text-indigo-600' },
         ]
     },
-    {
-        label: 'MISC',
-        items: [
-            { label: 'Constants', href: '/constants', icon: <Sliders className="w-5 h-5" />, description: 'System-wide configuration settings', colorClass: 'text-fuchsia-500' },
-        ]
-    },
+    
     {
         label: 'CHAT',
         href: '/chat'
@@ -75,7 +69,14 @@ const menuStructure: MenuItem[] = [
             { label: 'Fringe Benefits', href: '/reports/fringe', icon: <Settings className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },
             { label: 'Sales Performance', href: '/reports/sales', icon: <BarChart className="w-5 h-5" />, description: 'Revenue and sales metrics', colorClass: 'text-rose-600' },
         ]
-    }
+    },
+    {
+        label: 'SETTINGS',
+        items: [
+            { label: 'Constants', href: '/constants', icon: <Sliders className="w-5 h-5" />, description: 'System-wide configuration settings', colorClass: 'text-fuchsia-500' },
+            { label: 'Roles & Permissions', href: '/roles', icon: <Settings className="w-5 h-5" />, description: 'Manage access control and permissions', colorClass: 'text-red-500' },
+        ]
+    },
 ];
 
 const CURRENT_VERSION = 'V.0.62';
@@ -208,7 +209,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             <Link
                                                 key={group.label}
                                                 href={group.href}
-                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${isLinkActive ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'}`}
+                                                className={`px-3 py-3 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${isLinkActive ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'}`}
                                             >
                                                 {group.label}
                                             </Link>
@@ -223,7 +224,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             onMouseLeave={() => setOpenMenu(null)}
                                         >
                                             <button
-                                                className={`px-3 py-1.5 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
+                                                className={`px-3 py-3 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                                                     }`}
                                             >
                                                 {group.label}
@@ -279,7 +280,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Search Button with Shortcut */}
                                     <button
                                         onClick={() => setSearchOpen(true)}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
+                                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-full text-xs text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
                                         style={{ border: searchOpen ? '1px solid #0F4C75' : '' }}
                                     >
                                         <Search size={18} className="shrink-0 group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
@@ -292,7 +293,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Version Badge - Links to Knowledgebase */}
                                     <Link
                                         href="/knowledgebase"
-                                        className="flex items-center gap-2 px-3 py-1.5 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
+                                        className="flex items-center gap-2 px-3 py-2 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
                                         style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
                                     >
                                         <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />

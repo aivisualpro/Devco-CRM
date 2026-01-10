@@ -19,3 +19,6 @@ export { default as Message } from './Communication';
 export { default as Channel } from './Channel';
 export { default as Schedule } from './Schedule';
 export { default as Role, UserPermissionOverride, PermissionAuditLog, Department } from './Role';
+export { default as JHA } from './JHA';
+export { default as JHASignature } from './JHASignature';
+export { default as Activity } from './Activity';

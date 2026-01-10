@@ -493,7 +493,7 @@ export async function POST(request: NextRequest) {
                 // Get current year (last 2 digits)
                 const currentYear = new Date().getFullYear();
                 const yearSuffix = currentYear.toString().slice(-2);
-                const startSeq = 633;
+                const startSeq = 1;
 
                 // GAP FILLING LOGIC:
                 // Find already used sequences for this year to fill any gaps (e.g., if 634 is deleted, reuse it)
@@ -606,7 +606,7 @@ export async function POST(request: NextRequest) {
                 // 2. Generate New Estimate Number (Same logic as createEstimate)
                 const currentYear = new Date().getFullYear();
                 const yearSuffix = currentYear.toString().slice(-2);
-                const startSeq = 633;
+                const startSeq = 1;
 
                 const regex = new RegExp(`^${yearSuffix}-`);
                 const existingEstimates = await Estimate.find({ estimate: { $regex: regex } })

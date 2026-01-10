@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, Client, Employee, Constant, Estimate } from '@/lib/models';
+import { Schedule, Client, Employee, Constant, Estimate, JHA } from '@/lib/models';
 
 export async function POST(request: NextRequest) {
     try {
@@ -114,8 +114,14 @@ export async function POST(request: NextRequest) {
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName').lean()
-                ]);
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress').lean()
+                    ]);
+
+                // Determine hasJHA check based on embedded object
+                const schedulesWithJHA = schedules.map((s: any) => ({
+                    ...s,
+                    hasJHA: !!s.jha && Object.keys(s.jha).length > 0
+                }));
 
                 // Process estimates to keep unique estimate numbers
                 const uniqueEstimates = new Map();
@@ -128,7 +134,8 @@ export async function POST(request: NextRequest) {
                                 value: e.estimate, 
                                 label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                 customerId: e.customerId,
-                                projectTitle: pName
+                                projectTitle: pName,
+                                jobAddress: e.jobAddress
                             });
                         }
                     });
@@ -136,7 +143,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: true,
                     result: {
-                        schedules,
+                        schedules: schedulesWithJHA,
                         initialData: {
                             clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
                             employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { 

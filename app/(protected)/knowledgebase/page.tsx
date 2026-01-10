@@ -13,6 +13,54 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.61',
+        date: 'January 11, 2026',
+        time: '02:00 PKT',
+        type: 'Safety & UI Polish',
+        color: 'from-emerald-600 to-teal-700',
+        highlights: [
+            'Interactive JHA Module',
+            'Digital Signatures',
+            'Dashboard Streamlining',
+            'Role-Based Access Fixes'
+        ],
+        changes: [
+            {
+                category: 'Safety & Compliance (Jan 11)',
+                items: [
+                    "Interactive JHA: Create/Edit Job Hazard Analysis directly from Dashboard",
+                    "Digital Signatures: Integrated signature pad with geolocation capture",
+                    "Smart Schedule Cards: 'Add JHA' workflow integrated into schedule items"
+                ]
+            },
+            {
+                category: 'Dashboard & Layout (Jan 9-10)',
+                items: [
+                    "Streamlined UI: Focused dashboard on Schedules and Weekly Activity",
+                    "Visual Polish: Refined Header, Brands section, and Global Font update (Audiowide/Inter)",
+                    "Performance: Optimized layout rendering and removed unused widgets"
+                ]
+            },
+            {
+                category: 'Core Systems (Jan 8-10)',
+                items: [
+                    "Roles & Permissions: Fixed CRUD operations and access control for User Roles",
+                    "Employee Management: Enhanced edit forms with custom dropdown components",
+                    "Stability: Resolved TypeScript build errors and 'Module not found' issues",
+                    "Fringe Benefits: Refined selection logic in Estimate creation"
+                ]
+            },
+            {
+                category: 'System Maintenance (Dec 26 - Jan 7)',
+                items: [
+                    "Holiday Stability: Routine maintenance and performance optimization",
+                    "Codebase Refactoring: Type safety improvements across Cart and Product modules",
+                    "Dependency Updates: Next.js and React compatibility checks"
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.60',
         date: 'December 25, 2025',
         time: '10:00 PKT',

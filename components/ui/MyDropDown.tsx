@@ -165,10 +165,10 @@ export function MyDropDown({
                 minWidth: 'max-content'
             }}
         >
-            <div className="p-4 rounded-2xl bg-[#eef2f6] shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] border border-white/40">
+            <div className="p-4 rounded-2xl bg-white shadow-2xl border border-slate-200">
                 {/* Search Input */}
                 <div className="mb-3">
-                    <div className="relative shadow-[inset_2px_2px_4px_#d1d9e6,inset_-2px_-2px_4px_#ffffff] rounded-xl p-1 bg-[#eef2f6]">
+                    <div className="relative border border-slate-200 rounded-xl p-1 bg-slate-50">
                         <input
                             type="text"
                             autoFocus
@@ -212,8 +212,8 @@ export function MyDropDown({
                                 className={`
                                     group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
                                     ${active
-                                        ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
-                                        : 'hover:bg-white/50'
+                                        ? 'bg-slate-100'
+                                        : 'hover:bg-slate-50'
                                     }
                                 `}
                             >

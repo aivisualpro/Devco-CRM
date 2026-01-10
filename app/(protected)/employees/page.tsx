@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { Upload, Pencil, Trash2, Plus, Phone, Mail, ChevronDown } from 'lucide-react';
+import { Upload, Pencil, Trash2, Plus, Phone, Mail, ChevronDown, Shield, UserCog, Users, User, Eye, Lock, Settings } from 'lucide-react';
 import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SaveButton, CancelButton, MyDropDown } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -53,6 +53,18 @@ interface Employee {
     profilePicture?: string;
 }
 
+
+
+// Icon mapping for roles
+const ROLE_ICONS: Record<string, React.ReactNode> = {
+    Shield: <Shield className="w-3.5 h-3.5" />,
+    UserCog: <UserCog className="w-3.5 h-3.5" />,
+    Users: <Users className="w-3.5 h-3.5" />,
+    User: <User className="w-3.5 h-3.5" />,
+    Eye: <Eye className="w-3.5 h-3.5" />,
+    Lock: <Lock className="w-3.5 h-3.5" />,
+    Settings: <Settings className="w-3.5 h-3.5" />,
+};
 
 const defaultEmployee: Partial<Employee> = {
     firstName: '',
@@ -185,6 +197,7 @@ export default function EmployeesPage() {
     const router = useRouter();
     const { success, error } = useToast();
     const [employees, setEmployees] = useState<Employee[]>([]);
+    const [roles, setRoles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [search, setSearch] = useState('');
@@ -228,8 +241,21 @@ export default function EmployeesPage() {
         setLoading(false);
     }
 
+    async function fetchRoles() {
+        try {
+            const res = await fetch('/api/roles');
+            const data = await res.json();
+            if (data.success) {
+                setRoles(data.roles);
+            }
+        } catch (err) {
+            console.error('Error fetching roles:', err);
+        }
+    }
+
     useEffect(() => {
         fetchEmployees();
+        fetchRoles();
     }, []);
 
 
@@ -726,7 +752,25 @@ export default function EmployeesPage() {
                                                     <RoleBadge value={emp.designation || ''} color="bg-emerald-600" />
                                                 </TableCell>
                                                 <TableCell>
-                                                    <RoleBadge value={emp.appRole || ''} />
+                                                    {(() => {
+                                                        const role = roles.find(r => r.name === emp.appRole);
+                                                        if (role) {
+                                                            return (
+                                                                <div 
+                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border"
+                                                                    style={{ 
+                                                                        backgroundColor: `${role.color}15`, // 15 = roughly 8% opacity
+                                                                        color: role.color,
+                                                                        borderColor: `${role.color}30` // 30 = roughly 20% opacity
+                                                                    }}
+                                                                >
+                                                                    {ROLE_ICONS[role.icon || 'User'] || <User className="w-3.5 h-3.5" />}
+                                                                    {role.name}
+                                                                </div>
+                                                            );
+                                                        }
+                                                        return <RoleBadge value={emp.appRole || ''} />;
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell>
                                                     <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>

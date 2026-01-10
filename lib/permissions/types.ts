@@ -284,7 +284,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
 export const PERMISSION_GROUPS = {
     CRM: {
         label: 'CRM & People',
-        modules: [MODULES.DASHBOARD, MODULES.CLIENTS, MODULES.EMPLOYEES, MODULES.LEADS, MODULES.ROLES],
+        modules: [MODULES.DASHBOARD, MODULES.CLIENTS, MODULES.EMPLOYEES, MODULES.LEADS],
         color: '#0F4C75',
     },
     JOBS: {
@@ -301,9 +301,9 @@ export const PERMISSION_GROUPS = {
         ],
         color: '#7c3aed',
     },
-    MISC: {
-        label: 'Settings & Tools',
-        modules: [MODULES.CONSTANTS, MODULES.CHAT],
+    SETTINGS: {
+        label: 'Settings',
+        modules: [MODULES.CONSTANTS, MODULES.ROLES],
         color: '#64748b',
     },
     REPORTS: {

@@ -93,7 +93,9 @@ const ScheduleSchema = new Schema({
     certifiedPayroll: { type: String },
     notifyAssignees: { type: String, default: 'No' },
     perDiem: { type: String, default: 'No' },
-    timesheet: { type: [TimesheetSchema], default: [] }
+    timesheet: { type: [TimesheetSchema], default: [] },
+    jha: { type: Object, default: null },
+    JHASignatures: { type: [], default: [] }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

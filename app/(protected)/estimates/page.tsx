@@ -45,6 +45,7 @@ export default function EstimatesPage() {
     const [isImporting, setIsImporting] = useState(false);
     const [constants, setConstants] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
+    const [clients, setClients] = useState<any[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -103,7 +104,7 @@ export default function EstimatesPage() {
         // Fetch supporting data
         const fetchSupportingData = async () => {
             try {
-                const [constRes, empRes] = await Promise.all([
+                const [constRes, empRes, clientRes] = await Promise.all([
                     fetch('/api/webhook/devcoBackend', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -113,12 +114,19 @@ export default function EstimatesPage() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ action: 'getEmployees' })
+                    }),
+                    fetch('/api/webhook/devcoBackend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'getClients' })
                     })
                 ]);
                 const constData = await constRes.json();
                 const empData = await empRes.json();
+                const clientData = await clientRes.json();
                 if (constData.success) setConstants(constData.result);
                 if (empData.success) setEmployees(empData.result);
+                if (clientData.success) setClients(clientData.result);
             } catch (err) {
                 console.error('Failed to fetch supporting data', err);
             }
@@ -166,6 +174,15 @@ export default function EstimatesPage() {
 
     const getEmployee = (email: string) => {
         return employees.find(e => e.email === email);
+    };
+
+    const getCustomerName = (est: Estimate) => {
+        if (est.customerName) return est.customerName;
+        if (est.customerId) {
+            const client = clients.find(c => c._id === est.customerId);
+            return client ? client.name : '-';
+        }
+        return '-';
     };
 
 
@@ -629,7 +646,7 @@ export default function EstimatesPage() {
                                                         {est.date || '-'}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-xs">{est.customerName || '-'}</TableCell>
+                                                <TableCell className="text-xs">{getCustomerName(est)}</TableCell>
                                                 <TableCell>
                                                     <div className="flex">
                                                         {est.proposalWriter ? (

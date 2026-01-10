@@ -412,7 +412,7 @@ export default function RolesPage() {
                 }
             />
 
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 overflow-auto p-4">
                 {loading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {[1, 2, 3, 4].map(i => (
@@ -448,7 +448,7 @@ export default function RolesPage() {
                                     style={{ background: `linear-gradient(90deg, ${role.color}, ${role.color}88)` }}
                                 />
 
-                                <div className="p-5">
+                                <div className="p-4">
                                     {/* Header */}
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-center gap-3">
@@ -515,8 +515,8 @@ export default function RolesPage() {
                                     </div>
                                 </div>
 
-                                {/* Hover actions */}
-                                <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {/* Actions */}
+                                <div className="absolute top-4 right-4 flex gap-1">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -526,7 +526,7 @@ export default function RolesPage() {
                                     >
                                         <Pencil className="w-4 h-4" />
                                     </button>
-                                    {!role.isSystem && (
+                                    {role.name !== 'Super Admin' && (
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
@@ -571,7 +571,7 @@ export default function RolesPage() {
                             Cancel
                         </button>
                         <div className="flex items-center gap-2">
-                            {selectedRole && !selectedRole.isSystem && (
+                            {selectedRole && selectedRole.name !== 'Super Admin' && (
                                 <button
                                     onClick={() => {
                                         setIsModalOpen(false);
@@ -599,9 +599,9 @@ export default function RolesPage() {
                     </div>
                 }
             >
-                <div className="space-y-6">
+                <div className="flex flex-col">
                     {/* Tabs */}
-                    <div className="flex gap-6 border-b border-slate-200">
+                    <div className="flex gap-6 border-b border-slate-200 p-4">
                         {[
                             { id: 'general', label: 'General Info', icon: Settings },
                             { id: 'permissions', label: 'Permissions', icon: Shield },
@@ -717,7 +717,7 @@ export default function RolesPage() {
                                 {/* Filter Bar */}
                                 <div className="flex items-center gap-4 mb-4">
                                     <div className="flex gap-2">
-                                        {['all', 'CRM', 'JOBS', 'DOCS'].map(filter => (
+                                        {['all', 'CRM', 'JOBS', 'DOCS', 'SETTINGS'].map(filter => (
                                             <button
                                                 key={filter}
                                                 onClick={() => setModuleFilter(filter)}
