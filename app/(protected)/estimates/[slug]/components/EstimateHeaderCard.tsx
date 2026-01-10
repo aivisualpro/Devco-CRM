@@ -782,8 +782,7 @@ export function EstimateHeaderCard({
                                     Status
                                 </label>
                                 {(() => {
-                                    const selectedStatus = statusOptions.find(s => s.value === formData.status) ||
-                                        [{ id: 'draft', label: 'Draft', value: 'draft', color: '#94a3b8' }, { id: 'confirmed', label: 'Confirmed', value: 'confirmed', color: '#10b981' }].find(s => s.value === formData.status);
+                                    const selectedStatus = statusOptions.find(s => s.value === formData.status);
                                     const isDropdownOpen = activeDropdown === 'status';
                                     const hasValue = !!formData.status;
                                     const activeColor = selectedStatus?.color || '#3b82f6';
@@ -812,11 +811,7 @@ export function EstimateHeaderCard({
                                 <MyDropDown
                                     isOpen={activeDropdown === 'status'}
                                     onClose={() => setActiveDropdown(null)}
-                                    options={[
-                                        { id: 'draft', label: 'Draft', value: 'draft', color: '#94a3b8' },
-                                        { id: 'confirmed', label: 'Confirmed', value: 'confirmed', color: '#10b981' },
-                                        ...statusOptions
-                                    ]}
+                                    options={statusOptions}
                                     selectedValues={formData.status ? [formData.status] : []}
                                     onSelect={(val) => {
                                         onStatusChange(val);

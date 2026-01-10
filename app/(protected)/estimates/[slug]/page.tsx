@@ -527,7 +527,7 @@ export default function EstimateViewPage() {
                 const statuses = (constant || [])
                     .filter((c: any) => {
                         const type = (c.type || c.category || '').toLowerCase();
-                        return type === 'estimate status' || type === 'status';
+                        return type === 'estimate status';
                     })
                     .map((c: any) => ({
                         id: c._id,
