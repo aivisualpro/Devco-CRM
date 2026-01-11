@@ -430,7 +430,7 @@ export function EstimateHeaderCard({
                             {isEditingProjectName ? (
                                 <textarea
                                     autoFocus
-                                    rows={2}
+                                    rows={1}
                                     className="w-full bg-transparent outline-none text-xs font-bold text-[#0F4C75] resize-none"
                                     value={formData.projectName || ''}
                                     onChange={e => onHeaderUpdate('projectName', e.target.value)}
@@ -442,6 +442,22 @@ export function EstimateHeaderCard({
                                     {formData.projectName || 'Project Title...'}
                                 </span>
                             )}
+                        </div>
+                    </div>
+
+                    {/* USA Number */}
+                    <div className="relative group">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block px-1">
+                            USA Number
+                        </label>
+                        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/50 hover:bg-white shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] border border-white transition-all duration-300 h-10">
+                            <input
+                                type="text"
+                                className="w-full bg-transparent outline-none text-xs font-bold text-[#0F4C75]"
+                                value={(formData.usaNumber as string) || ''}
+                                onChange={e => onHeaderUpdate('usaNumber', e.target.value)}
+                                placeholder="Enter USA Number"
+                            />
                         </div>
                     </div>
                 </div>

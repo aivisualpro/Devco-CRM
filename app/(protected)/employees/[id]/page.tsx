@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil } from 'lucide-react';
 import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton } from '@/components/ui';
+import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
 
@@ -50,6 +51,7 @@ interface Employee {
     veriforce?: string;
     unionPaperwork1184?: string;
     profilePicture?: string;
+    signature?: string;
 
     [key: string]: any;
 }
@@ -351,42 +353,52 @@ export default function EmployeeViewPage() {
                 <div className="pb-2 md:pb-4">
                     {modalTab === 'personal' && (
                         <div className="grid grid-cols-12 gap-3 md:gap-4">
-                            {/* Profile Picture Upload */}
-                            <div className="col-span-12 flex flex-col items-center justify-center mb-3 md:mb-4">
-                                <div className="relative group cursor-pointer">
-                                    <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shadow-lg border-2 border-white">
-                                        {currentEmployee.profilePicture ? (
-                                            <img
-                                                src={currentEmployee.profilePicture}
-                                                alt="Profile"
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="text-2xl font-bold text-gray-400">
-                                                {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
+                            {/* Profile Picture and Signature Row */}
+                            <div className="col-span-12 flex flex-wrap items-start justify-center gap-8 mb-3 md:mb-4">
+                                {/* Profile Picture Upload */}
+                                <div className="flex flex-col items-center">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
+                                    <div className="relative group cursor-pointer">
+                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shadow-lg border-2 border-white">
+                                            {currentEmployee.profilePicture ? (
+                                                <img
+                                                    src={currentEmployee.profilePicture}
+                                                    alt="Profile"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            ) : (
+                                                <div className="text-2xl font-bold text-gray-400">
+                                                    {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
+                                                </div>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <Pencil className="w-6 h-6 text-white" />
                                             </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Pencil className="w-6 h-6 text-white" />
                                         </div>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    const reader = new FileReader();
+                                                    reader.onloadend = () => {
+                                                        setCurrentEmployee({ ...currentEmployee, profilePicture: reader.result as string });
+                                                    };
+                                                    reader.readAsDataURL(file);
+                                                }
+                                            }}
+                                        />
                                     </div>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                const reader = new FileReader();
-                                                reader.onloadend = () => {
-                                                    setCurrentEmployee({ ...currentEmployee, profilePicture: reader.result as string });
-                                                };
-                                                reader.readAsDataURL(file);
-                                            }
-                                        }}
-                                    />
+                                    <span className="text-xs text-gray-500 mt-2">Click to upload</span>
                                 </div>
-                                <span className="text-xs text-gray-500 mt-2">Click to upload photo</span>
+
+                                {/* Signature Pad */}
+                                <SignaturePad
+                                    value={currentEmployee.signature}
+                                    onChange={(sig) => setCurrentEmployee({ ...currentEmployee, signature: sig })}
+                                />
                             </div>
 
 

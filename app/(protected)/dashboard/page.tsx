@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
     Package, FileText, Calculator, TrendingUp, Activity,
     CheckCircle, Users, Layers, Zap, ArrowRight, ArrowUpRight,
@@ -26,6 +27,7 @@ interface Stats {
 }
 
 export default function DashboardPage() {
+    const router = useRouter();
     const { success, error: toastError } = useToast();
     const [stats, setStats] = useState<Stats>({
         catalogueItems: 0,
@@ -40,6 +42,7 @@ export default function DashboardPage() {
     const [loading, setLoading] = useState(true);
     const [mounted, setMounted] = useState(false);
     const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'reports'>('overview');
+    const [dashboardTab, setDashboardTab] = useState<'activity' | 'schedule'>('activity');
     
     // JHA State
     const [jhaModalOpen, setJhaModalOpen] = useState(false);
@@ -69,7 +72,16 @@ export default function DashboardPage() {
     const handleSaveJHAForm = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const payload = { ...selectedJHA, schedule_id: selectedJHA.schedule_id || selectedJHA._id };
+            // Improve createdBy handling: default to current user if missing
+            const currentUser = typeof window !== 'undefined' 
+                ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email
+                : null;
+            
+            const payload = { 
+                ...selectedJHA, 
+                createdBy: selectedJHA.createdBy || currentUser, 
+                schedule_id: selectedJHA.schedule_id || selectedJHA._id 
+            };
             const res = await fetch('/api/jha', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -107,7 +119,7 @@ export default function DashboardPage() {
                 schedule_id: selectedJHA.schedule_id,
                 employee: activeSignatureEmployee,
                 signature: dataUrl,
-                createdBy: 'dashboard_user', // TODO: real user
+                createdBy: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null,
                 location
             };
             const res = await fetch('/api/jha', {
@@ -127,6 +139,29 @@ export default function DashboardPage() {
         } catch (error) {
             console.error(error);
             toastError('Error saving signature');
+        }
+    };
+
+    const handleActivityClick = async (activity: any) => {
+        if (activity.type === 'estimate') {
+            router.push(`/estimates/${activity.entityId}`); // Assumes entityId is estimate ID (slug) or number? Previous logic used entityId.
+        } else if (activity.type === 'jha' || activity.type === 'jha_signature') {
+             try {
+                 const res = await fetch('/api/jha', {
+                     method: 'POST',
+                     headers: {'Content-Type': 'application/json'},
+                     body: JSON.stringify({ action: 'getJHA', payload: { id: activity.entityId } })
+                 });
+                 const data = await res.json();
+                 if (data.success && data.jha) {
+                     setSelectedJHA(data.jha);
+                     setJhaModalOpen(true);
+                 } else {
+                     router.push('/jobs/schedules');
+                 }
+             } catch(e) { console.error(e); }
+        } else {
+             router.push('/jobs/schedules');
         }
     };
 
@@ -294,421 +329,369 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 overflow-y-auto bg-[#f8fafc] overflow-x-hidden">
                 <div className="max-w-[1600px] mx-auto p-4">
+                    <div className="flex items-center gap-2 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
+                        <button 
+                            onClick={() => setDashboardTab('activity')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${dashboardTab === 'activity' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Daily Activity
+                        </button>
+                        <button 
+                            onClick={() => setDashboardTab('schedule')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${dashboardTab === 'schedule' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            Job Schedule
+                        </button>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        
-                        {/* Schedule Card */}
-                        <div className={`bg-white rounded-3xl p-4 border border-slate-100 shadow-sm ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '300ms' }}>
-                            <div className="flex items-center justify-between mb-5">
-                                <button 
-                                    onClick={() => {
-                                        const d = new Date(scheduleDate);
-                                        d.setDate(d.getDate() - 1);
-                                        setScheduleDate(d);
-                                    }}
-                                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
-                                >
-                                    <ChevronLeft size={18} />
-                                </button>
+                    <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+                        {dashboardTab === 'activity' ? (
+                            <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm min-h-[500px]">
+                                <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                    <Activity className="text-violet-500" />
+                                    Recent Activity
+                                </h3>
                                 
-                                <div className="text-center cursor-pointer relative group" onClick={() => dateInputRef.current?.showPicker()}>
-                                    <h3 className="text-lg font-bold text-slate-900 group-hover:text-[#0066FF] transition-colors">
-                                        {scheduleDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} Schedule
-                                    </h3>
-                                    <input 
-                                        type="date"
-                                        ref={dateInputRef}
-                                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                const [y, m, d] = e.target.value.split('-').map(Number);
-                                                setScheduleDate(new Date(y, m - 1, d));
-                                            }
-                                        }}
-                                    />
-                                    <p className="text-[10px] text-slate-400 font-medium">Tap to change date</p>
-                                </div>
-
-                                <button 
-                                    onClick={() => {
-                                        const d = new Date(scheduleDate);
-                                        d.setDate(d.getDate() + 1);
-                                        setScheduleDate(d);
-                                    }}
-                                    className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
-                                >
-                                    <ChevronRight size={18} />
-                                </button>
-                            </div>
-
-                            <div className="space-y-3 min-h-[200px] max-h-[400px] overflow-y-auto custom-scrollbar pr-1">
-                                {scheduleLoading ? (
-                                    <div className="flex flex-col items-center justify-center h-40 gap-2">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#0066FF]"></div>
-                                        <p className="text-xs text-slate-400">Loading schedules...</p>
-                                    </div>
-                                ) : dailySchedules.length === 0 ? (
-                                    <div className="flex flex-col items-center justify-center h-40 text-center p-4">
-                                        <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mb-3">
-                                            <Calendar className="text-slate-300" size={24} />
+                                {activities.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-20">
+                                        <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                                            <Sparkles className="text-slate-300" size={32} />
                                         </div>
-                                        <p className="text-sm font-semibold text-slate-500">No schedules found</p>
-                                        <p className="text-xs text-slate-400">No work scheduled for this day</p>
+                                        <p className="text-slate-500 font-medium">No recent activity found</p>
                                     </div>
                                 ) : (
-                                    dailySchedules.map((item, i) => (
-                                        <div
-                                            key={item._id || i}
-                                            onClick={() => setSelectedSchedule(item)}
-                                            className={`group relative bg-white rounded-[24px] p-4 cursor-pointer transition-all duration-300 transform border border-slate-100 shadow-sm hover:shadow-md hover:-translate-y-1 ${mounted ? 'animate-scale-in' : 'opacity-0'}`}
-                                            style={{ animationDelay: `${100 + i * 50}ms` }}
-                                        >
-                                            <div className="flex flex-col h-full justify-between">
-                                                {/* Header: Icon (Tag) + Customer */}
-                                                <div className="flex justify-between items-start mb-3 sm:mb-4">
-                                                    <div className="flex items-center gap-2 sm:gap-3">
-                                                        {(() => {
-                                                            const tagConstant = constants.find(c => c.description === item.item);
-                                                            const tagImage = tagConstant?.image;
-                                                            const tagColor = tagConstant?.color;
-                                                            const tagLabel = item.item || item.service || 'S';
+                                    <div className="relative pl-4 max-w-2xl">
+                                        <div className="absolute left-[22px] top-4 bottom-10 w-0.5 bg-slate-100" />
+                                        
+                                        {activities.map((activity, idx) => (
+                                            <div key={idx} className="relative pl-12 mb-8 last:mb-0 group cursor-pointer" onClick={() => handleActivityClick(activity)}>
+                                                <div className="absolute left-0 top-0 w-11 h-11 rounded-full border-4 border-white shadow-sm bg-white flex items-center justify-center z-10 transition-transform group-hover:scale-110">
+                                                    {(() => {
+                                                        const emp = employees.find(e => e.value === activity.user || e.label === activity.user);
+                                                        if (emp?.image) {
+                                                            return <img src={emp.image} alt="" className="w-full h-full rounded-full object-cover" />;
+                                                        }
+                                                        return (
+                                                            <div className={`w-full h-full rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                                                                activity.type === 'estimate' ? 'bg-violet-500' :
+                                                                activity.type === 'jha' ? 'bg-emerald-500' :
+                                                                'bg-blue-500'
+                                                            }`}>
+                                                                {(activity.user?.[0] || 'S').toUpperCase()}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
 
-                                                            if (tagImage) {
-                                                                return (
-                                                                    <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full overflow-hidden shadow-md">
-                                                                        <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
-                                                                    </div>
-                                                                );
-                                                            } else if (tagColor) {
-                                                                return (
-                                                                    <div
-                                                                        className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full shadow-[inset_5px_5px_10px_rgba(0,0,0,0.1),inset_-5px_-5px_10px_rgba(255,255,255,0.5)] flex items-center justify-center text-white font-black text-xs sm:text-sm"
-                                                                        style={{ backgroundColor: tagColor }}
-                                                                    >
-                                                                        {tagLabel.substring(0, 2).toUpperCase()}
-                                                                    </div>
-                                                                );
-                                                            } else {
-                                                                return (
-                                                                    <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full bg-[#E6EEF8] shadow-[inset_5px_5px_10px_#d1d9e6,inset_-5px_-5px_10px_#ffffff] flex items-center justify-center text-[#0F4C75] font-black text-xs sm:text-sm">
-                                                                        {tagLabel.substring(0, 2).toUpperCase()}
-                                                                    </div>
-                                                                );
-                                                            }
-                                                        })()}
-                                                        <div className="flex flex-col">
-                                                            <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{getCustomerName(item)}</span>
-                                                            {(() => {
-                                                                const est = estimates.find(e => e.value === item.estimate);
-                                                                if (est?.jobAddress) {
-                                                                    return (
-                                                                        <span className="text-[10px] text-slate-400 font-medium truncate max-w-[150px] mt-0.5">
-                                                                            {est.jobAddress}
-                                                                        </span>
-                                                                    );
-                                                                }
-                                                                return null;
-                                                            })()}
-                                                        </div>
+                                                <div>
+                                                    <div className="flex items-baseline justify-between mb-1">
+                                                        <p className="text-sm font-bold text-slate-800">
+                                                            {!activity.user || activity.user === 'system' ? 'Admin' : (employees.find(e => e.value === activity.user)?.label || activity.user)}
+                                                        </p>
+                                                        <span className="text-[10px] font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded-full">
+                                                            {new Date(activity.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-sm text-slate-600 leading-snug">
+                                                        {activity.title}
+                                                    </p>
+                                                    
+                                                    <div className="mt-2 flex items-center gap-2">
+                                                        <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-1 rounded-md ${
+                                                            activity.type === 'estimate' ? 'bg-violet-50 text-violet-600' :
+                                                            activity.type === 'jha' ? 'bg-emerald-50 text-emerald-600' :
+                                                            'bg-blue-50 text-blue-600'
+                                                        }`}>
+                                                            {activity.type.replace('_', ' ')}
+                                                        </span>
                                                     </div>
                                                 </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px]">
+                                <div className="flex items-center justify-between mb-5 px-2">
+                                    <button 
+                                        onClick={() => {
+                                            const d = new Date(scheduleDate);
+                                            d.setDate(d.getDate() - 1);
+                                            setScheduleDate(d);
+                                        }}
+                                        className="w-10 h-10 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+                                    >
+                                        <ChevronLeft size={20} />
+                                    </button>
+                                    
+                                    <div className="text-center cursor-pointer relative group" onClick={() => dateInputRef.current?.showPicker()}>
+                                        <h3 className="text-2xl font-black text-slate-900 group-hover:text-[#0066FF] transition-colors mb-1">
+                                            {scheduleDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                                        </h3>
+                                        <p className="text-sm font-bold text-slate-400">
+                                            {scheduleDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                        </p>
+                                        <input 
+                                            type="date"
+                                            ref={dateInputRef}
+                                            className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                            onChange={(e) => {
+                                                if (e.target.value) {
+                                                    const [y, m, d] = e.target.value.split('-').map(Number);
+                                                    setScheduleDate(new Date(y, m - 1, d));
+                                                }
+                                            }} 
+                                        />
+                                    </div>
 
-                                                {/* Row 2: Title */}
-                                                <div className="mb-2">
-                                                    <h3 className="text-sm sm:text-base font-bold text-slate-800 leading-tight line-clamp-2">
-                                                        {item.title || 'Untitled Schedule'}
-                                                    </h3>
-                                                </div>
+                                    <button 
+                                        onClick={() => {
+                                            const d = new Date(scheduleDate);
+                                            d.setDate(d.getDate() + 1);
+                                            setScheduleDate(d);
+                                        }}
+                                        className="w-10 h-10 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors"
+                                    >
+                                        <ChevronRight size={20} />
+                                    </button>
+                                </div>
 
-                                                {/* Row 3: Job Location (Legacy/Fallback) */}
-                                                 {(() => {
-                                                    const est = estimates.find(e => e.value === item.estimate);
-                                                    if (!est?.jobAddress && item.jobLocation) {
-                                                         return <p className="text-[11px] sm:text-xs font-medium text-slate-400 truncate mb-2">{item.jobLocation}</p>;
-                                                    }
-                                                    return null;
-                                                })()}
+                                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    {scheduleLoading ? (
+                                        [1,2,3,4,5,6].map(i => (
+                                            <div key={i} className="animate-pulse bg-slate-50 h-64 rounded-[40px]" />
+                                        ))
+                                    ) : dailySchedules.length === 0 ? (
+                                        <div className="col-span-full">
+                                            <EmptyState 
+                                                icon="📅" 
+                                                title="No schedules found" 
+                                                message="No jobs scheduled for this date."
+                                                action={
+                                                    <button 
+                                                        onClick={() => router.push('/jobs/schedules')}
+                                                        className="mt-4 px-4 py-2 bg-[#0F4C75] text-white rounded-lg text-sm font-bold shadow-sm hover:bg-[#0b3a59] transition-colors"
+                                                    >
+                                                        View All Schedules
+                                                    </button>
+                                                }
+                                            />
+                                        </div>
+                                    ) : (
+                                        dailySchedules.map((item, i) => (
+                                            <div
+                                                key={item._id || i}
+                                                onClick={() => setSelectedSchedule(item)}
+                                                className="group relative bg-white rounded-[24px] sm:rounded-[40px] p-4 cursor-pointer transition-all duration-300 transform border border-slate-100 hover:border-[#0F4C75]/30 hover:-translate-y-1 shadow-sm"
+                                            >
+                                                <div className="flex flex-col h-full justify-between">
+                                                    {/* Header: Icon (Tag) + Customer */}
+                                                    <div className="flex justify-between items-start mb-3 sm:mb-4">
+                                                        <div className="flex items-center gap-2 sm:gap-3">
+                                                            {(() => {
+                                                                const tagConstant = constants.find(c => c.description === item.item);
+                                                                const tagImage = tagConstant?.image;
+                                                                const tagColor = tagConstant?.color;
+                                                                const tagLabel = item.item || item.service || 'S';
 
-
-                                                {/* Row 4: Estimate # and Project Name */}
-                                                <div className="flex items-center gap-2 mb-3">
-                                                    {item.estimate && (
-                                                        <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
-                                                            {item.estimate.replace(/-[vV]\d+$/, '')}
-                                                        </span>
-                                                    )}
-                                                    {item.description && (
-                                                        <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 truncate">
-                                                            {item.description.split('\n')[0]?.substring(0, 30)}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                {/* Row 5: Assignees (left) + Service/Fringe/etc badges (right) */}
-                                                <div className="flex items-center justify-between mb-3">
-                                                    {/* Assignees */}
-                                                    <div className="flex -space-x-2">
-                                                        {(item.assignees || []).filter(Boolean).slice(0, 4).map((email: string, i: number) => {
-                                                            const emp = employees.find(e => e.value === email);
-                                                            return (
-                                                                <div key={i} className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
-                                                                    {emp?.image ? (
-                                                                        <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        email?.[0]?.toUpperCase() || '?'
-                                                                    )}
-                                                                </div>
-                                                            );
-                                                        })}
-                                                        {(item.assignees || []).filter(Boolean).length > 4 && (
-                                                            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#38A169] border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold text-white shadow-sm">
-                                                                +{(item.assignees?.filter(Boolean).length || 0) - 4}
+                                                                if (tagImage) {
+                                                                    return (
+                                                                        <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full overflow-hidden shadow-md">
+                                                                            <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                                                        </div>
+                                                                    );
+                                                                } else if (tagColor) {
+                                                                    return (
+                                                                        <div
+                                                                            className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full shadow-[inset_5px_5px_10px_rgba(0,0,0,0.1),inset_-5px_-5px_10px_rgba(255,255,255,0.5)] flex items-center justify-center text-white font-black text-xs sm:text-sm"
+                                                                            style={{ backgroundColor: tagColor }}
+                                                                        >
+                                                                            {tagLabel.substring(0, 2).toUpperCase()}
+                                                                        </div>
+                                                                    );
+                                                                } else {
+                                                                    return (
+                                                                        <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full bg-[#E6EEF8] shadow-[inset_5px_5px_10px_#d1d9e6,inset_-5px_-5px_10px_#ffffff] flex items-center justify-center text-[#0F4C75] font-black text-xs sm:text-sm">
+                                                                            {tagLabel.substring(0, 2).toUpperCase()}
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                            })()}
+                                                            <div className="flex flex-col">
+                                                                <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{getCustomerName(item)}</span>
+                                                                {(() => {
+                                                                    const est = estimates.find(e => e.value === item.estimate);
+                                                                    if (est?.jobAddress) {
+                                                                        return (
+                                                                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[150px] mt-0.5">
+                                                                                {est.jobAddress}
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    return null;
+                                                                })()}
                                                             </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Row 2: Title */}
+                                                    <div className="mb-2">
+                                                        <h3 className="text-sm sm:text-base font-bold text-slate-800 leading-tight line-clamp-2">
+                                                            {item.title || 'Untitled Schedule'}
+                                                        </h3>
+                                                    </div>
+
+                                                    {/* Row 3: Job Location */}
+                                                    <p className="text-[11px] sm:text-xs font-medium text-slate-400 truncate mb-2">{item.jobLocation}</p>
+
+                                                    {/* Row 4: Estimate # and Project Name */}
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        {item.estimate && (
+                                                            <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                                                {item.estimate.replace(/-[vV]\d+$/, '')}
+                                                            </span>
+                                                        )}
+                                                        {item.description && (
+                                                            <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 truncate">
+                                                                {item.description.split('\n')[0]?.substring(0, 30)}
+                                                            </span>
                                                         )}
                                                     </div>
 
-                                                    {/* Badges */}
-                                                    <div className="flex -space-x-1.5">
-                                                        {[
-                                                            { val: item.service, label: 'SV' },
-                                                            { val: item.fringe, label: 'FR' },
-                                                            { val: item.certifiedPayroll, label: 'CP' },
-                                                            { val: item.notifyAssignees, label: 'NA' },
-                                                            { val: item.perDiem, label: 'PD' }
-                                                        ].filter(attr => attr.val && attr.val !== 'No' && attr.val !== '-' && attr.val !== '').map((attr, i) => {
-                                                            const constant = constants.find(c => c.description === attr.val);
-                                                            return (
-                                                                <div
-                                                                    key={i}
-                                                                    className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white flex items-center justify-center text-[7px] sm:text-[8px] font-bold shadow-sm overflow-hidden"
-                                                                    style={{
-                                                                        backgroundColor: constant?.color || '#64748b',
-                                                                        color: 'white'
+                                                    {/* Row 5: Assignees (left) + Badges (right) */}
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex -space-x-2">
+                                                            {(item.assignees || []).filter(Boolean).slice(0, 4).map((email: string, i: number) => {
+                                                                const emp = employees.find(e => e.value === email);
+                                                                return (
+                                                                    <div key={i} className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
+                                                                        {emp?.image ? (
+                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            email?.[0]?.toUpperCase() || '?'
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {(item.assignees || []).filter(Boolean).length > 4 && (
+                                                                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#38A169] border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold text-white shadow-sm">
+                                                                    +{(item.assignees?.filter(Boolean).length || 0) - 4}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Badges */}
+                                                        <div className="flex -space-x-1.5">
+                                                            {[
+                                                                { val: item.service, label: 'SV' },
+                                                                { val: item.fringe, label: 'FR' },
+                                                                { val: item.certifiedPayroll, label: 'CP' },
+                                                                { val: item.notifyAssignees, label: 'NA' },
+                                                                { val: item.perDiem, label: 'PD' }
+                                                            ].filter(attr => attr.val && attr.val !== 'No' && attr.val !== '-' && attr.val !== '').map((attr, i) => {
+                                                                const constant = constants.find(c => c.description === attr.val);
+                                                                const hasImage = constant?.image;
+                                                                const hasColor = constant?.color;
+
+                                                                return (
+                                                                    <div
+                                                                        key={i}
+                                                                        className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white flex items-center justify-center text-[7px] sm:text-[8px] font-bold shadow-sm overflow-hidden"
+                                                                        style={{
+                                                                            backgroundColor: hasColor || '#64748b',
+                                                                            color: 'white'
+                                                                        }}
+                                                                        title={`${attr.label}: ${attr.val}`}
+                                                                    >
+                                                                        {hasImage ? (
+                                                                            <img src={hasImage} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            attr.label
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Row 6: Date + PM/Foreman + JHA */}
+                                                    <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100/50 flex items-center justify-center text-emerald-600">
+                                                                <Clock size={12} />
+                                                            </div>
+                                                            <span className="text-[11px] sm:text-xs font-bold text-slate-700">
+                                                                {new Date(item.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                            </span>
+                                                            {item.hasJHA ? (
+                                                                <div 
+                                                                    className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-100 text-orange-600 ml-1 hover:bg-orange-200 transition-colors cursor-pointer" 
+                                                                    title="View JHA"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const jhaWithSigs = { 
+                                                                            ...item.jha, 
+                                                                            signatures: item.JHASignatures || [] 
+                                                                        };
+                                                                        setSelectedJHA(jhaWithSigs);
+                                                                        setIsJhaEditMode(false);
+                                                                        setJhaModalOpen(true);
                                                                     }}
-                                                                    title={`${attr.label}: ${attr.val}`}
                                                                 >
-                                                                    {constant?.image ? (
-                                                                        <img src={constant.image} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        attr.label
-                                                                    )}
+                                                                    <ClipboardList size={12} />
                                                                 </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-
-                                                {/* Row 6: Date (left) + PM/Foreman (right) */}
-                                                <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100/50 flex items-center justify-center text-emerald-600">
-                                                            <Clock size={12} />
-                                                        </div>
-                                                        <span className="text-[11px] sm:text-xs font-bold text-slate-700">
-                                                            {new Date(item.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                                        </span>
-                                                    {item.hasJHA ? (
-                                                        <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-100 text-orange-600 ml-1 hover:bg-orange-200 transition-colors cursor-pointer" 
-                                                            title="View JHA"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const jhaWithSigs = { 
-                                                                    ...item.jha, 
-                                                                    signatures: item.JHASignatures || [] 
-                                                                };
-                                                                setSelectedJHA(jhaWithSigs);
-                                                                setIsJhaEditMode(false);
-                                                                setJhaModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <ClipboardList size={12} />
-                                                        </div>
-                                                    ) : (
-                                                        <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-blue-100 hover:text-blue-600 transition-colors cursor-pointer" 
-                                                            title="Create JHA"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Get current user from localStorage
-                                                                const currentUser = typeof window !== 'undefined' 
-                                                                    ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email || 'system'
-                                                                    : 'system';
-                                                                // Initialize new JHA
-                                                                setSelectedJHA({
-                                                                    schedule_id: item._id,
-                                                                    date: new Date(),
-                                                                    jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
-                                                                    createdBy: currentUser,
-                                                                    emailCounter: 0,
-                                                                    signatures: [],
-                                                                    scheduleRef: item
-                                                                });
-                                                                setIsJhaEditMode(true);
-                                                                setJhaModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <FilePlus size={12} />
-                                                        </div>
-                                                    )}
-                                                    </div>
-
-                                                    <div className="flex -space-x-1.5">
-                                                        {[item.projectManager, item.foremanName].filter(Boolean).map((email, i) => {
-                                                            const emp = employees.find(e => e.value === email);
-                                                            const labels = ['PM', 'FM'];
-                                                            return (
-                                                                <div
-                                                                    key={i}
-                                                                    className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-[#0F4C75] text-white"
-                                                                    title={`${labels[i]}: ${emp?.label || email}`}
+                                                            ) : (
+                                                                <div 
+                                                                    className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-blue-100 hover:text-blue-600 transition-colors cursor-pointer" 
+                                                                    title="Create JHA"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedJHA({
+                                                                            schedule_id: item._id,
+                                                                            date: new Date(),
+                                                                            jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                                                                            emailCounter: 0,
+                                                                            signatures: [],
+                                                                            scheduleRef: item
+                                                                        });
+                                                                        setIsJhaEditMode(true);
+                                                                        setJhaModalOpen(true);
+                                                                    }}
                                                                 >
-                                                                    {emp?.image ? (
-                                                                        <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        labels[i]
-                                                                    )}
+                                                                    <FilePlus size={12} />
                                                                 </div>
-                                                            );
-                                                        })}
+                                                            )}
+                                                        </div>
+
+                                                        {/* PM/Foreman */}
+                                                        <div className="flex -space-x-1.5">
+                                                            {[item.projectManager, item.foremanName].filter(Boolean).map((email, i) => {
+                                                                const emp = employees.find(e => e.value === email);
+                                                                const labels = ['PM', 'FM'];
+                                                                return (
+                                                                    <div
+                                                                        key={i}
+                                                                        className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-[#0F4C75] text-white"
+                                                                        title={`${labels[i]}: ${emp?.label || email}`}
+                                                                    >
+                                                                        {emp?.image ? (
+                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            labels[i]
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Weekly Activity Card */}
-                        <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '600ms' }}>
-                            <div className="flex items-center justify-between mb-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-200">
-                                        <Activity size={20} className="text-white" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-slate-900">Weekly Activity</h3>
-                                        <p className="text-xs text-slate-400">Your actions this week</p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="text-2xl font-black text-violet-600">{activities.length}</p>
-                                    <p className="text-[10px] text-slate-400 uppercase tracking-wider">Total Actions</p>
+                                        ))
+                                    )}
                                 </div>
                             </div>
-                            
-                            {/* Bar Chart */}
-                            <div className="flex items-end justify-between gap-2 h-24 mb-6 px-1">
-                                {weeklyStats.map((day, i) => {
-                                    const isToday = day.date === new Date().toDateString();
-                                    const heightPercent = maxActivityCount > 0 ? (day.value / maxActivityCount) * 100 : 0;
-                                    return (
-                                        <div key={i} className="flex-1 flex flex-col items-center gap-2 group">
-                                            <div className="relative w-full">
-                                                {day.value > 0 && (
-                                                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap">
-                                                        {day.value} {day.value === 1 ? 'action' : 'actions'}
-                                                    </div>
-                                                )}
-                                                <div
-                                                    className={`w-full rounded-lg transition-all duration-500 cursor-pointer ${isToday 
-                                                        ? 'bg-gradient-to-t from-violet-600 to-fuchsia-500 shadow-lg shadow-violet-200' 
-                                                        : day.value > 0 
-                                                            ? 'bg-gradient-to-t from-slate-300 to-slate-200 group-hover:from-violet-400 group-hover:to-violet-300' 
-                                                            : 'bg-slate-100'
-                                                    }`}
-                                                    style={{
-                                                        height: loading ? '4px' : `${Math.max(heightPercent, 4)}%`,
-                                                        minHeight: '4px',
-                                                        transitionDelay: `${i * 80}ms`
-                                                    }}
-                                                />
-                                            </div>
-                                            <span className={`text-[10px] font-bold ${isToday ? 'text-violet-600' : 'text-slate-400'}`}>
-                                                {day.label}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                            
-                            {/* Activity Feed */}
-                            <div className="border-t border-slate-100 pt-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Recent Activity</p>
-                                    <Sparkles size={14} className="text-violet-400" />
-                                </div>
-                                
-                                {activities.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-50 flex items-center justify-center">
-                                            <Activity size={24} className="text-slate-300" />
-                                        </div>
-                                        <p className="text-sm font-medium text-slate-400">No activity yet</p>
-                                        <p className="text-xs text-slate-300 mt-1">Start working to see your actions here!</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar pr-1">
-                                        {activities.slice(0, 10).map((activity, idx) => {
-                                            const getActivityIcon = () => {
-                                                switch(activity.action) {
-                                                    case 'created_jha': return <ClipboardCheck size={14} className="text-emerald-500" />;
-                                                    case 'signed_jha': return <FileCheck size={14} className="text-blue-500" />;
-                                                    case 'created_schedule': return <Calendar size={14} className="text-orange-500" />;
-                                                    case 'updated_estimate': return <Calculator size={14} className="text-violet-500" />;
-                                                    default: return <Zap size={14} className="text-amber-500" />;
-                                                }
-                                            };
-                                            
-                                            const getActivityColor = () => {
-                                                switch(activity.type) {
-                                                    case 'jha': return 'bg-emerald-50 border-emerald-100';
-                                                    case 'schedule': return 'bg-orange-50 border-orange-100';
-                                                    case 'estimate': return 'bg-violet-50 border-violet-100';
-                                                    default: return 'bg-slate-50 border-slate-100';
-                                                }
-                                            };
-                                            
-                                            const timeAgo = (date: string) => {
-                                                const now = new Date();
-                                                const then = new Date(date);
-                                                const diffMs = now.getTime() - then.getTime();
-                                                const diffMins = Math.floor(diffMs / 60000);
-                                                const diffHours = Math.floor(diffMins / 60);
-                                                const diffDays = Math.floor(diffHours / 24);
-                                                
-                                                if (diffMins < 1) return 'Just now';
-                                                if (diffMins < 60) return `${diffMins}m ago`;
-                                                if (diffHours < 24) return `${diffHours}h ago`;
-                                                if (diffDays === 1) return 'Yesterday';
-                                                return `${diffDays}d ago`;
-                                            };
-                                            
-                                            return (
-                                                <div 
-                                                    key={activity._id || idx} 
-                                                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all hover:shadow-sm ${getActivityColor()}`}
-                                                >
-                                                    <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
-                                                        {getActivityIcon()}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <p className="text-xs font-bold text-slate-700 truncate">{activity.title}</p>
-                                                        <p className="text-[10px] text-slate-400">{activity.user}</p>
-                                                    </div>
-                                                    <div className="text-right shrink-0">
-                                                        <p className="text-[10px] font-medium text-slate-500">{timeAgo(activity.createdAt)}</p>
-                                                        <p className="text-[9px] text-slate-300 uppercase">{activity.type}</p>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
+                        )}
                     </div>
                 </div>
             </div>
@@ -719,11 +702,10 @@ export default function DashboardPage() {
                     isOpen={!!selectedSchedule}
                     onClose={() => setSelectedSchedule(null)}
                     title="Job Details"
-                    maxWidth="md"
+                    maxWidth="2xl"
                 >
-                    <div className="space-y-6 max-h-[70vh] overflow-y-auto px-1">
-                        
-                        {/* Header Section: Icon & Client */}
+                    <div className="bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
+                        {/* Row 1: Tag Icon & Client Name */}
                         <div className="flex items-center gap-4">
                             {(() => {
                                 const tagConstant = constants.find(c => c.description === selectedSchedule.item);
@@ -733,57 +715,74 @@ export default function DashboardPage() {
 
                                 if (tagImage) {
                                     return (
-                                        <div className="w-16 h-16 shrink-0 rounded-full overflow-hidden shadow-sm">
+                                        <div className="w-12 h-12 shrink-0 rounded-full overflow-hidden shadow-md">
                                             <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
                                         </div>
                                     );
                                 } else if (tagColor) {
                                     return (
-                                        <div className="w-16 h-16 shrink-0 rounded-full shadow-sm flex items-center justify-center text-white font-black text-lg" style={{ backgroundColor: tagColor }}>
+                                        <div className="w-12 h-12 shrink-0 rounded-full shadow-sm flex items-center justify-center text-white font-black text-sm" style={{ backgroundColor: tagColor }}>
                                             {tagLabel.substring(0, 2).toUpperCase()}
                                         </div>
                                     );
                                 } else {
                                     return (
-                                        <div className="w-16 h-16 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[#0F4C75] font-black text-lg">
+                                        <div className="w-12 h-12 shrink-0 rounded-full bg-slate-100 flex items-center justify-center text-[#0F4C75] font-black text-sm">
                                             {tagLabel.substring(0, 2).toUpperCase()}
                                         </div>
                                     );
                                 }
                             })()}
                             <div>
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Client</p>
-                                <p className="text-xl font-black text-[#0F4C75] leading-tight">{selectedSchedule.customerName}</p>
+                                <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
+                                {(() => {
+                                    const est = estimates.find(e => e.value === selectedSchedule.estimate);
+                                    if (est?.jobAddress) {
+                                        return <p className="text-xs font-bold text-slate-400 mb-1">{est.jobAddress}</p>;
+                                    }
+                                    return null;
+                                })()}
+                                <div className="flex items-center gap-1.5 text-slate-500">
+                                    <MapPin size={14} className="text-slate-400 shrink-0" />
+                                    <p className="text-xs font-bold text-slate-500 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Location */}
-                        <div className="flex items-start gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                            <div className="mt-0.5 text-slate-400"><MapPin size={20} /></div>
+                        {/* Row 3: Title & Date */}
+                        <div className="grid grid-cols-1 gap-1">
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Location</p>
-                                <p className="text-sm font-bold text-slate-700 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
-                            </div>
-                        </div>
-
-                        {/* Title & Date */}
-                        <div className="grid grid-cols-1 gap-2">
-                            <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Title</p>
                                 <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
                             </div>
-                            <div className="flex items-center gap-2 mt-1">
-                                <Clock size={14} className="text-slate-400" />
-                                <span className="text-sm font-bold text-slate-700">
-                                    {new Date(selectedSchedule.fromDate).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
-                                    <span className="text-slate-400 font-normal mx-2">|</span>
-                                    {new Date(selectedSchedule.fromDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} - {new Date(selectedSchedule.toDate).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                                </span>
+                            <div className="mt-2 flex items-center gap-3">
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar size={14} className="text-slate-400" />
+                                        <span className="text-xs font-bold text-slate-700">
+                                            From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                        </span>
+                                    </div>
+                                    {selectedSchedule.toDate && (
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-3.5" />
+                                            <span className="text-xs font-bold text-slate-700">
+                                                To: {new Date(selectedSchedule.toDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                                {selectedSchedule.estimate && (
+                                    <span className="text-[10px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                        {selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}
+                                    </span>
+                                )}
                             </div>
                         </div>
 
-                        {/* Roles: PM, Foreman, SD */}
-                        <div className="space-y-3">
+                        <div className="h-px bg-slate-100 my-2" />
+
+                        {/* Rows 5, 6, 7: PM, Foreman */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {[
                                 { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
                                 { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
@@ -791,87 +790,84 @@ export default function DashboardPage() {
                                 if (!role.val) return null;
                                 const emp = employees.find(e => e.value === role.val);
                                 return (
-                                    <div key={idx} className="flex items-center gap-3 p-2.5 rounded-2xl bg-white border border-slate-100 shadow-sm">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
+                                    <div key={idx} className="flex items-center gap-2 p-2 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
                                             {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || role.val[0])}
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
-                                            <p className="text-sm font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
+                                            <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
                                         </div>
-                                        {emp?.phone && (
-                                            <a href={`tel:${emp.phone}`} className="p-2 bg-slate-100 rounded-full text-slate-400 hover:bg-green-100 hover:text-green-600 transition-colors">
-                                                <Phone size={16} />
-                                            </a>
-                                        )}
                                     </div>
                                 );
                             })}
                         </div>
 
-                        <div className="h-px bg-slate-100" />
+                        <div className="h-px bg-slate-100 my-2" />
 
-                        {/* Assignees */}
+                        {/* Row 9: Assignees */}
                         <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Assignees</p>
                             <div className="flex flex-wrap gap-2">
                                 {(selectedSchedule.assignees || []).map((assignee: string, i: number) => {
                                     const emp = employees.find(e => e.value === assignee);
                                     return (
-                                        <div key={i} className="inline-flex items-center gap-2 pl-1 pr-3 py-1.5 bg-slate-50 rounded-full border border-slate-200">
-                                            <div className="w-8 h-8 rounded-full bg-slate-300 overflow-hidden flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
+                                        <div key={i} className="inline-flex items-center gap-2 pl-1 pr-3 py-1 bg-slate-100 rounded-full border border-slate-200">
+                                            <div className="w-6 h-6 rounded-full bg-slate-300 overflow-hidden flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
                                                 {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || assignee[0])}
                                             </div>
-                                            <span className="text-sm font-bold text-slate-700 truncate max-w-[150px]">{emp?.label || assignee}</span>
+                                            <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{emp?.label || assignee}</span>
                                         </div>
                                     );
                                 })}
                                 {(!selectedSchedule.assignees || selectedSchedule.assignees.length === 0) && (
-                                    <span className="text-sm text-slate-400 italic">No assignees</span>
+                                    <span className="text-xs text-slate-400 italic">No assignees</span>
                                 )}
                             </div>
                         </div>
 
-                        {/* Badges/Flags */}
-                        <div className="flex flex-wrap gap-3">
-                             {selectedSchedule.service && (
-                                <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200 py-1.5 px-3">
-                                    SV: {selectedSchedule.service}
+                        {/* Row 8: Service, Tag, Notify, Per Diem */}
+                        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
+                                <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
+                                <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
+                                <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                    {selectedSchedule.notifyAssignees || 'No'}
                                 </Badge>
-                            )}
-                             {selectedSchedule.item && (
-                                <Badge className="bg-[#E6EEF8] text-[#0F4C75] border-none py-1.5 px-3">
-                                    Tag: {selectedSchedule.item}
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
+                                <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                    {selectedSchedule.perDiem || 'No'}
                                 </Badge>
-                            )}
-                            <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 py-1.5 px-3">
-                                <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                Notify: {selectedSchedule.notifyAssignees || 'No'}
-                            </Badge>
-                            <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 py-1.5 px-3">
-                                <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                Per Diem: {selectedSchedule.perDiem || 'No'}
-                            </Badge>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Certified Payroll</p>
+                                <Badge variant={selectedSchedule.certifiedPayroll ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.certifiedPayroll ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                    {selectedSchedule.certifiedPayroll || 'No'}
+                                </Badge>
+                            </div>
                         </div>
 
+                        {/* Row 11: Scope / Notes */}
                         {selectedSchedule.description && (
-                            <div className="pt-2">
+                            <div className="pt-4 border-t border-slate-100">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope / Notes</p>
-                                <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     {selectedSchedule.description}
                                 </p>
                             </div>
                         )}
-
-                        <div className="mt-8 pt-4 border-t border-slate-100">
-                            <button 
-                                onClick={() => setSelectedSchedule(null)}
-                                className="w-full py-4 bg-[#0F4C75] rounded-xl font-bold text-white hover:bg-[#0b3a59] transition-colors shadow-lg shadow-blue-900/20"
-                            >
-                                Close Details
-                            </button>
-                        </div>
-
                     </div>
                 </Modal>
             )}

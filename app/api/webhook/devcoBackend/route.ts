@@ -19,6 +19,7 @@ import {
     Employee,
     Template,
     GlobalCustomVariable,
+    Activity,
 } from '@/lib/models';
 
 import { v2 as cloudinary } from 'cloudinary';
@@ -526,6 +527,7 @@ export async function POST(request: NextRequest) {
                 const id = `${estimateNumber}-V1`;
 
                 const estimateData = {
+                    ...payload,
                     _id: id,
                     estimate: estimateNumber,
                     date: payload?.date || new Date().toLocaleDateString(),
@@ -548,7 +550,32 @@ export async function POST(request: NextRequest) {
                     updatedAt: new Date()
                 };
 
-                const est = await Estimate.create(estimateData);
+                // Ensure createdBy is set
+                if (!(estimateData as any).createdBy && (estimateData as any).proposalWriter) {
+                    (estimateData as any).createdBy = (estimateData as any).proposalWriter;
+                }
+
+                const est = await Estimate.create(estimateData) as any;
+
+                // Log Activity
+                try {
+                    const activityId = new Types.ObjectId().toString();
+                    await Activity.create({
+                        _id: activityId,
+                        user: (estimateData as any).proposalWriter || (estimateData as any).createdBy || '',
+                        action: 'created_estimate',
+                        type: 'estimate',
+                        title: `Created Estimate #${est.estimate}`,
+                        entityId: est.estimate, // Use estimate number or _id. Used number for display often, but ID for link. 
+                        // Actually, dashboard link uses ID/slug. If estimate number is unique, good. But usually ID is safer. 
+                        // If entityId is used for link /estimates/[slug], and [slug] can be ID or estimate#, then estimate# is fine if unique.
+                        // Let's use est.estimate (string) as it's cleaner for user.
+                        metadata: { estimate_id: est._id },
+                        createdAt: new Date()
+                    });
+                } catch (e) {
+                    console.error('Failed to log activity:', e);
+                }
                 // updateAppSheet(estimateData).catch(err => console.error('Background AppSheet sync failed:', err));
 
                 return NextResponse.json({ success: true, result: est });
@@ -686,6 +713,25 @@ export async function POST(request: NextRequest) {
                     { ...updateData, updatedAt: new Date() },
                     { new: true }
                 );
+                
+                // Log Activity
+                if (updated) {
+                    try {
+                        const activityId = new Types.ObjectId().toString();
+                        await Activity.create({
+                            _id: activityId,
+                            user: (updateData as any).proposalWriter || (updateData as any).createdBy || '',
+                            action: 'updated_estimate',
+                            type: 'estimate',
+                            title: `Updated Estimate #${updated.estimate}`,
+                            entityId: updated.estimate, // Using estimate number for link construction if slug uses it
+                            metadata: { estimate_id: updated._id },
+                            createdAt: new Date()
+                        });
+                    } catch (e) {
+                         console.error('Failed to log activity:', e);
+                    }
+                }
 
                 if (updated && updated.estimate) {
                     // Fields that should be synced across ALL versions of this estimate

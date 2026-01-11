@@ -25,6 +25,7 @@ export interface IEstimate extends Document {
     certifiedPayroll?: string;
 
     // New fields
+    createdBy?: string;
     customerJobNumber?: string;
     accountingContact?: string;
     accountingEmail?: string;
@@ -60,6 +61,7 @@ export interface IEstimate extends Document {
     prelimAmount?: string;
     billingTerms?: string;
     otherBillingTerms?: string;
+    usaNumber?: string;
 
     // Totals & Meta
     subTotal?: number;
@@ -121,6 +123,7 @@ const EstimateSchema = new Schema({
     certifiedPayroll: { type: String },
 
     // New fields
+    createdBy: { type: String },
     customerJobNumber: { type: String },
     accountingContact: { type: String },
     accountingEmail: { type: String },
@@ -156,6 +159,7 @@ const EstimateSchema = new Schema({
     prelimAmount: { type: String },
     billingTerms: { type: String },
     otherBillingTerms: { type: String },
+    usaNumber: { type: String },
     
     // Line Items
     labor: { type: [Object], default: [] },

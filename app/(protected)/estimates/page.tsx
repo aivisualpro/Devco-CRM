@@ -333,10 +333,21 @@ export default function EstimatesPage() {
         setIsCreating(true);
 
         try {
+            // Get current user from localStorage
+            const currentUser = typeof window !== 'undefined' 
+                ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email 
+                : null;
+
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'createEstimate', payload: {} })
+                body: JSON.stringify({ 
+                    action: 'createEstimate', 
+                    payload: { 
+                        proposalWriter: currentUser,
+                        createdBy: currentUser 
+                    } 
+                })
             });
             const data = await res.json();
             if (data.success && data.result?._id) {

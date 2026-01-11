@@ -121,9 +121,14 @@ export default function SchedulePage() {
     const INCREMENT = 20;
 
     const openCreateModal = () => {
+        const start = new Date();
+        start.setHours(7, 0, 0, 0);
+        const end = new Date(start);
+        end.setHours(15, 0, 0, 0);
+
         setEditingItem({
-            fromDate: new Date().toISOString(),
-            toDate: new Date().toISOString(),
+            fromDate: start.toISOString(),
+            toDate: end.toISOString(),
             assignees: [],
             notifyAssignees: 'No',
             perDiem: 'No'
@@ -1856,8 +1861,7 @@ export default function SchedulePage() {
                 }
                 title={editingItem?._id ? "Edit Schedule" : "New Schedule"}
             >
-                <form onSubmit={handleSave} className="p-6">
-                    {/* Row 1: Title and Client */}
+                <form onSubmit={handleSave} className="p-4">
                     {/* Row 1: Title and Client */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <div>
@@ -1900,9 +1904,9 @@ export default function SchedulePage() {
                     </div>
 
                     {/* Row 2: Proposal #, From Date, To Date */}
-                    <div className={`grid grid-cols-1 ${!editingItem?._id ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-6 mb-6`}>
-                        <div>
-                            <SearchableSelect
+                    <div className={`grid grid-cols-1 ${!editingItem?._id ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-6 mb-6`}>
+                        <div className="md:col-span-2">
+                             <SearchableSelect
                                 id="schedProposal"
                                 label="Proposal #"
                                 placeholder="Select proposal"

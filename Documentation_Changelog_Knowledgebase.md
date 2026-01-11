@@ -1,4 +1,25 @@
-## Current Version: V.0.64
+## Current Version: V.0.65
+
+
+#### V.0.65 - Signature PDF Insertion & Document Integration
+*Timestamp: January 11, 2026*
+
+*   **Signature PDF Insertion**:
+    *   **Robust Rendering**: Fixed the critical issue where signatures were not appearing in generated PDFs. Implemented a marker-based strategy in `googleService.ts` to find and swap placeholders for high-resolution images.
+    *   **Automation**: Signatures are now correctly scaled and positioned in real-time during document generation.
+    *   **Cleanup Logic**: Automated removal of temporary image files and remaining `{{...}}` placeholders for a polished final document.
+
+*   **Proposal & Certified Payroll Documents**:
+    *   **New Templates**: Integrated core templates for industry-standard compliance:
+        *   **20 Day Prelim**: Automated generation of Preliminary 20-Day Notices.
+        *   **Conditional Release (Progress)**: Integrated progress payment release forms.
+    *   **Expanded Data Mapping**: Added support for comprehensive document variables including Owner, Contractor, and Sub-Contractor details.
+
+*   **Data Models & Logic**:
+    *   **New Field**: Added `usaNumber` to the Estimates database (`Estimatesdb`) and UI.
+    *   **Variables**: Integrated `{{usaNumber}}` into the Google Docs PDF generation pipeline.
+    *   **Version Increment**: System-wide version updated to V.0.65.
+    *   **API Stability**: Resolved Google Docs API schema errors (`deleteContentRange`) for reliable batch updates.
 
 
 #### V.0.64 - Date Range Filters & Persistence

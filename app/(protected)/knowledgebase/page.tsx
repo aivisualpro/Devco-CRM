@@ -13,6 +13,53 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.65',
+        date: 'January 11, 2026',
+        time: '07:00 PKT',
+        type: 'Document Automation',
+        color: 'from-blue-600 to-indigo-700',
+        highlights: [
+            'Signature PDF Insertion',
+            'usaNumber Field Integration',
+            '20 Day Prelim Integration',
+            'CP - Release Forms'
+        ],
+        changes: [
+            {
+                category: 'Document Automation (Jan 11)',
+                items: [
+                    "usaNumber Field: Added a dedicated USA Number field to estimates and document generation.",
+                    "Signature Insertion: Resolved issues with signatures not rendering in PDFs; implemented robust marker-based swap logic.",
+                    "Prelim Notices: Integrated automation for '20 Day Prelim' legal documents.",
+                    "Release Forms: Added support for 'Conditional Release (Progress)' templates."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.64',
+        date: 'January 6, 2026',
+        time: '12:00 PKT',
+        type: 'Filters & Persistence',
+        color: 'from-purple-600 to-indigo-700',
+        highlights: [
+            'Date Range Filters',
+            'QuickBooks Persistence',
+            'Financial Accuracy',
+            'Git Automation'
+        ],
+        changes: [
+            {
+                category: 'QuickBooks Integration',
+                items: [
+                    "Date Range Filters: Added 'This Year', 'Last Year', and 'This Month' options to QB Dashboard.",
+                    "Persistence: Filter selections are now saved to localStorage across sessions.",
+                    "Financial Mapping: Refined invoice and purchase filtering for overview accuracy."
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.61',
         date: 'January 11, 2026',
         time: '02:00 PKT',
@@ -670,9 +717,7 @@ export default function KnowledgebasePage() {
 
                     {/* Footer */}
                     <div className={`mt-12 text-center ${mounted ? 'animate-fade-in-up' : 'opacity-0'}`} style={{ animationDelay: '400ms' }}>
-                        <p className="text-slate-400 text-sm">
-                            Built with ❤️ using Next.js 15, MongoDB, and TailwindCSS
-                        </p>
+                        <p className="text-sm text-slate-400">&copy; {new Date().getFullYear()} DEVCO. All rights reserved.</p>
                     </div>
 
                 </div>

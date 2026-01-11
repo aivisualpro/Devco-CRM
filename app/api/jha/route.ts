@@ -232,6 +232,16 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result });
             }
 
+            case 'getJHA': {
+                const { id } = payload;
+                if (!id) return NextResponse.json({ success: false, error: 'Missing ID' });
+                const jha = await JHA.findById(id);
+                if (!jha) return NextResponse.json({ success: false, error: 'Not Found' });
+
+                const signatures = await JHASignature.find({ schedule_id: jha.schedule_id });
+                return NextResponse.json({ success: true, jha: { ...jha.toObject(), signatures } });
+            }
+
             case 'importJHASignatures': {
                 const { records } = payload || {};
                 if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid JHA Signature records array' });

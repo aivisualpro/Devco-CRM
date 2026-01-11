@@ -18,7 +18,8 @@ import {
     LaborCalculationModal,
     TemplateSelector,
     EstimateDetailsModal,
-    EstimateLineItemsCard
+    EstimateLineItemsCard,
+    EstimateDocsCard
 } from './components';
 import {
     getLaborBreakdown,
@@ -238,6 +239,16 @@ export default function EstimateViewPage() {
     const [sectionOrder, setSectionOrder] = useState<string[]>([]);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+    
+    // Visibility State
+    const [visibleSections, setVisibleSections] = useState({
+        estimateDocs: false,
+        lineItems: true,
+        proposal: true
+    });
+    const [showSectionMenu, setShowSectionMenu] = useState(false);
+
+
 
     // Template Matching Utility
     const findBestTemplate = (selectedServices: string[], allTemplates: Template[]) => {
@@ -341,10 +352,71 @@ export default function EstimateViewPage() {
     const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [certifiedPayrollOptions, setCertifiedPayrollOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [employeesData, setEmployeesData] = useState<any[]>([]); // Full employee data for signature/position lookup
     const [clientOptions, setClientOptions] = useState<{ id: string; label: string; value: string }[]>([]);
     const [contactOptions, setContactOptions] = useState<{ id: string; label: string; value: string; email?: string; phone?: string }[]>([]);
     const [addressOptions, setAddressOptions] = useState<{ id: string; label: string; value: string }[]>([]);
     const [catalogsLoaded, setCatalogsLoaded] = useState(false);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+    // Load visibility settings from Employee record
+    useEffect(() => {
+        if (employeesData.length > 0 && !settingsLoaded) {
+            try {
+                const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
+                const userEmail = user.email;
+                if (userEmail) {
+                     const emp = employeesData.find((e: any) => e._id === userEmail || e.email === userEmail);
+                     // If settings exist, apply them. If not, we stick with defaults.
+                     if (emp && Array.isArray(emp.estimateSettings)) {
+                         setVisibleSections({
+                             estimateDocs: emp.estimateSettings.includes('Estimate Docs'),
+                             lineItems: emp.estimateSettings.includes('Line Items'),
+                             proposal: emp.estimateSettings.includes('Proposal')
+                         });
+                     }
+                }
+            } catch (e) {
+                console.error('Error loading settings', e);
+            } finally {
+                setSettingsLoaded(true);
+            }
+        }
+    }, [employeesData]);
+
+    // Save visibility settings to Backend
+    useEffect(() => {
+        if (!settingsLoaded) return;
+
+        const timeoutId = setTimeout(async () => {
+             const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
+             const userEmail = user.email;
+             if (!userEmail) return;
+
+             const settings = [];
+             if (visibleSections.estimateDocs) settings.push('Estimate Docs');
+             if (visibleSections.lineItems) settings.push('Line Items');
+             if (visibleSections.proposal) settings.push('Proposal');
+
+             try {
+                 await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'updateEmployee',
+                        payload: {
+                            id: userEmail,
+                            item: { estimateSettings: settings }
+                        }
+                    })
+                 });
+             } catch (err) {
+                 console.error('Failed to save settings', err);
+             }
+        }, 1000); // 1s debounce
+
+        return () => clearTimeout(timeoutId);
+    }, [visibleSections, settingsLoaded]);
 
 
     const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
@@ -441,7 +513,16 @@ export default function EstimateViewPage() {
             if (slug.includes('-V')) {
                 result = await apiCall('getEstimateBySlug', { slug });
             } else {
-                result = await apiCall('getEstimateById', { id: slug });
+                // Try fetching by estimate number first (handles links without version from dashboard)
+                const propResult = await apiCall('getEstimatesByProposal', { estimateNumber: slug });
+                if (propResult.success && Array.isArray(propResult.result) && propResult.result.length > 0) {
+                     // Pick latest version
+                     const sorted = propResult.result.sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0));
+                     result = { success: true, result: sorted[0] };
+                } else {
+                     // Fallback to ID lookup
+                     result = await apiCall('getEstimateById', { id: slug });
+                }
             }
 
             if (result.success && result.result) {
@@ -582,6 +663,9 @@ export default function EstimateViewPage() {
                 // Fetch Employees for Proposal Writer
                 const employeeRes = await apiCall('getEmployees');
                 if (employeeRes.success && employeeRes.result) {
+                    // Store full employee data for signature lookup
+                    setEmployeesData(employeeRes.result);
+                    
                     const employees = employeeRes.result
                         .filter((emp: any) => emp.appRole === 'Admin')
                         .map((emp: any) => ({
@@ -1620,13 +1704,38 @@ export default function EstimateViewPage() {
                         )}
 
                         {/* Toggle All */}
-                        <button
-                            onClick={handleToggleAll}
-                            className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title={allExpanded ? "Collapse All" : "Expand All"}
-                        >
-                            {allExpanded ? <ChevronsUp className="w-5 h-5" /> : <ChevronsDown className="w-5 h-5" />}
-                        </button>
+                        {/* Section Visibility Dropdown */}
+                        <div className="relative">
+                            <button
+                                id="section-visibility-btn"
+                                onClick={() => setShowSectionMenu(!showSectionMenu)}
+                                className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="View Options"
+                            >
+                                <LayoutTemplate className="w-5 h-5" />
+                            </button>
+                            <MyDropDown
+                                isOpen={showSectionMenu}
+                                onClose={() => setShowSectionMenu(false)}
+                                anchorId="section-visibility-btn"
+                                multiSelect={true}
+                                positionMode="bottom"
+                                options={[
+                                    { id: 'estimateDocs', label: 'Estimate Docs', value: 'estimateDocs' },
+                                    { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
+                                    { id: 'proposal', label: 'Proposal', value: 'proposal' }
+                                ]}
+                                selectedValues={Object.keys(visibleSections).filter(k => visibleSections[k as keyof typeof visibleSections])}
+                                onSelect={(val) => {
+                                    setVisibleSections(prev => ({
+                                        ...prev,
+                                        [val]: !prev[val as keyof typeof visibleSections]
+                                    }));
+                                }}
+                                width="w-48"
+                                hideSelectionIndicator={false}
+                            />
+                        </div>
 
                         <div className="h-6 w-px bg-gray-200 mx-2" />
 
@@ -1710,9 +1819,17 @@ export default function EstimateViewPage() {
                             }
                         }}
                     />
+                    
+                    {/* Estimate Docs Section */}
+                    {visibleSections.estimateDocs && (
+                        <div className="mt-6 animation-fade-in">
+                            <EstimateDocsCard formData={formData || {}} employees={employeesData} />
+                        </div>
+                    )}
                 </div>
 
                 {/* Section 2: All Line Items (Full Screen Height with Scroll) */}
+                {visibleSections.lineItems && (
                 <div className="w-full px-4 pb-4 h-[calc(100vh-64px)] flex flex-col">
                     <EstimateLineItemsCard
                         sections={sections}
@@ -1738,9 +1855,10 @@ export default function EstimateViewPage() {
                         onExplain={handleExplain}
                     />
                 </div>
+                )}
 
                 {/* Section 3: Proposal (Full Screen Height with Scroll) */}
-                {templates.length > 0 && (
+                {visibleSections.proposal && templates.length > 0 && (
                     <div className="w-full px-6 pb-8 h-[calc(100vh-64px)] flex flex-col">
                         <div className="flex-1 h-full overflow-hidden">
                             <MyProposal

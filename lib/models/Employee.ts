@@ -46,6 +46,8 @@ export interface IEmployee extends Omit<Document, '_id'> {
     veriforce?: string;
     unionPaperwork1184?: string;
     profilePicture?: string;
+    signature?: string; // Base64 signature image
+    estimateSettings?: string[];
 
 
     createdAt?: Date;
@@ -96,6 +98,8 @@ const EmployeeSchema: Schema = new Schema({
     veriforce: { type: String },
     unionPaperwork1184: { type: String },
     profilePicture: { type: String },
+    signature: { type: String },
+    estimateSettings: [{ type: String }],
 
 
 }, {
