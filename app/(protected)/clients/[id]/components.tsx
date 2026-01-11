@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Building, FileSpreadsheet, Eye, Download, X, FileText, Upload, RefreshCw } from 'lucide-react';
-import { Button, Modal } from '@/components/ui';
+import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Building, FileSpreadsheet, Eye, Download, X, FileText, Upload, RefreshCw, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Button, Modal, Badge } from '@/components/ui';
 
 interface ClientContact {
     name: string;
@@ -11,6 +11,7 @@ interface ClientContact {
     extension?: string;
     type: string;
     active: boolean;
+    address?: string;
 }
 
 interface ClientDocument {
@@ -57,86 +58,160 @@ interface Client {
 interface ClientHeaderCardProps {
     client: Client;
     onUpdate: (field: string, value: any) => void;
+    onAddContact?: () => void;
+    onAddAddress?: () => void;
+    onEditContact?: (index: number) => void;
+    onRemoveContact?: (index: number) => void;
+    onEditAddress?: (index: number) => void;
+    onRemoveAddress?: (index: number) => void;
     animate: boolean;
 }
 
-export function ClientHeaderCard({ client, onUpdate, animate }: ClientHeaderCardProps) {
+export function ClientHeaderCard({ 
+    client, 
+    onUpdate, 
+    onAddContact, 
+    onAddAddress, 
+    onEditContact,
+    onRemoveContact,
+    onEditAddress,
+    onRemoveAddress,
+    animate 
+}: ClientHeaderCardProps) {
     const primaryContact = client.contacts?.find(c => c.active) || client.contacts?.[0];
 
     return (
-        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 sm:p-6 lg:p-8 mb-6">
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
 
-                {/* PART 1: Identity & Contact Info Consolidated */}
-                <div className="xl:col-span-2 flex flex-col gap-4 p-5 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
-                    <div className="flex flex-col justify-center h-full">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">
-                            Client Details
-                        </label>
-                        <div className="text-2xl font-black text-slate-800 tracking-tight mb-5 underline decoration-indigo-500/30 underline-offset-8">
-                            {client.name}
+                {/* COLUMN 1: Client Details */}
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                        Client Details
+                    </label>
+                    <div className="text-xl font-black text-slate-800 tracking-tight mb-2 underline decoration-indigo-500/30 underline-offset-4">
+                        {client.name}
+                    </div>
+                    
+                    <div className="space-y-2 mt-auto">
+                        <div className="flex items-start gap-2 text-xs font-normal text-slate-600">
+                            <MapPin className="w-3.5 h-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
+                            <span className="leading-snug">{client.businessAddress || 'No Address'}</span>
                         </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
-                            <div className="flex items-start gap-3 text-sm font-medium text-slate-600">
-                                <MapPin className="w-4 h-4 text-rose-400 mt-0.5 flex-shrink-0" />
-                                <span className="leading-snug">{client.businessAddress || 'No Address'}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                                <User className="w-4 h-4 text-indigo-400 flex-shrink-0" />
-                                <span className="truncate">{primaryContact?.name || 'No Primary Contact'}</span>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                                <Phone className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                                <a href={`tel:${primaryContact?.phone}`} className="hover:text-emerald-600 whitespace-nowrap">
-                                    {(primaryContact?.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3') || 'No Phone'}
-                                    {primaryContact?.extension ? <span className="text-slate-400 ml-1">x{primaryContact.extension}</span> : ''}
-                                </a>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                                <Mail className="w-4 h-4 text-sky-400 flex-shrink-0" />
-                                <a href={`mailto:${primaryContact?.email}`} className="hover:text-sky-600 truncate">
-                                    {primaryContact?.email || 'No Email'}
-                                </a>
-                            </div>
+                        <div className="flex items-center gap-2 text-xs font-normal text-slate-600">
+                            <Building className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                            <span className="truncate">{client.status || 'Active'}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* PART 4: KPI (Mocked for style - Project Focus) */}
-                <div className="flex flex-col p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] relative overflow-hidden">
-                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block text-center">
-                        Engagement Score
-                    </label>
-
-                    <div className="flex-1 flex items-center justify-center relative">
-                        {/* Simple Gauge */}
-                        <svg viewBox="0 0 100 60" className="w-full h-full max-h-[80px]">
-                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="#e2e8f0" strokeWidth="8" strokeLinecap="round" />
-                            <path
-                                d="M 10 50 A 40 40 0 0 1 90 50"
-                                fill="none"
-                                stroke="#3282B8"
-                                strokeWidth="8"
-                                strokeLinecap="round"
-                                strokeDasharray="126"
-                                strokeDashoffset={126 - (126 * 0.90)} // 90% score
-                                className="transition-all duration-1000 ease-out"
-                                style={{ strokeDashoffset: animate ? 126 - (126 * 0.90) : 126 }}
-                            />
-                        </svg>
-                        <div className="absolute inset-0 flex items-end justify-center pb-1">
-                            <div className="text-2xl font-black text-[#0F4C75]">90<span className="text-sm text-slate-400 font-bold">%</span></div>
-                        </div>
+                {/* COLUMN 2: Contacts (Deck View) */}
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                    <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                            Contacts
+                        </label>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onAddContact?.(); }}
+                            className="p-1 rounded-full bg-white/50 text-[#0F4C75] hover:bg-[#0F4C75] hover:text-white transition-all shadow-sm"
+                            title="Add Contact"
+                        >
+                            <Plus size={10} />
+                        </button>
                     </div>
+                    <div className="flex flex-col gap-2 overflow-y-auto max-h-[140px] pr-1 thin-scrollbar">
+                        {client.contacts?.length ? client.contacts.map((contact, i) => (
+                            <div key={i} className="group relative flex flex-col p-2 bg-white/60 rounded-xl border border-white/50 shadow-sm transition-all hover:bg-white">
+                                <div className="flex items-center justify-between mb-1 gap-2">
+                                    <span className="text-[11px] font-normal text-slate-700 truncate">{contact.name}</span>
+                                    <Badge variant={contact.active ? "success" : "default"} className="text-[8px] py-0 px-1.5 h-4 font-normal uppercase">
+                                        {contact.type}
+                                    </Badge>
+                                </div>
+                                {contact.address && (
+                                    <div className="flex items-start gap-1 mb-1 text-[10px] text-slate-500 font-normal">
+                                        <MapPin className="w-3 h-3 text-rose-400 mt-0.5 shrink-0" />
+                                        <span className="truncate">{contact.address}</span>
+                                    </div>
+                                )}
+                                <div className="flex items-center gap-3 text-[10px] text-slate-500 font-normal">
+                                    <div className="flex items-center gap-1">
+                                        <Phone className="w-3 h-3 text-emerald-400" />
+                                        <span>{contact.phone || 'No phone'}</span>
+                                    </div>
+                                    {contact.email && (
+                                        <div className="flex items-center gap-1 min-w-0">
+                                            <Mail className="w-3 h-3 text-sky-400 shrink-0" />
+                                            <span className="truncate">{contact.email}</span>
+                                        </div>
+                                    )}
+                                </div>
 
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 px-4">
-                        <span>Active</span>
-                        <span>Projects: 5</span>
+                                {/* Hover actions */}
+                                <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-0.5 rounded-lg shadow-sm border border-slate-100">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onEditContact?.(i); }}
+                                        className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
+                                    >
+                                        <Pencil size={12} />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onRemoveContact?.(i); }}
+                                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 size={12} />
+                                    </button>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="flex items-center justify-center h-20 text-[10px] text-slate-400 italic">No contacts registered</div>
+                        )}
                     </div>
-                </div >
-            </div >
-        </div >
+                </div>
+
+                {/* COLUMN 3: Job/Billing Addresses (Deck View) */}
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                    <div className="flex items-center justify-between mb-1">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                            Job/Billing Addresses
+                        </label>
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onAddAddress?.(); }}
+                            className="p-1 rounded-full bg-white/50 text-[#0F4C75] hover:bg-[#0F4C75] hover:text-white transition-all shadow-sm"
+                            title="Add Address"
+                        >
+                            <Plus size={10} />
+                        </button>
+                    </div>
+                    <div className="flex flex-col gap-2 overflow-y-auto max-h-[140px] pr-1 thin-scrollbar">
+                        {client.addresses?.length ? client.addresses.map((address, i) => (
+                            <div key={i} className="group relative flex items-start gap-2 p-2 bg-white/60 rounded-xl border border-white/50 shadow-sm transition-all hover:bg-white text-[10px] text-slate-600 leading-tight font-normal">
+                                <MapPin className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
+                                <span className="pr-12">{address}</span>
+
+                                {/* Hover actions */}
+                                <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-0.5 rounded-lg shadow-sm border border-slate-100 font-normal">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onEditAddress?.(i); }}
+                                        className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
+                                    >
+                                        <Pencil size={12} />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); onRemoveAddress?.(i); }}
+                                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                    >
+                                        <Trash2 size={12} />
+                                    </button>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="flex items-center justify-center h-20 text-[10px] text-slate-400 italic">No additional addresses</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
 
@@ -424,7 +499,7 @@ export function AccordionCard({ title, isOpen, onToggle, children, icon: Icon, r
         <div className={`bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] overflow-hidden transition-all duration-300 border border-gray-100 ${className}`}>
             <div
                 onClick={!isStatic ? onToggle : undefined}
-                className={`w-full flex items-center justify-between p-4 sm:p-5 transition-colors ${!isStatic ? 'cursor-pointer hover:bg-gray-50' : ''} ${isOpen || isStatic ? 'bg-slate-50/80' : 'bg-white'}`}
+                className={`w-full flex items-center justify-between p-4 transition-colors ${!isStatic ? 'cursor-pointer hover:bg-gray-50' : ''} ${isOpen || isStatic ? 'bg-slate-50/80' : 'bg-white'}`}
             >
                 <div className="flex items-center gap-3">
                     {Icon && <Icon className="w-5 h-5 text-[#3282B8]" />}

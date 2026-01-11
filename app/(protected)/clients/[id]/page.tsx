@@ -16,6 +16,7 @@ interface ClientContact {
     extension?: string;
     type: string;
     active: boolean;
+    address?: string;
 }
 
 interface ClientDocument {
@@ -78,7 +79,7 @@ export default function ClientViewPage() {
     });
 
     const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
-    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
+    const [newContact, setNewContact] = useState<ClientContact>({ name: '', email: '', phone: '', type: 'Main Contact', active: false, address: '' });
 
     const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
     const [newAddress, setNewAddress] = useState('');
@@ -188,28 +189,51 @@ export default function ClientViewPage() {
         setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
     };
 
-    const handleAddContact = async () => {
+
+
+    const processContactWithNewAddress = (contact: ClientContact, currentAddresses: string[]): { contact: ClientContact, updatedAddresses: string[] | null } => {
+        if (!contact.address || contact.address.trim() === '') return { contact, updatedAddresses: null };
+        
+        const address = contact.address.trim();
+        // Check if this address is already in any list
+        const exists = currentAddresses.some(a => a.toLowerCase() === address.toLowerCase()) ||
+                     (client?.businessAddress?.toLowerCase() === address.toLowerCase());
+        
+        if (!exists) {
+            return {
+                contact,
+                updatedAddresses: [...currentAddresses, address]
+            };
+        }
+        return { contact, updatedAddresses: null };
+    };
+
+    const handleAddContactWithAddressCheck = async () => {
         if (!client || !newContact.name) return;
 
+        const { contact, updatedAddresses } = processContactWithNewAddress(newContact, client.addresses || []);
+        
         // If this is marked as active, deactivate others
         let updatedContacts = [...(client.contacts || [])];
-        if (newContact.active) {
+        if (contact.active) {
             updatedContacts = updatedContacts.map(c => ({ ...c, active: false }));
         }
-        // If it's the first contact and no active one exists, make it active
         if (updatedContacts.length === 0) {
-            newContact.active = true;
+            contact.active = true;
         }
 
-        updatedContacts.push(newContact);
+        updatedContacts.push(contact);
+
+        const payload: any = { contacts: updatedContacts };
+        if (updatedAddresses) payload.addresses = updatedAddresses;
 
         try {
-            const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
+            const res = await apiCall('updateClient', { id: client._id, item: payload });
             if (res.success) {
                 setClient(res.result);
                 setIsAddContactModalOpen(false);
-                setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
-                success('Contact added');
+                setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false, address: '' });
+                success('Contact added' + (updatedAddresses ? ' and new address saved' : ''));
             } else {
                 toastError(res.error || 'Failed to add contact');
             }
@@ -263,23 +287,30 @@ export default function ClientViewPage() {
         }
     };
 
-    const handleUpdateContact = async () => {
+
+
+    const handleUpdateContactWithAddressCheck = async () => {
         if (!client || !newContact.name || editingContactIndex === null) return;
 
+        const { contact, updatedAddresses } = processContactWithNewAddress(newContact, client.addresses || []);
+
         let updatedContacts = [...(client.contacts || [])];
-        if (newContact.active) {
+        if (contact.active) {
             updatedContacts = updatedContacts.map(c => ({ ...c, active: false }));
         }
-        updatedContacts[editingContactIndex] = newContact;
+        updatedContacts[editingContactIndex] = contact;
+
+        const payload: any = { contacts: updatedContacts };
+        if (updatedAddresses) payload.addresses = updatedAddresses;
 
         try {
-            const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
+            const res = await apiCall('updateClient', { id: client._id, item: payload });
             if (res.success) {
                 setClient(res.result);
                 setIsAddContactModalOpen(false);
                 setEditingContactIndex(null);
-                setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
-                success('Contact updated');
+                setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false, address: '' });
+                success('Contact updated' + (updatedAddresses ? ' and new address saved' : ''));
             } else {
                 toastError(res.error || 'Failed to update contact');
             }
@@ -604,196 +635,32 @@ export default function ClientViewPage() {
             </div>
 
             <main className="flex-1 overflow-y-auto">
-                <div className="w-full px-4 sm:px-6 lg:px-8 py-6 pb-24 max-w-[1600px] mx-auto">
+                <div className="w-full px-4 py-4 pb-24 max-w-[1600px] mx-auto">
 
                     {/* Hero Header Card */}
                     <ClientHeaderCard
                         client={client}
                         onUpdate={() => { }}
+                        onAddContact={() => setIsAddContactModalOpen(true)}
+                        onAddAddress={() => setIsAddAddressModalOpen(true)}
+                        onEditContact={handleEditContact}
+                        onRemoveContact={handleRemoveContact}
+                        onEditAddress={handleEditAddress}
+                        onRemoveAddress={handleRemoveAddress}
                         animate={animate}
                     />
 
 
                     {/* Main Layout Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    <div className="flex flex-col gap-6">
 
-                        {/* Contacts Card */}
-                        <div className="col-span-1 xl:col-span-2">
-                            <AccordionCard
-                                title="Contacts"
-                                icon={User}
-                                isStatic={true}
-                                contentClassName="max-h-[220px] overflow-y-auto thin-scrollbar"
-                                rightElement={
-                                    <Button size="sm" onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingContactIndex(null);
-                                        setNewContact({ name: '', email: '', phone: '', type: 'Main Contact', active: false });
-                                        setIsAddContactModalOpen(true);
-                                    }} className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                                        <Plus className="w-3.5 h-3.5 mr-1" />
-                                        Add New
-                                    </Button>
-                                }
-                            >
-                                <div className="p-0">
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow className="bg-slate-50/50">
-                                                <TableHeader>Name</TableHeader>
-                                                <TableHeader>Type</TableHeader>
-                                                <TableHeader>Email</TableHeader>
-                                                <TableHeader>Phone</TableHeader>
-                                                <TableHeader>Status</TableHeader>
-                                                <TableHeader className="text-right whitespace-nowrap">Actions</TableHeader>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {client.contacts && client.contacts.length > 0 ? (
-                                                client.contacts.map((c, i) => (
-                                                    <TableRow key={i} className={`hover:bg-slate-50/30 transition-colors ${c.active ? 'bg-[#3282B8]/5' : ''}`}>
-                                                        <TableCell>
-                                                            <div className="text-sm font-bold text-slate-700">{c.name}</div>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Badge variant="default" className="text-[10px] py-0 px-2 h-5 bg-slate-100 text-slate-500 border-slate-200">
-                                                                {c.type}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {c.email ? (
-                                                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                                    <Mail className="w-3.5 h-3.5 text-[#3282B8]" /> {c.email}
-                                                                </div>
-                                                            ) : '-'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {c.phone ? (
-                                                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                                    <Phone className="w-3.5 h-3.5 text-emerald-400" /> {c.phone} {c.extension ? <span className="text-slate-400 ml-1">x{c.extension}</span> : ''}
-                                                                </div>
-                                                            ) : '-'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {c.active ? (
-                                                                <Badge variant="success" className="text-[10px] py-0 px-2 h-5">Active Primary</Badge>
-                                                            ) : (
-                                                                <button
-                                                                    onClick={() => handleSetActiveContact(i)}
-                                                                    className="text-[10px] font-bold text-[#0F4C75] hover:text-[#3282B8] uppercase tracking-tight"
-                                                                >
-                                                                    Set Primary
-                                                                </button>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="flex items-center justify-end gap-1">
-                                                                <button
-                                                                    onClick={() => handleEditContact(i)}
-                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-[#3282B8]/5 rounded-lg transition-colors"
-                                                                    title="Edit Contact"
-                                                                >
-                                                                    <Pencil className="w-4 h-4" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleRemoveContact(i)}
-                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                    title="Remove Contact"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={6} className="h-24 text-center text-slate-400 italic font-medium">
-                                                        No contacts found for this client
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </AccordionCard>
-                        </div>
 
-                        {/* Addresses Card */}
-                        <div className="col-span-1">
-                            <AccordionCard
-                                title="Addresses"
-                                icon={MapPin}
-                                isStatic={true}
-                                contentClassName="max-h-[220px] overflow-y-auto thin-scrollbar"
-                                rightElement={
-                                    <Button size="sm" onClick={(e) => {
-                                        e.stopPropagation();
-                                        setEditingAddressIndex(null);
-                                        setNewAddress('');
-                                        setIsAddAddressModalOpen(true);
-                                    }} className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider">
-                                        <Plus className="w-3.5 h-3.5 mr-1" />
-                                        Add New
-                                    </Button>
-                                }
-                            >
-                                <div className="p-0">
-                                    <Table>
-                                        <TableHead>
-                                            <TableRow className="bg-slate-50/50">
-                                                <TableHeader>Job / Billing Address</TableHeader>
-                                                <TableHeader className="text-right">Actions</TableHeader>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {client.addresses && client.addresses.length > 0 ? (
-                                                client.addresses.map((addr, i) => (
-                                                    <TableRow key={i} className="hover:bg-slate-50/30 transition-colors">
-                                                        <TableCell>
-                                                            <div className="flex items-start gap-3">
-                                                                <MapPin className="w-4 h-4 text-rose-400 mt-0.5 shrink-0" />
-                                                                <span className="text-sm font-medium text-slate-600 leading-snug">{addr}</span>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="flex items-center justify-end gap-1">
-                                                                <button
-                                                                    onClick={() => handleEditAddress(i)}
-                                                                    className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                                    title="Edit Address"
-                                                                >
-                                                                    <Pencil className="w-4 h-4" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => handleRemoveAddress(i)}
-                                                                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                    title="Remove Address"
-                                                                >
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                            ) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={2} className="h-24 text-center text-slate-400 italic font-medium">
-                                                        No additional addresses found
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-                            </AccordionCard>
-                        </div>
 
 
 
 
                         {/* Documents Section */}
-                        <div className="col-span-full mt-4">
+                        <div className="mt-4">
                             <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/50 overflow-hidden">
                                 <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-white">
                                     <div className="flex items-center gap-3">
@@ -840,7 +707,7 @@ export default function ClientViewPage() {
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setIsAddContactModalOpen(false)}>Cancel</Button>
-                        <Button onClick={editingContactIndex !== null ? handleUpdateContact : handleAddContact} disabled={!newContact.name}>
+                        <Button onClick={editingContactIndex !== null ? handleUpdateContactWithAddressCheck : handleAddContactWithAddressCheck} disabled={!newContact.name}>
                             {editingContactIndex !== null ? "Update Contact" : "Add Contact"}
                         </Button>
                     </>
@@ -873,6 +740,19 @@ export default function ClientViewPage() {
                         value={newContact.extension}
                         onChange={e => setNewContact({ ...newContact, extension: e.target.value })}
                         placeholder="123"
+                    />
+
+                    <SearchableSelect
+                        label="Address"
+                        value={newContact.address || ''}
+                        onChange={val => setNewContact({ ...newContact, address: val })}
+                        onAddNew={val => setNewContact({ ...newContact, address: val })}
+                        options={Array.from(new Set([
+                            ...(client.businessAddress ? [client.businessAddress] : []),
+                            ...(client.addresses || [])
+                        ].filter(Boolean)))}
+                        disableBlank
+                        placeholder="Select or type new address..."
                     />
                     <div className="flex flex-col gap-1">
                         <label className="text-xs font-bold text-slate-400 tracking-widest uppercase">Contact Type</label>

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase, Search, ChevronRight, X, MessageSquare } from 'lucide-react';
-import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect } from '@/components/ui';
+import { Header, Button, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface ClientContact {
@@ -64,7 +64,7 @@ export default function ClientsPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [activeTab, setActiveTab] = useState('all');
     const [visibleCount, setVisibleCount] = useState(20);
-    const itemsPerPage = 15;
+    const itemsPerPage = 20;
     const observerTarget = useRef(null);
 
     // Modal State
@@ -327,17 +327,14 @@ export default function ClientsPage() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <div className="hidden lg:block">
-                            <Button
-                                variant="secondary"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="bg-white border text-gray-700 hover:bg-gray-50"
-                                disabled={isImporting}
-                            >
-                                <Upload className="w-4 h-4 mr-2" />
-                                {isImporting ? 'Importing...' : 'Import CSV'}
-                            </Button>
-                        </div>
+                        <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="hidden lg:flex p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600 disabled:opacity-50"
+                            title={isImporting ? 'Importing...' : 'Import CSV'}
+                            disabled={isImporting}
+                        >
+                            <Upload className={`w-4 h-4 ${isImporting ? 'animate-pulse' : ''}`} />
+                        </button>
 
                         <button
                             onClick={openAddModal}
@@ -345,9 +342,13 @@ export default function ClientsPage() {
                         >
                             <Plus size={24} />
                         </button>
-                        <div className="hidden md:block">
-                            <AddButton onClick={openAddModal} label="New Client" />
-                        </div>
+                        <button
+                            onClick={openAddModal}
+                            className="hidden md:flex p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                            title="New Client"
+                        >
+                            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                        </button>
                     </div>
                 }
             />
@@ -395,19 +396,19 @@ export default function ClientsPage() {
                                         >
                                             {/* 1st Row: Client Name */}
                                             <div className="mb-1.5">
-                                                <h3 className="font-bold text-slate-800 text-xs line-clamp-1 leading-tight">{client.name}</h3>
+                                                <h3 className="font-normal text-slate-600 text-xs line-clamp-1 leading-tight">{client.name}</h3>
                                             </div>
 
                                             {/* 2nd Row: Address */}
-                                            <div className="flex items-start gap-1 text-[10px] text-slate-400 mb-1">
+                                            <div className="flex items-start gap-1 text-[10px] text-slate-600 mb-1">
                                                 <MapPin size={12} className="shrink-0 mt-0.5 text-slate-300" />
                                                 <span className="leading-relaxed">{client.businessAddress || 'No address'}</span>
                                             </div>
 
                                             {/* 3rd Row: Contact Name */}
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-3 flex-1">
+                                            <div className="flex items-center gap-1 text-[10px] text-slate-600 mb-3 flex-1">
                                                 <User size={12} className="shrink-0 text-[#3282B8]" />
-                                                <span className="truncate font-medium">{primaryContact?.name || 'No contact'}</span>
+                                                <span className="truncate font-normal">{primaryContact?.name || 'No contact'}</span>
                                             </div>
 
                                             {/* 4th Row: Action Icons & Writer */}
@@ -425,7 +426,7 @@ export default function ClientsPage() {
                                                 </div>
 
                                                 <div
-                                                    className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500 border border-slate-200 overflow-hidden shadow-sm"
+                                                    className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-normal text-slate-600 border border-slate-200 overflow-hidden shadow-sm"
                                                     title={writer ? `${writer.firstName} ${writer.lastName}` : 'Unassigned'}
                                                 >
                                                     {writer?.profilePicture ? (
@@ -445,6 +446,7 @@ export default function ClientsPage() {
                         {/* Desktop Table View */}
                         <div className="hidden md:block">
                         <Table
+                            containerClassName="h-[calc(100vh-140px)] min-h-[400px]"
                             footer={
                                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                             }
@@ -461,7 +463,7 @@ export default function ClientsPage() {
                                         <TableHeader>
                                             <div className="flex items-center gap-2">
                                                 <Briefcase className="w-4 h-4 text-[#0F4C75]" />
-                                                Proposal Writer
+                                                Writer
                                             </div>
                                         </TableHeader>
                                         <TableHeader>Contact</TableHeader>
@@ -492,46 +494,44 @@ export default function ClientsPage() {
                                                     className="cursor-pointer hover:bg-gray-50 transition-colors"
                                                     onClick={() => router.push(`/clients/${client._id}`)}
                                                 >
-                                                    <TableCell className="font-medium">
+                                                    <TableCell>
                                                         <div className="flex items-center gap-3">
                                                             <div className="p-2 bg-[#3282B8]/10 rounded-lg">
                                                                 <Building className="w-4 h-4 text-[#0F4C75]" />
                                                             </div>
-                                                            <span className="text-slate-700 font-bold">{client.name}</span>
+                                                            <span className="text-slate-600 font-normal">{client.name}</span>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         <div className="flex items-start gap-2 max-w-[200px]">
                                                             <MapPin className="w-3.5 h-3.5 text-[#0F4C75] mt-0.5 shrink-0" />
-                                                            <span title={client.businessAddress} className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                                                            <span title={client.businessAddress} className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
                                                                 {client.businessAddress || '-'}
                                                             </span>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         {writer ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden border border-slate-200 shadow-sm">
-                                                                    {writer.profilePicture ? (
-                                                                        <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
-                                                                    )}
-                                                                </div>
-                                                                <span className="text-sm text-slate-600 font-medium tracking-tight">
-                                                                    {writer.firstName} {writer.lastName}
-                                                                </span>
+                                                            <div 
+                                                                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-normal text-slate-600 overflow-hidden border border-slate-200 shadow-sm"
+                                                                title={`${writer.firstName} ${writer.lastName}`}
+                                                            >
+                                                                {writer.profilePicture ? (
+                                                                    <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
+                                                                )}
                                                             </div>
                                                         ) : (
-                                                            <span className="text-gray-400 text-xs italic">Not assigned</span>
+                                                            <span className="text-gray-400 text-[10px] italic">N/A</span>
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <div className="text-sm font-semibold text-slate-600">{primaryContact?.name || '-'}</div>
+                                                        <div className="text-xs font-normal text-slate-600">{primaryContact?.name || '-'}</div>
                                                     </TableCell>
                                                     <TableCell>
                                                         {primaryContact?.email ? (
-                                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                            <div className="flex items-center gap-2 text-xs text-slate-600">
                                                                 <Mail className="w-3.5 h-3.5 text-[#3282B8]" />
                                                                 {primaryContact.email}
                                                             </div>
@@ -539,14 +539,14 @@ export default function ClientsPage() {
                                                     </TableCell>
                                                     <TableCell>
                                                         {primaryContact?.phone ? (
-                                                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                            <div className="flex items-center gap-2 text-xs text-slate-600">
                                                                 <Phone className="w-3.5 h-3.5 text-emerald-400" />
                                                                 {primaryContact.phone}
                                                             </div>
                                                         ) : '-'}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Badge variant={client.status === 'Active' ? 'success' : 'default'} className="text-[10px] uppercase font-bold tracking-wider">
+                                                        <Badge variant={client.status === 'Active' ? 'success' : 'default'} className="text-[10px] uppercase font-normal tracking-wider">
                                                             {client.status || 'Active'}
                                                         </Badge>
                                                     </TableCell>
