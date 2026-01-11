@@ -84,6 +84,7 @@ const prepareContext = (estimate: IEstimate) => {
         contactPerson: e.contactName || '',
         contactPhone: e.contactPhone || '',
         contactEmail: e.contactEmail || '',
+        contactAddress: e.contactAddress || e.jobAddress || '',
         today: new Date(),
     };
 };
@@ -325,7 +326,7 @@ export const getEmptyTemplate = () => ({
     _id: 'empty',
     title: 'Empty Template',
     pages: [{
-        content: `<p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"> </strong></p><table><tbody><tr><td data-row="1"><strong style="color: rgb(0, 0, 0);">Proposal / Contract Number:</strong><span style="color: rgb(0, 0, 0);"> {{proposalNo}} </span></td><td data-row="1"><strong style="color: rgb(0, 0, 0);">Date: </strong><span style="color: rgb(0, 0, 0);">{{date}} </span></td></tr><tr><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Name:</strong><span style="color: rgb(0, 0, 0);"> {{projectTitle}} </span></td><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Address: </strong><span style="color: rgb(0, 0, 0);">{{jobAddress}} </span></td></tr></tbody></table><h2><br></h2><p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"><u>Customer Contact:</u></strong></p><p class="ql-align-justify">{{customerName}}</p><p class="ql-align-justify"><span style="color: rgb(0, 0, 0);">{{contactPerson}} </span></p><p class="ql-align-justify">{{contactEmail}}</p><p class="ql-align-justify">{{contactPhone}}</p><h2><br></h2><p class="ql-align-center"><strong style="color: rgb(0, 0, 0);"><u>PROJECT SCOPE OF WORK</u></strong></p><p><br></p><p>Insert scope of work here...</p>`
+        content: `<p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"> </strong></p><table><tbody><tr><td data-row="1"><strong style="color: rgb(0, 0, 0);">Proposal / Contract Number:</strong><span style="color: rgb(0, 0, 0);"> {{proposalNo}} </span></td><td data-row="1"><strong style="color: rgb(0, 0, 0);">Date: </strong><span style="color: rgb(0, 0, 0);">{{date}} </span></td></tr><tr><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Name:</strong><span style="color: rgb(0, 0, 0);"> {{projectTitle}} </span></td><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Address: </strong><span style="color: rgb(0, 0, 0);">{{jobAddress}} </span></td></tr></tbody></table><h2><br></h2><p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"><u>Customer Contact:</u></strong></p><p class="ql-align-justify">{{customerName}}</p><p class="ql-align-justify"><span style="color: rgb(0, 0, 0);">{{contactPerson}} </span></p><p class="ql-align-justify">{{contactAddress}}</p><p class="ql-align-justify">{{contactEmail}}</p><p class="ql-align-justify">{{contactPhone}}</p><h2><br></h2><p class="ql-align-center"><strong style="color: rgb(0, 0, 0);"><u>PROJECT SCOPE OF WORK</u></strong></p><p><br></p><p>Insert scope of work here...</p>`
     }],
     content: ''
 });

@@ -18,6 +18,7 @@ interface FormData {
     contactId?: string;
     contactEmail?: string;
     contactPhone?: string;
+    contactAddress?: string;
     jobAddress?: string;
 
 
@@ -301,6 +302,7 @@ export function EstimateHeaderCard({
                                     onHeaderUpdate('contactEmail', '');
                                     onHeaderUpdate('contactPhone', '');
                                     onHeaderUpdate('jobAddress', '');
+                                    onHeaderUpdate('contactAddress', '');
                                 }
                                 setActiveDropdown(null);
                             }}
@@ -353,6 +355,7 @@ export function EstimateHeaderCard({
                                     onHeaderUpdate('contactId', opt.id);
                                     onHeaderUpdate('contactEmail', opt.email || '');
                                     onHeaderUpdate('contactPhone', opt.phone || '');
+                                    if ((opt as any).address) onHeaderUpdate('contactAddress', (opt as any).address);
                                 }
                                 setActiveDropdown(null);
                             }}

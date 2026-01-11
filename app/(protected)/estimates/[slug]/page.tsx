@@ -1261,16 +1261,19 @@ export default function EstimateViewPage() {
                 if (clientRes.success && clientRes.result) {
                     const client = clientRes.result;
 
-                    const firstAddress = client.addresses?.[0] || client.businessAddress || '';
-                    const firstContact = client.contacts?.[0] || { name: client.contactFullName, email: client.email, phone: client.phone };
+                    const primaryAddrObj = (client.addresses || []).find((a: any) => a.primary) || client.addresses?.[0];
+                    const primaryAddress = primaryAddrObj ? (typeof primaryAddrObj === 'string' ? primaryAddrObj : primaryAddrObj.address) : (client.businessAddress || '');
+                    
+                    const primaryContact = (client.contacts || []).find((c: any) => c.primary) || client.contacts?.[0] || { name: client.contactFullName, email: client.email, phone: client.phone };
 
                     setFormData(prev => prev ? {
                         ...prev,
-                        jobAddress: firstAddress,
-                        contactName: firstContact.name || '',
-                        contactId: firstContact.name || '',
-                        contactEmail: firstContact.email || '',
-                        contactPhone: firstContact.phone || ''
+                        jobAddress: primaryAddress,
+                        contactAddress: primaryAddress,
+                        contactName: primaryContact.name || '',
+                        contactId: primaryContact.name || '',
+                        contactEmail: primaryContact.email || '',
+                        contactPhone: primaryContact.phone || ''
                     } : null);
 
                 }

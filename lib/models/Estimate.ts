@@ -10,6 +10,7 @@ export interface IEstimate extends Document {
     contactId?: string;
     contactEmail?: string;
     contactPhone?: string;
+    contactAddress?: string;
     extension?: string;
     jobAddress?: string;
     projectTitle?: string;
@@ -106,6 +107,7 @@ const EstimateSchema = new Schema({
     contactId: { type: String },
     contactEmail: { type: String },
     contactPhone: { type: String },
+    contactAddress: { type: String },
     extension: { type: String },
     jobAddress: { type: String },
 

@@ -736,7 +736,7 @@ export async function POST(request: NextRequest) {
                 if (updated && updated.estimate) {
                     // Fields that should be synced across ALL versions of this estimate
                     const SHARED_FIELDS = [
-                        'projectName', 'jobAddress', 'customerId', 'customerName',
+                        'projectName', 'jobAddress', 'contactAddress', 'customerId', 'customerName',
                         'contactName', 'contactEmail', 'contactPhone', 'contactId',
                         'accountingContact', 'accountingEmail', 'accountingPhone', 'PoORPa', 'poName', 'PoAddress', 'PoPhone',
                         'ocName', 'ocAddress', 'ocPhone',
