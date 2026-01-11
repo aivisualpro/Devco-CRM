@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X
 } from 'lucide-react';
 
 import SignaturePad from './SignaturePad';
@@ -14,7 +14,7 @@ import {
     Header, AddButton, Card, SearchInput, Table, TableHead,
     TableBody, TableRow, TableHeader, TableCell, Pagination,
     EmptyState, Loading, Modal, ConfirmModal, Badge,
-    SkeletonTable, SearchableSelect, BadgeTabs
+    SkeletonTable, SearchableSelect, BadgeTabs, MyDropDown
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -39,6 +39,8 @@ interface ScheduleItem {
     certifiedPayroll: string;
     notifyAssignees: string;
     perDiem: string;
+    aerialImage?: string;
+    siteLayout?: string;
     createdAt?: string;
     updatedAt?: string;
     timesheet?: any[];
@@ -82,6 +84,7 @@ export default function SchedulePage() {
     const [selectedJHA, setSelectedJHA] = useState<any>(null);
     const [isJhaEditMode, setIsJhaEditMode] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
+    const [isGeneratingJHAPDF, setIsGeneratingJHAPDF] = useState(false);
 
     // Filter States
     const [filterEstimate, setFilterEstimate] = useState('');
@@ -89,7 +92,8 @@ export default function SchedulePage() {
     const [filterEmployee, setFilterEmployee] = useState('');
     const [filterService, setFilterService] = useState('');
     const [filterTag, setFilterTag] = useState('');
-    const [filterPerDiem, setFilterPerDiem] = useState('');
+    const [filterCertifiedPayroll, setFilterCertifiedPayroll] = useState('');
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
     const clearFilters = () => {
         setSearch('');
@@ -99,11 +103,19 @@ export default function SchedulePage() {
         setFilterEmployee('');
         setFilterService('');
         setFilterTag('');
-        setFilterPerDiem('');
+        setFilterCertifiedPayroll('');
     };
 
     // Mobile filters visibility
     const [showMobileFilters, setShowMobileFilters] = useState(false);
+
+    // Media Modal State
+    const [mediaModal, setMediaModal] = useState<{ isOpen: boolean; type: 'image' | 'map'; url: string; title: string }>({
+        isOpen: false,
+        type: 'image',
+        url: '',
+        title: ''
+    });
 
     // Initial data for dropdowns
     const [initialData, setInitialData] = useState<{
@@ -278,18 +290,67 @@ export default function SchedulePage() {
 
             const matchesService = !filterService || s.service === filterService;
             const matchesTag = !filterTag || s.item === filterTag;
-            const matchesPerDiem = !filterPerDiem || s.perDiem === filterPerDiem;
+            const matchesCertifiedPayroll = !filterCertifiedPayroll || s.certifiedPayroll === filterCertifiedPayroll;
 
             return matchesSearch && matchesSelectedDates && matchesDayTab &&
                 matchesEstimate && matchesClient && matchesEmployee &&
-                matchesService && matchesTag && matchesPerDiem;
+                matchesService && matchesTag && matchesCertifiedPayroll;
         });
-    }, [schedules, search, selectedDates, activeDayTab, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterPerDiem]);
+    }, [schedules, search, selectedDates, activeDayTab, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterCertifiedPayroll]);
 
     // Reset pagination when filters change
     useEffect(() => {
         setVisibleCount(INCREMENT);
-    }, [search, selectedDates, activeDayTab, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterPerDiem]);
+    }, [search, selectedDates, activeDayTab, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterCertifiedPayroll]);
+
+    const FilterItem = ({ label, placeholder, options, value, onChange, id }: any) => (
+        <div className="relative">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">{label}</label>
+            <div 
+                id={`anchor-${id}`}
+                className="w-full h-10 px-4 py-2 bg-white border border-slate-200 rounded-lg flex items-center justify-between cursor-pointer hover:border-[#0F4C75] transition-all shadow-sm group"
+                onClick={() => setOpenDropdownId(openDropdownId === id ? null : id)}
+            >
+                <div className="flex items-center gap-2 truncate flex-1">
+                    {(() => {
+                        const selectedOption = options.find((o: any) => o.value === value);
+                        if (selectedOption?.image || selectedOption?.profilePicture) {
+                            return <img src={selectedOption.image || selectedOption.profilePicture} className="w-5 h-5 rounded-full object-cover shrink-0" alt="" />;
+                        }
+                        if (selectedOption?.color) {
+                            return <div className="w-5 h-5 rounded-full shrink-0" style={{ backgroundColor: selectedOption.color }} />;
+                        }
+                        return null;
+                    })()}
+                    <span className={`text-[13px] font-bold truncate ${value ? 'text-slate-700' : 'text-slate-400'}`}>
+                        {options.find((o: any) => o.value === value)?.label || placeholder}
+                    </span>
+                </div>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${openDropdownId === id ? 'rotate-180' : ''}`} />
+            </div>
+            {openDropdownId === id && (
+                <MyDropDown
+                    isOpen={openDropdownId === id}
+                    onClose={() => setOpenDropdownId(null)}
+                    options={options.map((o: any) => ({ 
+                        id: o.value, 
+                        label: o.label, 
+                        value: o.value,
+                        profilePicture: o.image || o.profilePicture,
+                        color: o.color
+                    }))}
+                    selectedValues={value ? [value] : []}
+                    onSelect={(val) => {
+                        onChange(val === value ? '' : val); // Toggle behavior
+                        setOpenDropdownId(null);
+                    }}
+                    width="w-[200px]"
+                    placeholder={`Search...`}
+                    anchorId={`anchor-${id}`}
+                />
+            )}
+        </div>
+    );
 
     const displayedSchedules = useMemo(() => {
         return filteredSchedules.slice(0, visibleCount);
@@ -744,6 +805,109 @@ export default function SchedulePage() {
         }
     };
 
+    const handleDownloadJhaPdf = async () => {
+        if (!selectedJHA) return;
+        setIsGeneratingJHAPDF(true);
+        try {
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
+            
+            // Build variables from selectedJHA and its parent schedule
+            const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
+            
+            // Find matching estimate for contact info
+            const estimate = initialData.estimates.find(e => e.estimateNum === schedule?.estimate || e._id === schedule?.estimate);
+            
+            // Find matching client for customer name
+            const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
+            
+            // Combine fields
+            const variables: Record<string, any> = {
+                ...selectedJHA,
+                // Customer name from clients collection
+                customerId: client?.name || schedule?.customerName || '',
+                // Contact info from estimate
+                contactName: estimate?.contactName || estimate?.contact || '',
+                contactPhone: estimate?.contactPhone || estimate?.phone || '',
+                jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
+                // Other schedule info
+                customerName: schedule?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                estimateNum: schedule?.estimate || '',
+                foremanName: schedule?.foremanName || '',
+                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+            };
+
+            // Convert booleans to "✔️" for checkboxes in the template
+            const booleanFields = [
+                 'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                 'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                 'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                 'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                 'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                 'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                 'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
+            booleanFields.forEach(f => {
+                if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
+                    variables[f] = '✔️';
+                } else {
+                    variables[f] = '';
+                }
+            });
+
+            // Prepare multiple signatures (Clear slots up to 15)
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`_ComputedName_${i}`] = '';
+            }
+
+            if (variables.signatures && variables.signatures.length > 0) {
+                variables.hasSignatures = true;
+                variables.signatures.forEach((sig: any, index: number) => {
+                    const empName = initialData.employees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName; 
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
+            const response = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to generate JHA PDF');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `JHA_${schedule?.customerName || 'Report'}_${selectedJHA.usaNo || 'Doc'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+            success('JHA PDF downloaded successfully!');
+        } catch (error: any) {
+            console.error('JHA PDF Error:', error);
+            toastError(error.message || 'Failed to download JHA PDF');
+        } finally {
+            setIsGeneratingJHAPDF(false);
+        }
+    };
+
     const handleSaveJHASignature = async (dataUrl: string) => {
         if (!activeSignatureEmployee || !selectedJHA) return;
         
@@ -1181,7 +1345,7 @@ export default function SchedulePage() {
                             </div>
 
                             <div className="space-y-4">
-                                <SearchableSelect
+                                <FilterItem
                                     id="filterEstimate"
                                     label="Estimate #"
                                     placeholder="Select Estimate"
@@ -1190,7 +1354,7 @@ export default function SchedulePage() {
                                     onChange={setFilterEstimate}
                                 />
 
-                                <SearchableSelect
+                                <FilterItem
                                     id="filterClient"
                                     label="Client"
                                     placeholder="Select Client"
@@ -1199,16 +1363,16 @@ export default function SchedulePage() {
                                     onChange={setFilterClient}
                                 />
 
-                                <SearchableSelect
+                                <FilterItem
                                     id="filterEmployee"
                                     label="Employee"
                                     placeholder="Select Employee"
-                                    options={initialData.employees.map(e => ({ label: e.label, value: e.value }))}
+                                    options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
                                     value={filterEmployee}
                                     onChange={setFilterEmployee}
                                 />
 
-                                <SearchableSelect
+                                <FilterItem
                                     id="filterService"
                                     label="Service"
                                     placeholder="Select Service"
@@ -1219,27 +1383,26 @@ export default function SchedulePage() {
                                     onChange={setFilterService}
                                 />
 
-                                <SearchableSelect
+                                <FilterItem
                                     id="filterTag"
                                     label="Tag"
                                     placeholder="Select Tag"
                                     options={initialData.constants
                                         .filter(c => c.type === 'Schedule Items')
-                                        .map(c => ({ label: c.description, value: c.description }))}
+                                        .map(c => ({ label: c.description, value: c.description, image: c.image, color: c.color }))}
                                     value={filterTag}
                                     onChange={setFilterTag}
                                 />
 
-                                <SearchableSelect
-                                    id="filterPerDiem"
-                                    label="Per Diem"
+                                <FilterItem
+                                    id="filterCertifiedPayroll"
+                                    label="Certified Payroll"
                                     placeholder="Any"
-                                    options={[
-                                        { label: 'Yes', value: 'Yes' },
-                                        { label: 'No', value: 'No' },
-                                    ]}
-                                    value={filterPerDiem}
-                                    onChange={setFilterPerDiem}
+                                    options={initialData.constants
+                                        .filter(c => c.type === 'Certified Payroll')
+                                        .map(c => ({ label: c.description, value: c.description }))}
+                                    value={filterCertifiedPayroll}
+                                    onChange={setFilterCertifiedPayroll}
                                 />
                             </div>
                         </div>
@@ -1703,6 +1866,82 @@ export default function SchedulePage() {
                                                 </div>
                                             )}
 
+                                            {/* Aerial Image & Site Layout */}
+                                            {(selectedSchedule.aerialImage || selectedSchedule.siteLayout) && (
+                                                <div className="pt-4 border-t border-slate-100">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {selectedSchedule.aerialImage && (
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Aerial Image</p>
+                                                                <div 
+                                                                    className="relative group cursor-pointer"
+                                                                    onClick={() => setMediaModal({ isOpen: true, type: 'image', url: selectedSchedule.aerialImage!, title: 'Aerial Site View' })}
+                                                                >
+                                                                    <img 
+                                                                        src={selectedSchedule.aerialImage} 
+                                                                        alt="Aerial View" 
+                                                                        className="w-full h-44 object-cover rounded-xl border border-slate-200 group-hover:opacity-90 transition-all shadow-sm"
+                                                                    />
+                                                                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <div className="px-3 py-1.5 bg-white/90 backdrop-blur text-[10px] font-bold text-slate-700 rounded-lg shadow-xl">Click to Enlarge</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {selectedSchedule.siteLayout && (
+                                                            <div>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Interactive 3D Site Preview</p>
+                                                                {(() => {
+                                                                    const earthUrl = selectedSchedule.siteLayout;
+                                                                    const coordsMatch = earthUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                                                    const lat = coordsMatch?.[1];
+                                                                    const lng = coordsMatch?.[2];
+                                                                    const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
+                                                                    
+                                                                    return (
+                                                                        <div 
+                                                                            className="relative w-full h-44 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 group cursor-pointer"
+                                                                            onClick={() => {
+                                                                                if (embedUrl) {
+                                                                                    setMediaModal({ isOpen: true, type: 'map', url: embedUrl, title: 'Interactive Site Layout' });
+                                                                                } else {
+                                                                                    window.open(earthUrl, '_blank');
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            {embedUrl ? (
+                                                                                <div className="w-full h-full">
+                                                                                    <iframe
+                                                                                        width="100%"
+                                                                                        height="100%"
+                                                                                        style={{ border: 0 }}
+                                                                                        src={embedUrl}
+                                                                                        className="w-full h-full pointer-events-none"
+                                                                                    />
+                                                                                    <div className="absolute inset-0 bg-transparent flex items-center justify-center group-hover:bg-black/5 transition-all">
+                                                                                        <div className="px-4 py-2 bg-white/90 backdrop-blur shadow-2xl rounded-xl scale-75 group-hover:scale-100 transition-transform flex items-center gap-2">
+                                                                                            <MapPin size={16} className="text-blue-600" />
+                                                                                            <span className="text-[11px] font-black text-slate-800 uppercase">Enlarge Interactive Map</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                                                                                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform">
+                                                                                        <MapPin size={24} className="text-blue-600" />
+                                                                                    </div>
+                                                                                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight">Open Google Earth</p>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             {/* Row 12: Timesheets - Grouped */}
                                             {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 && (
                                                 <div className="pt-4 border-t border-slate-100">
@@ -2133,6 +2372,75 @@ export default function SchedulePage() {
                         />
                     </div>
 
+                    {/* Row 8: Aerial Image & Site Layout */}
+                    <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Aerial Image</label>
+                            <div className="space-y-2">
+                                {editingItem?.aerialImage && (
+                                    <div className="relative group">
+                                        <img 
+                                            src={editingItem.aerialImage} 
+                                            alt="Aerial View" 
+                                            className="w-full h-32 object-cover rounded-lg border border-slate-200"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditingItem({ ...editingItem, aerialImage: '' })}
+                                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                )}
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    id="aerialImageUpload"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const reader = new FileReader();
+                                            reader.onload = (ev) => {
+                                                setEditingItem({ ...editingItem, aerialImage: ev.target?.result as string });
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }}
+                                />
+                                <label
+                                    htmlFor="aerialImageUpload"
+                                    className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-50 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors text-xs text-slate-600"
+                                >
+                                    <Upload size={14} />
+                                    {editingItem?.aerialImage ? 'Replace Image' : 'Upload Aerial Image'}
+                                </label>
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Site Layout (Google Earth)</label>
+                            <input
+                                type="url"
+                                placeholder="Paste Google Earth URL..."
+                                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                value={editingItem?.siteLayout || ''}
+                                onChange={(e) => setEditingItem({ ...editingItem, siteLayout: e.target.value })}
+                            />
+                            {editingItem?.siteLayout && (
+                                <a
+                                    href={editingItem.siteLayout}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-2 mt-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors"
+                                >
+                                    <MapPin size={12} />
+                                    Open in Google Earth
+                                </a>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="flex items-center justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
                         <button
                             type="button"
@@ -2388,7 +2696,26 @@ export default function SchedulePage() {
                     <div className="space-y-8">
                         {/* Section 1: JHA Info */}
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                            <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-200 pb-2">JHA Info</h4>
+                            <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-200 pb-2 flex flex-wrap justify-between items-center gap-2">
+                                <span>JHA Info</span>
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={() => setIsJhaEditMode(true)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-bold hover:bg-blue-700 transition-all shadow-sm"
+                                    >
+                                        <Edit size={12} />
+                                        EDIT JHA
+                                    </button>
+                                    <button
+                                        onClick={handleDownloadJhaPdf}
+                                        disabled={isGeneratingJHAPDF}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:text-[#0F4C75] hover:border-[#0F4C75] transition-all shadow-sm disabled:opacity-50"
+                                    >
+                                        {isGeneratingJHAPDF ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                        DOWNLOAD PDF
+                                    </button>
+                                </div>
+                            </h4>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date).toLocaleDateString()}</p></div>
                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.jhaTime}</p></div>
@@ -2592,6 +2919,55 @@ export default function SchedulePage() {
                 ) : (
                     <EmptyState title="No Data" message="Unable to load JHA details." />
                 )}
+            </Modal>
+
+            {/* Media Modal (Lightbox) */}
+            <Modal
+                isOpen={mediaModal.isOpen}
+                onClose={() => setMediaModal({ ...mediaModal, isOpen: false })}
+                title={mediaModal.title}
+                maxWidth={mediaModal.type === 'map' ? '6xl' : '4xl'}
+            >
+                <div className="p-1">
+                    {mediaModal.type === 'image' ? (
+                        <img 
+                            src={mediaModal.url} 
+                            alt={mediaModal.title} 
+                            className="w-full h-auto rounded-xl shadow-2xl border border-slate-200"
+                        />
+                    ) : (
+                        <div className="w-full aspect-[16/10] rounded-xl overflow-hidden shadow-2xl border border-slate-200 bg-slate-100">
+                            <iframe
+                                src={mediaModal.url}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 0 }}
+                                allowFullScreen
+                                loading="lazy"
+                                className="w-full h-full"
+                            />
+                        </div>
+                    )}
+                    <div className="mt-6 flex justify-end gap-3">
+                        {mediaModal.type === 'map' && (
+                            <a 
+                                href={mediaModal.url.replace('&output=embed', '').replace('output=embed', '')} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg hover:shadow-blue-200/50 hover:bg-blue-700 transition-all flex items-center gap-2"
+                            >
+                                <MapPin size={18} />
+                                Open in Google Earth
+                            </a>
+                        )}
+                        <button
+                            onClick={() => setMediaModal({ ...mediaModal, isOpen: false })}
+                            className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-black hover:bg-slate-200 transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

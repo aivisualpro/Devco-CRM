@@ -61,6 +61,14 @@ export default function DashboardPage() {
     const [estimates, setEstimates] = useState<any[]>([]);
     const [clients, setClients] = useState<any[]>([]);
 
+    // Media Modal State
+    const [mediaModal, setMediaModal] = useState<{ isOpen: boolean; type: 'image' | 'map'; url: string; title: string }>({
+        isOpen: false,
+        type: 'image',
+        url: '',
+        title: ''
+    });
+
     const formatLocalDate = (dateInput: string | Date) => {
         const date = new Date(dateInput);
         const year = date.getFullYear();
@@ -868,6 +876,82 @@ export default function DashboardPage() {
                                 </p>
                             </div>
                         )}
+
+                        {/* Aerial Image & Site Layout */}
+                        {(selectedSchedule.aerialImage || selectedSchedule.siteLayout) && (
+                            <div className="pt-4 border-t border-slate-100">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {selectedSchedule.aerialImage && (
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Aerial Image</p>
+                                            <div 
+                                                className="relative group cursor-pointer"
+                                                onClick={() => setMediaModal({ isOpen: true, type: 'image', url: selectedSchedule.aerialImage!, title: 'Aerial Site View' })}
+                                            >
+                                                <img 
+                                                    src={selectedSchedule.aerialImage} 
+                                                    alt="Aerial View" 
+                                                    className="w-full h-40 object-cover rounded-xl border border-slate-200 group-hover:opacity-90 transition-all shadow-sm"
+                                                />
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div className="px-3 py-1.5 bg-white/90 backdrop-blur text-[10px] font-bold text-slate-700 rounded-lg shadow-xl">Click to Enlarge</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedSchedule.siteLayout && (
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Interactive 3D Preview</p>
+                                            {(() => {
+                                                const earthUrl = selectedSchedule.siteLayout;
+                                                const coordsMatch = earthUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                                const lat = coordsMatch?.[1];
+                                                const lng = coordsMatch?.[2];
+                                                const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
+                                                
+                                                return (
+                                                    <div 
+                                                        className="relative w-full h-40 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 group cursor-pointer"
+                                                        onClick={() => {
+                                                            if (embedUrl) {
+                                                                setMediaModal({ isOpen: true, type: 'map', url: embedUrl, title: 'Interactive Site Layout' });
+                                                            } else {
+                                                                window.open(earthUrl, '_blank');
+                                                            }
+                                                        }}
+                                                    >
+                                                        {embedUrl ? (
+                                                            <div className="w-full h-full">
+                                                                <iframe
+                                                                    width="100%"
+                                                                    height="100%"
+                                                                    style={{ border: 0 }}
+                                                                    src={embedUrl}
+                                                                    className="w-full h-full pointer-events-none"
+                                                                />
+                                                                <div className="absolute inset-0 bg-transparent flex items-center justify-center group-hover:bg-black/5 transition-all">
+                                                                    <div className="px-4 py-2 bg-white/90 backdrop-blur shadow-2xl rounded-xl scale-75 group-hover:scale-100 transition-transform flex items-center gap-2">
+                                                                        <MapPin size={16} className="text-blue-600" />
+                                                                        <span className="text-[11px] font-black text-slate-800 uppercase">Enlarge Map</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="absolute inset-0 flex flex-col items-center justify-center p-4 text-center">
+                                                                <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg mb-3 group-hover:scale-110 transition-transform">
+                                                                    <MapPin size={24} className="text-blue-600" />
+                                                                </div>
+                                                                <p className="text-xs font-black text-slate-800 uppercase tracking-tight">Open Google Earth</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Modal>
             )}
@@ -1374,6 +1458,54 @@ export default function DashboardPage() {
                 ) : (
                     <EmptyState title="No Data" message="Unable to load JHA details." />
                 )}
+            </Modal>
+            {/* Media Modal (Lightbox) */}
+            <Modal
+                isOpen={mediaModal.isOpen}
+                onClose={() => setMediaModal({ ...mediaModal, isOpen: false })}
+                title={mediaModal.title}
+                maxWidth={mediaModal.type === 'map' ? '6xl' : '4xl'}
+            >
+                <div className="p-1">
+                    {mediaModal.type === 'image' ? (
+                        <img 
+                            src={mediaModal.url} 
+                            alt={mediaModal.title} 
+                            className="w-full h-auto rounded-xl shadow-2xl border border-slate-200"
+                        />
+                    ) : (
+                        <div className="w-full aspect-[16/10] rounded-xl overflow-hidden shadow-2xl border border-slate-200 bg-slate-100">
+                            <iframe
+                                src={mediaModal.url}
+                                width="100%"
+                                height="100%"
+                                style={{ border: 0 }}
+                                allowFullScreen
+                                loading="lazy"
+                                className="w-full h-full"
+                            />
+                        </div>
+                    )}
+                    <div className="mt-6 flex justify-end gap-3">
+                        {mediaModal.type === 'map' && (
+                            <a 
+                                href={mediaModal.url.replace('&output=embed', '').replace('output=embed', '')} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg hover:shadow-blue-200/50 hover:bg-blue-700 transition-all flex items-center gap-2"
+                            >
+                                <MapPin size={18} />
+                                Open in Google Earth
+                            </a>
+                        )}
+                        <button
+                            onClick={() => setMediaModal({ ...mediaModal, isOpen: false })}
+                            className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-black hover:bg-slate-200 transition-colors"
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

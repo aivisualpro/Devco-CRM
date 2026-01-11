@@ -50,7 +50,7 @@ export function MyDropDown({
 }: MyDropDownProps) {
     const [search, setSearch] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
+    const [coords, setCoords] = useState<{ top: number; left: number; width: number; isBottom: boolean } | null>(null);
     const [adjustedLeft, setAdjustedLeft] = useState<number | null>(null);
     const [isMounted, setIsMounted] = useState(false);
 
@@ -63,10 +63,15 @@ export function MyDropDown({
             const anchor = document.getElementById(anchorId);
             if (anchor) {
                 const rect = anchor.getBoundingClientRect();
+                const dropdownHeight = 350; // Estimated max height
+                const spaceBelow = window.innerHeight - rect.bottom;
+                const shouldShowAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+
                 setCoords({
-                    top: (positionMode === 'overlay' ? rect.top : rect.bottom) + window.scrollY,
-                    left: rect.left + window.scrollX,
-                    width: rect.width
+                    top: (shouldShowAbove ? rect.top : rect.bottom),
+                    left: rect.left,
+                    width: rect.width,
+                    isBottom: !shouldShowAbove
                 });
             }
         }
@@ -76,6 +81,7 @@ export function MyDropDown({
         if (isOpen) {
             updatePosition();
             window.addEventListener('resize', updatePosition);
+            // Throttle or use requestAnimationFrame for scroll?
             window.addEventListener('scroll', updatePosition, true);
         }
         return () => {
@@ -153,12 +159,13 @@ export function MyDropDown({
     const dropdownContent = (
         <div 
             ref={dropdownRef}
-            className={`${anchorId ? 'fixed' : 'absolute top-full left-0 pt-2'} rounded-2xl z-[9999] ${className}`}
+            className={`${anchorId ? 'fixed' : 'absolute top-full left-0 pt-2'} rounded-2xl z-[9999] ${className} animate-in fade-in zoom-in-95 duration-200 transition-all`}
             style={anchorId ? {
                 top: coords ? `${coords.top}px` : '0px',
                 left: adjustedLeft !== null ? `${adjustedLeft}px` : (coords ? `${coords.left}px` : '0px'),
                 width: width === 'w-full' && coords ? `${coords.width}px` : (width.startsWith('w-') ? undefined : width),
                 minWidth: width === 'w-full' && coords ? `${coords.width}px` : 'max-content',
+                transform: coords?.isBottom ? 'translateY(10px)' : 'translateY(-100%) translateY(-10px)',
                 display: coords ? 'block' : 'none'
             } : { 
                 width: width.startsWith('w-') ? undefined : width,

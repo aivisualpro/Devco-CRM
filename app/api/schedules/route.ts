@@ -102,20 +102,41 @@ export async function POST(request: NextRequest) {
             case 'getSchedulesPage': {
                 const { startDate, endDate } = payload || {};
                 const query: any = {};
-                if (startDate || endDate) {
-                    query.fromDate = {};
-                    if (startDate) query.fromDate.$gte = startDate;
-                    if (endDate) query.fromDate.$lte = endDate;
+                
+                // If no dates provided, limit to last 60 days to keep things snappy
+                if (!startDate && !endDate) {
+                    const sixtyDaysAgo = new Date();
+                    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+                    query.fromDate = { $gte: sixtyDaysAgo.toISOString() };
+                } else {
+                    if (startDate || endDate) {
+                        query.fromDate = {};
+                        if (startDate) query.fromDate.$gte = startDate;
+                        if (endDate) query.fromDate.$lte = endDate;
+                    }
                 }
 
                 // Combined fetch for schedules + initial data (reduces API calls)
+                // Using projections to only fetch what's actually rendered
                 const [schedules, clients, employees, constants, estimates] = await Promise.all([
-                    Schedule.find(query).sort({ fromDate: -1 }).lean(),
-                    Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition').lean(),
-                    Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress').lean()
-                    ]);
+                    Schedule.find(query)
+                        .select('estimate customerId customerName fromDate toDate foremanName projectManager assignees service item perDiem certifiedPayroll description aerialImage siteLayout jha timesheet')
+                        .sort({ fromDate: -1 })
+                        .lean(),
+                    Client.find()
+                        .select('name _id')
+                        .sort({ name: 1 })
+                        .lean(),
+                    Employee.find()
+                        .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition')
+                        .lean(),
+                    Constant.find()
+                        .select('type description color image')
+                        .lean(),
+                    Estimate.find({ status: { $ne: 'deleted' } })
+                        .select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress')
+                        .lean()
+                ]);
 
                 // Determine hasJHA check based on embedded object
                 const schedulesWithJHA = schedules.map((s: any) => ({

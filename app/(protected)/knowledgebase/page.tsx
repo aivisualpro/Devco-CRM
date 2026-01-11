@@ -13,6 +13,29 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.66',
+        date: 'January 11, 2026',
+        time: '07:45 PKT',
+        type: 'Safety & Compliance',
+        color: 'from-orange-600 to-red-700',
+        highlights: [
+            'JHA PDF Generation',
+            'Google Docs Integration',
+            'Safety Compliance Docs',
+            'One-Click Export'
+        ],
+        changes: [
+            {
+                category: 'Safety & Compliance (Jan 11)',
+                items: [
+                    "JHA PDF: Automated generation of Job Hazard Analysis reports using Google Docs templates.",
+                    "Smart Mapping: Real-time mapping of safety checklists, hospital info, and signatures to PDF.",
+                    "Export Workflow: Integrated download action into the JHA viewing modal for field teams."
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.65',
         date: 'January 11, 2026',
         time: '07:00 PKT',

@@ -19,6 +19,8 @@ export interface ISchedule extends Document {
     certifiedPayroll: string;
     notifyAssignees: string;
     perDiem: string;
+    aerialImage?: string;
+    siteLayout?: string;
     createdAt?: Date;
     updatedAt?: Date;
     timesheet?: ITimesheet[];
@@ -93,6 +95,8 @@ const ScheduleSchema = new Schema({
     certifiedPayroll: { type: String },
     notifyAssignees: { type: String, default: 'No' },
     perDiem: { type: String, default: 'No' },
+    aerialImage: { type: String },
+    siteLayout: { type: String },
     timesheet: { type: [TimesheetSchema], default: [] },
     jha: { type: Object, default: null },
     JHASignatures: { type: [], default: [] }

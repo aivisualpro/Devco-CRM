@@ -1,10 +1,16 @@
-## Current Version: V.0.65
+## Current Version: V.0.66
 
 
-#### V.0.65 - Signature PDF Insertion & Document Integration
+#### V.0.66 - JHA PDF Automation
 *Timestamp: January 11, 2026*
 
-*   **Signature PDF Insertion**:
+*   **JHA PDF Generation**:
+    *   **New Template**: Integrated a specialized Google Doc template (`164zwSdl...`) for Job Hazard Analysis (JHA).
+    *   **Automated Mapping**: All JHA fields (Daily Work, Hazards, Hospital info) are now automatically mapped to the template.
+    *   **Checklist Logic**: Boolean fields are intelligently converted to checkboxes ("X") in the final PDF output.
+    *   **One-Click Download**: Added a "Download PDF" button directly in the JHA viewer for instant report generation.
+
+#### V.0.65 - Signature PDF Insertion & Document Integration
     *   **Robust Rendering**: Fixed the critical issue where signatures were not appearing in generated PDFs. Implemented a marker-based strategy in `googleService.ts` to find and swap placeholders for high-resolution images.
     *   **Automation**: Signatures are now correctly scaled and positioned in real-time during document generation.
     *   **Cleanup Logic**: Automated removal of temporary image files and remaining `{{...}}` placeholders for a polished final document.
