@@ -11,7 +11,13 @@ interface ClientContact {
     extension?: string;
     type: string;
     active: boolean;
+    primary?: boolean;
     address?: string;
+}
+
+interface ClientAddress {
+    address: string;
+    primary: boolean;
 }
 
 interface ClientDocument {
@@ -50,7 +56,7 @@ interface Client {
     proposalWriter?: string;
     status?: string;
     contacts?: ClientContact[];
-    addresses?: string[];
+    addresses?: (string | ClientAddress)[];
     documents?: ClientDocument[];
     [key: string]: any;
 }
@@ -78,7 +84,7 @@ export function ClientHeaderCard({
     onRemoveAddress,
     animate 
 }: ClientHeaderCardProps) {
-    const primaryContact = client.contacts?.find(c => c.active) || client.contacts?.[0];
+    const primaryContact = client.contacts?.find(c => c.primary) || client.contacts?.find(c => c.active) || client.contacts?.[0];
 
     return (
         <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
@@ -98,6 +104,12 @@ export function ClientHeaderCard({
                             <MapPin className="w-3.5 h-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
                             <span className="leading-snug">{client.businessAddress || 'No Address'}</span>
                         </div>
+                        {primaryContact && (
+                            <div className="flex items-center gap-2 text-xs font-normal text-slate-600">
+                                <User className="w-3.5 h-3.5 text-[#3282B8] flex-shrink-0" />
+                                <span className="truncate">{primaryContact.name}</span>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2 text-xs font-normal text-slate-600">
                             <Building className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
                             <span className="truncate">{client.status || 'Active'}</span>
@@ -124,9 +136,14 @@ export function ClientHeaderCard({
                             <div key={i} className="group relative flex flex-col p-2 bg-white/60 rounded-xl border border-white/50 shadow-sm transition-all hover:bg-white">
                                 <div className="flex items-center justify-between mb-1 gap-2">
                                     <span className="text-[11px] font-normal text-slate-700 truncate">{contact.name}</span>
-                                    <Badge variant={contact.active ? "success" : "default"} className="text-[8px] py-0 px-1.5 h-4 font-normal uppercase">
-                                        {contact.type}
-                                    </Badge>
+                                    <div className="flex items-center gap-1">
+                                        {contact.primary && (
+                                            <Badge variant="success" className="text-[7px] py-0 px-1 h-3.5 font-bold uppercase tracking-tighter">PRIMARY</Badge>
+                                        )}
+                                        <Badge variant={contact.active ? "success" : "default"} className="text-[8px] py-0 px-1.5 h-4 font-normal uppercase">
+                                            {contact.type}
+                                        </Badge>
+                                    </div>
                                 </div>
                                 {contact.address && (
                                     <div className="flex items-start gap-1 mb-1 text-[10px] text-slate-500 font-normal">
@@ -184,28 +201,37 @@ export function ClientHeaderCard({
                         </button>
                     </div>
                     <div className="flex flex-col gap-2 overflow-y-auto max-h-[140px] pr-1 thin-scrollbar">
-                        {client.addresses?.length ? client.addresses.map((address, i) => (
-                            <div key={i} className="group relative flex items-start gap-2 p-2 bg-white/60 rounded-xl border border-white/50 shadow-sm transition-all hover:bg-white text-[10px] text-slate-600 leading-tight font-normal">
-                                <MapPin className="w-3 h-3 text-indigo-400 shrink-0 mt-0.5" />
-                                <span className="pr-12">{address}</span>
+                        {client.addresses?.length ? client.addresses.map((addrObj, i) => {
+                            const isString = typeof addrObj === 'string';
+                            const addr = isString ? addrObj : (addrObj as any).address;
+                            const isPrimary = isString ? (i === 0) : (addrObj as any).primary;
 
-                                {/* Hover actions */}
-                                <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-0.5 rounded-lg shadow-sm border border-slate-100 font-normal">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onEditAddress?.(i); }}
-                                        className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
-                                    >
-                                        <Pencil size={12} />
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onRemoveAddress?.(i); }}
-                                        className="p-1 text-slate-400 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 size={12} />
-                                    </button>
+                            return (
+                                <div key={i} className={`group relative flex items-start gap-2 p-2 bg-white/60 rounded-xl border ${isPrimary ? 'border-emerald-200 bg-emerald-50/40' : 'border-white/50'} shadow-sm transition-all hover:bg-white text-[10px] text-slate-600 leading-tight font-normal`}>
+                                    <MapPin className={`w-3 h-3 ${isPrimary ? 'text-emerald-500' : 'text-indigo-400'} shrink-0 mt-0.5`} />
+                                    <div className="flex-1 pr-12 min-w-0">
+                                        <span className="break-words">{addr}</span>
+                                        {isPrimary && <div className="text-[7px] text-emerald-600 font-bold uppercase tracking-widest mt-0.5">Primary</div>}
+                                    </div>
+
+                                    {/* Hover actions */}
+                                    <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-0.5 rounded-lg shadow-sm border border-slate-100 font-normal">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onEditAddress?.(i); }}
+                                            className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
+                                        >
+                                            <Pencil size={12} />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onRemoveAddress?.(i); }}
+                                            className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                        )) : (
+                            );
+                        }) : (
                             <div className="flex items-center justify-center h-20 text-[10px] text-slate-400 italic">No additional addresses</div>
                         )}
                     </div>

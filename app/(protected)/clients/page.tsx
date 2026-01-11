@@ -13,6 +13,12 @@ interface ClientContact {
     extension?: string;
     type: string;
     active: boolean;
+    primary?: boolean;
+}
+
+interface ClientAddress {
+    address: string;
+    primary: boolean;
 }
 
 interface Client {
@@ -21,7 +27,7 @@ interface Client {
     businessAddress?: string;
     proposalWriter?: string; // This should be an employee ID/email
     contacts: ClientContact[];
-    addresses?: string[];
+    addresses?: (string | ClientAddress)[];
     documents?: any[];
     status?: string;
 }
@@ -105,7 +111,7 @@ export default function ClientsPage() {
                 const writer = employees.find(e => e._id === c.proposalWriter || e.email === c.proposalWriter);
                 const writerName = writer ? `${writer.firstName} ${writer.lastName}`.toLowerCase() : '';
 
-                const primaryContact = c.contacts?.find(con => con.active) || c.contacts?.[0];
+                const primaryContact = c.contacts?.find(con => con.primary) || c.contacts?.find(con => con.active) || c.contacts?.[0];
                 return (
                     (c.name || '').toLowerCase().includes(lowerSearch) ||
                     (primaryContact?.email || '').toLowerCase().includes(lowerSearch) ||
@@ -386,7 +392,7 @@ export default function ClientsPage() {
                             ) : (
                                 mobileClients.map((client) => {
                                     const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
-                                    const primaryContact = client.contacts?.find(con => con.active) || client.contacts?.[0];
+                                    const primaryContact = client.contacts?.find(con => con.primary) || client.contacts?.find(con => con.active) || client.contacts?.[0];
 
                                     return (
                                         <div
@@ -486,7 +492,7 @@ export default function ClientsPage() {
                                     ) : (
                                         paginatedClients.map((client) => {
                                             const writer = employees.find(e => e._id === client.proposalWriter || e.email === client.proposalWriter);
-                                            const primaryContact = client.contacts?.find(con => con.active) || client.contacts?.[0];
+                                            const primaryContact = client.contacts?.find(con => con.primary) || client.contacts?.find(con => con.active) || client.contacts?.[0];
 
                                             return (
                                                 <TableRow
@@ -640,7 +646,7 @@ export default function ClientsPage() {
                                 size="sm"
                                 onClick={() => {
                                     const contacts = [...(currentClient.contacts || [])];
-                                    contacts.push({ name: '', email: '', phone: '', type: contacts.length === 0 ? 'Main Contact' : 'Secondary Contact', active: contacts.length === 0 });
+                                    contacts.push({ name: '', email: '', phone: '', type: contacts.length === 0 ? 'Main Contact' : 'Secondary Contact', active: contacts.length === 0, primary: contacts.length === 0 });
                                     setCurrentClient({ ...currentClient, contacts });
                                 }}
                                 className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider !bg-[#0F4C75]"
@@ -733,13 +739,14 @@ export default function ClientsPage() {
                                                         onClick={() => {
                                                             const contacts = (currentClient.contacts || []).map((c, i) => ({
                                                                 ...c,
-                                                                active: i === idx
+                                                                active: i === idx,
+                                                                primary: i === idx ? true : c.primary
                                                             }));
                                                             setCurrentClient({ ...currentClient, contacts });
                                                         }}
                                                         className={`h-9 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${contact.active ? 'bg-[#0F4C75] text-white border-[#0F4C75]' : 'bg-white text-slate-400 border-slate-200 hover:border-[#3282B8] hover:text-[#3282B8]'}`}
                                                     >
-                                                        {contact.active ? 'ACTIVE' : 'SET ACTIVE'}
+                                                        {contact.active ? 'PRIMARY ACTIVE' : 'SET PRIMARY'}
                                                     </button>
                                                 </div>
                                             </div>
@@ -767,7 +774,7 @@ export default function ClientsPage() {
                                 size="sm"
                                 onClick={() => {
                                     const addresses = [...(currentClient.addresses || [])];
-                                    addresses.push('');
+                                    addresses.push({ address: '', primary: addresses.length === 0 });
                                     setCurrentClient({ ...currentClient, addresses });
                                 }}
                                 className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider !bg-[#0F4C75]"
@@ -777,40 +784,69 @@ export default function ClientsPage() {
                         </div>
 
                         <div className="max-h-[300px] overflow-y-auto pr-2 flex flex-col gap-3 thin-scrollbar">
-                            {(currentClient.addresses || []).map((address, idx) => (
-                                <div key={idx} className={`p-4 rounded-2xl border transition-all ${idx === 0 ? 'bg-emerald-50/30 border-emerald-100' : 'bg-slate-50 border-slate-100'} relative group flex gap-4 items-end`}>
-                                    <div className="flex-1">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {idx === 0 ? 'Primary Business Address' : `Additional Address ${idx + 1}`}
-                                            </label>
-                                            {idx === 0 && <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-widest">MAIN TABLE ADDRESS</span>}
+                            {(currentClient.addresses || []).map((addrObj, idx) => {
+                                const isString = typeof addrObj === 'string';
+                                const addr = isString ? addrObj : (addrObj as ClientAddress).address;
+                                const isPrimary = isString ? (idx === 0) : (addrObj as ClientAddress).primary;
+
+                                return (
+                                    <div key={idx} className={`p-4 rounded-2xl border transition-all ${isPrimary ? 'bg-emerald-50/30 border-emerald-100' : 'bg-slate-50 border-slate-100'} relative group flex flex-col md:flex-row gap-4 md:items-end`}>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {isPrimary ? 'Primary Address' : `Additional Address ${idx + 1}`}
+                                                </label>
+                                                {isPrimary && <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-widest">MAIN TABLE ADDRESS</span>}
+                                            </div>
+                                            <Input
+                                                value={addr}
+                                                onChange={(e) => {
+                                                    const addresses = [...(currentClient.addresses || [])];
+                                                    const newVal = e.target.value;
+                                                    if (isString) {
+                                                        addresses[idx] = newVal;
+                                                    } else {
+                                                        addresses[idx] = { ...(addrObj as ClientAddress), address: newVal };
+                                                    }
+                                                    const update: any = { addresses };
+                                                    if (isPrimary) update.businessAddress = newVal;
+                                                    setCurrentClient({ ...currentClient, ...update });
+                                                }}
+                                                placeholder="Enter full address line..."
+                                                className="!bg-white"
+                                            />
                                         </div>
-                                        <Input
-                                            value={address}
-                                            onChange={(e) => {
-                                                const addresses = [...(currentClient.addresses || [])];
-                                                addresses[idx] = e.target.value;
-                                                // If this is the first address, also update the main businessAddress
-                                                const update: any = { addresses };
-                                                if (idx === 0) update.businessAddress = e.target.value;
-                                                setCurrentClient({ ...currentClient, ...update });
-                                            }}
-                                            placeholder="Enter full address line..."
-                                            className="!bg-white"
-                                        />
+                                        <div className="flex items-center gap-2 pb-1">
+                                            <button
+                                                onClick={() => {
+                                                    const addresses = (currentClient.addresses || []).map((a, i) => {
+                                                        const curAddr = typeof a === 'string' ? a : a.address;
+                                                        return { address: curAddr, primary: i === idx };
+                                                    });
+                                                    const primaryAddr = addresses.find(a => a.primary);
+                                                    setCurrentClient({ 
+                                                        ...currentClient, 
+                                                        addresses,
+                                                        businessAddress: primaryAddr?.address || currentClient.businessAddress
+                                                    });
+                                                }}
+                                                className={`h-9 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${isPrimary ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-400 border-slate-200 hover:border-emerald-500 hover:text-emerald-500'}`}
+                                            >
+                                                {isPrimary ? 'PRIMARY' : 'SET PRIMARY'}
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    const addresses = currentClient.addresses?.filter((_, i) => i !== idx);
+                                                    setCurrentClient({ ...currentClient, addresses });
+                                                }}
+                                                className="h-9 w-9 flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors bg-white border border-slate-200 rounded-lg"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            const addresses = currentClient.addresses?.filter((_, i) => i !== idx);
-                                            setCurrentClient({ ...currentClient, addresses, businessAddress: addresses?.[0] || '' });
-                                        }}
-                                        className="p-2.5 text-slate-300 hover:text-red-500 transition-colors bg-white rounded-xl border border-slate-200"
-                                    >
-                                        <Trash2 className="w-4.5 h-4.5" />
-                                    </button>
-                                </div>
-                            ))}
+                                );
+                            })}
 
                             {(!currentClient.addresses || currentClient.addresses.length === 0) && (
                                 <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">

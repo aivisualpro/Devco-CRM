@@ -1343,7 +1343,8 @@ export async function POST(request: NextRequest) {
                     contacts.push({
                         ...con,
                         type: con.type || 'Main Contact',
-                        active: con.active !== undefined ? con.active : (idx === 0)
+                        active: con.active !== undefined ? con.active : (idx === 0),
+                        primary: con.primary !== undefined ? con.primary : (idx === 0)
                     });
                 });
 
@@ -1356,7 +1357,8 @@ export async function POST(request: NextRequest) {
                             email: item.email || '',
                             phone: item.phone || '',
                             type: 'Main Contact',
-                            active: contacts.length === 0
+                            active: contacts.length === 0,
+                            primary: contacts.length === 0
                         });
                     }
                 }
@@ -1369,18 +1371,36 @@ export async function POST(request: NextRequest) {
                             name: item.accountingContact || 'Accounting Contact',
                             email: item.accountingEmail || '',
                             type: 'Accounting',
-                            active: contacts.length === 0
+                            active: contacts.length === 0,
+                            primary: false
                         });
                     }
                 }
 
-                if (contacts.length > 0 && !contacts.some(con => con.active)) {
-                    contacts[0].active = true;
+                // Ensure exactly one is active AND one is primary
+                if (contacts.length > 0) {
+                    if (!contacts.some(con => con.active)) contacts[0].active = true;
+                    if (!contacts.some(con => con.primary)) contacts[0].primary = true;
                 }
+
+                // Handle addresses
+                let addresses = Array.isArray(item.addresses) ? item.addresses : [];
+                addresses = addresses.map((addr: any, idx: number) => {
+                    if (typeof addr === 'string') {
+                        return { address: addr, primary: idx === 0 };
+                    }
+                    return addr;
+                });
+
+                // Sync businessAddress with primary address
+                const primaryAddr = addresses.find((a: any) => a.primary) || addresses[0];
+                const businessAddress = primaryAddr ? (typeof primaryAddr === 'string' ? primaryAddr : primaryAddr.address) : item.businessAddress || '';
 
                 const clientData = {
                     ...item,
                     contacts,
+                    addresses,
+                    businessAddress,
                     _id: item.recordId || item._id || `C-${Date.now()}`
                 };
                 delete (clientData as any).accountingContact;
@@ -1418,7 +1438,8 @@ export async function POST(request: NextRequest) {
                                     email: clientItem.email || '',
                                     phone: clientItem.phone || '',
                                     type: 'Main Contact',
-                                    active: contacts.length === 0
+                                    active: contacts.length === 0,
+                                    primary: contacts.length === 0
                                 });
                             }
                         }
@@ -1437,7 +1458,8 @@ export async function POST(request: NextRequest) {
                                     name: clientItem.accountingContact || 'Accounting',
                                     email: clientItem.accountingEmail || '',
                                     type: 'Accounting',
-                                    active: contacts.length === 0
+                                    active: contacts.length === 0,
+                                    primary: false
                                 });
                             }
                         }
@@ -1449,19 +1471,42 @@ export async function POST(request: NextRequest) {
                         delete (clientItem as any).email;
                         delete (clientItem as any).phone;
 
-                        // Ensure all contacts have type and active status
+                        // Ensure all contacts have type, active, and primary status
                         const processedContacts = contacts.map((con, idx) => ({
                             ...con,
                             type: con.type || 'Main Contact',
-                            active: con.active !== undefined ? con.active : (idx === 0)
+                            active: con.active !== undefined ? con.active : (idx === 0),
+                            primary: con.primary !== undefined ? con.primary : (idx === 0)
                         }));
 
-                        // Ensure exactly one is active if any exist
-                        if (processedContacts.length > 0 && !processedContacts.some(con => con.active)) {
-                            processedContacts[0].active = true;
+                        // Ensure exactly one is active and exactly one is primary
+                        if (processedContacts.length > 0) {
+                            if (!processedContacts.some(con => con.active)) processedContacts[0].active = true;
+                            if (!processedContacts.some(con => con.primary)) processedContacts[0].primary = true;
                         }
 
                         clientItem.contacts = processedContacts;
+                    }
+
+                    // Handle addresses refactoring and migration
+                    if (Array.isArray(clientItem.addresses)) {
+                        clientItem.addresses = clientItem.addresses.map((addr: any, idx: number) => {
+                            if (typeof addr === 'string') {
+                                return { address: addr, primary: idx === 0 };
+                            }
+                            return addr;
+                        });
+
+                        // Ensure exactly one is primary
+                        if (clientItem.addresses.length > 0 && !clientItem.addresses.some((a: any) => a.primary)) {
+                            clientItem.addresses[0].primary = true;
+                        }
+
+                        // Sync businessAddress with primary address
+                        const primaryAddr = clientItem.addresses.find((a: any) => a.primary) || clientItem.addresses[0];
+                        if (primaryAddr) {
+                            clientItem.businessAddress = primaryAddr.address;
+                        }
                     }
 
                     const updated = await Client.findByIdAndUpdate(
@@ -1547,7 +1592,24 @@ export async function POST(request: NextRequest) {
 
                     // Map legacy single address to addresses array if not already present
                     if (client.businessAddress && (!client.addresses || client.addresses.length === 0)) {
-                        updateData.addresses = [client.businessAddress];
+                        updateData.addresses = [{ address: client.businessAddress, primary: true }];
+                    } else if (Array.isArray(client.addresses)) {
+                        updateData.addresses = client.addresses.map((addr: any, idx: number) => {
+                            if (typeof addr === 'string') {
+                                return { address: addr, primary: idx === 0 };
+                            }
+                            return addr;
+                        });
+                    }
+
+                    // Final check for addresses primary
+                    if (Array.isArray(updateData.addresses) && updateData.addresses.length > 0) {
+                        if (!updateData.addresses.some((a: any) => a.primary)) {
+                            updateData.addresses[0].primary = true;
+                        }
+                        // Sync businessAddress
+                        const primaryAddr = updateData.addresses.find((a: any) => a.primary);
+                        if (primaryAddr) updateData.businessAddress = primaryAddr.address;
                     }
 
                     return {

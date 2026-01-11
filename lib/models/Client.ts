@@ -7,6 +7,12 @@ export interface IClientContact {
     extension?: string;
     type: string; // 'Main Contact', 'Accounting', etc.
     active: boolean;
+    primary?: boolean;
+}
+
+export interface IClientAddress {
+    address: string;
+    primary: boolean;
 }
 
 export interface IClientDocument {
@@ -28,7 +34,7 @@ export interface IClient {
     phone?: string;
     status?: string;
     contacts?: IClientContact[];
-    addresses?: string[];
+    addresses?: (string | IClientAddress)[];
     documents?: IClientDocument[];
     createdAt?: Date;
     updatedAt?: Date;
@@ -59,12 +65,13 @@ const ClientSchema: Schema = new Schema({
             phone: String,
             extension: String,
             type: { type: String, default: 'Main Contact' },
-            active: { type: Boolean, default: false }
+            active: { type: Boolean, default: false },
+            primary: { type: Boolean, default: false }
         }],
         default: []
     },
     addresses: {
-        type: [String],
+        type: [Schema.Types.Mixed], // Using Mixed to allow for migration from String to Object
         default: []
     },
     documents: {

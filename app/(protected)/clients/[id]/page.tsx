@@ -16,7 +16,13 @@ interface ClientContact {
     extension?: string;
     type: string;
     active: boolean;
+    primary?: boolean;
     address?: string;
+}
+
+interface ClientAddress {
+    address: string;
+    primary: boolean;
 }
 
 interface ClientDocument {
@@ -35,7 +41,7 @@ interface Client {
     proposalWriter?: string;
     status?: string;
     contacts?: ClientContact[];
-    addresses?: string[];
+    addresses?: (string | ClientAddress)[];
     documents?: ClientDocument[];
     [key: string]: any;
 }
@@ -83,6 +89,7 @@ export default function ClientViewPage() {
 
     const [isAddAddressModalOpen, setIsAddAddressModalOpen] = useState(false);
     const [newAddress, setNewAddress] = useState('');
+    const [isAddressPrimary, setIsAddressPrimary] = useState(false);
 
     const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
     const [editingAddressIndex, setEditingAddressIndex] = useState<number | null>(null);
@@ -191,18 +198,20 @@ export default function ClientViewPage() {
 
 
 
-    const processContactWithNewAddress = (contact: ClientContact, currentAddresses: string[]): { contact: ClientContact, updatedAddresses: string[] | null } => {
+    const processContactWithNewAddress = (contact: ClientContact, currentAddresses: (string | ClientAddress)[]): { contact: ClientContact, updatedAddresses: (string | ClientAddress)[] | null } => {
         if (!contact.address || contact.address.trim() === '') return { contact, updatedAddresses: null };
         
         const address = contact.address.trim();
         // Check if this address is already in any list
-        const exists = currentAddresses.some(a => a.toLowerCase() === address.toLowerCase()) ||
-                     (client?.businessAddress?.toLowerCase() === address.toLowerCase());
+        const exists = currentAddresses.some(a => {
+            const addrStr = typeof a === 'string' ? a : a.address;
+            return addrStr.toLowerCase() === address.toLowerCase();
+        }) || (client?.businessAddress?.toLowerCase() === address.toLowerCase());
         
         if (!exists) {
             return {
                 contact,
-                updatedAddresses: [...currentAddresses, address]
+                updatedAddresses: [...currentAddresses, { address, primary: false }]
             };
         }
         return { contact, updatedAddresses: null };
@@ -216,10 +225,12 @@ export default function ClientViewPage() {
         // If this is marked as active, deactivate others
         let updatedContacts = [...(client.contacts || [])];
         if (contact.active) {
-            updatedContacts = updatedContacts.map(c => ({ ...c, active: false }));
+            updatedContacts = updatedContacts.map(c => ({ ...c, active: false, primary: false }));
+            contact.primary = true;
         }
         if (updatedContacts.length === 0) {
             contact.active = true;
+            contact.primary = true;
         }
 
         updatedContacts.push(contact);
@@ -245,9 +256,10 @@ export default function ClientViewPage() {
         if (!client || !client.contacts) return;
         const updatedContacts = client.contacts.filter((_, i) => i !== index);
 
-        // If we removed the active one, mark the first remaining one as active
-        if (client.contacts[index].active && updatedContacts.length > 0) {
+        // If we removed the active one, mark the first remaining one as active and primary
+        if ((client.contacts[index].active || client.contacts[index].primary) && updatedContacts.length > 0) {
             updatedContacts[0].active = true;
+            updatedContacts[0].primary = true;
         }
 
         try {
@@ -265,7 +277,8 @@ export default function ClientViewPage() {
         if (!client || !client.contacts) return;
         const updatedContacts = client.contacts.map((c, i) => ({
             ...c,
-            active: i === index
+            active: i === index,
+            primary: i === index
         }));
         try {
             const res = await apiCall('updateClient', { id: client._id, item: { contacts: updatedContacts } });
@@ -296,7 +309,8 @@ export default function ClientViewPage() {
 
         let updatedContacts = [...(client.contacts || [])];
         if (contact.active) {
-            updatedContacts = updatedContacts.map(c => ({ ...c, active: false }));
+            updatedContacts = updatedContacts.map(c => ({ ...c, active: false, primary: false }));
+            contact.primary = true;
         }
         updatedContacts[editingContactIndex] = contact;
 
@@ -320,13 +334,25 @@ export default function ClientViewPage() {
 
     const handleAddAddress = async () => {
         if (!client || !newAddress) return;
-        const updatedAddresses = [...(client.addresses || []), newAddress];
+        
+        let updatedAddresses = (client.addresses || []).map(a => {
+            const addr = typeof a === 'string' ? a : a.address;
+            const p = isAddressPrimary ? false : (typeof a === 'string' ? false : a.primary);
+            return { address: addr, primary: p };
+        });
+
+        const isPrimary = isAddressPrimary || updatedAddresses.length === 0;
+        updatedAddresses.push({ address: newAddress, primary: isPrimary });
+        
         try {
-            const res = await apiCall('updateClient', { id: client._id, item: { addresses: updatedAddresses } });
+            const payload: any = { addresses: updatedAddresses };
+            if (isPrimary) payload.businessAddress = newAddress;
+            const res = await apiCall('updateClient', { id: client._id, item: payload });
             if (res.success) {
                 setClient(res.result);
                 setIsAddAddressModalOpen(false);
                 setNewAddress('');
+                setIsAddressPrimary(false);
                 success('Address added');
             } else {
                 toastError(res.error || 'Failed to add address');
@@ -337,9 +363,21 @@ export default function ClientViewPage() {
 
     const handleRemoveAddress = async (index: number) => {
         if (!client || !client.addresses) return;
+        const wasPrimary = (client.addresses[index] as any).primary;
         const updatedAddresses = client.addresses.filter((_, i) => i !== index);
+        
+        // If removed primary, set first remaining as primary
+        if (wasPrimary && updatedAddresses.length > 0) {
+            const first = updatedAddresses[0] as any;
+            updatedAddresses[0] = typeof first === 'string' ? { address: first, primary: true } : { ...first, primary: true };
+        }
+
+        const primaryAddr = updatedAddresses.find(a => (a as any).primary) as any;
+        const payload: any = { addresses: updatedAddresses };
+        if (primaryAddr) payload.businessAddress = primaryAddr.address || primaryAddr;
+
         try {
-            const res = await apiCall('updateClient', { id: client._id, item: { addresses: updatedAddresses } });
+            const res = await apiCall('updateClient', { id: client._id, item: payload });
             if (res.success) {
                 setClient(res.result);
                 success('Address removed');
@@ -352,7 +390,8 @@ export default function ClientViewPage() {
     const handleEditAddress = (index: number) => {
         const address = client?.addresses?.[index];
         if (address) {
-            setNewAddress(address);
+            setNewAddress(typeof address === 'string' ? address : address.address);
+            setIsAddressPrimary(typeof address === 'string' ? (index === 0) : address.primary);
             setEditingAddressIndex(index);
             setIsAddAddressModalOpen(true);
         }
@@ -360,15 +399,35 @@ export default function ClientViewPage() {
 
     const handleUpdateAddress = async () => {
         if (!client || !newAddress || editingAddressIndex === null) return;
-        const updatedAddresses = [...(client.addresses || [])];
-        updatedAddresses[editingAddressIndex] = newAddress;
+        
+        let updatedAddresses = (client.addresses || []).map((a, i) => {
+            const addr = typeof a === 'string' ? a : a.address;
+            const p = isAddressPrimary ? false : (typeof a === 'string' ? (i === 0) : a.primary);
+            return { address: addr, primary: p };
+        });
+
+        updatedAddresses[editingAddressIndex] = { 
+            address: newAddress, 
+            primary: isAddressPrimary 
+        };
+
+        // Ensure at least one primary if none selected
+        if (!updatedAddresses.some(a => a.primary) && updatedAddresses.length > 0) {
+            updatedAddresses[0].primary = true;
+        }
+
+        const primaryAddr = updatedAddresses.find(a => a.primary);
+        const payload: any = { addresses: updatedAddresses };
+        if (primaryAddr) payload.businessAddress = primaryAddr.address;
+
         try {
-            const res = await apiCall('updateClient', { id: client._id, item: { addresses: updatedAddresses } });
+            const res = await apiCall('updateClient', { id: client._id, item: payload });
             if (res.success) {
                 setClient(res.result);
                 setIsAddAddressModalOpen(false);
                 setEditingAddressIndex(null);
                 setNewAddress('');
+                setIsAddressPrimary(false);
                 success('Address updated');
             } else {
                 toastError(res.error || 'Failed to update address');
@@ -749,7 +808,7 @@ export default function ClientViewPage() {
                         onAddNew={val => setNewContact({ ...newContact, address: val })}
                         options={Array.from(new Set([
                             ...(client.businessAddress ? [client.businessAddress] : []),
-                            ...(client.addresses || [])
+                            ...(client.addresses || []).map(a => typeof a === 'string' ? a : a.address)
                         ].filter(Boolean)))}
                         disableBlank
                         placeholder="Select or type new address..."
@@ -803,6 +862,18 @@ export default function ClientViewPage() {
                         onChange={e => setNewAddress(e.target.value)}
                         placeholder="123 Main St, City, State ZIP"
                     />
+                    <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
+                        <input
+                            type="checkbox"
+                            checked={isAddressPrimary}
+                            onChange={(e) => setIsAddressPrimary(e.target.checked)}
+                            className="w-5 h-5 rounded text-[#0F4C75] focus:ring-[#3282B8] border-slate-300"
+                        />
+                        <div className="flex flex-col">
+                            <span className="text-sm font-bold text-slate-700">Set as Primary Address</span>
+                            <span className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Main profile display address</span>
+                        </div>
+                    </label>
                 </div>
             </Modal>
 
