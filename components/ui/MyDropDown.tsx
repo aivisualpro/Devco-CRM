@@ -11,6 +11,7 @@ interface Option {
     color?: string;
     profilePicture?: string;
     icon?: React.ReactNode;
+    disabled?: boolean;
 }
 
 interface MyDropDownProps {
@@ -135,7 +136,7 @@ export function MyDropDown({
     if (!isOpen || !isMounted) return null;
 
     const filteredOptions = options.filter(opt =>
-        (opt.label || '').toLowerCase().includes(search.toLowerCase())
+        String(opt.label || '').toLowerCase().includes(search.toLowerCase())
     );
 
     const isSelected = (value: string) => selectedValues.includes(value);
@@ -149,8 +150,9 @@ export function MyDropDown({
     };
 
     const getInitials = (label: string) => {
-        if (!label) return '';
-        const parts = label.split(' ').filter(p => p.length > 0);
+        const labelStr = String(label || '');
+        if (!labelStr) return '';
+        const parts = labelStr.split(' ').filter(p => p.length > 0);
         if (parts.length === 0) return '';
         if (parts.length === 1) return parts[0].substring(0, 1).toUpperCase();
         return (parts[0].substring(0, 1) + parts[parts.length - 1].substring(0, 1)).toUpperCase();
@@ -214,13 +216,17 @@ export function MyDropDown({
                                 key={opt.id}
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
-                                    onSelect(opt.value);
+                                    if (!opt.disabled) {
+                                        onSelect(opt.value);
+                                    }
                                 }}
                                 className={`
-                                    group flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
-                                    ${active
-                                        ? 'bg-slate-100'
-                                        : 'hover:bg-slate-50'
+                                    group flex items-center gap-3 p-3 rounded-xl transition-all duration-200
+                                    ${opt.disabled 
+                                        ? 'cursor-not-allowed opacity-50 bg-slate-50' 
+                                        : active 
+                                            ? 'bg-slate-100 cursor-pointer' 
+                                            : 'hover:bg-slate-50 cursor-pointer'
                                     }
                                 `}
                             >
@@ -234,7 +240,7 @@ export function MyDropDown({
                                 )}
 
                                 {/* Visual Representation (Avatar/Color/Initials) */}
-                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-50 shadow-sm overflow-hidden border-white/50">
+                                <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-50 shadow-sm overflow-hidden border-white/50 ${opt.disabled ? 'grayscale' : ''}`}>
                                     {opt.profilePicture ? (
                                         <img src={opt.profilePicture} alt={opt.label} className="w-full h-full object-cover" />
                                     ) : opt.icon ? (
@@ -249,9 +255,14 @@ export function MyDropDown({
                                 </div>
 
                                 <div className="flex-1 min-w-0">
-                                    <span className={`text-[11px] font-bold whitespace-nowrap leading-tight block ${active ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
-                                        {opt.label}
-                                    </span>
+                                    <div className="flex items-center justify-between">
+                                        <span className={`text-[11px] font-bold whitespace-nowrap leading-tight block ${active ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
+                                            {opt.label}
+                                        </span>
+                                        {opt.disabled && (
+                                            <span className="text-[9px] text-slate-400 font-medium italic border border-slate-200 px-1 rounded">Soon</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         );

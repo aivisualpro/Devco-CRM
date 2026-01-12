@@ -1856,7 +1856,7 @@ export default function SchedulePage() {
 
                     {/* MIDDLE COLUMN - SCHEDULE FEED - Full width on mobile */}
                     <div
-                        className={`w-full ${selectedSchedule ? 'lg:w-[30%]' : 'lg:w-[60%]'} lg:h-full lg:overflow-y-auto p-4 custom-scrollbar bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}
+                        className={`w-full lg:w-[75%] ${selectedSchedule ? 'xl:w-[35%]' : 'xl:w-[60%]'} lg:h-full lg:overflow-y-auto p-4 custom-scrollbar bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}
                         onScroll={handleScroll}
                     >
 
@@ -1872,30 +1872,34 @@ export default function SchedulePage() {
 
 
                         {loading ? (
-                            <SkeletonTable rows={8} columns={6} />
+                            <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 pt-0`}>
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <div key={i} className="h-48 bg-white/50 backdrop-blur-sm rounded-[32px] border border-slate-100 animate-pulse" />
+                                ))}
+                            </div>
                         ) : filteredSchedules.length > 0 ? (
                             <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 pt-0 transition-all duration-500`}>
                                 {displayedSchedules.map((item) => (
                                     <div
                                         key={item._id}
                                         onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
-                                        className={`group relative bg-white rounded-[24px] sm:rounded-[40px] p-4 cursor-pointer transition-all duration-300 transform border
+                                        className={`group relative bg-white rounded-[32px] p-5 cursor-pointer transition-all duration-500 ease-out border shadow-sm
                                             ${selectedSchedule?._id === item._id
-                                                ? 'border-[#0F4C75] ring-1 ring-[#0F4C75] scale-[1.01]'
-                                                : 'border-slate-100 hover:border-[#0F4C75]/30 hover:-translate-y-1'
+                                                ? 'border-[#0F4C75] ring-2 ring-[#0F4C75]/10 shadow-lg scale-[1.02] bg-blue-50/30'
+                                                : 'border-slate-100 hover:border-[#0F4C75]/20 hover:shadow-md hover:-translate-y-1'
                                             }
                                         `}
                                     >
 
                                         {/* Action Overlay */}
-                                        <div className="absolute top-3 sm:top-4 right-3 sm:right-4 z-10 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
+                                        <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 flex gap-2">
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setEditingItem(item);
                                                     setIsModalOpen(true);
                                                 }}
-                                                className="p-2 bg-white/80 backdrop-blur rounded-full text-slate-500 hover:text-[#0F4C75] shadow-sm transition-colors"
+                                                className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-[#0F4C75] hover:bg-blue-50 shadow-sm border border-slate-100 transition-all active:scale-90"
                                             >
                                                 <Edit size={14} />
                                             </button>
@@ -1905,7 +1909,7 @@ export default function SchedulePage() {
                                                     setDeleteId(item._id);
                                                     setIsConfirmOpen(true);
                                                 }}
-                                                className="p-2 bg-white/80 backdrop-blur rounded-full text-slate-500 hover:text-red-500 shadow-sm transition-colors"
+                                                className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-sm border border-slate-100 transition-all active:scale-90"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
@@ -2229,9 +2233,7 @@ export default function SchedulePage() {
                     </div>
 
                     {/* RIGHT COLUMN - DETAILS OR STATS - Hidden on mobile/tablet */}
-                    {/* RIGHT COLUMN - DETAILS OR STATS - Hidden on mobile/tablet */}
-                    {/* RIGHT COLUMN - DETAILS OR STATS - Hidden on mobile/tablet */}
-                    <div className={`${selectedSchedule ? 'xl:w-[45%]' : 'xl:w-[15%]'} h-full hidden xl:flex flex-col items-center overflow-y-auto custom-scrollbar transition-all duration-500 ease-in-out bg-[#F0F5FA] rounded-[32px] p-4`}>
+                    <div className={`${selectedSchedule ? 'xl:w-[40%]' : 'xl:w-[15%]'} h-full hidden xl:flex flex-col items-center overflow-y-auto custom-scrollbar transition-all duration-500 ease-in-out bg-[#F0F5FA] rounded-[32px] p-4`}>
                         <div className="space-y-4 w-full">
                             {selectedSchedule ? (
                                 <div className="animate-in slide-in-from-right duration-300">

@@ -20,6 +20,8 @@ interface MenuItem {
     href?: string;
 }
 
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/roles', '/constants', '/chat', '/quickbooks', '/dashboard'];
+
 const menuStructure: MenuItem[] = [
     {
         label: 'CRM',
@@ -238,7 +240,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                     id: item.href,
                                                     label: item.label,
                                                     value: item.href,
-                                                    icon: item.icon
+                                                    icon: item.icon,
+                                                    disabled: !IMPLEMENTED_ROUTES.some(route => item.href.startsWith(route))
                                                 }))}
                                                 selectedValues={[pathname]}
                                                 onSelect={(value) => {
@@ -412,25 +415,47 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     No results found for &quot;{searchQuery}&quot;
                                 </div>
                             )}
-                            {filteredItems.map((item) => (
-                                <Link
-                                    key={item.href}
-                                    href={item.href}
-                                    onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
-                                    className="flex items-center gap-4 px-5 py-3 hover:bg-slate-50 transition-colors group"
-                                >
-                                    <div className={`p-2 rounded-lg bg-slate-100 group-hover:bg-white group-hover:shadow-sm transition-all`}>
-                                        {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
-                                            className: `w-5 h-5 ${item.colorClass}`
-                                        })}
+                            {filteredItems.map((item) => {
+                                const isImplemented = IMPLEMENTED_ROUTES.some(route => item.href.startsWith(route));
+                                const Content = (
+                                    <div className="flex items-center gap-4 px-5 py-3 transition-colors group">
+                                        <div className={`p-2 rounded-lg bg-slate-100 group-hover:bg-white group-hover:shadow-sm transition-all ${!isImplemented ? 'grayscale' : ''}`}>
+                                            {item.icon && React.cloneElement(item.icon as React.ReactElement<{ className?: string }>, {
+                                                className: `w-5 h-5 ${item.colorClass}`
+                                            })}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className={`font-semibold ${isImplemented ? 'text-slate-800 group-hover:text-[#0F4C75]' : 'text-slate-400'}`}>{item.label}</p>
+                                                {!isImplemented && (
+                                                    <span className="text-[10px] text-slate-400 font-medium italic border border-slate-200 px-1.5 py-0.5 rounded bg-slate-50">Soon</span>
+                                                )}
+                                            </div>
+                                            <p className="text-sm text-slate-400">{item.description}</p>
+                                        </div>
+                                        <span className="text-xs text-slate-300 font-medium">{item.group}</span>
                                     </div>
-                                    <div className="flex-1">
-                                        <p className="font-semibold text-slate-800 group-hover:text-[#0F4C75]">{item.label}</p>
-                                        <p className="text-sm text-slate-400">{item.description}</p>
-                                    </div>
-                                    <span className="text-xs text-slate-300 font-medium">{item.group}</span>
-                                </Link>
-                            ))}
+                                );
+
+                                if (!isImplemented) {
+                                    return (
+                                        <div key={item.href} className="opacity-60 cursor-not-allowed">
+                                            {Content}
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
+                                        className="hover:bg-slate-50 block"
+                                    >
+                                        {Content}
+                                    </Link>
+                                );
+                            })}
                             {!searchQuery && (
                                 <div className="p-6 text-center text-slate-400 text-sm">
                                     Start typing to search...

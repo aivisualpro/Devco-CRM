@@ -360,7 +360,7 @@ export default function ClientsPage() {
             />
             </div>
             
-            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
+            <div className="flex-1 flex flex-col min-h-0 pt-4 px-4 pb-0">
                 {/* Tabs - Hidden on Mobile */}
                 <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
@@ -370,6 +370,7 @@ export default function ClientsPage() {
                     />
                 </div>
 
+                <div className="flex-1 min-h-0 pb-4">
                 {loading ? (
                     <>
                         <div className="md:hidden grid grid-cols-2 gap-2">
@@ -378,7 +379,7 @@ export default function ClientsPage() {
                             ))}
                         </div>
                         <div className="hidden md:block">
-                            <SkeletonTable rows={10} columns={7} />
+                            <SkeletonTable rows={10} columns={7} className="h-full" />
                         </div>
                     </>
                 ) : (
@@ -452,7 +453,7 @@ export default function ClientsPage() {
                         {/* Desktop Table View */}
                         <div className="hidden md:block">
                         <Table
-                            containerClassName="h-[calc(100vh-140px)] min-h-[400px]"
+                            containerClassName="h-full"
                             footer={
                                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                             }
@@ -581,6 +582,7 @@ export default function ClientsPage() {
                         </div>
                     </>
                 )}
+                </div>
             </div>
 
             {/* Add/Edit Modal */}

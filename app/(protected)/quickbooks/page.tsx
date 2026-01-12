@@ -203,8 +203,8 @@ export default function QuickBooksPage() {
         <div className="flex flex-col h-screen overflow-hidden">
             <Header showDashboardActions={true} />
             
-            <main className="flex-1 overflow-y-auto p-4 bg-[#f8fafc]">
-                <div className="space-y-6">
+            <main className="flex-1 flex flex-col min-h-0 p-4 bg-[#f8fafc]">
+                <div className="flex-1 flex flex-col min-h-0 space-y-6">
                     {/* Project Detail Header */}
                     {selectedProject && (
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in mb-6">
@@ -677,7 +677,7 @@ export default function QuickBooksPage() {
 
                                     </div>
                                 ) : (
-                                    <>
+                                    <div className="flex-1 flex flex-col min-h-0">
                                         {/* Filters Header */}
                                         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
                                             <div className="flex flex-wrap items-end gap-3 overflow-x-auto pb-1">
@@ -778,8 +778,8 @@ export default function QuickBooksPage() {
                                         </div>
 
                                         {/* Table Layout */}
-                                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                                            <div className="overflow-x-auto">
+                                        <div className="flex-1 min-h-0 mt-4 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
+                                            <div className="flex-1 overflow-y-auto">
                                                 <table className="w-full text-left border-collapse">
                                                     <thead>
                                                         <tr className="bg-slate-50/50 border-b border-slate-100">
@@ -888,13 +888,13 @@ export default function QuickBooksPage() {
                                                 </table>
                                             </div>
                                         </div>
-                                    </>
-                                )}
-                            </div>
-                        )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            </main>
+                </main>
         </div>
     );
 }

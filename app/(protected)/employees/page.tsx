@@ -570,7 +570,7 @@ export default function EmployeesPage() {
 
             </div>
 
-            <div className="flex-1 overflow-y-auto md:overflow-hidden md:flex md:flex-col pt-4 px-4 pb-0">
+            <div className="flex-1 flex flex-col min-h-0 pt-4 px-4 pb-0">
                 {/* Tabs - Hidden on Mobile */}
                 <div className="hidden md:flex justify-center mb-4">
                     <BadgeTabs
@@ -580,6 +580,9 @@ export default function EmployeesPage() {
                     />
                 </div>
 
+                {/* Main Content Container */}
+                <div className="flex-1 flex flex-col min-h-0 pb-4">
+
 
                 {loading ? (
                     <>
@@ -588,9 +591,9 @@ export default function EmployeesPage() {
                                 <div key={i} className="h-48 bg-white rounded-2xl border border-slate-100 animate-pulse" />
                             ))}
                         </div>
-                        <div className="hidden md:block">
-                            <SkeletonTable rows={10} columns={7} />
-                        </div>
+                                <div className="hidden md:block h-full">
+                                    <SkeletonTable rows={10} columns={7} className="h-full" />
+                                </div>
                     </>
                 ) : (
                     <>
@@ -651,9 +654,9 @@ export default function EmployeesPage() {
                         </div>
 
                         {/* Desktop Table View */}
-                        <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 pb-4">
+                        <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full">
                         <Table
-                            containerClassName="h-full min-h-[400px]"
+                            containerClassName="h-full"
                             footer={
                                 <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                             }
@@ -811,6 +814,7 @@ export default function EmployeesPage() {
                         </div>
                     </>
                 )}
+                </div>
             </div>
 
             {/* Add/Edit Modal */}

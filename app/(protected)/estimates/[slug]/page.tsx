@@ -772,17 +772,24 @@ export default function EstimateViewPage() {
                     setContactOptions(contacts);
 
                     // Update Addresses
-                    const addresses = [...(client.addresses || []), ...(client.address || [])].map((a: string) => ({
-                        id: a,
-                        label: a,
-                        value: a
-                    }));
+                    const addresses = [...(client.addresses || []), ...(client.address || [])].map((a: any) => {
+                        const addrStr = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street || JSON.stringify(a));
+                        return {
+                            id: addrStr,
+                            label: addrStr,
+                            value: addrStr
+                        };
+                    });
                     
                     if (client.businessAddress && !addresses.find(a => a.value === client.businessAddress)) {
+                        const bAddr = typeof client.businessAddress === 'string' 
+                            ? client.businessAddress 
+                            : (client.businessAddress.fullAddress || client.businessAddress.address || client.businessAddress.street || JSON.stringify(client.businessAddress));
+                            
                         addresses.unshift({
-                            id: client.businessAddress,
-                            label: client.businessAddress,
-                            value: client.businessAddress
+                            id: bAddr,
+                            label: bAddr,
+                            value: bAddr
                         });
                     }
                     setAddressOptions(addresses);

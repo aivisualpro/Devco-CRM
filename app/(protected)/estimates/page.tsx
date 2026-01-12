@@ -4,7 +4,8 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
 
-import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
+import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
+import { Tabs, TabsList, TabsTrigger, BadgeTabs } from '@/components/ui/Tabs';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 
@@ -541,33 +542,39 @@ export default function EstimatesPage() {
                 }
             />
             </div>
-            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
+            <div className="flex-1 flex flex-col min-h-0 pt-4 px-4">
 
                 {/* Filter Tabs & Toggle */}
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
-                    <BadgeTabs
-                        tabs={filterTabs}
-                        activeTab={activeFilter}
-                        onChange={(id) => { setActiveFilter(id); setCurrentPage(1); }}
-                    />
+                    <Tabs 
+                        value={activeFilter} 
+                        onValueChange={(val) => { setActiveFilter(val); setCurrentPage(1); }}
+                    >
+                        <TabsList>
+                            {filterTabs.map(tab => (
+                                <TabsTrigger key={tab.id} value={tab.id}>
+                                    {tab.label}
+                                    {tab.count !== undefined && (
+                                        <span className="ml-1.5 opacity-50 font-bold tabular-nums">({tab.count})</span>
+                                    )}
+                                </TabsTrigger>
+                            ))}
+                        </TabsList>
+                    </Tabs>
 
-                    <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-full border border-gray-200 shadow-sm h-[42px]">
-                        <span className={`text-sm font-medium ${showFinals ? 'text-[#0F4C75]' : 'text-gray-600'}`}>Finals</span>
-                        <button
-                            onClick={() => setShowFinals(!showFinals)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:ring-offset-2 ${showFinals ? 'bg-[#0F4C75]' : 'bg-gray-200'}`}
-                        >
-                            <span className={`${showFinals ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out shadow-sm`} />
-                        </button>
-                    </div>
+                    <LabeledSwitch
+                        label="Finals"
+                        checked={showFinals}
+                        onCheckedChange={setShowFinals}
+                    />
                 </div>
 
-                {/* Table */}
-                <div>
+                <div className="flex-1 min-h-0 pb-4">
                     {loading ? (
-                        <SkeletonTable rows={10} columns={14} />
+                        <SkeletonTable rows={10} columns={14} className="h-full" />
                     ) : (
                         <Table
+                            containerClassName="h-full"
                             footer={
                                 <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                             }

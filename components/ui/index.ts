@@ -5,7 +5,7 @@ export { Badge } from './Badge';
 export { Modal } from './Modal';
 export { Input, SearchInput } from './Input';
 export { Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from './Table';
-export { Tabs, StatusTabs, PillTabs, UnderlineTabs, SegmentedControl, BadgeTabs, OutlinedTabs } from './Tabs';
+export { Tabs, TabsList, TabsTrigger, TabsContent, DataTabs, StatusTabs, PillTabs, UnderlineTabs, SegmentedControl, BadgeTabs, OutlinedTabs, LabeledSwitch } from './Tabs';
 export { Pagination } from './Pagination';
 export { Loading, EmptyState } from './Loading';
 export { Header } from './Header';

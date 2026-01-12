@@ -12,6 +12,7 @@ import {
     ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail
 } from 'lucide-react';
 import { Header, Modal, Badge, EmptyState } from '@/components/ui';
+import { Tabs, TabsList, TabsTrigger, TabsContent, BadgeTabs } from '@/components/ui/Tabs';
 import SignaturePad from '../../jobs/schedules/SignaturePad';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 import { TimesheetModal } from '../../jobs/schedules/components/TimesheetModal';
@@ -771,24 +772,19 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 overflow-y-auto bg-[#f8fafc] overflow-x-hidden">
                 <div className="max-w-[1600px] mx-auto p-4">
-                    <div className="flex items-center gap-2 mb-6 bg-slate-100 p-1 rounded-xl w-fit">
-                        <button 
-                            onClick={() => setDashboardTab('activity')}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${dashboardTab === 'activity' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Daily Activity
-                        </button>
-                        <button 
-                            onClick={() => setDashboardTab('jobschedule')}
-                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${dashboardTab === 'jobschedule' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                        >
-                            Job Schedule
-                        </button>
-                    </div>
+                    <Tabs 
+                        value={dashboardTab} 
+                        onValueChange={(id) => setDashboardTab(id as 'activity' | 'jobschedule')}
+                        className="mb-6"
+                    >
+                        <TabsList>
+                            <TabsTrigger value="activity">Daily Activity</TabsTrigger>
+                            <TabsTrigger value="jobschedule">Job Schedule</TabsTrigger>
+                        </TabsList>
 
-                    <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
-                        {dashboardTab === 'activity' ? (
-                            <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm min-h-[500px]">
+                        <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
+                            <TabsContent value="activity">
+                                <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm min-h-[500px]">
                                 <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
                                     <Activity className="text-violet-500" />
                                     Recent Activity
@@ -860,10 +856,12 @@ export default function DashboardPage() {
                                         </div>
                                     );
                                 })()}
-                            </div>
-                        ) : (
-                            <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px] pb-32">
-                                <div className="flex items-center justify-between mb-5 px-2">
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent value="jobschedule">
+                                <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px] pb-32">
+                                    <div className="flex items-center justify-between mb-5 px-2">
                                     <button 
                                         onClick={() => {
                                             const d = new Date(scheduleDate);
@@ -1219,8 +1217,9 @@ export default function DashboardPage() {
                                     )}
                                 </div>
                             </div>
-                        )}
+                        </TabsContent>
                     </div>
+                </Tabs>
                 </div>
             </div>
 

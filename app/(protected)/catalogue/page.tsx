@@ -468,7 +468,7 @@ export default function CataloguePage() {
                 }
             />
             </div>
-            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
+            <div className="flex-1 flex flex-col min-h-0 pt-4 px-4">
 
                 {/* Tabs - Scrollable on mobile */}
                 <div className="flex justify-start md:justify-center mb-4 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4">
@@ -480,8 +480,8 @@ export default function CataloguePage() {
                     />
                 </div>
 
-                {/* Main Content */}
-                <div>
+                {/* Main Content Container */}
+                <div className="flex-1 min-h-0 pb-4">
                     {loading ? (
                         <>
                             <div className="md:hidden grid grid-cols-2 gap-2">
@@ -490,7 +490,7 @@ export default function CataloguePage() {
                                 ))}
                             </div>
                             <div className="hidden md:block">
-                                <SkeletonTable rows={10} columns={config.headers.length + 1} />
+                                <SkeletonTable rows={10} columns={config.headers.length + 1} className="h-full" />
                             </div>
                         </>
                     ) : (
@@ -573,6 +573,7 @@ export default function CataloguePage() {
                             {/* Desktop Table View */}
                             <div className="hidden md:block">
                                 <Table
+                                    containerClassName="h-full"
                                     footer={
                                         <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
                                     }
