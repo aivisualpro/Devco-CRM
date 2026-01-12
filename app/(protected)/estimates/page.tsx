@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
+import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, RefreshCw } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
 import Papa from 'papaparse';
 import { z } from 'zod';
@@ -428,6 +428,37 @@ export default function EstimatesPage() {
     };
 
 
+    const [syncingId, setSyncingId] = useState<string | null>(null);
+
+    const handleSync = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        if (syncingId) return;
+        setSyncingId(id);
+        
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'syncToAppSheet', payload: { id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                if (data.skipped) {
+                    success('Sync skipped (not in production)');
+                } else {
+                    success('Synced to AppSheet successfully');
+                }
+            } else {
+                toastError('Failed to sync: ' + (data.error || 'Unknown error'));
+            }
+        } catch (err) {
+            console.error(err);
+            toastError('Failed to sync to AppSheet');
+        } finally {
+            setSyncingId(null);
+        }
+    };
+
     const formatCurrency = (val: number | undefined) => {
 
         if (val === undefined || val === null) return '-';
@@ -565,6 +596,7 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
+                                    <TableHeader className="w-10"><span className="sr-only">Actions</span></TableHeader>
 
                                 </TableRow>
                             </TableHead>
@@ -680,6 +712,16 @@ export default function EstimatesPage() {
                                                     <Badge {...getBadgeProps('Status', est.status || 'draft')}>
                                                         {est.status || 'draft'}
                                                     </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <button
+                                                        onClick={(e) => handleSync(e, est._id)}
+                                                        disabled={syncingId === est._id}
+                                                        className={`p-1.5 rounded-full hover:bg-gray-100 transition-all ${syncingId === est._id ? 'text-gray-400' : 'text-gray-400 hover:text-blue-600'}`}
+                                                        title="Sync to AppSheet"
+                                                    >
+                                                        <RefreshCw className={`w-3.5 h-3.5 ${syncingId === est._id ? 'animate-spin' : ''}`} />
+                                                    </button>
                                                 </TableCell>
 
                                             </TableRow>

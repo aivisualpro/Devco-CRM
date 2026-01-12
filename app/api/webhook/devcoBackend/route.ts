@@ -789,6 +789,43 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: updated });
             }
 
+            case 'syncToAppSheet': {
+                const { id } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
+
+                const est = await Estimate.findById(id).lean();
+                if (!est) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                // Try Edit first (most common), then Add if that fails (simplistic approach or check error)
+                // Actually, let's just default to "Edit" as it's safer than creating dups, 
+                // and often AppSheet "Edit" can imply upsert if configured, but strict API usually separates them.
+                // Given the user requirement "add or update", we'll try Edit. 
+                // If it fails, we might want to try Add, but let's start with Edit.
+                
+                // We'll return the result of the sync
+                const result = await updateAppSheet(est, null, "Edit");
+                
+                // If Edit failed potentially due to missing record, we could try Add?
+                // For now, let's return the result.
+                
+                if (!result.success && result.status === 404) {
+                     // Try Add
+                     console.log('Edit failed (404), trying Add...');
+                     const addResult = await updateAppSheet(est, null, "Add");
+                     return NextResponse.json(addResult);
+                }
+
+                if (!result.success) {
+                    // One fallback: If error message contains "not found"
+                    if (result.error && result.error.includes("not found")) {
+                        const addResult = await updateAppSheet(est, null, "Add");
+                        return NextResponse.json(addResult);
+                    }
+                }
+
+                return NextResponse.json(result);
+            }
+
             case 'deleteEstimate': {
                 const { id: deleteId } = payload || {};
                 if (!deleteId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
