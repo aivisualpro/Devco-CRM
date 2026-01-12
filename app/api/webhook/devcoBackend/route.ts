@@ -340,6 +340,27 @@ export async function POST(request: NextRequest) {
         await connectToDatabase();
         const { getEmptyTemplate } = await import('@/lib/templateResolver');
 
+        // Helper to enrich estimate with Client's primary address for contactAddress
+        const enrichEstimate = async (est: any) => {
+            if (est && est.customerId) {
+                try {
+                    const client = await Client.findById(est.customerId).lean();
+                    if (client) {
+                        // Determine Primary Address
+                        const primaryAddrObj = (client.addresses || []).find((a: any) => a.primary) || client.addresses?.[0];
+                        const primaryAddress = primaryAddrObj ? (typeof primaryAddrObj === 'string' ? primaryAddrObj : primaryAddrObj.address) : (client.businessAddress || '');
+
+                        if (primaryAddress) {
+                            est.contactAddress = primaryAddress;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error enriching estimate with client details", e);
+                }
+            }
+            return est;
+        };
+
         // Handle AppSheet webhook payload
         if (Data && Data.recordId) {
             const docData = {
@@ -1782,7 +1803,10 @@ export async function POST(request: NextRequest) {
 
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!dbEstimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
-                const estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
+                let estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
+                
+                // FORCE: contactAddress to be Client's Primary Address
+                estimate = await enrichEstimate(estimate);
 
                 // Resolve with custom pages if provided (to reflect manual edits in preview)
                 const currentTemplate = pages ? { ...template, pages } : template;
@@ -1817,6 +1841,10 @@ export async function POST(request: NextRequest) {
                 estimate.markModified('customVariables');
                 const estimateObj = estimate.toObject() as any;
                 estimateObj.customVariables = customVariables;
+                
+                // FORCE: contactAddress to be Client's Primary Address
+                await enrichEstimate(estimateObj);
+
                 const html = resolveTemplateDocument(template, estimateObj, false);
                 
                 const proposalData = {
@@ -1873,6 +1901,10 @@ export async function POST(request: NextRequest) {
                 };
 
                 const estimateObj = estimate.toObject() as any;
+                
+                // FORCE: contactAddress to be Client's Primary Address
+                await enrichEstimate(estimateObj);
+
                 const html = resolveTemplateDocument(tempTemplate, estimateObj, false);
                 
                 const proposalData = {

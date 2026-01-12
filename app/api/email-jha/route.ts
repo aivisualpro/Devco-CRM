@@ -13,14 +13,21 @@ export async function POST(req: NextRequest) {
         }
 
         // 1. Setup Transporter
-        // Note: Ensure SMTP_USER and SMTP_PASS are set in .env.local
+        const smtpUser = process.env.SMTP_USER;
+        const smtpPass = process.env.SMTP_PASS;
+
+        if (!smtpUser || !smtpPass) {
+            console.error('Missing SMTP credentials. Please set SMTP_USER and SMTP_PASS in your environment variables.');
+             return NextResponse.json({ success: false, error: 'Email service not configured (missing credentials)' }, { status: 500 });
+        }
+
         const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || 'smtp.gmail.com',
             port: Number(process.env.SMTP_PORT) || 465,
             secure: true, 
             auth: {
-                user: process.env.SMTP_USER, 
-                pass: process.env.SMTP_PASS,
+                user: smtpUser, 
+                pass: smtpPass,
             },
         });
 

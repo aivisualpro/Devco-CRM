@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { Header, Modal, Badge, EmptyState } from '@/components/ui';
 import SignaturePad from '../../jobs/schedules/SignaturePad';
+import { DJTModal } from '../../jobs/schedules/components/DJTModal';
+import { TimesheetModal } from '../../jobs/schedules/components/TimesheetModal';
 import { useToast } from '@/hooks/useToast';
 
 interface Stats {
@@ -545,10 +547,23 @@ export default function DashboardPage() {
 
     const handleSaveIndividualTimesheet = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        let employeeEmail = selectedTimesheet.employee;
+        if (!employeeEmail && typeof window !== 'undefined') {
+             try {
+                 employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
+             } catch(e) { console.error(e); }
+        }
+
+        if (!employeeEmail) {
+            toastError("User email not found. Please reload or sign in.");
+            return;
+        }
+
         try {
-            const payload = {
+            const timesheetData = {
                 scheduleId: selectedTimesheet.scheduleId || selectedTimesheet._id,
-                employee: selectedTimesheet.employee,
+                employee: employeeEmail,
                 clockIn: selectedTimesheet.clockIn,
                 clockOut: new Date().toISOString(), // Clocking out sets clockOut to now
                 lunchStart: selectedTimesheet.lunchStartTime ? combineCurrentDateWithTime(selectedTimesheet.lunchStartTime) : null,
@@ -560,7 +575,7 @@ export default function DashboardPage() {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'saveIndividualTimesheet', payload })
+                body: JSON.stringify({ action: 'saveIndividualTimesheet', payload: { timesheet: timesheetData } })
             });
             const data = await res.json();
             if (data.success) {
@@ -847,7 +862,7 @@ export default function DashboardPage() {
                                 })()}
                             </div>
                         ) : (
-                            <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px]">
+                            <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px] pb-32">
                                 <div className="flex items-center justify-between mb-5 px-2">
                                     <button 
                                         onClick={() => {
@@ -1930,341 +1945,31 @@ export default function DashboardPage() {
 
 
             {/* Daily Job Ticket Modal */}
-            <Modal
+            <DJTModal
                 isOpen={djtModalOpen}
                 onClose={() => setDjtModalOpen(false)}
-                title="Daily Job Ticket (DJT)"
-                maxWidth="3xl"
-            >
-                {selectedDJT ? (
-                    isDjtEditMode ? (
-                        <form onSubmit={handleSaveDJTForm} className="space-y-6">
-                            <div className="bg-indigo-50/50 p-6 rounded-2xl border border-dashed border-indigo-100 italic text-indigo-900 text-sm mb-4">
-                                Fill out the details below to record the daily progress and customer confirmation.
-                            </div>
-                            
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Daily Job Description</label>
-                                    <textarea 
-                                        required
-                                        rows={5}
-                                        className="w-full text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
-                                        placeholder="Detailed description of today's work..."
-                                        value={selectedDJT.dailyJobDescription || ''}
-                                        onChange={(e) => setSelectedDJT({...selectedDJT, dailyJobDescription: e.target.value})}
-                                    />
-                                </div>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Customer Print Name</label>
-                                        <input 
-                                            type="text"
-                                            className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            placeholder="Enter customer name"
-                                            value={selectedDJT.customerPrintName || ''}
-                                            onChange={(e) => setSelectedDJT({...selectedDJT, customerPrintName: e.target.value})}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Client Email (Optional)</label>
-                                        <input 
-                                            type="email"
-                                            className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                            placeholder="customer@example.com"
-                                            value={selectedDJT.clientEmail || ''}
-                                            onChange={(e) => setSelectedDJT({...selectedDJT, clientEmail: e.target.value})}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                                    <label className="text-xs font-bold text-[#0F4C75] uppercase tracking-wider mb-3 block font-sans text-center">Customer Signature</label>
-                                    <div className="max-w-md mx-auto">
-                                        <SignaturePad 
-                                            employeeName={selectedDJT.customerPrintName || "Customer"}
-                                            onSave={(sigUrl) => setSelectedDJT({...selectedDJT, customerSignature: sigUrl})} 
-                                        />
-                                        {selectedDJT.customerSignature && (
-                                            <p className="mt-2 text-[10px] text-green-600 font-bold flex items-center justify-center gap-1">
-                                                <CheckCircle2 size={12} /> Signature captured
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsDjtEditMode(false)}
-                                    className="px-6 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition-all"
-                                >
-                                    Save Job Ticket
-                                </button>
-                            </div>
-                        </form>
-                    ) : (
-                        <div className="space-y-6">
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Job Ticket Summary</h4>
-                                <button
-                                    onClick={() => setIsDjtEditMode(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
-                                >
-                                    <Edit size={14} />
-                                    EDIT TICKET
-                                </button>
-                            </div>
-
-                            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-6">
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Description</p>
-                                    <p className="text-sm text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">{selectedDJT.dailyJobDescription || 'No description provided.'}</p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-50">
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Customer Name</p>
-                                        <p className="text-sm font-bold text-slate-800">{selectedDJT.customerPrintName || 'Not recorded'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Client Email</p>
-                                        <p className="text-sm font-bold text-slate-800">{selectedDJT.clientEmail || 'N/A'}</p>
-                                    </div>
-                                </div>
-
-                                <div className="pt-6 border-t border-slate-50">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Customer Confirmation</p>
-                                    <div className="max-w-xs mx-auto aspect-[2/1] bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden">
-                                        {selectedDJT.customerSignature ? (
-                                            <img src={selectedDJT.customerSignature} alt="Customer Signature" className="max-w-full max-h-full object-contain" />
-                                        ) : (
-                                            <p className="text-xs italic text-slate-400">No customer signature found</p>
-                                        )}
-                                    </div>
-                                    <p className="text-center text-[10px] font-bold text-slate-600 mt-1">{selectedDJT.customerPrintName}</p>
-                                </div>
-
-                                <div className="pt-6 border-t border-slate-50">
-                                    <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2 flex justify-between">
-                                        <span>Employee Signatures</span>
-                                        <span className="text-[10px] font-normal text-slate-500 normal-case">All assignees must sign</span>
-                                    </h4>
-                                    
-                                    {activeSignatureEmployee ? (
-                                        <div className="max-w-md mx-auto">
-                                            <SignaturePad 
-                                                employeeName={employees.find(e => e.value === activeSignatureEmployee)?.label || activeSignatureEmployee}
-                                                onSave={handleSaveDJTSignature} 
-                                            />
-                                            <button 
-                                                type="button" 
-                                                onClick={() => setActiveSignatureEmployee(null)} 
-                                                className="mt-2 w-full text-xs text-slate-500 hover:text-slate-800"
-                                            >
-                                                Cancel Signing
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                            {(() => {
-                                                const schedule = dailySchedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
-                                                const assignees = schedule?.assignees || [];
-                                                const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
-
-                                                if (uniqueAssignees.length === 0 && (!selectedDJT.signatures || selectedDJT.signatures.length === 0)) {
-                                                    return <p className="text-xs text-slate-400 italic col-span-full text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">No assignees found for this schedule.</p>;
-                                                }
-
-                                                return uniqueAssignees.map((email: string) => {
-                                                    const emp = employees.find(e => e.value === email);
-                                                    const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
-                                                    
-                                                    return (
-                                                        <div key={email} className={`relative p-3 rounded-xl border transition-all ${sig ? 'bg-white border-green-200 shadow-sm' : 'bg-white border-dashed border-slate-300 hover:border-[#0F4C75]'}`}>
-                                                            <div className="flex items-center gap-3 mb-2">
-                                                                <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-white shadow-sm flex items-center justify-center shrink-0">
-                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold text-slate-500">{emp?.label?.[0]}</span>}
-                                                                </div>
-                                                                <div className="overflow-hidden">
-                                                                    <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || email}</p>
-                                                                    <p className="text-[10px] text-slate-400">{sig ? 'Signed' : 'Pending Signature'}</p>
-                                                                </div>
-                                                            </div>
-                                                            
-                                                            {sig ? (
-                                                                <div className="h-12 border-t border-slate-50 mt-2 flex items-center justify-center">
-                                                                    <img src={sig.signature} className="max-h-full max-w-full object-contain opacity-80" />
-                                                                </div>
-                                                            ) : (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setActiveSignatureEmployee(email)}
-                                                                    className="w-full py-1.5 mt-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-1 shadow-md"
-                                                                >
-                                                                    <FilePlus size={12} /> Sign Now
-                                                                </button>
-                                                            )}
-                                                            {sig && (
-                                                                 <div className="absolute top-2 right-2 text-green-500"><CheckCircle2 size={14} /></div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                });
-                                            })()}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
-                            <div className="flex justify-end gap-3 pt-4">
-                                <button
-                                    onClick={() => setDjtModalOpen(false)}
-                                    className="px-8 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-                    )
-                ) : (
-                    <EmptyState title="No Data" message="Unable to load DJT details." />
-                )}
-            </Modal>
+                selectedDJT={selectedDJT}
+                setSelectedDJT={setSelectedDJT}
+                isEditMode={isDjtEditMode}
+                setIsEditMode={setIsDjtEditMode}
+                handleSave={handleSaveDJTForm}
+                handleSaveSignature={handleSaveDJTSignature}
+                initialData={{ employees }}
+                schedules={dailySchedules}
+                activeSignatureEmployee={activeSignatureEmployee}
+                setActiveSignatureEmployee={setActiveSignatureEmployee}
+            />
 
             {/* Individual Timesheet Modal */}
-            <Modal
+            <TimesheetModal
                 isOpen={timesheetModalOpen}
                 onClose={() => setTimesheetModalOpen(false)}
-                title={isTimesheetEditMode ? "Register My Timesheet" : "My Timesheet Record"}
-                maxWidth="lg"
-            >
-                {selectedTimesheet ? (
-                    isTimesheetEditMode ? (
-                        <form onSubmit={handleSaveIndividualTimesheet} className="space-y-6">
-                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Clock In (Scheduled Start)</label>
-                                <p className="text-sm font-black text-[#0F4C75]">{formatToReadableDateTime(selectedTimesheet.clockIn)}</p>
-                                <p className="text-[9px] text-slate-400 mt-1 italic">* Fixed based on schedule start time</p>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Lunch Start</label>
-                                    <input 
-                                        type="time"
-                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4C75]"
-                                        value={selectedTimesheet.lunchStartTime || ''}
-                                        onChange={(e) => setSelectedTimesheet({...selectedTimesheet, lunchStartTime: e.target.value})}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Lunch End</label>
-                                    <input 
-                                        type="time"
-                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4C75]"
-                                        value={selectedTimesheet.lunchEndTime || ''}
-                                        onChange={(e) => setSelectedTimesheet({...selectedTimesheet, lunchEndTime: e.target.value})}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
-                                <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Work Type</p>
-                                <p className="text-xs font-black text-blue-800">SITE TIME</p>
-                            </div>
-
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Comments</label>
-                                <textarea 
-                                    className="w-full text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4C75] min-h-[80px]"
-                                    value={selectedTimesheet.comments || ''}
-                                    placeholder="Add notes about your work today..."
-                                    onChange={(e) => setSelectedTimesheet({...selectedTimesheet, comments: e.target.value})}
-                                />
-                            </div>
-
-                            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
-                                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Clock Out</p>
-                                <p className="text-xs font-black text-emerald-800 italic">Automatic (Will be set to current time on save)</p>
-                            </div>
-
-                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setTimesheetModalOpen(false)}
-                                    className="px-6 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-8 py-2.5 bg-[#0F4C75] text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all"
-                                >
-                                    Register & Clock Out
-                                </button>
-                            </div>
-                        </form>
-                    ) : (
-                        <div className="space-y-6">
-                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 grid grid-cols-2 gap-6 shadow-inner">
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clocked In</p>
-                                    <p className="text-sm font-black text-slate-800">{formatToReadableDateTime(selectedTimesheet.clockIn)}</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clocked Out</p>
-                                    <p className="text-sm font-black text-slate-800">{formatToReadableDateTime(selectedTimesheet.clockOut)}</p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lunch Break</p>
-                                    <p className="text-sm font-bold text-slate-700">
-                                        {selectedTimesheet.lunchStart ? new Date(selectedTimesheet.lunchStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--'} 
-                                        {' - '} 
-                                        {selectedTimesheet.lunchEnd ? new Date(selectedTimesheet.lunchEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--'}
-                                    </p>
-                                </div>
-                                <div className="space-y-1">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Type</p>
-                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase">SITE TIME</span>
-                                </div>
-                            </div>
-                            
-                            {selectedTimesheet.comments && (
-                                <div className="space-y-2">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comments</p>
-                                    <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 italic leading-relaxed">"{selectedTimesheet.comments}"</p>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                    onClick={() => setIsTimesheetEditMode(true)}
-                                    className="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
-                                >
-                                    Edit Record
-                                </button>
-                                <button
-                                    onClick={() => setTimesheetModalOpen(false)}
-                                    className="px-8 py-2.5 bg-[#0F4C75] text-white font-bold rounded-xl hover:scale-105 active:scale-95 transition-all shadow-md"
-                                >
-                                    Done
-                                </button>
-                            </div>
-                        </div>
-                    )
-                ) : (
-                    <EmptyState title="No Record" message="No timesheet data found for your user." />
-                )}
-            </Modal>
+                selectedTimesheet={selectedTimesheet}
+                setSelectedTimesheet={setSelectedTimesheet}
+                isEditMode={isTimesheetEditMode}
+                setIsEditMode={setIsTimesheetEditMode}
+                handleSave={handleSaveIndividualTimesheet}
+            />
 
             {/* Media Modal */}
             <Modal
