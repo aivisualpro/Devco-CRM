@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { Schedule, Client, Employee, Constant, Estimate, JHA } from '@/lib/models';
 
@@ -99,6 +100,43 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result });
             }
 
+            case 'saveIndividualTimesheet': {
+                const { timesheet } = payload || {};
+                if (!timesheet || !timesheet.scheduleId || !timesheet.employee) {
+                    return NextResponse.json({ success: false, error: 'Missing required fields' });
+                }
+
+                // Check if timesheet already exists for this employee on this schedule
+                const schedule = await Schedule.findById(timesheet.scheduleId);
+                if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
+
+                const existingIndex = (schedule.timesheet || []).findIndex(ts => ts.employee === timesheet.employee);
+                
+                if (existingIndex > -1) {
+                    // Update existing
+                    const updateObj: any = {};
+                    Object.keys(timesheet).forEach(key => {
+                        updateObj[`timesheet.${existingIndex}.${key}`] = timesheet[key];
+                    });
+                    updateObj.updatedAt = new Date();
+                    
+                    await Schedule.updateOne(
+                        { _id: timesheet.scheduleId },
+                        { $set: updateObj }
+                    );
+                } else {
+                    // Push new
+                    if (!timesheet._id) timesheet._id = new mongoose.Types.ObjectId().toString();
+                    await Schedule.updateOne(
+                        { _id: timesheet.scheduleId },
+                        { $push: { timesheet: { ...timesheet, createdAt: new Date() } } }
+                    );
+                }
+
+                const updatedSchedule = await Schedule.findById(timesheet.scheduleId).lean();
+                return NextResponse.json({ success: true, result: updatedSchedule });
+            }
+
             case 'getSchedulesPage': {
                 const { startDate, endDate } = payload || {};
                 const query: any = {};
@@ -118,9 +156,11 @@ export async function POST(request: NextRequest) {
 
                 // Combined fetch for schedules + initial data (reduces API calls)
                 // Using projections to only fetch what's actually rendered
+                // Combined fetch for schedules + initial data (reduces API calls)
+                // Using projections to only fetch what's actually rendered
                 const [schedules, clients, employees, constants, estimates] = await Promise.all([
                     Schedule.find(query)
-                        .select('estimate customerId customerName fromDate toDate foremanName projectManager assignees service item perDiem certifiedPayroll description aerialImage siteLayout jha timesheet')
+                        .select('title estimate customerId customerName fromDate toDate foremanName projectManager assignees service item perDiem fringe certifiedPayroll notifyAssignees description jobLocation aerialImage siteLayout jha djt timesheet JHASignatures DJTSignatures createdAt updatedAt')
                         .sort({ fromDate: -1 })
                         .lean(),
                     Client.find()
@@ -128,20 +168,21 @@ export async function POST(request: NextRequest) {
                         .sort({ name: 1 })
                         .lean(),
                     Employee.find()
-                        .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition')
+                        .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation')
                         .lean(),
                     Constant.find()
                         .select('type description color image')
                         .lean(),
                     Estimate.find({ status: { $ne: 'deleted' } })
-                        .select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress')
+                        .select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone')
                         .lean()
                 ]);
 
-                // Determine hasJHA check based on embedded object
-                const schedulesWithJHA = schedules.map((s: any) => ({
+                // Determine hasJHA/hasDJT check based on embedded object
+                const schedulesWithMetaData = schedules.map((s: any) => ({
                     ...s,
-                    hasJHA: !!s.jha && Object.keys(s.jha).length > 0
+                    hasJHA: !!s.jha && Object.keys(s.jha).length > 0,
+                    hasDJT: !!s.djt && Object.keys(s.djt).length > 0
                 }));
 
                 // Process estimates to keep unique estimate numbers
@@ -156,7 +197,10 @@ export async function POST(request: NextRequest) {
                                 label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                 customerId: e.customerId,
                                 projectTitle: pName,
-                                jobAddress: e.jobAddress
+                                jobAddress: e.jobAddress,
+                                contactName: e.contactName || e.contact,
+                                contactPhone: e.contactPhone || e.phone,
+                                contactEmail: e.contactEmail
                             });
                         }
                     });
@@ -164,7 +208,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({
                     success: true,
                     result: {
-                        schedules: schedulesWithJHA,
+                        schedules: schedulesWithMetaData,
                         initialData: {
                             clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
                             employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { 
@@ -174,7 +218,8 @@ export async function POST(request: NextRequest) {
                                 hourlyRateSITE: (e as any).hourlyRateSITE,
                                 hourlyRateDrive: (e as any).hourlyRateDrive,
                                 classification: (e as any).classification,
-                                companyPosition: (e as any).companyPosition
+                                companyPosition: (e as any).companyPosition,
+                                designation: (e as any).designation
                             }])).values()),
                             constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                             estimates: Array.from(uniqueEstimates.values())
@@ -186,9 +231,9 @@ export async function POST(request: NextRequest) {
             case 'getInitialData': {
                 const [clients, employees, constants, estimates] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive').lean(),
+                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName').lean()
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean()
                 ]);
 
                 // Process estimates to keep unique estimate numbers but preserve customerId (from latest version)
@@ -202,7 +247,11 @@ export async function POST(request: NextRequest) {
                                 value: e.estimate, 
                                 label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                 customerId: e.customerId,
-                                projectTitle: pName
+                                projectTitle: pName,
+                                jobAddress: e.jobAddress,
+                                contactName: e.contactName || e.contact,
+                                contactPhone: e.contactPhone || e.phone,
+                                contactEmail: e.contactEmail
                             });
                         }
                     });
@@ -211,7 +260,14 @@ export async function POST(request: NextRequest) {
                     success: true,
                     result: {
                         clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
-                        employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { value: e.email, label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, image: e.profilePicture }])).values()),
+                        employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { 
+                            value: e.email, 
+                            label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
+                            image: e.profilePicture,
+                            classification: (e as any).classification,
+                            companyPosition: (e as any).companyPosition,
+                            designation: (e as any).designation
+                        }])).values()),
                         constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                         estimates: Array.from(uniqueEstimates.values())
                     }

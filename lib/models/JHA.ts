@@ -56,6 +56,7 @@ export interface IJHA extends Document {
     createdBy: string;
     clientEmail?: string;
     emailCounter?: number;
+    jhaEmails?: { emailto: string; createdAt: Date }[];
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -115,7 +116,11 @@ const JHASchema: Schema = new Schema({
     addressOfHospital: { type: String, default: '' },
     createdBy: { type: String, required: true },
     clientEmail: { type: String, default: '' },
-    emailCounter: { type: Number, default: 0 }
+    emailCounter: { type: Number, default: 0 },
+    jhaEmails: [{
+        emailto: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now }
+    }]
 }, {
     timestamps: true
 });

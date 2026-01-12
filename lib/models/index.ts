@@ -22,3 +22,5 @@ export { default as Role, UserPermissionOverride, PermissionAuditLog, Department
 export { default as JHA } from './JHA';
 export { default as JHASignature } from './JHASignature';
 export { default as Activity } from './Activity';
+export { default as DailyJobTicket } from './DailyJobTicket';
+export { default as DJTSignature } from './DJTSignature';

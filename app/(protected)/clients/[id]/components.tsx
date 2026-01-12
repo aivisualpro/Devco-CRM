@@ -87,11 +87,11 @@ export function ClientHeaderCard({
     const primaryContact = client.contacts?.find(c => c.primary) || client.contacts?.find(c => c.active) || client.contacts?.[0];
 
     return (
-        <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
+        <div className="bg-[#eef2f6] rounded-[40px] p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                 {/* COLUMN 1: Client Details */}
-                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 border border-white/50">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
                         Client Details
                     </label>
@@ -118,7 +118,7 @@ export function ClientHeaderCard({
                 </div>
 
                 {/* COLUMN 2: Contacts (Deck View) */}
-                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 border border-white/50">
                     <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                             Contacts
@@ -187,7 +187,7 @@ export function ClientHeaderCard({
                 </div>
 
                 {/* COLUMN 3: Job/Billing Addresses (Deck View) */}
-                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                <div className="flex flex-col gap-2 p-4 rounded-2xl bg-white/30 border border-white/50">
                     <div className="flex items-center justify-between mb-1">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                             Job/Billing Addresses
@@ -334,7 +334,7 @@ export function DocumentGallery({
 
     return (
         <div
-            className={`relative min-h-[300px] transition-all duration-300 ${isDragging ? 'bg-[#3282B8]/5' : ''}`}
+            className={`relative min-h-[100px] transition-all duration-300 ${isDragging ? 'bg-[#3282B8]/5' : ''}`}
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
             onDragLeave={() => setIsDragging(false)}
             onDrop={onDrop}

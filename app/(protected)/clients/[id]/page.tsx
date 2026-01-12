@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { Save, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload } from 'lucide-react';
+import { Save, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload, RefreshCw, Eye } from 'lucide-react';
 
 import { Header, ConfirmModal, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Badge, Modal, Input, Button, SearchableSelect } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
@@ -68,8 +68,12 @@ export default function ClientViewPage() {
     const { success, error: toastError } = useToast();
 
     const [client, setClient] = useState<Client | null>(null);
+    const [relatedEstimates, setRelatedEstimates] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [estimatesLoading, setEstimatesLoading] = useState(true);
     const [animate, setAnimate] = useState(false);
+    const [constants, setConstants] = useState<any[]>([]);
+    const [employees, setEmployees] = useState<any[]>([]);
 
     // Preview state
     const [selectedDoc, setSelectedDoc] = useState<ClientDocument | null>(null);
@@ -98,7 +102,6 @@ export default function ClientViewPage() {
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [currentClient, setCurrentClient] = useState<Partial<Client>>({});
-    const [employees, setEmployees] = useState<any[]>([]);
 
     // Document Upload State
     const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
@@ -130,12 +133,31 @@ export default function ClientViewPage() {
                 setClient(clientRes.result);
                 // Trigger animation on load
                 setTimeout(() => setAnimate(true), 100);
+                
+                // Load Related Estimates
+                setEstimatesLoading(true);
+                try {
+                    const estRes = await apiCall('getEstimatesByCustomerId', { customerId: id });
+                    if (estRes.success) {
+                        setRelatedEstimates(estRes.result || []);
+                    }
+                } catch (e) {
+                    console.error('Error loading related estimates:', e);
+                } finally {
+                    setEstimatesLoading(false);
+                }
             } else {
                 toastError('Failed to load client');
                 router.push('/clients');
             }
 
-
+            // Fetch supporting data
+            const [constRes, empRes] = await Promise.all([
+                apiCall('getConstants'),
+                apiCall('getEmployees')
+            ]);
+            if (constRes.success) setConstants(constRes.result || []);
+            if (empRes.success) setEmployees(empRes.result || []);
 
         } catch (err) {
             console.error('Error loading client:', err);
@@ -150,18 +172,6 @@ export default function ClientViewPage() {
         if (id) {
             loadClient();
         }
-
-        const fetchEmployees = async () => {
-            try {
-                const res = await apiCall('getEmployees');
-                if (res.success) {
-                    setEmployees(res.result || []);
-                }
-            } catch (err) {
-                console.error('Error fetching employees:', err);
-            }
-        };
-        fetchEmployees();
     }, [id]);
 
     const handleEditClient = () => {
@@ -641,6 +651,49 @@ export default function ClientViewPage() {
         setIsPreviewModalOpen(true);
     };
 
+    const getBadgeProps = (category: string, value: string | undefined) => {
+        if (!value) return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
+
+        const constant = constants.find(c => {
+            const type = (c.type || c.category || '').toLowerCase();
+            const searchCat = category.toLowerCase();
+            return (type === searchCat || type.includes(searchCat)) &&
+                (c.value?.toLowerCase() === value.toLowerCase() || c.description?.toLowerCase() === value.toLowerCase());
+        });
+
+        if (constant?.color) {
+            return {
+                style: { backgroundColor: constant.color, color: 'white', border: 'none' },
+                className: 'shadow-sm'
+            };
+        }
+
+        const val = value.toLowerCase();
+        if (category === 'Status') {
+            switch (val) {
+                case 'confirmed':
+                case 'won': return { className: 'bg-green-100 text-green-800 border-green-200' };
+                case 'pending': return { className: 'bg-orange-100 text-orange-800 border-orange-200' };
+                case 'lost': return { className: 'bg-red-100 text-red-800 border-red-200' };
+                case 'draft': return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
+            }
+        }
+        if (category === 'Fringe' || category === 'Certified Payroll') {
+            if (val === 'yes') return { className: 'bg-[#0F4C75]/10 text-[#0F4C75] border-[#0F4C75]/20' };
+        }
+
+        return { className: 'bg-gray-100 text-gray-800 border-gray-200' };
+    };
+
+    const getEmployee = (email: string) => {
+        return employees.find(e => e.email === email);
+    };
+
+    const formatCurrency = (val: number | undefined) => {
+        if (val === undefined || val === null) return '-';
+        return `$${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
 
     if (loading) {
         return (
@@ -711,12 +764,211 @@ export default function ClientViewPage() {
 
 
                     {/* Main Layout Grid */}
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-4">
 
 
 
 
 
+
+                        {/* Related Estimates Section (Moved before Documents) */}
+                        <div className="mt-4">
+                            <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100/50 overflow-hidden">
+                                <div className="px-4 py-2 border-b border-slate-50 flex items-center justify-between bg-white">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2.5 bg-indigo-50 rounded-2xl">
+                                            <Briefcase className="w-5 h-5 text-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Related Estimates</h3>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={async () => {
+                                            const currentUser = typeof window !== 'undefined' 
+                                                ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email 
+                                                : null;
+
+                                            const res = await apiCall('createEstimate', { 
+                                                customerId: id,
+                                                customerName: client.name,
+                                                proposalWriter: currentUser,
+                                                createdBy: currentUser 
+                                            });
+                                            if (res.success && res.result?._id) {
+                                                const slug = res.result.estimate ? `${res.result.estimate}-V${res.result.versionNumber || 1}` : res.result._id;
+                                                router.push(`/estimates/${slug}`);
+                                            } else {
+                                                toastError('Failed to create estimate');
+                                            }
+                                        }}
+                                        className="p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                                        title="New Estimate"
+                                    >
+                                        <Plus size={18} className="duration-300 transition-transform group-hover:rotate-90" />
+                                    </button>
+                                </div>
+                                <div className="p-1">
+                                    {estimatesLoading ? (
+                                        <div className="p-12 flex flex-col items-center justify-center gap-3 text-slate-400">
+                                            <RefreshCw className="w-6 h-6 animate-spin text-[#3282B8]" />
+                                            <span className="text-xs font-medium animate-pulse">Loading estimates...</span>
+                                        </div>
+                                    ) : relatedEstimates.length === 0 ? (
+                                        <div className="p-12 text-center flex flex-col items-center gap-3 border-2 border-dashed border-slate-100 rounded-2xl m-2">
+                                            <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center text-slate-300">
+                                                <Briefcase className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-600">No Related Estimates</p>
+                                                <p className="text-xs text-slate-400">This client doesn't have any estimates yet.</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="overflow-x-auto">
+                                            <Table containerClassName="h-auto min-h-0 border-none shadow-none">
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableHeader className="text-xs">Estimate</TableHeader>
+                                                        <TableHeader className="w-16 text-xs">V.</TableHeader>
+                                                        <TableHeader className="text-xs">Date</TableHeader>
+                                                        <TableHeader className="text-xs">Writer</TableHeader>
+                                                        <TableHeader className="text-xs">Fringe</TableHeader>
+                                                        <TableHeader className="text-xs">CP</TableHeader>
+                                                        <TableHeader className="text-xs">Services</TableHeader>
+                                                        <TableHeader className="text-xs">Sub</TableHeader>
+                                                        <TableHeader className="text-xs">%</TableHeader>
+                                                        <TableHeader className="text-xs">Margin</TableHeader>
+                                                        <TableHeader className="text-xs">Total</TableHeader>
+                                                        <TableHeader className="text-xs">Status</TableHeader>
+                                                        <TableHeader className="text-left text-xs">Actions</TableHeader>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {relatedEstimates.map((est) => {
+                                                        const services = [
+                                                            { value: 'Directional Drilling', label: 'DD', color: 'bg-blue-500' },
+                                                            { value: 'Excavation & Backfill', label: 'EB', color: 'bg-green-500' },
+                                                            { value: 'Hydro-excavation', label: 'HE', color: 'bg-purple-500' },
+                                                            { value: 'Potholing & Coring', label: 'PC', color: 'bg-orange-500' },
+                                                            { value: 'Asphalt & Concrete', label: 'AC', color: 'bg-red-500' }
+                                                        ].filter(s => est.services?.includes(s.value));
+
+                                                        return (
+                                                            <TableRow 
+                                                                key={est._id} 
+                                                                className="cursor-pointer hover:bg-slate-50 transition-colors"
+                                                                onClick={() => {
+                                                                    const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+                                                                    router.push(`/estimates/${slug}`);
+                                                                }}
+                                                            >
+                                                                <TableCell className="font-medium text-gray-900 text-xs">
+                                                                    {est.estimate || '-'}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
+                                                                        V.{est.versionNumber || 1}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <div className="text-gray-500 text-xs">
+                                                                        {est.date || '-'}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <div className="flex">
+                                                                        {est.proposalWriter ? (
+                                                                            getEmployee(est.proposalWriter)?.profilePicture ? (
+                                                                                <img
+                                                                                    src={getEmployee(est.proposalWriter)!.profilePicture}
+                                                                                    alt={est.proposalWriter}
+                                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover"
+                                                                                    title={est.proposalWriter}
+                                                                                />
+                                                                            ) : (
+                                                                                <div
+                                                                                    className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 border border-gray-200"
+                                                                                    title={est.proposalWriter}
+                                                                                >
+                                                                                    {est.proposalWriter.substring(0, 2).toUpperCase()}
+                                                                                </div>
+                                                                            )
+                                                                        ) : (
+                                                                            <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {est.fringe && (
+                                                                        <Badge {...getBadgeProps('Fringe', est.fringe)}>
+                                                                            {est.fringe}
+                                                                        </Badge>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    {est.certifiedPayroll && (
+                                                                        <Badge {...getBadgeProps('Certified Payroll', est.certifiedPayroll)}>
+                                                                            {est.certifiedPayroll}
+                                                                        </Badge>
+                                                                    )}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <div className="flex gap-1">
+                                                                        {services.length > 0 ? services.map(s => (
+                                                                            <span
+                                                                                key={s.value}
+                                                                                className={`${s.color} text-white text-[10px] font-bold px-1.5 py-0.5 rounded`}
+                                                                                title={s.label}
+                                                                            >
+                                                                                {s.label}
+                                                                            </span>
+                                                                        )) : <span className="text-gray-400 text-xs">-</span>}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="font-medium text-xs">
+                                                                    {formatCurrency(est.subTotal)}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <span className="text-xs font-medium text-gray-600">
+                                                                        {est.bidMarkUp ? String(est.bidMarkUp).replace('%', '') : '-'}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell className="font-medium text-green-600 text-xs">
+                                                                    {formatCurrency(est.margin)}
+                                                                </TableCell>
+                                                                <TableCell className="font-bold text-gray-900 text-xs">
+                                                                    {formatCurrency(est.grandTotal)}
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <Badge {...getBadgeProps('Status', est.status || 'draft')}>
+                                                                        {est.status || 'draft'}
+                                                                    </Badge>
+                                                                </TableCell>
+                                                                <TableCell className="text-left">
+                                                                    <div onClick={(e) => e.stopPropagation()} className="inline-flex">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+                                                                                router.push(`/estimates/${slug}`);
+                                                                            }}
+                                                                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600"
+                                                                            title="View Estimate"
+                                                                        >
+                                                                            <Eye className="w-4 h-4" />
+                                                                        </button>
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
 
                         {/* Documents Section */}
                         <div className="mt-4">
@@ -732,7 +984,7 @@ export default function ClientViewPage() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-2">
+                                <div className="p-1">
                                     <DocumentGallery
                                         documents={client.documents || []}
                                         onRemove={handleRemoveDoc}

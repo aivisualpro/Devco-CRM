@@ -24,6 +24,9 @@ export interface ISchedule extends Document {
     createdAt?: Date;
     updatedAt?: Date;
     timesheet?: ITimesheet[];
+    djt?: any;
+    JHASignatures?: any[];
+    DJTSignatures?: any[];
 }
 
 export interface ITimesheet {
@@ -99,7 +102,9 @@ const ScheduleSchema = new Schema({
     siteLayout: { type: String },
     timesheet: { type: [TimesheetSchema], default: [] },
     jha: { type: Object, default: null },
-    JHASignatures: { type: [], default: [] }
+    djt: { type: Object, default: null },
+    JHASignatures: { type: [], default: [] },
+    DJTSignatures: { type: [], default: [] }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

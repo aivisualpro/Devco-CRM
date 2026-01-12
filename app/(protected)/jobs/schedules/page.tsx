@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail
 } from 'lucide-react';
 
 import SignaturePad from './SignaturePad';
@@ -47,6 +47,9 @@ interface ScheduleItem {
     hasJHA?: boolean;
     jha?: any;
     JHASignatures?: any[];
+    hasDJT?: boolean;
+    djt?: any;
+    DJTSignatures?: any[];
 }
 
 export default function SchedulePage() {
@@ -83,8 +86,14 @@ export default function SchedulePage() {
     const [jhaModalOpen, setJhaModalOpen] = useState(false);
     const [selectedJHA, setSelectedJHA] = useState<any>(null);
     const [isJhaEditMode, setIsJhaEditMode] = useState(false);
+    const [djtModalOpen, setDjtModalOpen] = useState(false);
+    const [selectedDJT, setSelectedDJT] = useState<any>(null);
+    const [isDjtEditMode, setIsDjtEditMode] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
     const [isGeneratingJHAPDF, setIsGeneratingJHAPDF] = useState(false);
+    const [emailModalOpen, setEmailModalOpen] = useState(false);
+    const [emailTo, setEmailTo] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
 
     // Filter States
     const [filterEstimate, setFilterEstimate] = useState('');
@@ -94,6 +103,27 @@ export default function SchedulePage() {
     const [filterTag, setFilterTag] = useState('');
     const [filterCertifiedPayroll, setFilterCertifiedPayroll] = useState('');
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+    // Current User
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    // Timesheet Individual Modal State
+    const [timesheetModalOpen, setTimesheetModalOpen] = useState(false);
+    const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
+    const [isTimesheetEditMode, setIsTimesheetEditMode] = useState(false);
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const user = localStorage.getItem('devco_user');
+            if (user) {
+                try {
+                    setCurrentUser(JSON.parse(user));
+                } catch (e) {
+                    console.error('Failed to parse user', e);
+                }
+            }
+        }
+    }, []);
 
     const clearFilters = () => {
         setSearch('');
@@ -129,6 +159,8 @@ export default function SchedulePage() {
     const timesheetInputRef = useRef<HTMLInputElement>(null);
     const jhaInputRef = useRef<HTMLInputElement>(null);
     const jhaSignatureInputRef = useRef<HTMLInputElement>(null);
+    const djtInputRef = useRef<HTMLInputElement>(null);
+    const djtSignatureInputRef = useRef<HTMLInputElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const INCREMENT = 20;
 
@@ -202,6 +234,34 @@ export default function SchedulePage() {
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${year}-${month}-${day}T${hours}:${minutes}`;
+    };
+
+    const extractTimeFromDateTime = (dateInput: string | Date) => {
+        if (!dateInput) return '';
+        const date = new Date(dateInput);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        return `${hours}:${minutes}`;
+    };
+
+    const combineCurrentDateWithTime = (timeStr: string) => {
+        if (!timeStr) return '';
+        const now = new Date();
+        const [hours, minutes] = timeStr.split(':');
+        now.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        return now.toISOString();
+    };
+
+    const formatToReadableDateTime = (dateInput: string | Date) => {
+        if (!dateInput) return 'N/A';
+        return new Date(dateInput).toLocaleString('en-US', {
+            month: '2-digit',
+            day: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
     };
 
     const scheduledDatesRaw = useMemo(() => {
@@ -775,6 +835,114 @@ export default function SchedulePage() {
         reader.readAsText(file);
     };
 
+    const handleImportDJT = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsedRows = parseCSV(text);
+
+                if (parsedRows.length < 2) throw new Error("File must contain at least a header and one data row.");
+
+                const headers = parsedRows[0].map(h => h.replace(/^"|"$/g, '').trim());
+
+                const data = parsedRows.slice(1).map(values => {
+                    const obj: any = {};
+                    headers.forEach((h, i) => {
+                        if (values[i] !== undefined) {
+                            let val = values[i].replace(/^"|"$/g, '').trim();
+                            obj[h] = val;
+                        }
+                    });
+
+                    if ((obj as any).recordId) {
+                        (obj as any)._id = (obj as any).recordId;
+                        delete (obj as any).recordId;
+                    }
+                    return obj;
+                });
+
+                const res = await fetch('/api/djt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importDJT', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} DJT records`);
+                    fetchPageData();
+                } else {
+                    toastError(resData.error || 'DJT import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (djtInputRef.current) djtInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleImportDJTSignatures = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsedRows = parseCSV(text);
+
+                if (parsedRows.length < 2) throw new Error("File must contain at least a header and one data row.");
+
+                const headers = parsedRows[0].map(h => h.replace(/^"|"$/g, '').trim());
+
+                const data = parsedRows.slice(1).map(values => {
+                    const obj: any = {};
+                    headers.forEach((h, i) => {
+                        if (values[i] !== undefined) {
+                            let val = values[i].replace(/^"|"$/g, '').trim();
+                            obj[h] = val;
+                        }
+                    });
+
+                    if ((obj as any).recordId) {
+                        (obj as any)._id = (obj as any).recordId;
+                        delete (obj as any).recordId;
+                    }
+                    return obj;
+                });
+
+                const res = await fetch('/api/djt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importDJTSignatures', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} DJT signatures`);
+                    fetchPageData();
+                } else {
+                    toastError(resData.error || 'DJT signatures import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (djtSignatureInputRef.current) djtSignatureInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleSaveJHAForm = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -792,9 +960,8 @@ export default function SchedulePage() {
             const data = await res.json();
             if (data.success) {
                 success('JHA Saved Successfully');
-                // Update local state or refresh
+                // Refresh schedules to update JHA status
                 fetchPageData();
-                // Switch to view mode or close? Keep in edit mode?
                 setIsJhaEditMode(false);
             } else {
                 toastError(data.error || 'Failed to save JHA');
@@ -802,6 +969,33 @@ export default function SchedulePage() {
         } catch (error) {
             console.error(error);
             toastError('Error saving JHA');
+        }
+    };
+
+    const handleSaveDJTForm = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const payload = {
+                ...selectedDJT,
+                schedule_id: selectedDJT.schedule_id || selectedDJT._id
+            };
+
+            const res = await fetch('/api/djt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'importDJT', payload: { records: [payload] } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success('Daily Job Ticket Saved Successfully');
+                fetchPageData();
+                setIsDjtEditMode(false);
+            } else {
+                toastError(data.error || 'Failed to save DJT');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Error saving DJT');
         }
     };
 
@@ -908,6 +1102,127 @@ export default function SchedulePage() {
         }
     };
 
+    const handleEmailJhaPdf = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedJHA || !emailTo) return;
+        
+        setIsSendingEmail(true);
+        try {
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
+            
+            // Build variables (Duplicate logic from download for safety)
+            const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
+            
+            // Strict estimate lookup
+             const estimate = initialData.estimates.find(e => {
+                const estNum = e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            }) || initialData.estimates.find(e => e.estimateNum === schedule?.estimate || e._id === schedule?.estimate);
+
+            const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
+            
+            const variables: Record<string, any> = {
+                ...selectedJHA,
+                customerId: client?.name || schedule?.customerName || '',
+                contactName: estimate?.contactName || estimate?.contact || '',
+                contactPhone: estimate?.contactPhone || estimate?.phone || '',
+                jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
+                customerName: schedule?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                estimateNum: schedule?.estimate || '',
+                foremanName: schedule?.foremanName || '',
+                addressOfHospital: selectedJHA.addressOfHospital || selectedJHA.hospitalAddress || '', 
+                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+            };
+
+            const booleanFields = [
+                 'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                 'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                 'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                 'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                 'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                 'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                 'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
+            booleanFields.forEach(f => {
+                if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
+                    variables[f] = '✔️';
+                } else {
+                    variables[f] = '';
+                }
+            });
+
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`_ComputedName_${i}`] = '';
+            }
+
+            if (variables.signatures && variables.signatures.length > 0) {
+                variables.hasSignatures = true;
+                variables.signatures.forEach((sig: any, index: number) => {
+                    const empName = initialData.employees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName; 
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
+            const pdfRes = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+            const blob = await pdfRes.blob();
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string; 
+                
+                const emailRes = await fetch('/api/email-jha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emailTo,
+                        subject: 'JHA Document',
+                        emailBody: 'Please find attached JHA document',
+                        attachment: base64data,
+                        jhaId: selectedJHA._id,
+                        scheduleId: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id
+                    })
+                });
+
+                const emailData = await emailRes.json();
+                if (emailData.success) {
+                    success('PDF emailed successfully!');
+                    setEmailModalOpen(false);
+                    setEmailTo('');
+                    setSelectedJHA((prev: any) => ({
+                         ...prev, 
+                         emailCounter: (prev.emailCounter || 0) + 1,
+                         jhaEmails: emailData.jha?.jhaEmails || [...(prev.jhaEmails || []), { emailto: emailTo, createdAt: new Date() }]
+                    }));
+                } else {
+                    throw new Error(emailData.error || 'Failed to send email');
+                }
+                setIsSendingEmail(false);
+            };
+        } catch (error: any) {
+            console.error('Email Error:', error);
+            toastError(error.message || 'Failed to email PDF');
+            setIsSendingEmail(false);
+        }
+    };
+
     const handleSaveJHASignature = async (dataUrl: string) => {
         if (!activeSignatureEmployee || !selectedJHA) return;
         
@@ -924,34 +1239,33 @@ export default function SchedulePage() {
              }
         }
 
+        // Check if employee already signed to prevent duplicates
+        if (selectedJHA.signatures?.some((s: any) => s.employee === activeSignatureEmployee)) {
+            toastError('This employee has already signed.');
+            setActiveSignatureEmployee(null); // Reset selection
+            return;
+        }
         try {
             const payload = {
                 schedule_id: selectedJHA.schedule_id,
                 employee: activeSignatureEmployee,
                 signature: dataUrl,
-                createdBy: 'jt@devco-inc.com', // TODO: Get logged in user
+                createdBy: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null,
                 location
             };
-
             const res = await fetch('/api/jha', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'saveJHASignature', payload })
             });
-
             const data = await res.json();
             if (data.success) {
                 success('Signature Saved');
-                // Add to local state
                 const newSig = data.result;
-                setSelectedJHA((prev: any) => ({
-                    ...prev,
-                    signatures: [...(prev.signatures || []), newSig]
-                }));
-                setActiveSignatureEmployee(null); // Close pad
-                
-                // Refresh schedules to update the card icon if first JHA action?
-                // Actually JHA existence relies on the main JHA record, but signatures are part of the detailed view.
+                setSelectedJHA((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), newSig] }));
+                setActiveSignatureEmployee(null);
+                 // Refresh schedules to update JHA status icons
+                 fetchPageData();
             } else {
                 toastError(data.error || 'Failed to save signature');
             }
@@ -960,6 +1274,91 @@ export default function SchedulePage() {
             toastError('Error saving signature');
         }
     };
+
+    const handleSaveDJTSignature = async (dataUrl: string) => {
+        if (!activeSignatureEmployee || !selectedDJT) return;
+        
+        // Get Location
+        let location = 'Unknown';
+        if (navigator.geolocation) {
+             try {
+                 const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                     navigator.geolocation.getCurrentPosition(resolve, reject);
+                 });
+                 location = `${pos.coords.latitude},${pos.coords.longitude}`;
+             } catch (e) {
+                 console.log('Location access denied or failed');
+             }
+        }
+
+        try {
+            const payload = {
+                schedule_id: selectedDJT.schedule_id || selectedDJT._id,
+                employee: activeSignatureEmployee,
+                signature: dataUrl,
+                createdBy: 'jt@devco-inc.com', // TODO: Get logged in user
+                location
+            };
+
+            const res = await fetch('/api/djt', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'saveDJTSignature', payload })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                success('Signature Saved');
+                // Add to local state
+                const newSig = data.result;
+                setSelectedDJT((prev: any) => ({
+                    ...prev,
+                    signatures: [...(prev.signatures || []), newSig]
+                }));
+                setActiveSignatureEmployee(null); // Close pad
+            } else {
+                toastError(data.error || 'Failed to save signature');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Error saving signature');
+        }
+    };
+    const handleSaveIndividualTimesheet = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            // Business Logic: Clock out is automatic (now)
+            // Lunch Start/End combined with current date
+            const finalTimesheet = {
+                ...selectedTimesheet,
+                clockOut: new Date().toISOString(),
+                lunchStart: selectedTimesheet.lunchStartTime ? combineCurrentDateWithTime(selectedTimesheet.lunchStartTime) : selectedTimesheet.lunchStart,
+                lunchEnd: selectedTimesheet.lunchEndTime ? combineCurrentDateWithTime(selectedTimesheet.lunchEndTime) : selectedTimesheet.lunchEnd,
+                type: 'SITE'
+            };
+
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'saveIndividualTimesheet', 
+                    payload: { timesheet: finalTimesheet } 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success('Timesheet Saved Successfully');
+                fetchPageData();
+                setTimesheetModalOpen(false);
+            } else {
+                toastError(data.error || 'Failed to save timesheet');
+            }
+        } catch (error) {
+            console.error(error);
+            toastError('Error saving timesheet');
+        }
+    };
+
 
     // Helper to format time strings
     const formatTimeOnly = (dateStr: string) => {
@@ -1167,6 +1566,20 @@ export default function SchedulePage() {
                             className="hidden"
                             accept=".csv"
                         />
+                        <input
+                            type="file"
+                            ref={djtInputRef}
+                            onChange={handleImportDJT}
+                            className="hidden"
+                            accept=".csv"
+                        />
+                        <input
+                            type="file"
+                            ref={djtSignatureInputRef}
+                            onChange={handleImportDJTSignatures}
+                            className="hidden"
+                            accept=".csv"
+                        />
                         <button
                             onClick={() => fileInputRef.current?.click()}
                             className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
@@ -1194,6 +1607,20 @@ export default function SchedulePage() {
                             title="Import JHA Signatures"
                         >
                             <ClipboardList size={18} className={isImporting ? 'animate-pulse' : ''} />
+                        </button>
+                        <button
+                            onClick={() => djtInputRef.current?.click()}
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            title="Import DJT"
+                        >
+                            <FileSpreadsheet size={18} className={isImporting ? 'animate-pulse' : ''} />
+                        </button>
+                        <button
+                            onClick={() => djtSignatureInputRef.current?.click()}
+                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                            title="Import DJT Signatures"
+                        >
+                            <FileText size={18} className={isImporting ? 'animate-pulse' : ''} />
                         </button>
                         <button
                             onClick={openCreateModal}
@@ -1627,11 +2054,11 @@ export default function SchedulePage() {
                                                                 setJhaModalOpen(true);
                                                             }}
                                                         >
-                                                            <ClipboardList size={12} />
+                                                            <ShieldCheck size={12} />
                                                         </div>
                                                     ) : (
                                                         <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-blue-100 hover:text-blue-600 transition-colors cursor-pointer" 
+                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer" 
                                                             title="Create JHA"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -1648,9 +2075,97 @@ export default function SchedulePage() {
                                                                 setJhaModalOpen(true);
                                                             }}
                                                         >
+                                                            <Shield size={12} />
+                                                        </div>
+                                                    )}
+                                                    {item.hasDJT ? (
+                                                        <div 
+                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-indigo-100 text-indigo-600 ml-1 hover:bg-indigo-200 transition-colors cursor-pointer" 
+                                                            title="View DJT"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                const djtWithSigs = { 
+                                                                    ...item.djt, 
+                                                                    signatures: item.DJTSignatures || [] 
+                                                                };
+                                                                setSelectedDJT(djtWithSigs);
+                                                                setIsDjtEditMode(false);
+                                                                setDjtModalOpen(true);
+                                                            }}
+                                                        >
+                                                            <FileCheck size={12} />
+                                                        </div>
+                                                    ) : (
+                                                        <div 
+                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer" 
+                                                            title="Create DJT"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setSelectedDJT({
+                                                                    schedule_id: item._id,
+                                                                    dailyJobDescription: '',
+                                                                    customerPrintName: '',
+                                                                    customerSignature: '',
+                                                                    createdBy: '', // Will be filled by user or system
+                                                                    clientEmail: '',
+                                                                    emailCounter: 0
+                                                                });
+                                                                setIsDjtEditMode(true);
+                                                                setDjtModalOpen(true);
+                                                            }}
+                                                        >
                                                             <FilePlus size={12} />
                                                         </div>
                                                     )}
+                                                    {(() => {
+                                                        const userTimesheet = item.timesheet?.find(ts => ts.employee === currentUser?.email);
+                                                        if (userTimesheet) {
+                                                            return (
+                                                                 <div 
+                                                                     className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100 text-emerald-600 ml-1 hover:bg-emerald-200 transition-colors cursor-pointer" 
+                                                                     title="View My Timesheet"
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setSelectedTimesheet({
+                                                                             ...userTimesheet,
+                                                                             // Keep full strings for view mode
+                                                                             clockIn: userTimesheet.clockIn || item.fromDate,
+                                                                             // UI helpers for edit mode
+                                                                             lunchStartTime: userTimesheet.lunchStart ? extractTimeFromDateTime(userTimesheet.lunchStart) : '',
+                                                                             lunchEndTime: userTimesheet.lunchEnd ? extractTimeFromDateTime(userTimesheet.lunchEnd) : '',
+                                                                         });
+                                                                         setIsTimesheetEditMode(false);
+                                                                         setTimesheetModalOpen(true);
+                                                                     }}
+                                                                 >
+                                                                     <ClockCheck size={12} />
+                                                                 </div>
+                                                            );
+                                                        } else {
+                                                            return (
+                                                                <div 
+                                                                     className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-emerald-100 hover:text-emerald-600 transition-colors cursor-pointer" 
+                                                                     title="Register Timesheet"
+                                                                     onClick={(e) => {
+                                                                         e.stopPropagation();
+                                                                         setSelectedTimesheet({
+                                                                             scheduleId: item._id,
+                                                                             employee: currentUser?.email,
+                                                                             clockIn: item.fromDate, // Rule: Clockin is the fromDate
+                                                                             lunchStartTime: '',
+                                                                             lunchEndTime: '',
+                                                                             comments: '',
+                                                                             type: 'SITE'
+                                                                         });
+                                                                         setIsTimesheetEditMode(true);
+                                                                         setTimesheetModalOpen(true);
+                                                                     }}
+                                                                 >
+                                                                     <Timer size={12} />
+                                                                 </div>
+                                                            );
+                                                        }
+                                                    })()}
                                                 </div>
 
                                                 {/* PM / Foreman / SD - right side */}
@@ -1758,7 +2273,7 @@ export default function SchedulePage() {
                                                         <div className="flex items-center gap-2">
                                                             <CalendarIcon size={14} className="text-slate-400" />
                                                             <span className="text-xs font-bold text-slate-700">
-                                                                From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                                                From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                                             </span>
                                                         </div>
                                                         {selectedSchedule.toDate && (
@@ -2221,11 +2736,13 @@ export default function SchedulePage() {
                                 id="schedPM"
                                 label="Project Manager"
                                 placeholder="Select PM"
-                                options={initialData.employees.map(emp => ({
-                                    label: emp.label,
-                                    value: emp.value,
-                                    image: emp.image
-                                }))}
+                                options={initialData.employees
+                                    .filter(emp => emp.designation?.toLowerCase().includes('project manager'))
+                                    .map(emp => ({
+                                        label: emp.label,
+                                        value: emp.value,
+                                        image: emp.image
+                                    }))}
                                 value={editingItem?.projectManager || ''}
                                 onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
                                 onNext={() => document.getElementById('schedForeman')?.focus()}
@@ -2234,11 +2751,13 @@ export default function SchedulePage() {
                                 id="schedForeman"
                                 label="Foreman"
                                 placeholder="Select Foreman"
-                                options={initialData.employees.map(emp => ({
-                                    label: emp.label,
-                                    value: emp.value,
-                                    image: emp.image
-                                }))}
+                                options={initialData.employees
+                                    .filter(emp => emp.designation?.toLowerCase().includes('foreman'))
+                                    .map(emp => ({
+                                        label: emp.label,
+                                        value: emp.value,
+                                        image: emp.image
+                                    }))}
                                 value={editingItem?.foremanName || ''}
                                 onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
                                 onNext={() => document.getElementById('schedService')?.focus()}
@@ -2480,27 +2999,8 @@ export default function SchedulePage() {
                 {selectedJHA ? (
                     isJhaEditMode ? (
                         <form onSubmit={handleSaveJHAForm} className="space-y-6">
-                            {/* Header Inputs */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Date</label>
-                                    <input 
-                                        type="date" 
-                                        required
-                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
-                                        value={formatLocalDate(selectedJHA.date)}
-                                        onChange={(e) => setSelectedJHA({...selectedJHA, date: e.target.value})}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Time</label>
-                                    <input 
-                                        type="time"
-                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
-                                        value={selectedJHA.jhaTime?.includes('M') ? '' : selectedJHA.jhaTime} // Handle AM/PM format display vs input? Inputs accept HH:mm
-                                        onChange={(e) => setSelectedJHA({...selectedJHA, jhaTime: e.target.value})}
-                                    />
-                                </div>
+                            {/* Header Inputs (Hidden Date/Time, keeping others) */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
                                 <div>
                                     <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">USA No.</label>
                                     <input 
@@ -2508,6 +3008,7 @@ export default function SchedulePage() {
                                         className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
                                         value={selectedJHA.usaNo || ''}
                                         onChange={(e) => setSelectedJHA({...selectedJHA, usaNo: e.target.value})}
+                                        placeholder="Enter USA No."
                                     />
                                 </div>
                                 <div>
@@ -2517,11 +3018,160 @@ export default function SchedulePage() {
                                         className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
                                         value={selectedJHA.subcontractorUSANo || ''}
                                         onChange={(e) => setSelectedJHA({...selectedJHA, subcontractorUSANo: e.target.value})}
+                                        placeholder="Enter Subcontractor USA"
                                     />
                                 </div>
                             </div>
 
-                            {/* Signatures Section (Prioritized) */}
+                            {/* Section: Daily Work */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Daily Work</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {[
+                                        { key: 'operatingMiniEx', label: 'Operating Mini Ex' },
+                                        { key: 'operatingAVacuumTruck', label: 'Vacuum Truck' },
+                                        { key: 'excavatingTrenching', label: 'Excavating/Trenching' },
+                                        { key: 'acConcWork', label: 'AC/Concrete Work' },
+                                        { key: 'operatingBackhoe', label: 'Operating Backhoe' },
+                                        { key: 'workingInATrench', label: 'Working in Trench' },
+                                        { key: 'trafficControl', label: 'Traffic Control' },
+                                        { key: 'roadWork', label: 'Road Work' },
+                                        { key: 'operatingHdd', label: 'Operating HDD' },
+                                        { key: 'confinedSpace', label: 'Confined Space' },
+                                        { key: 'settingUgBoxes', label: 'Setting UG Boxes' },
+                                        { key: 'otherDailyWork', label: 'Other Daily Work' },
+                                    ].map((item) => (
+                                        <div key={item.key} className="space-y-2">
+                                            <label className={`p-3 h-full rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${(selectedJHA as any)[item.key] ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="w-4 h-4 text-[#0F4C75] rounded focus:ring-[#0F4C75]"
+                                                    checked={!!(selectedJHA as any)[item.key]}
+                                                    onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
+                                                />
+                                                <span className={`text-xs font-bold ${(selectedJHA as any)[item.key] ? 'text-blue-900' : 'text-slate-600'}`}>{item.label}</span>
+                                            </label>
+                                            {item.key === 'otherDailyWork' && (selectedJHA as any).otherDailyWork && (
+                                                <textarea
+                                                    className="w-full text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 mt-2 focus:ring-2 focus:ring-[#0F4C75] transition-all"
+                                                    placeholder="Specify Other Daily Work..."
+                                                    rows={2}
+                                                    value={(selectedJHA as any).commentsOtherDailyWork || ''}
+                                                    onChange={(e) => setSelectedJHA({ ...selectedJHA, commentsOtherDailyWork: e.target.value })}
+                                                />
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Section: Jobsite Hazards */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Jobsite Hazards</h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                    {[
+                                        { key: 'sidewalks', label: 'Sidewalks', commentKey: 'commentsOnSidewalks' },
+                                        { key: 'heatAwareness', label: 'Heat Awareness', commentKey: 'commentsOnHeatAwareness' },
+                                        { key: 'ladderWork', label: 'Ladder Work', commentKey: 'commentsOnLadderWork' },
+                                        { key: 'overheadLifting', label: 'Overhead Lifting', commentKey: 'commentsOnOverheadLifting' },
+                                        { key: 'materialHandling', label: 'Material Handling', commentKey: 'commentsOnMaterialHandling' },
+                                        { key: 'roadHazards', label: 'Road Hazards', commentKey: 'commentsOnRoadHazards' },
+                                        { key: 'heavyLifting', label: 'Heavy Lifting', commentKey: 'commentsOnHeavyLifting' },
+                                        { key: 'highNoise', label: 'High Noise', commentKey: 'commentsOnHighNoise' },
+                                        { key: 'pinchPoints', label: 'Pinch Points', commentKey: 'commentsOnPinchPoints' },
+                                        { key: 'sharpObjects', label: 'Sharp Objects', commentKey: 'commentsOnSharpObjects' },
+                                        { key: 'trippingHazards', label: 'Tripping Hazards', commentKey: 'commentsOnTrippingHazards' },
+                                        { key: 'otherJobsiteHazards', label: 'Other Jobsite Hazards', commentKey: 'commentsOnOther' },
+                                    ].map((item) => (
+                                        <div key={item.key} className="space-y-2">
+                                            <label className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${(selectedJHA as any)[item.key] ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-600"
+                                                    checked={!!(selectedJHA as any)[item.key]}
+                                                    onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
+                                                />
+                                                <span className={`text-xs font-bold ${(selectedJHA as any)[item.key] ? 'text-orange-900' : 'text-slate-600'}`}>{item.label}</span>
+                                            </label>
+                                            {!!(selectedJHA as any)[item.key] && (
+                                                <div className="animate-fade-in-down">
+                                                    <textarea
+                                                        className="w-full text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-600 transition-all"
+                                                        placeholder={`Comments for ${item.label}...`}
+                                                        rows={2}
+                                                        value={(selectedJHA as any)[item.commentKey] || ''}
+                                                        onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.commentKey]: e.target.value })}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Any Specific Notes</label>
+                                    <textarea
+                                        className="w-full text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all resize-none shadow-sm"
+                                        placeholder="Additional notes for jobsite hazards..."
+                                        rows={3}
+                                        value={selectedJHA.anySpecificNotes || ''}
+                                        onChange={(e) => setSelectedJHA({ ...selectedJHA, anySpecificNotes: e.target.value })}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Section: Emergency Action Plan */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Emergency Action Plan</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     {[
+                                        { key: 'stagingAreaDiscussed', label: 'Staging Area Discussed' },
+                                        { key: 'rescueProceduresDiscussed', label: 'Rescue Procedures Discussed' },
+                                        { key: 'evacuationRoutesDiscussed', label: 'Evacuation Routes Discussed' },
+                                        { key: 'emergencyContactNumberWillBe911', label: 'Emergency Contact is 911' },
+                                        { key: 'firstAidAndCPREquipmentOnsite', label: 'First Aid/CPR Onsite' },
+                                        { key: 'closestHospitalDiscussed', label: 'Closest Hospital Discussed' },
+                                     ].map((item) => (
+                                        <label key={item.key} className="flex items-center gap-3 cursor-pointer group p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-600"
+                                                checked={!!(selectedJHA as any)[item.key]}
+                                                onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
+                                            />
+                                            <span className="text-sm font-medium text-slate-700 group-hover:text-[#0F4C75] transition-colors">{item.label}</span>
+                                        </label>
+                                     ))}
+                                </div>
+                            </div>
+
+                            {/* Section: Hospital */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Hospital Information</h4>
+                                <div className="bg-red-50/50 p-6 rounded-2xl border border-red-100 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-red-500 uppercase block mb-1.5">Nearest Hospital Name</label>
+                                        <input 
+                                            type="text"
+                                            className="w-full text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-200 shadow-sm"
+                                            value={selectedJHA.nameOfHospital || ''}
+                                            onChange={(e) => setSelectedJHA({...selectedJHA, nameOfHospital: e.target.value})}
+                                            placeholder="Enter Hospital Name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-red-500 uppercase block mb-1.5">Hospital Address</label>
+                                        <input 
+                                            type="text"
+                                            className="w-full text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-200 shadow-sm"
+                                            value={selectedJHA.addressOfHospital || ''}
+                                            onChange={(e) => setSelectedJHA({...selectedJHA, addressOfHospital: e.target.value})}
+                                            placeholder="Enter Hospital Address"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Section: Signatures */}
                             <div className="border rounded-xl p-4 border-slate-200 bg-blue-50/50">
                                 <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-blue-100 pb-2 flex justify-between">
                                     <span>Signatures</span>
@@ -2537,19 +3187,16 @@ export default function SchedulePage() {
                                         <button 
                                             type="button" 
                                             onClick={() => setActiveSignatureEmployee(null)} 
-                                            className="mt-2 w-full text-xs text-slate-500 hover:text-slate-800"
+                                            className="mt-2 w-full text-xs text-slate-500 hover:text-slate-800 font-bold"
                                         >
                                             Cancel Signing
                                         </button>
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {(() => {
-                                            // Get Assignees
-                                            const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
+                                            const schedule = schedules.find(s => s._id === (selectedJHA.schedule_id || selectedJHA._id)) || selectedJHA.scheduleRef;
                                             const assignees = schedule?.assignees || [];
-                                            
-                                            // Ensure uniqueness and filter legacy
                                             const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
 
                                             return uniqueAssignees.map((email: string) => {
@@ -2576,7 +3223,7 @@ export default function SchedulePage() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setActiveSignatureEmployee(email)}
-                                                                className="w-full py-1.5 mt-1 text-xs font-bold text-white bg-[#0F4C75] hover:bg-[#0b3d61] rounded-lg transition-colors flex items-center justify-center gap-1"
+                                                                className="w-full py-1.5 mt-1 text-xs font-bold text-white bg-[#0F4C75] hover:bg-[#0b3d61] rounded-lg transition-colors flex items-center justify-center gap-1 shadow-sm"
                                                             >
                                                                 <FilePlus size={12} /> Sign Now
                                                             </button>
@@ -2592,98 +3239,7 @@ export default function SchedulePage() {
                                 )}
                             </div>
 
-                            {/* Daily Work Checkboxes */}
-                            <div>
-                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Daily Work</h4>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {[
-                                        { key: 'operatingMiniEx', label: 'Operating Mini Ex' },
-                                        { key: 'operatingAVacuumTruck', label: 'Vacuum Truck' },
-                                        { key: 'excavatingTrenching', label: 'Excavating/Trenching' },
-                                        { key: 'acConcWork', label: 'AC/Concrete Work' },
-                                        { key: 'operatingBackhoe', label: 'Operating Backhoe' },
-                                        { key: 'workingInATrench', label: 'Working in Trench' },
-                                        { key: 'trafficControl', label: 'Traffic Control' },
-                                        { key: 'roadWork', label: 'Road Work' },
-                                        { key: 'operatingHdd', label: 'Operating HDD' },
-                                        { key: 'confinedSpace', label: 'Confined Space' },
-                                        { key: 'settingUgBoxes', label: 'Setting UG Boxes' },
-                                        { key: 'sidewalks', label: 'Sidewalks' },
-                                        { key: 'heatAwareness', label: 'Heat Awareness' },
-                                        { key: 'ladderWork', label: 'Ladder Work' },
-                                        { key: 'overheadLifting', label: 'Overhead Lifting' },
-                                        { key: 'materialHandling', label: 'Material Handling' },
-                                        { key: 'roadHazards', label: 'Road Hazards' },
-                                        { key: 'heavyLifting', label: 'Heavy Lifting' },
-                                        { key: 'highNoise', label: 'High Noise' },
-                                        { key: 'pinchPoints', label: 'Pinch Points' },
-                                        { key: 'sharpObjects', label: 'Sharp Objects' },
-                                        { key: 'trippingHazards', label: 'Tripping Hazards' },
-                                        { key: 'otherJobsiteHazards', label: 'Other Hazards' },
-                                    ].map((item) => (
-                                        <label key={item.key} className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-colors ${selectedJHA[item.key] ? 'bg-blue-50 border-blue-200' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
-                                            <input
-                                                type="checkbox"
-                                                className="w-4 h-4 text-[#0F4C75] rounded focus:ring-[#0F4C75]"
-                                                checked={!!selectedJHA[item.key]}
-                                                onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
-                                            />
-                                            <span className={`text-xs font-bold ${selectedJHA[item.key] ? 'text-blue-900' : 'text-slate-600'}`}>{item.label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            {/* Emergency Plan */}
-                             <div>
-                                <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2">Emergency Plan</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                     {[
-                                        { key: 'stagingAreaDiscussed', label: 'Staging Area Discussed' },
-                                        { key: 'rescueProceduresDiscussed', label: 'Rescue Procedures Discussed' },
-                                        { key: 'evacuationRoutesDiscussed', label: 'Evacuation Routes Discussed' },
-                                        { key: 'emergencyContactNumberWillBe911', label: 'Emergency Contact is 911' },
-                                        { key: 'firstAidAndCPREquipmentOnsite', label: 'First Aid/CPR Onsite' },
-                                        { key: 'closestHospitalDiscussed', label: 'Closest Hospital Discussed' },
-                                     ].map((item) => (
-                                        <label key={item.key} className="flex items-center gap-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-600"
-                                                checked={!!selectedJHA[item.key]}
-                                                onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
-                                            />
-                                            <span className="text-sm font-medium text-slate-700">{item.label}</span>
-                                        </label>
-                                     ))}
-                                </div>
-                             </div>
-
-                             {/* Hospital Info */}
-                             <div className="bg-red-50 p-4 rounded-xl border border-red-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div>
-                                     <label className="text-[10px] font-bold text-red-400 uppercase block mb-1">Nearest Hospital Name</label>
-                                     <input 
-                                        type="text"
-                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-200"
-                                        value={selectedJHA.nameOfHospital || ''}
-                                        onChange={(e) => setSelectedJHA({...selectedJHA, nameOfHospital: e.target.value})}
-                                        placeholder="Enter Hospital Name"
-                                     />
-                                 </div>
-                                 <div>
-                                     <label className="text-[10px] font-bold text-red-400 uppercase block mb-1">Hospital Address</label>
-                                     <input 
-                                        type="text"
-                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-red-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-red-200"
-                                        value={selectedJHA.addressOfHospital || ''}
-                                        onChange={(e) => setSelectedJHA({...selectedJHA, addressOfHospital: e.target.value})}
-                                        placeholder="Enter Hospital Address"
-                                     />
-                                 </div>
-                             </div>
-
-                             <div className="flex justify-end pt-4 border-t border-slate-100">
+                            <div className="flex justify-end pt-4 border-t border-slate-100">
                                 <button
                                     type="submit"
                                     className="px-6 py-2 bg-[#0F4C75] hover:bg-[#0b3d61] text-white font-bold rounded-xl shadow-lg transition-all"
@@ -2705,6 +3261,13 @@ export default function SchedulePage() {
                                     >
                                         <Edit size={12} />
                                         EDIT JHA
+                                    </button>
+                                    <button
+                                        onClick={() => setEmailModalOpen(true)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:text-[#0F4C75] hover:border-[#0F4C75] transition-all shadow-sm"
+                                    >
+                                        <Mail size={12} />
+                                        EMAIL PDF
                                     </button>
                                     <button
                                         onClick={handleDownloadJhaPdf}
@@ -2733,12 +3296,31 @@ export default function SchedulePage() {
                                                 </div>
                                             );
                                         }
-                                        return <p className="text-sm font-bold text-slate-700 truncate">{selectedJHA.createdBy}</p>;
+                                        return <p className="text-sm font-bold text-slate-700 truncate">{selectedJHA.createdBy || 'Unknown'}</p>;
                                     })()}
                                 </div>
                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase">USA No.</p><p className="text-sm font-bold text-slate-700">{selectedJHA.usaNo || '-'}</p></div>
                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase">Subcontractor USA</p><p className="text-sm font-bold text-slate-700">{selectedJHA.subcontractorUSANo || '-'}</p></div>
                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase">Client Email</p><p className="text-sm font-bold text-slate-700">{selectedJHA.clientEmail || '-'}</p></div>
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase">Emailed</p>
+                                    <div className="flex items-center gap-2 mt-0.5 group relative">
+                                        <p className="text-sm font-bold text-slate-700">{selectedJHA.emailCounter || 0} times</p>
+                                        {selectedJHA.emailCounter > 0 && selectedJHA.jhaEmails && (
+                                            <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-64 bg-slate-800 text-white p-3 rounded-xl shadow-xl text-xs">
+                                                <p className="font-bold border-b border-slate-700 pb-1 mb-2">Email History</p>
+                                                <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                    {selectedJHA.jhaEmails.slice().reverse().map((email: any, idx: number) => (
+                                                        <div key={idx} className="flex justify-between items-start gap-2">
+                                                            <span className="truncate flex-1 text-slate-300">{email.emailto}</span>
+                                                            <span className="text-[10px] text-slate-500 shrink-0">{new Date(email.createdAt).toLocaleDateString()}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -2921,6 +3503,343 @@ export default function SchedulePage() {
                 )}
             </Modal>
 
+            {/* Daily Job Ticket Modal */}
+            <Modal
+                isOpen={djtModalOpen}
+                onClose={() => setDjtModalOpen(false)}
+                title="Daily Job Ticket (DJT)"
+                maxWidth="3xl"
+            >
+                {selectedDJT ? (
+                    isDjtEditMode ? (
+                        <form onSubmit={handleSaveDJTForm} className="space-y-6">
+                            <div className="bg-indigo-50/50 p-6 rounded-2xl border border-dashed border-indigo-100 italic text-indigo-900 text-sm mb-4">
+                                Fill out the details below to record the daily progress and customer confirmation.
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Daily Job Description</label>
+                                    <textarea 
+                                        required
+                                        rows={5}
+                                        className="w-full text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all resize-none"
+                                        placeholder="Detailed description of today's work..."
+                                        value={selectedDJT.dailyJobDescription || ''}
+                                        onChange={(e) => setSelectedDJT({...selectedDJT, dailyJobDescription: e.target.value})}
+                                    />
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Customer Print Name</label>
+                                        <input 
+                                            type="text"
+                                            className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="Enter customer name"
+                                            value={selectedDJT.customerPrintName || ''}
+                                            onChange={(e) => setSelectedDJT({...selectedDJT, customerPrintName: e.target.value})}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Client Email (Optional)</label>
+                                        <input 
+                                            type="email"
+                                            className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                            placeholder="customer@example.com"
+                                            value={selectedDJT.clientEmail || ''}
+                                            onChange={(e) => setSelectedDJT({...selectedDJT, clientEmail: e.target.value})}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
+                                    <label className="text-xs font-bold text-[#0F4C75] uppercase tracking-wider mb-3 block font-sans text-center">Customer Signature</label>
+                                    <div className="max-w-md mx-auto">
+                                        <SignaturePad 
+                                            employeeName={selectedDJT.customerPrintName || "Customer"}
+                                            onSave={(sigUrl) => setSelectedDJT({...selectedDJT, customerSignature: sigUrl})} 
+                                        />
+                                        {selectedDJT.customerSignature && (
+                                            <p className="mt-2 text-[10px] text-green-600 font-bold flex items-center justify-center gap-1">
+                                                <CheckCircle2 size={12} /> Signature captured
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsDjtEditMode(false)}
+                                    className="px-6 py-2.5 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-xl transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 hover:scale-105 active:scale-95 transition-all"
+                                >
+                                    Save Job Ticket
+                                </button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-lg font-black text-slate-800 uppercase tracking-tight">Job Ticket Summary</h4>
+                                <button
+                                    onClick={() => setIsDjtEditMode(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all shadow-md"
+                                >
+                                    <Edit size={14} />
+                                    EDIT TICKET
+                                </button>
+                            </div>
+
+                            <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-6">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Description</p>
+                                    <p className="text-sm text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">{selectedDJT.dailyJobDescription || 'No description provided.'}</p>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-50">
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Customer Name</p>
+                                        <p className="text-sm font-bold text-slate-800">{selectedDJT.customerPrintName || 'Not recorded'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Client Email</p>
+                                        <p className="text-sm font-bold text-slate-800">{selectedDJT.clientEmail || 'N/A'}</p>
+                                    </div>
+                                </div>
+
+                                <div className="pt-6 border-t border-slate-50">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Customer Confirmation</p>
+                                    <div className="max-w-xs mx-auto aspect-[2/1] bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center overflow-hidden">
+                                        {selectedDJT.customerSignature ? (
+                                            <img src={selectedDJT.customerSignature} alt="Customer Signature" className="max-w-full max-h-full object-contain" />
+                                        ) : (
+                                            <p className="text-xs italic text-slate-400">No customer signature found</p>
+                                        )}
+                                    </div>
+                                    <p className="text-center text-[10px] font-bold text-slate-600 mt-1">{selectedDJT.customerPrintName}</p>
+                                </div>
+
+                                <div className="pt-6 border-t border-slate-50">
+                                    <h4 className="text-sm font-black text-[#0F4C75] uppercase mb-4 border-b border-slate-100 pb-2 flex justify-between">
+                                        <span>Employee Signatures</span>
+                                        <span className="text-[10px] font-normal text-slate-500 normal-case">All assignees must sign</span>
+                                    </h4>
+                                    
+                                    {activeSignatureEmployee ? (
+                                        <div className="max-w-md mx-auto">
+                                            <SignaturePad 
+                                                employeeName={initialData.employees.find(e => e.value === activeSignatureEmployee)?.label || activeSignatureEmployee}
+                                                onSave={handleSaveDJTSignature} 
+                                            />
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setActiveSignatureEmployee(null)} 
+                                                className="mt-2 w-full text-xs text-slate-500 hover:text-slate-800"
+                                            >
+                                                Cancel Signing
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                            {(() => {
+                                                const schedule = schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
+                                                const assignees = schedule?.assignees || [];
+                                                const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
+
+                                                if (uniqueAssignees.length === 0 && (!selectedDJT.signatures || selectedDJT.signatures.length === 0)) {
+                                                    return <p className="text-xs text-slate-400 italic col-span-full text-center py-4 bg-slate-50 rounded-xl border border-dashed border-slate-200">No assignees found for this schedule.</p>;
+                                                }
+
+                                                return uniqueAssignees.map((email: string) => {
+                                                    const emp = initialData.employees.find(e => e.value === email);
+                                                    const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
+                                                    
+                                                    return (
+                                                        <div key={email} className={`relative p-3 rounded-xl border transition-all ${sig ? 'bg-white border-green-200 shadow-sm' : 'bg-white border-dashed border-slate-300 hover:border-[#0F4C75]'}`}>
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <div className="w-8 h-8 rounded-full bg-slate-100 overflow-hidden border border-white shadow-sm flex items-center justify-center shrink-0">
+                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : <span className="text-[10px] font-bold text-slate-500">{emp?.label?.[0]}</span>}
+                                                                </div>
+                                                                <div className="overflow-hidden">
+                                                                    <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || email}</p>
+                                                                    <p className="text-[10px] text-slate-400">{sig ? 'Signed' : 'Pending Signature'}</p>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {sig ? (
+                                                                <div className="h-12 border-t border-slate-50 mt-2 flex items-center justify-center">
+                                                                    <img src={sig.signature} className="max-h-full max-w-full object-contain opacity-80" />
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setActiveSignatureEmployee(email)}
+                                                                    className="w-full py-1.5 mt-1 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-1 shadow-md"
+                                                                >
+                                                                    <FilePlus size={12} /> Sign Now
+                                                                </button>
+                                                            )}
+                                                            {sig && (
+                                                                 <div className="absolute top-2 right-2 text-green-500"><CheckCircle2 size={14} /></div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                });
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div className="flex justify-end gap-3 pt-4">
+                                <button
+                                    onClick={() => setDjtModalOpen(false)}
+                                    className="px-8 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    )
+                ) : (
+                    <EmptyState title="No Data" message="Unable to load DJT details." />
+                )}
+            </Modal>
+
+            {/* Individual Timesheet Modal */}
+            <Modal
+                isOpen={timesheetModalOpen}
+                onClose={() => setTimesheetModalOpen(false)}
+                title={isTimesheetEditMode ? "Register My Timesheet" : "My Timesheet Record"}
+                maxWidth="lg"
+            >
+                {selectedTimesheet ? (
+                    isTimesheetEditMode ? (
+                        <form onSubmit={handleSaveIndividualTimesheet} className="space-y-6">
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-4">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Clock In (Scheduled Start)</label>
+                                <p className="text-sm font-black text-[#0F4C75]">{formatToReadableDateTime(selectedTimesheet.clockIn)}</p>
+                                <p className="text-[9px] text-slate-400 mt-1 italic">* Fixed based on schedule start time</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Lunch Start</label>
+                                    <input 
+                                        type="time"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4C75]"
+                                        value={selectedTimesheet.lunchStartTime || ''}
+                                        onChange={(e) => setSelectedTimesheet({...selectedTimesheet, lunchStartTime: e.target.value})}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Lunch End</label>
+                                    <input 
+                                        type="time"
+                                        className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4C75]"
+                                        value={selectedTimesheet.lunchEndTime || ''}
+                                        onChange={(e) => setSelectedTimesheet({...selectedTimesheet, lunchEndTime: e.target.value})}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                                <p className="text-[10px] font-bold text-blue-600 uppercase mb-1">Work Type</p>
+                                <p className="text-xs font-black text-blue-800">SITE TIME</p>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Comments</label>
+                                <textarea 
+                                    className="w-full text-sm font-medium text-slate-700 bg-white border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#0F4C75] min-h-[80px]"
+                                    value={selectedTimesheet.comments || ''}
+                                    placeholder="Add notes about your work today..."
+                                    onChange={(e) => setSelectedTimesheet({...selectedTimesheet, comments: e.target.value})}
+                                />
+                            </div>
+
+                            <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-100">
+                                <p className="text-[10px] font-bold text-emerald-600 uppercase mb-1">Clock Out</p>
+                                <p className="text-xs font-black text-emerald-800 italic">Automatic (Will be set to current time on save)</p>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setTimesheetModalOpen(false)}
+                                    className="px-6 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-8 py-2.5 bg-[#0F4C75] text-white font-bold rounded-xl shadow-lg hover:scale-105 transition-all"
+                                >
+                                    Register & Clock Out
+                                </button>
+                            </div>
+                        </form>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 grid grid-cols-2 gap-6 shadow-inner">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clocked In</p>
+                                    <p className="text-sm font-black text-slate-800">{formatToReadableDateTime(selectedTimesheet.clockIn)}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Clocked Out</p>
+                                    <p className="text-sm font-black text-slate-800">{formatToReadableDateTime(selectedTimesheet.clockOut)}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lunch Break</p>
+                                    <p className="text-sm font-bold text-slate-700">
+                                        {selectedTimesheet.lunchStart ? new Date(selectedTimesheet.lunchStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--'} 
+                                        {' - '} 
+                                        {selectedTimesheet.lunchEnd ? new Date(selectedTimesheet.lunchEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--'}
+                                    </p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Type</p>
+                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full uppercase">SITE TIME</span>
+                                </div>
+                            </div>
+                            
+                            {selectedTimesheet.comments && (
+                                <div className="space-y-2">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Comments</p>
+                                    <p className="text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100 italic leading-relaxed">"{selectedTimesheet.comments}"</p>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    onClick={() => setIsTimesheetEditMode(true)}
+                                    className="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all"
+                                >
+                                    Edit Record
+                                </button>
+                                <button
+                                    onClick={() => setTimesheetModalOpen(false)}
+                                    className="px-8 py-2.5 bg-[#0F4C75] text-white font-bold rounded-xl hover:scale-105 active:scale-95 transition-all shadow-md"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        </div>
+                    )
+                ) : (
+                    <EmptyState title="No Record" message="No timesheet data found for your user." />
+                )}
+            </Modal>
+
             {/* Media Modal (Lightbox) */}
             <Modal
                 isOpen={mediaModal.isOpen}
@@ -2968,6 +3887,57 @@ export default function SchedulePage() {
                         </button>
                     </div>
                 </div>
+            </Modal>
+
+            {/* Email JHA Modal */}
+            <Modal
+                isOpen={emailModalOpen}
+                onClose={() => !isSendingEmail && setEmailModalOpen(false)}
+                title="Email JHA Document"
+                maxWidth="md"
+            >
+                <form onSubmit={handleEmailJhaPdf} className="space-y-4">
+                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
+                        <div className="bg-blue-100 p-2 rounded-full text-[#0F4C75]">
+                            <Mail size={20} />
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-[#0F4C75]">Send PDF via Email</p>
+                            <p className="text-xs text-blue-800/70 mt-1">The JHA document will be attached as a PDF and sent to the recipient below.</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Recipient Email</label>
+                        <input 
+                            type="email"
+                            required
+                            className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                            placeholder="Enter email address"
+                            value={emailTo}
+                            onChange={(e) => setEmailTo(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-4">
+                        <button
+                            type="button"
+                            onClick={() => setEmailModalOpen(false)}
+                            disabled={isSendingEmail}
+                            className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-50 rounded-lg transition-all"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={isSendingEmail}
+                            className="px-6 py-2 bg-[#0F4C75] text-white font-bold rounded-xl shadow-lg shadow-blue-900/20 hover:bg-[#0b3c5e] active:scale-95 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            {isSendingEmail ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                            {isSendingEmail ? 'Sending...' : 'Send Email'}
+                        </button>
+                    </div>
+                </form>
             </Modal>
         </div>
     );
