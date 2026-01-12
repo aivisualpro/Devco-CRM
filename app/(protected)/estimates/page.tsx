@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
+import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
 import Papa from 'papaparse';
 import { z } from 'zod';
@@ -45,8 +45,7 @@ export default function EstimatesPage() {
     const [activeFilter, setActiveFilter] = useState('all');
     const [showFinals, setShowFinals] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
-    const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-    const [deleteId, setDeleteId] = useState<string | null>(null);
+
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
     const [constants, setConstants] = useState<any[]>([]);
@@ -55,7 +54,7 @@ export default function EstimatesPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
 
-    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'estimate', direction: 'desc' });
     const itemsPerPage = 15;
 
     const fetchEstimates = async (signal?: AbortSignal) => {
@@ -377,36 +376,7 @@ export default function EstimatesPage() {
 
     useAddShortcut(handleCreate);
 
-    const confirmDelete = (id: string) => {
-        setDeleteId(id);
-        setIsConfirmOpen(true);
-    };
 
-    const handleDelete = async () => {
-        if (!deleteId) return;
-        try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteEstimate', payload: { id: deleteId } })
-            });
-            if (!res.ok) {
-                throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            const data = await res.json();
-            if (data.success) {
-                success('Estimate deleted');
-                fetchEstimates();
-            } else {
-                toastError(data.error || 'Failed to delete estimate');
-            }
-        } catch (err: any) {
-            console.error('Error deleting estimate:', err);
-            toastError(err.message || 'Failed to delete estimate');
-        }
-        setIsConfirmOpen(false);
-        setDeleteId(null);
-    };
 
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -548,7 +518,7 @@ export default function EstimatesPage() {
 
                 <div className="flex-1 min-h-0 pb-4">
                     {loading ? (
-                        <SkeletonTable rows={10} columns={14} className="h-full" />
+                        <SkeletonTable rows={10} columns={13} className="h-full" />
                     ) : (
                         <Table
                             containerClassName="h-full"
@@ -595,13 +565,13 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
-                                    <TableHeader className="text-left text-xs">Actions</TableHeader>
+
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {paginatedEstimates.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={14}>
+                                        <TableCell className="text-center py-8 text-gray-500" colSpan={13}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No estimates found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Create your first estimate to get started.</p>
@@ -711,16 +681,7 @@ export default function EstimatesPage() {
                                                         {est.status || 'draft'}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="text-left">
-                                                    <div onClick={(e) => e.stopPropagation()} className="inline-flex">
-                                                        <button
-                                                            onClick={() => confirmDelete(est._id)}
-                                                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 ml-1"
-                                                        >
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                </TableCell>
+
                                             </TableRow>
                                         );
                                     })
@@ -733,15 +694,7 @@ export default function EstimatesPage() {
 
                 </div>
 
-                {/* Confirm Delete Modal */}
-                <ConfirmModal
-                    isOpen={isConfirmOpen}
-                    onClose={() => setIsConfirmOpen(false)}
-                    onConfirm={handleDelete}
-                    title="Delete Estimate"
-                    message="Are you sure you want to delete this estimate? This action cannot be undone."
-                    confirmText="Delete"
-                />
+
 
                 {/* Knowledge Base Modal */}
                 <Modal

@@ -326,7 +326,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 {userDropdownOpen && (
                                     <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-100 py-1 z-[60] animate-scale-in origin-top-right">
                                         <div className="px-4 py-4 border-b border-slate-50 bg-slate-50/50">
-                                            <div className="flex items-center gap-3 mb-2">
+                                            <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-sm font-bold shadow-sm">
                                                     {user ? `${(user.firstName?.[0] || '')}${(user.lastName?.[0] || '')}` : <UserIcon size={20} />}
                                                 </div>
@@ -334,12 +334,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                     <p className="text-sm font-bold text-slate-900 truncate">
                                                         {user ? `${user.firstName} ${user.lastName}` : 'Guest User'}
                                                     </p>
-                                                    <p className="text-xs text-slate-500 truncate font-medium bg-slate-200/50 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                                                        {user ? 'Active' : 'Not Logged In'}
-                                                    </p>
                                                 </div>
                                             </div>
-                                            {user && <p className="text-xs text-slate-400 truncate pl-1">{user.email}</p>}
                                         </div>
                                         <div className="p-1.5 space-y-0.5">
                                             {user && (
@@ -351,7 +347,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                     <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-[#0F4C75]/10 text-slate-500 group-hover:text-[#0F4C75] transition-colors">
                                                         <UserIcon size={16} />
                                                     </div>
-                                                    My Profile
+                                                    Profile
                                                 </Link>
                                             )}
                                             

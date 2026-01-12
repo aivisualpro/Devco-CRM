@@ -189,7 +189,7 @@ export default function EstimateViewPage() {
     // State
     // State
     const [estimate, setEstimate] = useState<Estimate | null>(null);
-    const [deleteId, setDeleteId] = useState<string | null>(null);
+
 
     // Proposal State
     const [templates, setTemplates] = useState<Template[]>([]);
@@ -425,7 +425,7 @@ export default function EstimateViewPage() {
     const [activeSection, setActiveSection] = useState<SectionConfig | null>(null);
     const [explanationItem, setExplanationItem] = useState<LineItem | null>(null);
     const [breakdownData, setBreakdownData] = useState<LaborBreakdown | null>(null);
-    const [confirmDeleteEstimate, setConfirmDeleteEstimate] = useState(false);
+
     const [itemToDelete, setItemToDelete] = useState<{ section: SectionConfig; item: LineItem } | null>(null);
     
     // Template Editing State
@@ -1540,21 +1540,7 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleDelete = async () => {
-        setConfirmDeleteEstimate(true);
-    };
 
-    const performDeleteEstimate = async () => {
-        setLoading(true);
-        try {
-            await apiCall('deleteEstimate', { id: estimate?._id });
-            router.push('/estimates');
-        } catch (err) {
-            console.error('Delete error:', err);
-            toastError('Failed to delete estimate');
-            setLoading(false);
-        }
-    };
 
 
     const handleVersionClick = (clickedId: string) => {
@@ -1781,13 +1767,7 @@ export default function EstimateViewPage() {
                         </button>
 
                         {/* Delete */}
-                        <button
-                            onClick={handleDelete}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Delete Estimate"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                        </button>
+
                     </div>
                 }
             />
@@ -1990,14 +1970,7 @@ export default function EstimateViewPage() {
                 breakdown={breakdownData}
             />
 
-            <ConfirmModal
-                isOpen={confirmDeleteEstimate}
-                onClose={() => setConfirmDeleteEstimate(false)}
-                onConfirm={performDeleteEstimate}
-                title="Delete Estimate"
-                message="Are you sure you want to delete this estimate? This action cannot be undone."
-                confirmText="Delete"
-            />
+
 
             <ConfirmModal
                 isOpen={!!itemToDelete}
