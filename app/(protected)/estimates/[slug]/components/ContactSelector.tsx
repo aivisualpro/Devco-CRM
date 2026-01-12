@@ -192,12 +192,12 @@ export function ContactSelector({ value, customerId, filterType, onChange }: Con
                     />
                     <Input
                         label="Email"
-                        value={newContact.email}
+                        value={newContact.email || ''}
                         onChange={e => setNewContact({ ...newContact, email: e.target.value })}
                     />
                     <Input
                         label="Phone"
-                        value={newContact.phone}
+                        value={newContact.phone || ''}
                         onChange={e => {
                             const formattedValue = formatPhoneNumber(e.target.value);
                             setNewContact({ ...newContact, phone: formattedValue });

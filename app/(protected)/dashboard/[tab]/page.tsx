@@ -971,7 +971,7 @@ export default function DashboardPage() {
                                                                     const est = estimates.find(e => e.value === item.estimate);
                                                                     if (est?.jobAddress) {
                                                                         return (
-                                                                            <span className="text-[10px] text-slate-400 font-medium truncate max-w-[150px] mt-0.5">
+                                                                            <span className="text-[10px] text-slate-400 font-medium mt-0.5">
                                                                                 {est.jobAddress}
                                                                             </span>
                                                                         );
@@ -988,7 +988,7 @@ export default function DashboardPage() {
                                                         </h3>
                                                     </div>
 
-                                                    <p className="text-[11px] sm:text-xs font-medium text-slate-400 truncate mb-2">{item.jobLocation}</p>
+
 
                                                     <div className="flex items-center gap-2 mb-3">
                                                         {item.estimate && (
@@ -1263,15 +1263,13 @@ export default function DashboardPage() {
                                 <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
                                 {(() => {
                                     const est = estimates.find(e => e.value === selectedSchedule.estimate);
-                                    if (est?.jobAddress) {
-                                        return <p className="text-xs font-bold text-slate-400 mb-1">{est.jobAddress}</p>;
+                                    const displayAddress = est?.jobAddress;
+
+                                    if (displayAddress && displayAddress !== 'N/A') {
+                                        return <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>;
                                     }
                                     return null;
                                 })()}
-                                <div className="flex items-center gap-1.5 text-slate-500">
-                                    <MapPin size={14} className="text-slate-400 shrink-0" />
-                                    <p className="text-xs font-bold text-slate-500 leading-tight">{selectedSchedule.jobLocation || 'N/A'}</p>
-                                </div>
                             </div>
                         </div>
 

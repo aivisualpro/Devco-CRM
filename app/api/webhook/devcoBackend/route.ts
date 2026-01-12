@@ -132,16 +132,17 @@ export async function uploadDocumentToR2(base64String: string, fileName: string,
 
 
 // AppSheet Configuration
-const APPSHEET_APP_ID = process.env.DEVCOAPPSHEET_APP_ID;
-const APPSHEET_API_KEY = process.env.DEVCOAPPSHEET_ACCESS;
-const APPSHEET_TABLE_NAME = "Estimates";
+const getAppSheetConfig = () => ({
+    appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
+    accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
+    tableName: process.env.APSHEET_ESTIMATE_TABLE || "Customer Jobs"
+});
 
 // Helper functions
 function toBoolean(value: unknown): boolean {
     if (value === 'Y' || value === 'y' || value === true) return true;
     return false;
 }
-
 function toYN(value: boolean): string {
     return value === true ? 'Y' : 'N';
 }
@@ -151,143 +152,102 @@ function parseNum(val: unknown): number {
 }
 
 // AppSheet sync helper
-async function updateAppSheet(data: Record<string, unknown>, lineItems: Record<string, unknown[]> | null = null) {
-    return { skipped: true }; // Force disable sync
-    if (!APPSHEET_APP_ID || !APPSHEET_API_KEY) {
-        return { skipped: true, reason: "No AppSheet credentials" };
+async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | null = null, action: "Add" | "Edit" | "Delete" = "Edit") {
+    // 1. Production Check
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(`[AppSheet] Skipping ${action} sync: Not in production environment.`);
+        return { success: true, skipped: true };
     }
 
-    await connectToDatabase();
+    const { appId, accessKey, tableName } = getAppSheetConfig();
 
-    // Get constants for fringe calculations
-    const constants = await Constant.find({}).lean();
+    if (!appId || !accessKey) {
+        console.error('[AppSheet] Missing credentials');
+        return { success: false, skipped: true, reason: "No AppSheet credentials" };
+    }
 
-    // Use provided line items or empty arrays
-    const items = lineItems || {
-        labor: [],
-        equipment: [],
-        material: [],
-        tools: [],
-        overhead: [],
-        subcontractor: [],
-        disposal: [],
-        miscellaneous: []
-    };
-
-    const getFringeRate = (desc: string): number => {
-        if (!desc) return 0;
-        const c = constants.find((con: { description?: string }) => con.description === desc);
-        return c ? parseNum((c as { value?: string }).value) : 0;
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const calculateLaborTotal = (item: any): number => {
-        const subClass = (item.subClassification || '').toLowerCase();
-        if (subClass === 'per diem' || subClass === 'hotel') {
-            return parseNum(item.basePay) * parseNum(item.quantity) * parseNum(item.days);
-        }
-        const basePay = parseNum(item.basePay);
-        const qty = parseNum(item.quantity);
-        const days = parseNum(item.days);
-        const otPd = parseNum(item.otPd);
-        const wCompPct = parseNum(item.wCompPercent);
-        const taxesPct = parseNum(item.payrollTaxesPercent);
-        const fringeRate = getFringeRate(item.fringe);
-        const totalHours = qty * days * 8;
-        const totalOtHours = qty * days * otPd;
-        const wCompTaxAmount = basePay * (wCompPct / 100);
-        const payrollTaxAmount = basePay * (taxesPct / 100);
-        const otPayrollTaxAmount = basePay * 1.5 * (taxesPct / 100);
-        const fringeAmount = fringeRate;
-        const baseRate = basePay + wCompTaxAmount + payrollTaxAmount + fringeAmount;
-        const otBasePay = basePay * 1.5;
-        const otRate = otBasePay + wCompTaxAmount + otPayrollTaxAmount + fringeAmount;
-        return (totalHours * baseRate) + (totalOtHours * otRate);
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const calculateEquipmentTotal = (item: any): number => {
-        const qty = item.quantity || 0;
-        const times = item.times !== undefined ? item.times : 1;
-        const uom = item.uom || 'Daily';
-        let val = 0;
-        if (uom === 'Daily') val = (item.dailyCost || 0);
-        else if (uom === 'Weekly') val = (item.weeklyCost || 0);
-        else if (uom === 'Monthly') val = (item.monthlyCost || 0);
-        else val = (item.dailyCost || 0);
-        return val * qty * times;
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const simpleSum = (arr: any[]): number => arr.reduce((sum, i) => sum + ((i.cost || 0) * (i.quantity || 1)), 0);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const costOnlySum = (arr: any[]): number => arr.reduce((sum, i) => sum + (i.cost || 0), 0);
-
-    const laborTotal = (items.labor as unknown[]).reduce((sum: number, item) => sum + calculateLaborTotal(item), 0);
-    const equipmentTotal = (items.equipment as unknown[]).reduce((sum: number, item) => sum + calculateEquipmentTotal(item), 0);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const materialTotal = simpleSum(items.material as any[]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const toolsTotal = simpleSum(items.tools as any[]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const overheadTotal = simpleSum(items.overhead as any[]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const subcontractorTotal = costOnlySum(items.subcontractor as any[]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const disposalTotal = simpleSum(items.disposal as any[]);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const miscellaneousTotal = simpleSum(items.miscellaneous as any[]);
-
-    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(APPSHEET_APP_ID || "")}/tables/${encodeURIComponent(APPSHEET_TABLE_NAME)}/Action`;
-
+    // 2. Prepare Data Mapping
+    // Ensure we handle numeric fields safely with formatting
+    const fmtMoney = (val: any) => (parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0).toFixed(2);
+    
+    // Mapping keys to AppSheet columns as requested
     const appSheetRow = {
-        "Record_Id": String(data._id || ""),
-        "Estimate #": String(data.estimate || ""),
+        "Proposal Number": String(data.estimate || ""), 
+        "Project Name": String(data.projectName || ""),
+        "Proposal Writer": String(data.proposalWriter || ""),
+        "Client": String(data.customerId || ""),
+        "Customer Job Number": String(data.customerJobNumber || ""),
+        "Client Contact Full Name": String(data.contactName || ""),
+        "Client Contact Email": String(data.contactEmail || ""),
+        "Client Contact Phone": String(data.contactPhone || ""),
+        "Accounting Contact": String(data.accountingContact || ""),
+        "Accounting email": String(data.accountingEmail || ""),
+        "PO Name": String(data.poName || ""),
+        "PO Address": String(data.PoAddress || ""),
+        "PO Phone": String(data.PoPhone || ""),
+        "OC Name": String(data.ocName || ""),
+        "OC Address": String(data.ocAddress || ""),
+        "OC Phone": String(data.ocPhone || ""),
+        "SubC Name": String(data.subCName || ""),
+        "SubC Address": String(data.subCAddress || ""),
+        "SubC Phone": String(data.subCPhone || ""),
+        "LI Name": String(data.liName || ""),
+        "LI Address": String(data.liAddress || ""),
+        "LI Phone": String(data.liPhone || ""),
+        "SC Name": String(data.scName || ""),
+        "SC Address": String(data.scAddress || ""),
+        "SC Phone": String(data.scPhone || ""),
+        "Bond Number": String(data.bondNumber || ""),
+        "Job Location / Address": String(data.jobAddress || ""),
+        "Labor Agreement": String(data.fringe || ""),
+        "Certified Payroll": String(data.certifiedPayroll || ""),
+        "Project ID": String(data.projectId || ""),
+        "FB Name": String(data.fbName || ""),
+        "FB Address": String(data.fbAddress || ""),
+        "e-CPR System": String(data.eCPRSystem || ""),
+        "Type of Service Required": String(data.typeOfServiceRequired || ""),
+        "Wet Utilities": String(data.wetUtilities || ""),
+        "Dry Utilities": String(data.dryUtilities || ""),
+        "Project Description": String(data.projectDescription || ""),
+        "Estimated start date": String(data.estimatedStartDate || ""),
+        "Estimated completion date": String(data.estimatedCompletionDate || ""),
+        "Site Conditions": String(data.siteConditions || ""),
         "Date": String(data.date || ""),
-        "Customer": String(data.customerId || ""),
-        "Proposal No": String(data.proposalNo || ""),
-        "Bid Mark UP Percentage": String(data.bidMarkUp || ""),
-        "Directional Drilling": toYN((data.services as string[])?.includes("Directional Drilling")),
-        "Excavation & Backfill": toYN((data.services as string[])?.includes("Excavation & Backfill")),
-        "Hydro-excavation": toYN((data.services as string[])?.includes("Hydro Excavation")),
-        "Potholing & Coring": toYN((data.services as string[])?.includes("Potholing & Coring")),
-        "Asphalt & Concrete": toYN((data.services as string[])?.includes("Asphalt & Concrete")),
-
-        "Fringe": String(data.fringe || ""),
-        "Labor": String(laborTotal.toFixed(2)),
-        "Equipment": String(equipmentTotal.toFixed(2)),
-        "Material": String(materialTotal.toFixed(2)),
-        "Tools": String(toolsTotal.toFixed(2)),
-        "Overhead": String(overheadTotal.toFixed(2)),
-        "Subcontractor": String(subcontractorTotal.toFixed(2)),
-        "Disposal": String(disposalTotal.toFixed(2)),
-        "Miscellaneous": String(miscellaneousTotal.toFixed(2)),
-        "subTotal": String((data.subTotal as number || 0).toFixed(2)),
-        "margin": String((data.margin as number || 0).toFixed(2)),
-        "grandTotal": String((data.grandTotal as number || 0).toFixed(2))
+        "Status": String(data.status || ""),
+        "Prelim Amount": String(data.prelimAmount || ""),
+        "Billing Terms": String(data.billingTerms || ""),
+        "Other Billing Terms": String(data.otherBillingTerms || ""),
+        "Total Estimated Cost": fmtMoney(data.grandTotal),
+        "extension": String(data.extension || "")
     };
+
+    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
 
     try {
+        console.log(`[AppSheet] Syncing ${action} for Estimate #${data.estimate}...`);
+        
         const response = await fetch(APPSHEET_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "ApplicationAccessKey": APPSHEET_API_KEY || ""
+                "ApplicationAccessKey": accessKey
             },
             body: JSON.stringify({
-                Action: "Edit",
+                Action: action,
                 Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
                 Rows: [appSheetRow]
             })
         });
 
         if (!response.ok) {
-            console.error("AppSheet Error:", response.status);
+            console.error(`[AppSheet] Error ${response.status}:`, await response.text());
             return { success: false, status: response.status };
         }
+        
+        console.log(`[AppSheet] Sync Success`);
         return { success: true };
     } catch (error) {
-        console.error("AppSheet Error:", error);
+        console.error("[AppSheet] Network/Execution Error:", error);
         return { success: false, error: String(error) };
     }
 }
@@ -605,7 +565,7 @@ export async function POST(request: NextRequest) {
                 } catch (e) {
                     console.error('Failed to log activity:', e);
                 }
-                // updateAppSheet(estimateData).catch(err => console.error('Background AppSheet sync failed:', err));
+                updateAppSheet(est, null, "Add").catch(err => console.error('Background AppSheet sync failed:', err));
 
                 return NextResponse.json({ success: true, result: est });
             }
@@ -644,8 +604,11 @@ export async function POST(request: NextRequest) {
 
                 const newEst = await Estimate.create(newEstData);
 
-                // Sync to AppSheet
-                // updateAppSheet(newEstData).catch(err => console.error('Clone sync error:', err));
+                // Sync to AppSheet - Clone is effectively an "Edit" to the same proposal number, or actually an "Add" if we consider versioning?
+                // But AppSheet key is "estimate" (Proposal Number).
+                // So if we clone 24-1000-V1 to 24-1000-V2, the key 24-1000 ALEADY EXISTS.
+                // So this is an "Edit" in AppSheet terms.
+                updateAppSheet(newEst, null, "Edit").catch(err => console.error('Clone sync error:', err));
 
 
                 return NextResponse.json({ success: true, result: newEst });
@@ -725,8 +688,8 @@ export async function POST(request: NextRequest) {
 
                 const newEst = await Estimate.create(newEstData);
 
-                // Sync to AppSheet
-                // updateAppSheet(newEstData).catch(err => console.error('Copy sync error:', err));
+                // Sync to AppSheet - Copy creates NEW proposal number --> Add
+                updateAppSheet(newEst, null, "Add").catch(err => console.error('Copy sync error:', err));
 
 
                 return NextResponse.json({ success: true, result: newEst });
@@ -811,10 +774,18 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                // AppSheet sync disabled temporarily
-                // if (updated) {
-                //     await updateAppSheet(updated.toObject() as unknown as Record<string, unknown>);
-                // }
+                // AppSheet Sync - Only if this is the LATEST version
+                if (updated && updated.estimate) {
+                     try {
+                        const latestVer = await Estimate.find({ estimate: updated.estimate }).sort({ versionNumber: -1 }).limit(1).lean();
+                        if (latestVer.length > 0 && String(latestVer[0]._id) === String(updated._id)) {
+                             // This IS the latest version, so sync it
+                             await updateAppSheet(updated.toObject(), null, "Edit");
+                        }
+                     } catch (e) {
+                         console.error('AppSheet Update Sync Error:', e);
+                     }
+                }
                 return NextResponse.json({ success: true, result: updated });
             }
 
@@ -822,7 +793,26 @@ export async function POST(request: NextRequest) {
                 const { id: deleteId } = payload || {};
                 if (!deleteId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
+                // Fetch before delete to get info for sync
+                const estToDelete = await Estimate.findById(deleteId);
+                
                 await Estimate.findByIdAndDelete(deleteId);
+                
+                if (estToDelete && estToDelete.estimate) {
+                     // Check if there are other versions left
+                     const remaining = await Estimate.find({ estimate: estToDelete.estimate }).sort({ versionNumber: -1 }).limit(1).lean();
+                     
+                     if (remaining.length > 0) {
+                         // Still have versions, sync the LATEST one to AppSheet
+                         const latest = remaining[0];
+                         // "Edit" the record to reflect previous state (rollback)
+                         updateAppSheet(latest, null, "Edit").catch(err => console.error('Delete-Rollback sync error:', err));
+                     } else {
+                         // No versions left, truly DELETE from AppSheet
+                         updateAppSheet(estToDelete.toObject(), null, "Delete").catch(err => console.error('Delete sync error:', err));
+                     }
+                }
+
                 return NextResponse.json({ success: true });
             }
 
