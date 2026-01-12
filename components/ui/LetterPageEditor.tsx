@@ -30,8 +30,8 @@ interface LetterPageEditorProps {
     hideToolbar?: boolean;
 }
 
-// Quill toolbar modules
-const quillModules = {
+// Quill toolbar modules with length restriction
+const quillModules = (maxLength: number = 3000) => ({
     toolbar: [
         [{ 'header': [1, 2, 3, false] }],
         [{ 'size': ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt'] }],
@@ -42,7 +42,15 @@ const quillModules = {
         ['link', 'image'],
         ['clean']
     ],
-};
+    history: {
+        delay: 1000,
+        maxStack: 50,
+        userOnly: true
+    },
+    clipboard: {
+        matchVisual: false
+    }
+});
 
 // Single Letter Page Component
 interface LetterPageProps {
@@ -76,7 +84,7 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                 </button>
             )}
 
-            {/* Page Container - Exact Letter Size + Toolbar */}
+            {/* Page Container - Letter Size (8.5" x 11") + Toolbar */}
             <div
                 className="bg-white relative flex-shrink-0 flex flex-col"
                 style={{
@@ -87,18 +95,56 @@ function LetterPage({ index, content, onChange, onDelete, showDelete, quillRef, 
                     minHeight: !readOnly && !hideToolbar ? 'calc(11in + 44px)' : '11in',
                     boxShadow: '0 10px 30px rgba(0,0,0,0.1), 0 1px 8px rgba(0,0,0,0.05)',
                     borderRadius: '2px',
-                    overflow: 'visible'
+                    overflow: 'hidden' // Changed from 'visible' to 'hidden' to clip content
                 }}
             >
                 <ReactQuill
                     ref={quillRef}
                     theme="snow"
                     value={content}
-                    onChange={onChange}
+                    onChange={(value: string) => {
+                        // Create a temporary element to measure content height
+                        if (typeof document !== 'undefined') {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = value;
+                            tempDiv.style.cssText = `
+                                position: absolute;
+                                visibility: hidden;
+                                width: 7.5in; /* 8.5in - 1in padding */
+                                font-family: Arial, sans-serif;
+                                font-size: 11pt;
+                                line-height: 1.15;
+                                padding: 0;
+                                margin: 0;
+                                white-space: pre-wrap;
+                                word-wrap: break-word;
+                            `;
+                            document.body.appendChild(tempDiv);
+
+                            const contentHeight = tempDiv.scrollHeight;
+                            const maxHeightPx = 11 * 96; // 11 inches in pixels at 96 DPI
+
+                            document.body.removeChild(tempDiv);
+
+                            // If content would exceed page height, don't allow the change
+                            if (contentHeight > maxHeightPx && value.length > content.length) {
+                                return; // Block the change
+                            }
+                        }
+
+                        // Also check character count as backup
+                        const textLength = value.replace(/<[^>]*>/g, '').length;
+                        if (textLength > 3000 && value.length > content.length) {
+                            return; // Block excessive character count
+                        }
+
+                        onChange(value);
+                    }}
                     readOnly={readOnly}
-                    modules={readOnly || hideToolbar ? { toolbar: false } : quillModules}
+                    modules={readOnly || hideToolbar ? { toolbar: false } : quillModules()}
                     className="h-full flex flex-col [&_.ql-container]:flex-1 [&_.ql-container]:border-none [&_.ql-container]:overflow-hidden [&_.ql-toolbar]:flex-shrink-0"
                     style={{ height: '100%' }}
+                    preserveWhitespace={true}
                 />
             </div>
         </div>
@@ -252,7 +298,7 @@ export function LetterPageEditor({
                 .ql-toolbar.ql-snow .ql-picker.ql-header { width: 85px !important; }
                 .ql-toolbar.ql-snow .ql-picker.ql-size { width: 60px !important; }
                 
-                /* Editor Content with 0.5in Margin */
+                /* Editor Content with 0.5in Margin - STRICT PAGE LIMIT */
                 .ql-container.ql-snow .ql-editor {
                     padding: 48px !important; /* 0.5 inches */
                     width: 100% !important;
@@ -260,10 +306,24 @@ export function LetterPageEditor({
                     font-family: Arial, sans-serif !important;
                     font-size: 11pt !important;
                     line-height: 1.15 !important;
-                    min-height: 11in !important;
-                    max-height: 11in !important;
-                    overflow-y: auto !important;
-                    overflow-x: hidden !important;
+                    height: 11in !important; /* Fixed height - no min/max, just exact */
+                    overflow: hidden !important; /* No scrolling allowed */
+                    word-wrap: break-word !important;
+                    overflow-wrap: break-word !important;
+                }
+
+                /* Prevent content from exceeding container */
+                .ql-container.ql-snow .ql-editor * {
+                    max-width: 100% !important;
+                    box-sizing: border-box !important;
+                }
+
+                .ql-container.ql-snow .ql-editor p,
+                .ql-container.ql-snow .ql-editor div,
+                .ql-container.ql-snow .ql-editor span {
+                    max-width: 100% !important;
+                    word-wrap: break-word !important;
+                    overflow-wrap: break-word !important;
                 }
                 
                 /* Ensure tables and content respect the margin */

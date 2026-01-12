@@ -451,7 +451,7 @@ export default function ClientsPage() {
                         </div>
 
                         {/* Desktop Table View */}
-                        <div className="hidden md:block">
+                        <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full">
                         <Table
                             containerClassName="h-full"
                             footer={

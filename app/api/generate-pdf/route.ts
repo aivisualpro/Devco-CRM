@@ -31,14 +31,19 @@ export async function POST(request: NextRequest) {
                 // Trim trailing empty paragraphs/breaks that cause extra pages
                 let trimmed = s.trim();
                 // Remove trailing <p><br></p> or similar empty blocks
-                while (trimmed.endsWith('<p><br></p>') || trimmed.endsWith('<p></p>') || trimmed.endsWith('<br>')) {
+                while (trimmed.endsWith('<p><br></p>') || trimmed.endsWith('<p></p>') || trimmed.endsWith('<br>') || trimmed.endsWith('<p>&nbsp;</p>')) {
                     if (trimmed.endsWith('<p><br></p>')) trimmed = trimmed.slice(0, -11).trim();
                     else if (trimmed.endsWith('<p></p>')) trimmed = trimmed.slice(0, -7).trim();
+                    else if (trimmed.endsWith('<p>&nbsp;</p>')) trimmed = trimmed.slice(0, -13).trim();
                     else if (trimmed.endsWith('<br>')) trimmed = trimmed.slice(0, -4).trim();
                 }
                 return trimmed;
             })
-            .filter((s: string) => s.length > 0);
+            .filter((s: string) => {
+                // More aggressive filtering of empty content
+                const stripped = s.replace(/<[^>]*>/g, '').trim(); // Remove all HTML tags
+                return stripped.length > 0 && s.trim().length > 0;
+            });
 
         const cleanedHtml = pageSections
             .map((section: string) => {
@@ -232,7 +237,7 @@ export async function POST(request: NextRequest) {
         // Small delay to ensure rendering is complete
         await page.waitForTimeout(500);
 
-        // Generate PDF - let CSS handle page size and margins
+        // Generate PDF - allow multiple pages based on content
         const pdfBuffer = await page.pdf({
             format: 'Letter',
             printBackground: true,

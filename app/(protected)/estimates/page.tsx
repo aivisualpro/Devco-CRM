@@ -3,6 +3,9 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Trash2, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
+import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
+import Papa from 'papaparse';
+import { z } from 'zod';
 
 import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, BadgeTabs } from '@/components/ui/Tabs';
@@ -29,6 +32,8 @@ interface Estimate {
     createdAt?: string;
     updatedAt?: string;
 }
+
+const searchSchema = z.string().max(100, "Search query too long");
 
 export default function EstimatesPage() {
     const router = useRouter();
@@ -79,23 +84,34 @@ export default function EstimatesPage() {
         }
     };
 
+    const parseDate = (d: string) => {
+        if (!d) return null;
+        // Try different formats
+        const formats = ['MM/dd/yyyy', 'MM-dd-yyyy', 'yyyy-MM-dd', 'dd/MM/yyyy'];
+        for (const format of formats) {
+            const parsed = parse(d, format, new Date());
+            if (isValid(parsed)) return parsed;
+        }
+        return null;
+    };
+
     const isThisMonth = (d: string) => {
-        if (!d) return false;
-        const parts = d.split('/');
-        if (parts.length !== 3) return false;
-        const date = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+        const date = parseDate(d);
+        if (!date) return false;
         const now = new Date();
-        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+        const thisMonthStart = startOfMonth(now);
+        const thisMonthEnd = endOfMonth(now);
+        return isWithinInterval(date, { start: thisMonthStart, end: thisMonthEnd });
     };
 
     const isLastMonth = (d: string) => {
-        if (!d) return false;
-        const parts = d.split('/');
-        if (parts.length !== 3) return false;
-        const date = new Date(parseInt(parts[2]), parseInt(parts[0]) - 1, parseInt(parts[1]));
+        const date = parseDate(d);
+        if (!date) return false;
         const now = new Date();
-        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        return date.getMonth() === lastMonth.getMonth() && date.getFullYear() === lastMonth.getFullYear();
+        const lastMonth = subMonths(now, 1);
+        const lastMonthStart = startOfMonth(lastMonth);
+        const lastMonthEnd = endOfMonth(lastMonth);
+        return isWithinInterval(date, { start: lastMonthStart, end: lastMonthEnd });
     };
 
     useEffect(() => {
@@ -241,20 +257,10 @@ export default function EstimatesPage() {
             const { key, direction } = sortConfig;
 
             // Helper to get date value
-            // Helper to get date value
             const getDateVal = (d: string | undefined): number => {
                 if (!d) return 0;
-                const t = Date.parse(d);
-                if (!isNaN(t)) return t;
-                const p = d.split(/[/.-]/);
-                if (p.length === 3) {
-                    let m = parseInt(p[0]);
-                    let dy = parseInt(p[1]);
-                    let yr = parseInt(p[2]);
-                    if (yr < 100) yr += 2000;
-                    return new Date(yr, m - 1, dy).getTime();
-                }
-                return 0;
+                const parsed = parseDate(d);
+                return parsed ? parsed.getTime() : 0;
             };
 
             // Natural sort comp
@@ -384,108 +390,71 @@ export default function EstimatesPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'deleteEstimate', payload: { id: deleteId } })
             });
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
             const data = await res.json();
             if (data.success) {
                 success('Estimate deleted');
                 fetchEstimates();
             } else {
-                toastError('Failed to delete');
+                toastError(data.error || 'Failed to delete estimate');
             }
-        } catch {
-            toastError('Failed to delete');
+        } catch (err: any) {
+            console.error('Error deleting estimate:', err);
+            toastError(err.message || 'Failed to delete estimate');
         }
         setIsConfirmOpen(false);
         setDeleteId(null);
     };
 
-    const parseCSV = (text: string) => {
-        const rows: any[] = [];
-        let currentRow: string[] = [];
-        let currentField = '';
-        let insideQuotes = false;
-
-        // Normalize line endings to \n to simplify
-        const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-        for (let i = 0; i < normalized.length; i++) {
-            const char = normalized[i];
-            const nextChar = normalized[i + 1];
-
-            if (char === '"') {
-                if (insideQuotes && nextChar === '"') {
-                    currentField += '"';
-                    i++; // Skip escape quote
-                } else {
-                    insideQuotes = !insideQuotes;
-                }
-            } else if (char === ',' && !insideQuotes) {
-                currentRow.push(currentField.trim());
-                currentField = '';
-            } else if (char === '\n' && !insideQuotes) {
-                currentRow.push(currentField.trim());
-                if (currentRow.some(c => c)) rows.push(currentRow); // Only push non-empty rows
-                currentRow = [];
-                currentField = '';
-            } else {
-                currentField += char;
-            }
-        }
-        // Push last row if exists
-        if (currentField || currentRow.length > 0) {
-            currentRow.push(currentField.trim());
-            if (currentRow.some(c => c)) rows.push(currentRow);
-        }
-        return rows;
-    };
 
     const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         setIsImporting(true);
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const text = event.target?.result as string;
-                const parsedRows = parseCSV(text);
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async (results) => {
+                try {
+                    if (results.errors.length > 0) {
+                        throw new Error(`CSV parsing errors: ${results.errors.map(e => e.message).join(', ')}`);
+                    }
 
-                if (parsedRows.length < 2) throw new Error("Invalid CSV format or empty file");
+                    const estimatesData = results.data as any[];
 
-                const headers = parsedRows[0].map((h: string) => h.replace(/^"|"$/g, '').trim());
+                    if (estimatesData.length === 0) throw new Error("No data found in CSV");
 
-                const estimatesData = parsedRows.slice(1).map(values => {
-                    const item: any = {};
-                    headers.forEach((h: string, i: number) => {
-                        const key = h;
-                        if (key && values[i] !== undefined) item[key] = values[i].replace(/^"|"$/g, '');
+                    const res = await fetch('/api/webhook/devcoBackend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'importEstimates', payload: { estimates: estimatesData } })
                     });
-                    return item;
-                });
 
-                if (estimatesData.length === 0) throw new Error("No data found");
-
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importEstimates', payload: { estimates: estimatesData } })
-                });
-
-                const data = await res.json();
-                if (data.success) {
-                    success(`Successfully imported/updated ${estimatesData.length} records`);
-                    fetchEstimates();
-                } else {
-                    toastError('Import failed: ' + (data.error || 'Unknown error'));
+                    const data = await res.json();
+                    if (data.success) {
+                        success(`Successfully imported/updated ${estimatesData.length} records`);
+                        fetchEstimates();
+                    } else {
+                        toastError('Import failed: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (err: any) {
+                    console.error(err);
+                    toastError('Error importing file: ' + err.message);
+                } finally {
+                    setIsImporting(false);
+                    if (fileInputRef.current) fileInputRef.current.value = '';
                 }
-            } catch (err: any) {
-                console.error(err);
-                toastError('Error importing file: ' + err.message);
-            } finally {
+            },
+            error: (error) => {
+                console.error('Papa Parse error:', error);
+                toastError('Error parsing CSV file');
                 setIsImporting(false);
                 if (fileInputRef.current) fileInputRef.current.value = '';
             }
-        };
-        reader.readAsText(file);
+        });
     };
 
 
@@ -503,7 +472,15 @@ export default function EstimatesPage() {
                     <div className="flex items-center gap-3">
                         <SearchInput
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => {
+                                const result = searchSchema.safeParse(e.target.value);
+                                if (result.success) {
+                                    setSearch(result.data);
+                                } else {
+                                    console.warn('Invalid search input:', result.error.message);
+                                    setSearch(e.target.value); // Still allow but warn
+                                }
+                            }}
                             onEnter={() => {
                                 if (filteredEstimates.length > 0) {
                                     const e = filteredEstimates[0];

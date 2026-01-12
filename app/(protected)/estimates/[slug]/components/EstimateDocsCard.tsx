@@ -40,7 +40,6 @@ interface EstimateDocsCardProps {
 }
 
 export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [] }) => {
-    const [activeTab, setActiveTab] = useState<'prelims' | 'certifiedPayroll'>('prelims');
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
 
     const prelimDocs = [
@@ -72,8 +71,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         'Skilled & Trained Reporting',
         'Fringe Benefits Proof of Payment'
     ];
-
-    const currentDocs = activeTab === 'prelims' ? prelimDocs : certifiedPayrollDocs;
 
     const handleDocClick = async (docName: string) => {
         const templateId = DOC_TEMPLATES[docName];
@@ -204,74 +201,68 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     return (
-        <div className={`bg-[#eef2f6] rounded-[40px] p-6 ${className || ''}`}>
+        <div className={`bg-[#eef2f6] rounded-[40px] p-4 ${className || ''}`}>
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#0F4C75] to-[#1A5980] flex items-center justify-center shadow-lg">
-                        <FileText className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                        <h3 className="text-lg font-bold text-slate-800">Estimate Documents</h3>
-                        <p className="text-xs text-slate-400">Prelims & Certified Payroll Forms</p>
-                    </div>
+            <div className="flex items-center justify-between mb-4">
+                <div>
+                    <h3 className="text-lg font-bold text-slate-800">Estimate Documents</h3>
                 </div>
             </div>
 
-            {/* Neumorphic Tabs */}
-            <div className="flex gap-3 mb-6">
-                <button
-                    onClick={() => setActiveTab('prelims')}
-                    className={`
-                        flex items-center gap-3 px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300
-                        ${activeTab === 'prelims'
-                            ? 'bg-[#eef2f6] shadow-[inset_3px_3px_6px_#d1d9e6,inset_-3px_-3px_6px_#ffffff] text-[#0F4C75]'
-                            : 'bg-white/60 shadow-[3px_3px_6px_#d1d9e6,-3px_-3px_6px_#ffffff] text-slate-500 hover:text-slate-700'
-                        }
-                    `}
-                >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeTab === 'prelims' ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                        <FileText className="w-4 h-4" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Prelims Column */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md">
+                            <FileText className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-[#0F4C75]">Prelims</h4>
+                        <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
+                            {prelimDocs.length}
+                        </span>
                     </div>
-                    Prelims
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === 'prelims' ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
-                        {prelimDocs.length}
-                    </span>
-                </button>
-
-                <button
-                    onClick={() => setActiveTab('certifiedPayroll')}
-                    className={`
-                        flex items-center gap-3 px-5 py-3 rounded-2xl font-bold text-sm transition-all duration-300
-                        ${activeTab === 'certifiedPayroll'
-                            ? 'bg-[#eef2f6] shadow-[inset_3px_3px_6px_#d1d9e6,inset_-3px_-3px_6px_#ffffff] text-[#0F4C75]'
-                            : 'bg-white/60 shadow-[3px_3px_6px_#d1d9e6,-3px_-3px_6px_#ffffff] text-slate-500 hover:text-slate-700'
-                        }
-                    `}
-                >
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${activeTab === 'certifiedPayroll' ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                        <Shield className="w-4 h-4" />
+                    
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {prelimDocs.map((docName, idx) => (
+                                <DocCard 
+                                    key={idx} 
+                                    label={docName}
+                                    isLoading={generatingDoc === docName}
+                                    hasTemplate={!!DOC_TEMPLATES[docName]}
+                                    onClick={() => handleDocClick(docName)}
+                                />
+                            ))}
+                        </div>
                     </div>
-                    Certified Payroll
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${activeTab === 'certifiedPayroll' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                        {certifiedPayrollDocs.length}
-                    </span>
-                </button>
-            </div>
+                </div>
 
-            {/* Documents Grid */}
-            <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-                    {currentDocs.map((docName, idx) => (
-                        <DocCard 
-                            key={idx} 
-                            label={docName}
-                            isPayroll={activeTab === 'certifiedPayroll'}
-                            isLoading={generatingDoc === docName}
-                            hasTemplate={!!DOC_TEMPLATES[docName]}
-                            onClick={() => handleDocClick(docName)}
-                        />
-                    ))}
+                {/* Certified Payroll Column */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md">
+                            <Shield className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-emerald-700">Certified Payroll</h4>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-bold">
+                            {certifiedPayrollDocs.length}
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {certifiedPayrollDocs.map((docName, idx) => (
+                                <DocCard 
+                                    key={idx} 
+                                    label={docName}
+                                    isPayroll={true}
+                                    isLoading={generatingDoc === docName}
+                                    hasTemplate={!!DOC_TEMPLATES[docName]}
+                                    onClick={() => handleDocClick(docName)}
+                                />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

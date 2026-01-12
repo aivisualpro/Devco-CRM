@@ -31,3 +31,4 @@ export { MyDropDown } from './MyDropDown';
 export { MyTemplate } from './MyTemplate';
 export { MyProposal } from './MyProposal';
 export { SidebarAccordion } from './SidebarAccordion';
+export { ErrorBoundary, useErrorHandler } from './ErrorBoundary';
