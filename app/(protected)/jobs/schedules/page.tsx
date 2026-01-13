@@ -2910,7 +2910,9 @@ export default function SchedulePage() {
                                 label="Assignees"
                                 placeholder="Select Team Members"
                                 multiple
-                                options={initialData.employees.map(emp => ({
+                                options={initialData.employees
+                                    .filter(emp => emp.isScheduleActive)
+                                    .map(emp => ({
                                     label: emp.label,
                                     value: emp.value,
                                     image: emp.image

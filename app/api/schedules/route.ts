@@ -260,8 +260,8 @@ export async function POST(request: NextRequest) {
                         .select('name _id')
                         .sort({ name: 1 })
                         .lean(),
-                    Employee.find({ isScheduleActive: true })
-                        .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation')
+                    Employee.find()
+                        .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive')
                         .lean(),
                     Constant.find()
                         .select('type description color image')
@@ -312,7 +312,8 @@ export async function POST(request: NextRequest) {
                                 hourlyRateDrive: (e as any).hourlyRateDrive,
                                 classification: (e as any).classification,
                                 companyPosition: (e as any).companyPosition,
-                                designation: (e as any).designation
+                                designation: (e as any).designation,
+                                isScheduleActive: (e as any).isScheduleActive
                             }])).values()),
                             constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                             estimates: Array.from(uniqueEstimates.values())
@@ -324,7 +325,7 @@ export async function POST(request: NextRequest) {
             case 'getInitialData': {
                 const [clients, employees, constants, estimates] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find({ isScheduleActive: true }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation').lean(),
+                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().lean(),
                     Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean()
                 ]);
@@ -359,7 +360,8 @@ export async function POST(request: NextRequest) {
                             image: e.profilePicture,
                             classification: (e as any).classification,
                             companyPosition: (e as any).companyPosition,
-                            designation: (e as any).designation
+                            designation: (e as any).designation,
+                            isScheduleActive: (e as any).isScheduleActive
                         }])).values()),
                         constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                         estimates: Array.from(uniqueEstimates.values())
