@@ -432,6 +432,35 @@ export default function SchedulePage() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validate all mandatory fields
+        const requiredFields = [
+            { key: 'customerId', label: 'Client' },
+            { key: 'title', label: 'Title' },
+            { key: 'fromDate', label: 'From Date' },
+            { key: 'toDate', label: 'To Date' },
+            { key: 'projectManager', label: 'Project Manager' },
+            { key: 'foremanName', label: 'Foreman' },
+            { key: 'description', label: 'Scope of Work' },
+            { key: 'service', label: 'Service' },
+            { key: 'item', label: 'Tag' },
+            { key: 'notifyAssignees', label: 'Notify Assignees' },
+            { key: 'perDiem', label: 'Per Diem' },
+            { key: 'fringe', label: 'Fringe' },
+            { key: 'certifiedPayroll', label: 'Certified Payroll' }
+        ];
+
+        for (const field of requiredFields) {
+            if (!(editingItem as any)?.[field.key]) {
+                toastError(`${field.label} is required`);
+                return;
+            }
+        }
+
+        if (!editingItem?.assignees || editingItem.assignees.length === 0) {
+            toastError('At least one Assignee is required');
+            return;
+        }
+
         // If updating, just update the single schedule
         if (editingItem?._id) {
             // Optimistic Update
