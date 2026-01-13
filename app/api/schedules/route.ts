@@ -29,15 +29,12 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
     };
 
     const rows = items.map((item: any) => {
-        // Fetch employee emails for assignees
-        let assigneesList: any = [];
+        // Fetch employee emails for assignees (AppSheet expects "email , email" format)
+        let assigneesList = "";
         if (item.assignees && Array.isArray(item.assignees) && item.assignees.length > 0) {
-             assigneesList = item.assignees;
+             assigneesList = item.assignees.join(' , ');
         } else if (typeof item.assignees === 'string') {
-            // If it's a string, maybe split it? Or just wrap in array? Or keep as string?
-            // Safer to just use the string value if frontend sent a string, or split it if CSV.
-            // But typically frontend sends array.
-            assigneesList = [item.assignees];
+            assigneesList = item.assignees;
         }
 
         return {
