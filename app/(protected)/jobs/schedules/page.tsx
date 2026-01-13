@@ -2691,6 +2691,13 @@ export default function SchedulePage() {
                                     placeholder="Project Main Phase"
                                     value={editingItem?.title || ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            const next = document.getElementById('schedFromDate');
+                                            if (next) (next as HTMLElement).focus();
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>
