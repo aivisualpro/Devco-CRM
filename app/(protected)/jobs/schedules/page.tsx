@@ -168,17 +168,20 @@ export default function SchedulePage() {
     const INCREMENT = 20;
 
     const openCreateModal = () => {
-        const start = new Date();
+        const today = new Date();
+        // Default: 7:00 AM to 3:30 PM (Typical shift)
+        const start = new Date(today);
         start.setHours(7, 0, 0, 0);
-        const end = new Date(start);
-        end.setHours(17, 0, 0, 0);
+        const end = new Date(today);
+        end.setHours(15, 30, 0, 0);
 
         setEditingItem({
-            fromDate: start.toISOString(),
-            toDate: end.toISOString(),
+            fromDate: formatLocalDateTime(start), // Use local ISO string for input
+            toDate: formatLocalDateTime(end),
             assignees: [],
             notifyAssignees: 'No',
-            perDiem: 'No'
+            perDiem: 'No',
+            title: '' // Explicitly init title
         });
         setIsModalOpen(true);
     };
@@ -2658,26 +2661,8 @@ export default function SchedulePage() {
             >
                 <form onSubmit={handleSave} className="py-2">
                     <div className="space-y-6">
-                        {/* Row 1: Title and Client */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Title</label>
-                                <input
-                                    id="schedTitle"
-                                    autoFocus
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                    placeholder="Project Main Phase"
-                                    required
-                                    value={editingItem?.title || ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            document.getElementById('schedClient')?.focus();
-                                        }
-                                    }}
-                                />
-                            </div>
+                        {/* Row 1: Client, Proposal, Title */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-2">
                                 <SearchableSelect
                                     id="schedClient"
@@ -2687,21 +2672,18 @@ export default function SchedulePage() {
                                     value={editingItem?.customerId || ''}
                                     onChange={(val) => {
                                         const client = initialData.clients.find(c => c._id === val);
-                                        setEditingItem({
-                                            ...editingItem,
+                                        setEditingItem(prev => ({
+                                            ...prev,
                                             customerId: val,
                                             customerName: client?.name || '',
-                                            estimate: '' 
-                                        });
+                                            // Clear proposal if client changes
+                                            estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
+                                        }));
                                     }}
                                     onNext={() => document.getElementById('schedProposal')?.focus()}
                                 />
                             </div>
-                        </div>
-
-                        {/* Row 2: Proposal #, From Date, To Date */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            <div className="md:col-span-2 space-y-2">
+                            <div className="space-y-2">
                                  <SearchableSelect
                                     id="schedProposal"
                                     label="Proposal #"
@@ -2712,11 +2694,36 @@ export default function SchedulePage() {
                                     value={editingItem?.estimate || ''}
                                     onChange={(val) => {
                                         const est = initialData.estimates.find(e => e.value === val);
-                                        setEditingItem({ ...editingItem, estimate: val });
+                                        const client = initialData.clients.find(c => c._id === est?.customerId);
+                                        
+                                        // Smart Auto-fill
+                                        setEditingItem(prev => ({ 
+                                            ...prev, 
+                                            estimate: val,
+                                            // Auto-select client if not set or mismatch
+                                            customerId: est?.customerId || prev?.customerId, 
+                                            customerName: client?.name || prev?.customerName,
+                                            // Auto-fill title if empty
+                                            title: (!prev?.title && est?.projectTitle) ? est.projectTitle : (prev?.title || '') // assuming projectTitle exists in estimate object from API
+                                        }));
                                     }}
-                                    onNext={() => document.getElementById('schedFromDate')?.focus()}
+                                    onNext={() => document.getElementById('schedTitle')?.focus()}
                                 />
                             </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-slate-900">Title</label>
+                                <input
+                                    id="schedTitle"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                    placeholder="Project Main Phase"
+                                    value={editingItem?.title || ''}
+                                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Row 2: Dates (From/To) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
                                 <label className="block text-sm font-bold text-slate-900">From Date & Time</label>
                                 <input
@@ -2729,15 +2736,9 @@ export default function SchedulePage() {
                                         setEditingItem(prev => ({ 
                                             ...prev, 
                                             fromDate: newFrom,
-                                            // Auto-update To Date if it's empty or less than new From Date, or just convenience sync
+                                            // Auto-update To Date
                                             toDate: (prev?.toDate && newFrom <= prev.toDate) ? prev.toDate : newFrom
                                         }));
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            document.getElementById('schedToDate')?.focus();
-                                        }
                                     }}
                                 />
                             </div>
@@ -2750,69 +2751,77 @@ export default function SchedulePage() {
                                     min={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : undefined}
                                     value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            document.getElementById('schedDesc')?.focus();
-                                        }
+                                />
+                            </div>
+                        </div>
+
+                        {/* Row 3: Staffing (PM, Foreman, Assignees) */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                             <div className="space-y-2">
+                                <SearchableSelect
+                                    id="schedPM"
+                                    label="Project Manager"
+                                    placeholder="Select PM"
+                                    options={initialData.employees
+                                        .filter(emp => emp.designation?.toLowerCase().includes('project manager'))
+                                        .map(emp => ({
+                                            label: emp.label,
+                                            value: emp.value,
+                                            image: emp.image
+                                        }))}
+                                    value={editingItem?.projectManager || ''}
+                                    onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <SearchableSelect
+                                    id="schedForeman"
+                                    label="Foreman"
+                                    placeholder="Select Foreman"
+                                    options={initialData.employees
+                                        .filter(emp => emp.designation?.toLowerCase().includes('foreman'))
+                                        .map(emp => ({
+                                            label: emp.label,
+                                            value: emp.value,
+                                            image: emp.image
+                                        }))}
+                                    value={editingItem?.foremanName || ''}
+                                    onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <SearchableSelect
+                                    id="schedTeam"
+                                    label="Assignees"
+                                    placeholder="Select Team"
+                                    multiple
+                                    options={initialData.employees
+                                        .filter(emp => emp.isScheduleActive)
+                                        .map(emp => ({
+                                        label: emp.label,
+                                        value: emp.value,
+                                        image: emp.image
+                                    }))}
+                                    value={editingItem?.assignees || []}
+                                    onChange={(val) => {
+                                        setEditingItem(prev => ({ ...prev, assignees: val }));
                                     }}
                                 />
                             </div>
                         </div>
 
-                        {/* Row 3: Description & Scope (left) + PM/Foreman (right) */}
-                        <div className="flex flex-col md:flex-row gap-6">
-                            {/* Description - takes 2/3 width */}
-                            <div className="flex-1 md:w-2/3 space-y-2">
+                            {/* Description - takes full width */}
+                            <div className="space-y-2">
                                 <label className="block text-sm font-bold text-slate-900">Description & Scope</label>
                                 <textarea
                                     id="schedDesc"
-                                    rows={6}
-                                    className="w-full h-full min-h-[180px] bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-none placeholder:text-slate-400"
+                                    rows={4}
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-y placeholder:text-slate-400"
                                     placeholder="Enter detailed job instructions..."
                                     value={editingItem?.description || ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
                                 />
                             </div>
-
-                            {/* PM, Foreman - stacked vertically, takes 1/3 width */}
-                            <div className="md:w-1/3 flex flex-col gap-6">
-                                <div className="space-y-2">
-                                    <SearchableSelect
-                                        id="schedPM"
-                                        label="Project Manager"
-                                        placeholder="Select PM"
-                                        options={initialData.employees
-                                            .filter(emp => emp.designation?.toLowerCase().includes('project manager'))
-                                            .map(emp => ({
-                                                label: emp.label,
-                                                value: emp.value,
-                                                image: emp.image
-                                            }))}
-                                        value={editingItem?.projectManager || ''}
-                                        onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
-                                        onNext={() => document.getElementById('schedForeman')?.focus()}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <SearchableSelect
-                                        id="schedForeman"
-                                        label="Foreman"
-                                        placeholder="Select Foreman"
-                                        options={initialData.employees
-                                            .filter(emp => emp.designation?.toLowerCase().includes('foreman'))
-                                            .map(emp => ({
-                                                label: emp.label,
-                                                value: emp.value,
-                                                image: emp.image
-                                            }))}
-                                        value={editingItem?.foremanName || ''}
-                                        onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
-                                        onNext={() => document.getElementById('schedService')?.focus()}
-                                    />
-                                </div>
-                            </div>
-                        </div>
 
                         {/* Grid for Service, Tag, Notify, Per Diem, Fringe, CP */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2921,26 +2930,7 @@ export default function SchedulePage() {
                             </div>
                         </div>
 
-                        {/* Row 7: Assignees (Multi-select) */}
-                        <div className="space-y-2">
-                            <SearchableSelect
-                                id="schedTeam"
-                                label="Assignees"
-                                placeholder="Select Team Members"
-                                multiple
-                                options={initialData.employees
-                                    .filter(emp => emp.isScheduleActive)
-                                    .map(emp => ({
-                                    label: emp.label,
-                                    value: emp.value,
-                                    image: emp.image
-                                }))}
-                                value={editingItem?.assignees || []}
-                                onChange={(val) => {
-                                    setEditingItem(prev => ({ ...prev, assignees: val }));
-                                }}
-                            />
-                        </div>
+
 
                         {/* Row 8: Aerial Image & Site Layout */}
                         <div className="grid grid-cols-2 gap-4">
