@@ -990,18 +990,42 @@ export default function DashboardPage() {
                                                     </div>
 
                                                     {/* Row 3: Estimate # & Date/Time */}
-                                                    <div className="flex flex-col gap-1 mb-3">
-                                                        {item.estimate && (
-                                                            <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full w-fit">
-                                                                {item.estimate.replace(/-[vV]\d+$/, '')}
-                                                            </span>
-                                                        )}
-                                                        <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
-                                                            <span>{new Date(item.fromDate).toLocaleDateString()}</span>
-                                                            <span className="text-slate-300">|</span>
-                                                            <span>{extractTimeFromDateTime(item.fromDate)}</span>
-                                                            <span>-</span>
-                                                            <span>{extractTimeFromDateTime(item.toDate)}</span>
+                                                    {/* Row 3: Estimate #, Date/Time & Assignees */}
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {item.estimate && (
+                                                                <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                                                    {item.estimate.replace(/-[vV]\d+$/, '')}
+                                                                </span>
+                                                            )}
+                                                            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
+                                                                <span>{new Date(item.fromDate).toLocaleDateString()}</span>
+                                                                <span className="text-slate-300">|</span>
+                                                                <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                                <span>-</span>
+                                                                <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Assignees - Right aligned */}
+                                                        <div className="flex -space-x-1.5 shrink-0">
+                                                            {(item.assignees || []).filter(Boolean).slice(0, 3).map((email: string, i: number) => {
+                                                                const emp = employees.find(e => e.value === email);
+                                                                return (
+                                                                    <div key={i} className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600" title={emp?.label || email}>
+                                                                        {emp?.image ? (
+                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            email?.[0]?.toUpperCase() || '?'
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {(item.assignees || []).filter(Boolean).length > 3 && (
+                                                                <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[8px] font-bold text-slate-500 shadow-sm">
+                                                                    +{(item.assignees?.filter(Boolean).length || 0) - 3}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
 
