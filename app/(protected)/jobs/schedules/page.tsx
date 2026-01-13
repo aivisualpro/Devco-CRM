@@ -2713,12 +2713,34 @@ export default function SchedulePage() {
                                     value={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : ''}
                                     onChange={(e) => {
                                         const newFrom = e.target.value;
-                                        setEditingItem(prev => ({ 
-                                            ...prev, 
-                                            fromDate: newFrom,
-                                            // Auto-update To Date
-                                            toDate: (prev?.toDate && newFrom <= prev.toDate) ? prev.toDate : newFrom
-                                        }));
+                                        setEditingItem(prev => {
+                                            if (!prev?.toDate) return { ...prev, fromDate: newFrom, toDate: newFrom };
+                                            
+                                            // Calculate new To Date: New From DATE + Old To TIME
+                                            const newFromDate = new Date(newFrom);
+                                            const oldToDate = new Date(prev.toDate);
+                                            
+                                            const newToDate = new Date(newFromDate);
+                                            newToDate.setHours(oldToDate.getHours(), oldToDate.getMinutes(), 0, 0);
+
+                                            // If the new end time is before the start time (e.g. crossing midnight logic or just invalid), 
+                                            // checking if it's strictly same day but earlier time:
+                                            // The user mainly wants to change DATE. 
+                                            // We will return the constructed date formatted.
+                                            // formatting back to string for input
+                                            const year = newToDate.getFullYear();
+                                            const month = String(newToDate.getMonth() + 1).padStart(2, '0');
+                                            const day = String(newToDate.getDate()).padStart(2, '0');
+                                            const hours = String(newToDate.getHours()).padStart(2, '0');
+                                            const minutes = String(newToDate.getMinutes()).padStart(2, '0');
+                                            const newToDateString = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+                                            return {
+                                                ...prev,
+                                                fromDate: newFrom,
+                                                toDate: newToDateString
+                                            };
+                                        });
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
