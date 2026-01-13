@@ -58,6 +58,23 @@ export function SearchableSelect({
     const triggerRef = useRef<HTMLDivElement>(null);
     const optionsListRef = useRef<HTMLDivElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
+    const [placement, setPlacement] = useState<'bottom' | 'top'>('bottom');
+
+    // Calculate placement on open
+    useEffect(() => {
+        if (isOpen && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            const spaceBelow = window.innerHeight - rect.bottom;
+            const dropdownHeight = 320; // Approx max height
+            
+            // If space below is tight (<320px) and space above is plentiful, flip to top
+            if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+                setPlacement('top');
+            } else {
+                setPlacement('bottom');
+            }
+        }
+    }, [isOpen]);
 
     // Normalize options to SelectOption[]
     const normalizedRaw = options.map(opt => {
@@ -423,7 +440,7 @@ export function SearchableSelect({
 
                 {/* Dropdown Panel - Desktop */}
                 {isOpen && (
-                    <div className={`hidden md:block absolute top-12 ${align === 'right' ? 'right-0' : 'left-0'} w-full min-w-[320px] bg-white rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.15)] ring-1 ring-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100`}>
+                    <div className={`hidden md:block absolute ${placement === 'top' ? 'bottom-full mb-2' : 'top-12'} ${align === 'right' ? 'right-0' : 'left-0'} w-full min-w-[320px] bg-white rounded-2xl shadow-[0_20px_60px_-10px_rgba(0,0,0,0.15)] ring-1 ring-slate-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100`}>
                         {/* Search Header */}
                         <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
                             <Search className="w-4 h-4 text-slate-400 shrink-0" />
