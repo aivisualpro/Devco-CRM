@@ -1,7 +1,7 @@
 'use client';
 
 import { Trash2 } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 interface LineItem {
     _id?: string;
@@ -14,57 +14,27 @@ interface SubcontractorLineItemsTableProps {
     onDelete?: (item: LineItem) => void;
 }
 
-function AutoWidthInput({
-    defaultValue,
+function LiveInput({
+    value,
     inputType,
+    onChange,
     onBlur,
     placeholder = "",
     inputId = ""
 }: {
-    defaultValue: string | number;
+    value: string;
     inputType: string;
-    onBlur: (value: string | number) => void;
+    onChange: (value: string) => void;
+    onBlur: () => void;
     placeholder?: string;
     inputId?: string;
 }) {
-    const [val, setVal] = useState(String(defaultValue ?? ''));
-    const [hasChanged, setHasChanged] = useState(false);
-    const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isFocused = useRef(false);
-
-    useEffect(() => {
-        if (!isFocused.current) {
-            setVal(String(defaultValue ?? ''));
-            setHasChanged(false);
-        }
-    }, [defaultValue]);
-
-    const saveValue = () => {
-        if (hasChanged) {
-            const result = inputType === 'number' ? parseFloat(val) || 0 : val;
-            const originalValue = inputType === 'number' ? parseFloat(String(defaultValue)) || 0 : String(defaultValue);
-            
-            if (result !== originalValue) {
-                onBlur(result);
-            }
-            setHasChanged(false);
-        }
-    };
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setVal(e.target.value);
-        setHasChanged(true);
-    };
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Tab' || e.key === 'Enter') {
             e.preventDefault();
-            
-            if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current);
-            }
-            
-            saveValue();
+            e.currentTarget.blur();
             
             const currentInput = e.currentTarget;
             const allInputs = Array.from(
@@ -75,11 +45,11 @@ function AutoWidthInput({
             
             if (e.shiftKey) {
                 if (currentIndex > 0) {
-                    allInputs[currentIndex - 1].focus();
+                    setTimeout(() => allInputs[currentIndex - 1].focus(), 0);
                 }
             } else {
                 if (currentIndex !== -1 && currentIndex < allInputs.length - 1) {
-                    allInputs[currentIndex + 1].focus();
+                    setTimeout(() => allInputs[currentIndex + 1].focus(), 0);
                 }
             }
         }
@@ -88,11 +58,7 @@ function AutoWidthInput({
     const handleBlur = () => {
         isFocused.current = false;
         delete document.body.dataset.inputFocused;
-        
-        if (saveTimeoutRef.current) {
-            clearTimeout(saveTimeoutRef.current);
-        }
-        saveValue();
+        onBlur();
     };
 
     const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
@@ -104,9 +70,9 @@ function AutoWidthInput({
     return (
         <input
             type={inputType}
-            value={val}
+            value={value}
             data-input-id={inputId}
-            onChange={handleChange}
+            onChange={(e) => onChange(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
@@ -114,6 +80,155 @@ function AutoWidthInput({
             placeholder={placeholder}
             className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-left text-slate-600 shadow-sm"
         />
+    );
+}
+
+function SubcontractorRow({
+    item,
+    index,
+    onUpdateItem,
+    onDelete
+}: {
+    item: LineItem;
+    index: number;
+    onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
+    onDelete?: (item: LineItem) => void;
+}) {
+    const [localValues, setLocalValues] = useState({
+        classification: String(item.classification ?? ''),
+        subClassification: String(item.subClassification ?? ''),
+        contractor: String(item.contractor ?? ''),
+        quantity: String(item.quantity ?? ''),
+        uom: String(item.uom ?? ''),
+        cost: String(item.cost ?? '')
+    });
+
+    const [dirtyFields, setDirtyFields] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        setLocalValues(prev => ({
+            classification: dirtyFields.has('classification') ? prev.classification : String(item.classification ?? ''),
+            subClassification: dirtyFields.has('subClassification') ? prev.subClassification : String(item.subClassification ?? ''),
+            contractor: dirtyFields.has('contractor') ? prev.contractor : String(item.contractor ?? ''),
+            quantity: dirtyFields.has('quantity') ? prev.quantity : String(item.quantity ?? ''),
+            uom: dirtyFields.has('uom') ? prev.uom : String(item.uom ?? ''),
+            cost: dirtyFields.has('cost') ? prev.cost : String(item.cost ?? '')
+        }));
+    }, [item.classification, item.subClassification, item.contractor, item.quantity, item.uom, item.cost]);
+
+    const liveTotal = useMemo(() => {
+        const qty = parseFloat(localValues.quantity) || 1;
+        const cost = parseFloat(localValues.cost) || 0;
+        return qty * cost;
+    }, [localValues.quantity, localValues.cost]);
+
+    const handleChange = (field: string, value: string) => {
+        setLocalValues(prev => ({ ...prev, [field]: value }));
+        setDirtyFields(prev => new Set(prev).add(field));
+    };
+
+    const handleBlur = (field: string) => {
+        if (dirtyFields.has(field)) {
+            const value = localValues[field as keyof typeof localValues];
+            const numericFields = ['quantity', 'cost'];
+            const finalValue = numericFields.includes(field) ? (parseFloat(value) || 0) : value;
+            onUpdateItem?.(item, field, finalValue);
+            setDirtyFields(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(field);
+                return newSet;
+            });
+        }
+    };
+
+    const formatCurrency = (val: number): string => {
+        return new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD'
+        }).format(val);
+    };
+
+    return (
+        <tr className="hover:bg-gray-50/50 transition-colors group">
+            <td className="p-1 text-xs text-gray-400 text-center font-medium">
+                {index + 1}
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
+                <LiveInput
+                    value={localValues.classification}
+                    inputType="text"
+                    onChange={(val) => handleChange('classification', val)}
+                    onBlur={() => handleBlur('classification')}
+                    placeholder="Classification"
+                    inputId={`subcontractor-${index}-0`}
+                />
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
+                <LiveInput
+                    value={localValues.subClassification}
+                    inputType="text"
+                    onChange={(val) => handleChange('subClassification', val)}
+                    onBlur={() => handleBlur('subClassification')}
+                    placeholder="Sub"
+                    inputId={`subcontractor-${index}-1`}
+                />
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '25%' }}>
+                <LiveInput
+                    value={localValues.contractor}
+                    inputType="text"
+                    onChange={(val) => handleChange('contractor', val)}
+                    onBlur={() => handleBlur('contractor')}
+                    placeholder="Contractor"
+                    inputId={`subcontractor-${index}-2`}
+                />
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                <LiveInput
+                    value={localValues.quantity}
+                    inputType="number"
+                    onChange={(val) => handleChange('quantity', val)}
+                    onBlur={() => handleBlur('quantity')}
+                    placeholder="Qty"
+                    inputId={`subcontractor-${index}-3`}
+                />
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                <LiveInput
+                    value={localValues.uom}
+                    inputType="text"
+                    onChange={(val) => handleChange('uom', val)}
+                    onBlur={() => handleBlur('uom')}
+                    placeholder="UOM"
+                    inputId={`subcontractor-${index}-4`}
+                />
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                <LiveInput
+                    value={localValues.cost}
+                    inputType="number"
+                    onChange={(val) => handleChange('cost', val)}
+                    onBlur={() => handleBlur('cost')}
+                    placeholder="Cost"
+                    inputId={`subcontractor-${index}-5`}
+                />
+            </td>
+            <td className="p-1 text-xs whitespace-nowrap text-right font-bold text-gray-700" style={{ width: '10%' }}>
+                {formatCurrency(liveTotal)}
+            </td>
+            <td className="p-1 text-center">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete?.(item);
+                    }}
+                    className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50"
+                    title="Delete Item"
+                >
+                    <Trash2 className="w-3.5 h-3.5" />
+                </button>
+            </td>
+        </tr>
     );
 }
 
@@ -129,31 +244,6 @@ export function SubcontractorLineItemsTable({
             </div>
         );
     }
-
-    const formatValue = (val: unknown, field: string): string => {
-        if (val === undefined || val === null) return '--';
-        if (val === 0) return '0';
-
-        if (typeof val === 'number') {
-            const lowerField = field.toLowerCase();
-            if (lowerField.includes('percent')) {
-                return `${val}%`;
-            }
-            if (
-                lowerField.includes('cost') ||
-                lowerField.includes('pay') ||
-                lowerField.includes('rate') ||
-                field === 'total'
-            ) {
-                return new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD'
-                }).format(val);
-            }
-        }
-
-        return String(val);
-    };
 
     return (
         <div className="overflow-x-auto p-1">
@@ -188,86 +278,15 @@ export function SubcontractorLineItemsTable({
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                    {items.map((item, i) => {
-                        const itemKey = item._id || `item-${i}`;
-
-                        return (
-                            <tr key={itemKey} className="hover:bg-gray-50/50 transition-colors group">
-                                <td className="p-1 text-xs text-gray-400 text-center font-medium">
-                                    {i + 1}
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.classification !== undefined && item.classification !== null ? String(item.classification) : ''}
-                                        inputType="text"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'classification', newVal)}
-                                        placeholder="Classification"
-                                        inputId={`subcontractor-${i}-0`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.subClassification !== undefined && item.subClassification !== null ? String(item.subClassification) : ''}
-                                        inputType="text"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'subClassification', newVal)}
-                                        placeholder="Sub"
-                                        inputId={`subcontractor-${i}-1`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.contractor !== undefined && item.contractor !== null ? String(item.contractor) : ''}
-                                        inputType="text"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'contractor', newVal)}
-                                        placeholder="Contractor"
-                                        inputId={`subcontractor-${i}-2`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.quantity !== undefined && item.quantity !== null ? String(item.quantity) : ''}
-                                        inputType="number"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'quantity', newVal)}
-                                        placeholder="Qty"
-                                        inputId={`subcontractor-${i}-3`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.uom !== undefined && item.uom !== null ? String(item.uom) : ''}
-                                        inputType="text"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'uom', newVal)}
-                                        placeholder="UOM"
-                                        inputId={`subcontractor-${i}-4`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.cost !== undefined && item.cost !== null ? String(item.cost) : ''}
-                                        inputType="number"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'cost', newVal)}
-                                        placeholder="Cost"
-                                        inputId={`subcontractor-${i}-5`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs whitespace-nowrap text-right font-bold text-gray-700" style={{ width: '10%' }}>
-                                    {formatValue(item.total, 'total')}
-                                </td>
-                                <td className="p-1 text-center">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onDelete?.(item);
-                                        }}
-                                        className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-md hover:bg-red-50"
-                                        title="Delete Item"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                </td>
-                            </tr>
-                        );
-                    })}
+                    {items.map((item, i) => (
+                        <SubcontractorRow
+                            key={item._id || `item-${i}`}
+                            item={item}
+                            index={i}
+                            onUpdateItem={onUpdateItem}
+                            onDelete={onDelete}
+                        />
+                    ))}
                 </tbody>
             </table>
         </div>
