@@ -8,11 +8,14 @@ const getAppSheetConfig = () => ({
     tableName: process.env.APSHEET_JOB_SCHEDULE_TABLE || "Job Schedule"
 });
 
-async function updateAppSheetSchedule(data: any, action: "Add" | "Edit" | "Delete" = "Edit") {
+async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
     if (process.env.NODE_ENV !== 'production') return;
 
     const { appId, accessKey, tableName } = getAppSheetConfig();
     if (!appId || !accessKey) return;
+
+    const items = Array.isArray(data) ? data : [data];
+    if (items.length === 0) return;
 
     // Helper to format dates YYYY-MM-DD
     const fmtDate = (d: any) => {
@@ -25,56 +28,39 @@ async function updateAppSheetSchedule(data: any, action: "Add" | "Edit" | "Delet
         } catch { return ""; }
     };
 
-    // Fetch employee emails for assignees
-    let assigneesList = "";
-    if (data.assignees && Array.isArray(data.assignees) && data.assignees.length > 0) {
-        try {
-            // Assignees are likely names or IDs. Let's try to match them to employees.
-            // If they are names (which they seem to be based on frontend), we need to find the employee by First+Last name or similar.
-            // However, the frontend often stores just the name string (e.g. "John Doe"). 
-            // Ideally we'd have IDs or Emails. If we only have names, this is a best-effort lookup.
-            // BUT, looking at the models and page code, `assignees` is array of strings. 
-            // Employee model has firstName, lastName, email.
-            
-            // To be safe and performant, let's fetch ALL employees (cached/lean) and match in memory 
-            // or just query. Since this is a restricted set, querying by name $in is okay.
-            
-            // Wait, data.assignees might ALREADY be emails if the frontend sends them?
-            // Checking page.tsx, assignees dropdown uses employee `email` or `_id`? 
-            // The dropdown options mapped: value: e.email, label: e.firstName + lastName.
-            // So `data.assignees` likely contains EMAILS already!
-            // Let's verify: In page.tsx around line 1300 (not shown but inferred from default_api:view_file chunks above),
-            // the dropdown uses `value: e.email`. 
-            // So `data.assignees` IS an array of emails.
-            
-            // If it IS emails, we just join them.
-            assigneesList = data.assignees.join(', ');
-        } catch (e) {
-            console.error("Error processing assignees for AppSheet:", e);
-            assigneesList = data.assignees.join(', '); // Fallback
+    const rows = items.map((item: any) => {
+        // Fetch employee emails for assignees
+        let assigneesList = "";
+        if (item.assignees && Array.isArray(item.assignees) && item.assignees.length > 0) {
+            try {
+                // If it IS emails (which frontend sends), we just join them.
+                assigneesList = item.assignees.join(', ');
+            } catch (e) {
+                assigneesList = String(item.assignees || "");
+            }
+        } else if (typeof item.assignees === 'string') {
+            assigneesList = item.assignees;
         }
-    } else if (typeof data.assignees === 'string') {
-        assigneesList = data.assignees;
-    }
 
-    const row = {
-        "Record_ID": String(data._id || ""),
-        "Title": String(data.title || ""),
-        "From": fmtDate(data.fromDate),
-        "To": fmtDate(data.toDate),
-        "Customer": String(data.customerId || ""),
-        "Proposal Number": String(data.estimate || ""),
-        "Project Manager Name": String(data.projectManager || ""),
-        "Foreman Name": String(data.foremanName || ""),
-        "Assignees": assigneesList, 
-        "Description": String(data.description || ""),
-        "Service Item": String(data.service || ""),
-        "Color": String(data.item || ""), // Mapped 'item' to 'Color'
-        "Labor Agreement": String(data.fringe || ""),
-        "Certified Payroll": String(data.certifiedPayroll || ""),
-        "Notify Assignees": String(data.notifyAssignees || ""),
-        "Per Diem": String(data.perDiem || "")
-    };
+        return {
+            "Record_ID": String(item._id || ""),
+            "Title": String(item.title || ""),
+            "From": fmtDate(item.fromDate),
+            "To": fmtDate(item.toDate),
+            "Customer": String(item.customerId || ""),
+            "Proposal Number": String(item.estimate || ""),
+            "Project Manager Name": String(item.projectManager || ""),
+            "Foreman Name": String(item.foremanName || ""),
+            "Assignees": assigneesList, 
+            "Description": String(item.description || ""),
+            "Service Item": String(item.service || ""),
+            "Color": String(item.item || ""), // Mapped 'item' to 'Color'
+            "Labor Agreement": String(item.fringe || ""),
+            "Certified Payroll": String(item.certifiedPayroll || ""),
+            "Notify Assignees": String(item.notifyAssignees || ""),
+            "Per Diem": String(item.perDiem || "")
+        };
+    });
 
     const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
 
@@ -88,7 +74,7 @@ async function updateAppSheetSchedule(data: any, action: "Add" | "Edit" | "Delet
             body: JSON.stringify({
                 Action: action,
                 Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
-                Rows: [row]
+                Rows: rows
             })
         });
     } catch (error) {
@@ -122,7 +108,7 @@ export async function POST(request: NextRequest) {
                     updatedAt: new Date()
                 });
                 // Sync to AppSheet
-                updateAppSheetSchedule(doc, "Add");
+                await updateAppSheetSchedule(doc, "Add");
                 return NextResponse.json({ success: true, result: doc });
             }
 
@@ -135,7 +121,7 @@ export async function POST(request: NextRequest) {
                     { new: true }
                 );
                 // Sync to AppSheet
-                if (result) updateAppSheetSchedule(result, "Edit");
+                if (result) await updateAppSheetSchedule(result, "Edit");
                 return NextResponse.json({ success: true, result });
             }
 
@@ -143,7 +129,7 @@ export async function POST(request: NextRequest) {
                 const { id } = payload || {};
                 await Schedule.findByIdAndDelete(id);
                 // Sync to AppSheet
-                updateAppSheetSchedule({ _id: id }, "Delete");
+                await updateAppSheetSchedule({ _id: id }, "Delete");
                 return NextResponse.json({ success: true });
             }
 
@@ -171,16 +157,12 @@ export async function POST(request: NextRequest) {
                 const result = await Schedule.bulkWrite(ops);
                 
                 // Sync imported schedules to AppSheet asynchronously
-                // Loop through original payload items as they have the IDs
-                schedules.forEach((item: any) => {
-                    const idToUse = item.recordId || item._id;
-                    updateAppSheetSchedule({ ...item, _id: idToUse }, "Add"); // Assessing 'Add' generic action as upsert logic is tricky in bulk
-                    // Or we could try "Edit" if we suspect they exist, but 'Add' is safer for new. 
-                    // However, import is often new creation. If it's update, 'Add' might fail if ID exists? 
-                    // AppSheet 'Add' usually fails on key component duplicate.
-                    // But our 'importSchedules' is actually an upsert. 
-                    // Let's assume 'Add' for now as typical flow for this button is 'Create Schedules'.
-                });
+                const syncItems = schedules.map((item: any) => ({
+                    ...item,
+                    _id: item.recordId || item._id
+                }));
+                // Batch sync
+                await updateAppSheetSchedule(syncItems, "Add");
 
                 return NextResponse.json({ success: true, result });
             }
