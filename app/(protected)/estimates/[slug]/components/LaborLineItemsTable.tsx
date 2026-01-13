@@ -74,8 +74,14 @@ function AutoWidthInput({
             
             const currentIndex = allInputs.indexOf(currentInput);
             
-            if (currentIndex !== -1 && currentIndex < allInputs.length - 1) {
-                allInputs[currentIndex + 1].focus();
+            if (e.shiftKey) {
+                if (currentIndex > 0) {
+                    allInputs[currentIndex - 1].focus();
+                }
+            } else {
+                if (currentIndex !== -1 && currentIndex < allInputs.length - 1) {
+                    allInputs[currentIndex + 1].focus();
+                }
             }
         }
     };
@@ -105,6 +111,7 @@ function AutoWidthInput({
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onFocus={handleFocus}
+            onWheel={(e) => e.currentTarget.blur()}
             placeholder={placeholder}
             className="w-full bg-white border border-gray-200 rounded px-1.5 py-0.5 text-[11px] focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-left text-slate-600 shadow-sm"
         />
