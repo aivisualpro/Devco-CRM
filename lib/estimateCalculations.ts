@@ -169,12 +169,13 @@ export function calculateMaterialTotal(item: Record<string, unknown>): number {
 }
 
 /**
- * Calculate simple quantity * cost total
+ * Calculate simple quantity * days * cost total (for Miscellaneous etc.)
  */
 export function calculateSimpleTotal(item: Record<string, unknown>): number {
     const qty = parseNum(item.quantity) || 1;
+    const days = parseNum(item.days) || 1; // Default to 1 if not provided
     const cost = parseNum(item.cost);
-    return qty * cost;
+    return qty * days * cost;
 }
 
 /**

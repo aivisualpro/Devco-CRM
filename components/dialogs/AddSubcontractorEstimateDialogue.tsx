@@ -172,7 +172,7 @@ export function AddSubcontractorEstimateDialogue({
             if (result.success) {
                 const newItem = {
                     ...data,
-                    _id: result.data?._id || `temp-${Date.now()}`
+                    _id: result.result?._id || `temp-${Date.now()}`
                 };
                 setLocalNewItems(prev => [...prev, newItem]);
                 setSelectedItems(prev => {

@@ -163,16 +163,19 @@ export function MiscellaneousLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8">
                             #
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '35%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '30%' }}>
                             Item
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '30%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '25%' }}>
                             Classifications
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '8%' }}>
                             Qty
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '8%' }}>
+                            Days
+                        </th>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '8%' }}>
                             UOM
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
@@ -211,7 +214,7 @@ export function MiscellaneousLineItemsTable({
                                         inputId={`miscellaneous-${i}-1`}
                                     />
                                 </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '8%' }}>
                                     <AutoWidthInput
                                         defaultValue={item.quantity !== undefined && item.quantity !== null ? String(item.quantity) : ''}
                                         inputType="number"
@@ -220,13 +223,22 @@ export function MiscellaneousLineItemsTable({
                                         inputId={`miscellaneous-${i}-2`}
                                     />
                                 </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '8%' }}>
+                                    <AutoWidthInput
+                                        defaultValue={item.days !== undefined && item.days !== null ? String(item.days) : '1'}
+                                        inputType="number"
+                                        onBlur={(newVal) => onUpdateItem?.(item, 'days', newVal)}
+                                        placeholder="Days"
+                                        inputId={`miscellaneous-${i}-3`}
+                                    />
+                                </td>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '8%' }}>
                                     <AutoWidthInput
                                         defaultValue={item.uom !== undefined && item.uom !== null ? String(item.uom) : ''}
                                         inputType="text"
                                         onBlur={(newVal) => onUpdateItem?.(item, 'uom', newVal)}
                                         placeholder="UOM"
-                                        inputId={`miscellaneous-${i}-3`}
+                                        inputId={`miscellaneous-${i}-4`}
                                     />
                                 </td>
                                 <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
@@ -235,7 +247,7 @@ export function MiscellaneousLineItemsTable({
                                         inputType="number"
                                         onBlur={(newVal) => onUpdateItem?.(item, 'cost', newVal)}
                                         placeholder="Cost"
-                                        inputId={`miscellaneous-${i}-4`}
+                                        inputId={`miscellaneous-${i}-5`}
                                     />
                                 </td>
                                 <td className="p-1 text-xs whitespace-nowrap text-right font-bold text-gray-700" style={{ width: '10%' }}>

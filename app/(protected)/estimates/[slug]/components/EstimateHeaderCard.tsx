@@ -128,9 +128,24 @@ export function EstimateHeaderCard({
     // Close dropdown on click outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-                setActiveDropdown(null);
+            const target = event.target as Node;
+            
+            // Check if click is inside the dropdownRef
+            if (dropdownRef.current && dropdownRef.current.contains(target)) {
+                return;
             }
+            
+            // Check if click is inside a portal dropdown (MyDropDown renders in body)
+            // Look for the dropdown container class in ancestors
+            if (target instanceof Element) {
+                const closestDropdown = target.closest('.rounded-2xl.z-\\[9999\\]') || 
+                                        target.closest('[class*="z-[9999]"]');
+                if (closestDropdown) {
+                    return; // Click is inside a dropdown portal, don't close
+                }
+            }
+            
+            setActiveDropdown(null);
         }
 
         function handleKeyDown(event: KeyboardEvent) {
