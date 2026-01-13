@@ -2756,12 +2756,12 @@ export default function SchedulePage() {
 
                             {/* Description - takes full width */}
                             <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Description & Scope</label>
+                                <label className="block text-sm font-bold text-slate-900">Scope of Work</label>
                                 <textarea
                                     id="schedDesc"
                                     rows={4}
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-y placeholder:text-slate-400"
-                                    placeholder="Enter detailed job instructions..."
+                                    placeholder="Enter scope of work..."
                                     value={editingItem?.description || ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
                                 />
