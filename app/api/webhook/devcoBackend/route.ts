@@ -240,8 +240,9 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
         });
 
         if (!response.ok) {
-            console.error(`[AppSheet] Error ${response.status}:`, await response.text());
-            return { success: false, status: response.status };
+            const errorText = await response.text();
+            console.error(`[AppSheet] Error ${response.status}:`, errorText);
+            return { success: false, status: response.status, error: `AppSheet ${response.status}: ${errorText}` };
         }
         
         console.log(`[AppSheet] Sync Success`);
