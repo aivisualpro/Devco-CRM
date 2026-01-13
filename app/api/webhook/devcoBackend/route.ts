@@ -205,7 +205,6 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
         "FB Name": String(data.fbName || ""),
         "FB Address": String(data.fbAddress || ""),
         "e-CPR System": String(data.eCPRSystem || ""),
-        "Type of Service Required": String(data.typeOfServiceRequired || ""),
         "Wet Utilities": String(data.wetUtilities || ""),
         "Dry Utilities": String(data.dryUtilities || ""),
         "Project Description": String(data.projectDescription || ""),
