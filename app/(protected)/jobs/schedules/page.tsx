@@ -186,8 +186,8 @@ export default function SchedulePage() {
     useAddShortcut(openCreateModal);
 
 
-    const fetchPageData = async () => {
-        setLoading(true);
+    const fetchPageData = async (showLoading = true) => {
+        if (showLoading) setLoading(true);
         try {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
@@ -442,7 +442,12 @@ export default function SchedulePage() {
                     success('Schedule updated');
                     setIsModalOpen(false);
                     setEditingItem(null);
-                    fetchPageData();
+                    
+                    // Optimistic update
+                    setSchedules(prev => prev.map(s => s._id === editingItem._id ? { ...s, ...editingItem, ...data.result } : s));
+                    
+                    // Background re-fetch (optional, keep if you want 100% sync)
+                    // fetchPageData(false); // Validating in background
                 } else {
                     toastError(data.error || 'Failed to update schedule');
                 }
@@ -492,7 +497,11 @@ export default function SchedulePage() {
                 success(`Created ${schedulesToCreate.length} schedule${schedulesToCreate.length > 1 ? 's' : ''}`);
                 setIsModalOpen(false);
                 setEditingItem(null);
-                fetchPageData();
+                
+                // Optimistic update
+                setSchedules(prev => [...schedulesToCreate, ...prev]);
+                
+                // fetchPageData(false);
             } else {
                 toastError(data.error || 'Failed to create schedules');
             }
@@ -515,7 +524,11 @@ export default function SchedulePage() {
                 success('Schedule deleted');
                 setIsConfirmOpen(false);
                 setDeleteId(null);
-                fetchPageData();
+                
+                // Optimistic update
+                setSchedules(prev => prev.filter(s => s._id !== deleteId));
+                
+                // fetchPageData(false);
             }
         } catch (err) {
             console.error(err);
