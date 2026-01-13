@@ -156,7 +156,7 @@ export function OverheadLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8">
                             #
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '15%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '20%' }}>
                             Overhead
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '20%' }}>
@@ -165,16 +165,10 @@ export function OverheadLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '20%' }}>
                             Sub
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '15%' }}>
                             Days
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
-                            Hours
-                        </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
-                            Hourly Rate
-                        </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '10%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '15%' }}>
                             Daily Rate
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap text-right" style={{ width: '10%' }}>
@@ -192,7 +186,7 @@ export function OverheadLineItemsTable({
                                 <td className="p-1 text-xs text-gray-400 text-center font-medium">
                                     {i + 1}
                                 </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '15%' }}>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
                                     <AutoWidthInput
                                         defaultValue={item.overhead !== undefined && item.overhead !== null ? String(item.overhead) : ''}
                                         inputType="text"
@@ -210,7 +204,7 @@ export function OverheadLineItemsTable({
                                         inputId={`overhead-${i}-1`}
                                     />
                                 </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '15%' }}>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
                                     <AutoWidthInput
                                         defaultValue={item.subClassification !== undefined && item.subClassification !== null ? String(item.subClassification) : ''}
                                         inputType="text"
@@ -219,7 +213,7 @@ export function OverheadLineItemsTable({
                                         inputId={`overhead-${i}-2`}
                                     />
                                 </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '15%' }}>
                                     <AutoWidthInput
                                         defaultValue={item.days !== undefined && item.days !== null ? String(item.days) : ''}
                                         inputType="number"
@@ -228,25 +222,7 @@ export function OverheadLineItemsTable({
                                         inputId={`overhead-${i}-3`}
                                     />
                                 </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.hours !== undefined && item.hours !== null ? String(item.hours) : ''}
-                                        inputType="number"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'hours', newVal)}
-                                        placeholder="Hours"
-                                        inputId={`overhead-${i}-4`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
-                                    <AutoWidthInput
-                                        defaultValue={item.hourlyRate !== undefined && item.hourlyRate !== null ? String(item.hourlyRate) : ''}
-                                        inputType="number"
-                                        onBlur={(newVal) => onUpdateItem?.(item, 'hourlyRate', newVal)}
-                                        placeholder="Hourly"
-                                        inputId={`overhead-${i}-5`}
-                                    />
-                                </td>
-                                <td className="p-1 text-xs text-gray-700" style={{ width: '10%' }}>
+                                <td className="p-1 text-xs text-gray-700" style={{ width: '15%' }}>
                                     <AutoWidthInput
                                         defaultValue={item.dailyRate !== undefined && item.dailyRate !== null ? String(item.dailyRate) : ''}
                                         inputType="number"

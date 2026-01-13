@@ -148,11 +148,11 @@ const baseSectionConfigs = [
     },
     {
         id: 'Overhead', title: 'Overhead', key: 'overhead',
-        headers: ['Overhead', 'Classification', 'Sub Classification', 'Days', 'Hours', 'Hourly Rate', 'Daily Rate', 'Total'],
-        fields: ['overhead', 'classification', 'subClassification', 'days', 'hours', 'hourlyRate', 'dailyRate', 'total'],
-        formFields: ['overhead', 'classification', 'subClassification', 'hourlyRate', 'dailyRate'],
-        formHeaders: ['Overhead', 'Classification', 'Sub Classification', 'Hourly Cost', 'Daily Cost'],
-        editableFields: ['overhead', 'classification', 'subClassification', 'days', 'hours', 'hourlyRate', 'dailyRate']
+        headers: ['Overhead', 'Classification', 'Sub Classification', 'Days', 'Daily Rate', 'Total'],
+        fields: ['overhead', 'classification', 'subClassification', 'days', 'dailyRate', 'total'],
+        formFields: ['overhead', 'classification', 'subClassification', 'days', 'dailyRate'],
+        formHeaders: ['Overhead', 'Classification', 'Sub Classification', 'Days', 'Daily Rate'],
+        editableFields: ['overhead', 'classification', 'subClassification', 'days', 'dailyRate']
     },
     {
         id: 'Subcontractor', title: 'Subcontractor', key: 'subcontractor',
@@ -473,14 +473,6 @@ export default function EstimateViewPage() {
                         total = calculateMaterialTotal(item);
                         break;
                     case 'Overhead':
-                        if (item.days !== undefined) {
-                            const days = parseNum(item.days);
-                            const hours = days * 8;
-                            const calculatedItem = { ...item, hours };
-                            total = calculateOverheadTotal(calculatedItem);
-                            // Return item with enforced hours
-                            return { ...item, hours, total };
-                        }
                         total = calculateOverheadTotal(item);
                         break;
                     default:

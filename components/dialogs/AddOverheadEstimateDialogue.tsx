@@ -149,7 +149,7 @@ export function AddOverheadEstimateDialogue({
             for (const item of Array.from(selectedItems)) {
                 if (existingIdentifiers.has(getIdentifier(item))) continue;
                 const { _id, ...itemData } = item;
-                await onSave(section, { ...itemData, days: 1, hours: 8 }, false);
+                await onSave(section, { ...itemData, days: 1 }, false);
             }
             onClose();
         } finally {
@@ -190,7 +190,7 @@ export function AddOverheadEstimateDialogue({
         }
     };
 
-    const displayCols = useMemo(() => ['overhead', 'classification', 'subClassification', 'hourlyRate', 'dailyRate'], []);
+    const displayCols = useMemo(() => ['overhead', 'classification', 'subClassification', 'dailyRate'], []);
 
     return (
         <>

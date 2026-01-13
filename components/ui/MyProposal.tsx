@@ -373,9 +373,10 @@ export function MyProposal({
                                 <button
                                     onClick={onCreateTemplate}
                                     title="Create New Template"
-                                    className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                    className="h-8 px-3 rounded-lg text-[11px] font-bold text-gray-500 hover:text-blue-600 hover:bg-blue-50 flex items-center gap-1.5 transition-all"
                                 >
                                     <FilePlus className="w-4 h-4" />
+                                    Create Template
                                 </button>
                             )}
                             
@@ -383,18 +384,20 @@ export function MyProposal({
                                 onClick={() => setShowUpdateConfirm(true)}
                                 disabled={isSaving || selectedTemplateId === 'empty' || selectedTemplateId === 'custom'}
                                 title={selectedTemplateId === 'empty' || selectedTemplateId === 'custom' ? "Select a template to update" : "Update Main Template"}
-                                className="p-2 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="h-8 px-3 rounded-lg text-[11px] font-bold text-amber-600 hover:text-amber-700 hover:bg-amber-50 flex items-center gap-1.5 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                             >
                                 <Upload className="w-4 h-4" />
+                                Update Template
                             </button>
                             
                             <button
                                 onClick={onSaveChanges}
                                 disabled={isSaving}
                                 title="Save Changes to Proposal"
-                                className="p-2 rounded-lg text-green-600 hover:text-green-700 hover:bg-green-50 transition-all disabled:opacity-50"
+                                className="h-8 px-3 rounded-lg text-[11px] font-bold text-green-600 hover:text-green-700 hover:bg-green-50 flex items-center gap-1.5 transition-all disabled:opacity-50"
                             >
                                 <Save className="w-4 h-4" />
+                                Save
                             </button>
                         </div>
                     </>
@@ -521,33 +524,36 @@ export function MyProposal({
                                 </select>
                             )}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2">
                             {!isExactMatch && (
                                 <button
                                     onClick={onCreateTemplate}
                                     title="Create New Template"
-                                    className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                    className="h-8 px-3 rounded-lg text-[11px] font-bold text-gray-500 hover:text-blue-600 hover:bg-blue-50 flex items-center gap-1.5 transition-all"
                                 >
                                     <FilePlus className="w-4 h-4" />
+                                    Create Template
                                 </button>
                             )}
                             
                             <button 
                                 onClick={onDownloadPdf} 
                                 title="Download PDF"
-                                className="p-2 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all disabled:opacity-50"
+                                className="h-8 px-3 rounded-lg text-[11px] font-bold text-gray-500 hover:text-blue-600 hover:bg-blue-50 flex items-center gap-1.5 transition-all disabled:opacity-50"
                                 disabled={isGenerating || !previewHtml}
                             >
                                 <Download className="w-4 h-4" />
+                                PDF
                             </button>
                             
                             <button 
                                 onClick={onEditStart} 
                                 title="Edit Proposal"
-                                className="p-2 rounded-lg text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all disabled:opacity-50"
+                                className="h-8 px-3 rounded-lg text-[11px] font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 flex items-center gap-1.5 transition-all disabled:opacity-50"
                                 disabled={isGenerating}
                             >
                                 <Pencil className="w-4 h-4" />
+                                Edit
                             </button>
                         </div>
                     </>

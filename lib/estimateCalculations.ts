@@ -181,9 +181,9 @@ export function calculateSimpleTotal(item: Record<string, unknown>): number {
  * Calculate overhead total
  */
 export function calculateOverheadTotal(item: Record<string, unknown>): number {
-    const hours = parseNum(item.hours);
-    const hourlyRate = parseNum(item.hourlyRate);
-    return hours * hourlyRate;
+    const days = parseNum(item.days);
+    const dailyRate = parseNum(item.dailyRate);
+    return days * dailyRate;
 }
 
 /**
