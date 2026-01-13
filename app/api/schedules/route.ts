@@ -194,11 +194,35 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ success: false, error: 'Missing required fields' });
                 }
 
-                // Check if timesheet already exists for this employee on this schedule
+                // Fetch the schedule
                 const schedule = await Schedule.findById(timesheet.scheduleId);
                 if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
 
-                const existingIndex = (schedule.timesheet || []).findIndex(ts => ts.employee === timesheet.employee);
+                // For Drive Time, we need to find an ACTIVE one (no clockOut) to update
+                // OR create a new entry if none exists
+                let existingIndex = -1;
+                
+                if (timesheet._id) {
+                    // If we have an _id, find that specific timesheet
+                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
+                        String(ts._id) === String(timesheet._id)
+                    );
+                } else if (timesheet.type === 'Drive Time' && timesheet.clockIn && !timesheet.clockOut) {
+                    // For new Drive Time entries, always push new (don't update existing)
+                    existingIndex = -1;
+                } else if (timesheet.type === 'Drive Time' && timesheet.clockOut) {
+                    // Stopping Drive Time: find the active one for this employee
+                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
+                        ts.employee === timesheet.employee && 
+                        ts.type === 'Drive Time' && 
+                        (!ts.clockOut || ts.clockOut === '' || ts.clockOut === null)
+                    );
+                } else {
+                    // For other types, find by employee and type
+                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
+                        ts.employee === timesheet.employee && ts.type === timesheet.type
+                    );
+                }
                 
                 if (existingIndex > -1) {
                     // Update existing

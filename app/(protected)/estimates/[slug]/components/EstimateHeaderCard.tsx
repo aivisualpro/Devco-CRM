@@ -730,6 +730,7 @@ export function EstimateHeaderCard({
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter') setActiveDropdown(null);
                                                 }}
+                                                onWheel={(e) => e.currentTarget.blur()}
                                                 autoFocus
                                                 className="w-full bg-transparent text-base font-bold text-slate-700 h-full px-3 outline-none text-center"
                                                 placeholder="0"

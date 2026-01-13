@@ -531,18 +531,18 @@ export default function DashboardPage() {
        };
 
        try {
-           const position = await getPosition();
-           const { latitude, longitude } = position.coords;
+            const position = await getPosition();
+            const { latitude, longitude } = position.coords;
 
-           if (activeDriveTime) {
-               // STOP DRIVE TIME
-               let distance = 0;
-               if (activeDriveTime.locationIn) {
-                   const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
-                   if (!isNaN(startLat) && !isNaN(startLng)) {
-                       distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
-                   }
-               }
+            if (activeDriveTime) {
+                // STOP DRIVE TIME
+                let distance = 0;
+                if (activeDriveTime.locationIn) {
+                    const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
+                    if (!isNaN(startLat) && !isNaN(startLng)) {
+                        distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
+                    }
+                }
 
                 const finalTimesheet = {
                     ...activeDriveTime,
@@ -551,59 +551,109 @@ export default function DashboardPage() {
                     distance: distance ? parseFloat(distance.toFixed(2)) : 0
                 };
 
-               const res = await fetch('/api/schedules', {
-                   method: 'POST',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({
-                       action: 'saveIndividualTimesheet',
-                       payload: { timesheet: finalTimesheet }
-                   })
-               });
-               const data = await res.json();
-               if (data.success) {
-                   success('Drive Time Stopped');
-                   fetchDailySchedules(scheduleDate);
-               } else {
-                   toastError(data.error || 'Failed to stop drive time');
-               }
+                // OPTIMISTIC UPDATE: Update UI immediately
+                setDailySchedules(prev => prev.map(s => {
+                    if (s._id !== schedule._id) return s;
+                    return {
+                        ...s,
+                        timesheet: (s.timesheet || []).map((ts: any) => 
+                            ts._id === activeDriveTime._id ? finalTimesheet : ts
+                        )
+                    };
+                }));
+                success('Drive Time Stopped');
 
-           } else {
-               // START DRIVE TIME
-               // Check if user already has an active drive time on ANY schedule
-               if (globalActiveDriveTime) {
-                   toastError(`You already have an active drive time on "${globalActiveDriveTime.scheduleTitle}". Please stop it first.`);
-                   return;
-               }
+                // API call in background
+                fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'saveIndividualTimesheet',
+                        payload: { timesheet: finalTimesheet }
+                    })
+                }).then(res => res.json()).then(data => {
+                    if (!data.success) {
+                        toastError(data.error || 'Failed to save - reverting');
+                        fetchDailySchedules(scheduleDate);
+                    }
+                }).catch(() => {
+                    toastError('Failed to save - reverting');
+                    fetchDailySchedules(scheduleDate);
+                });
 
-               const newTimesheet = {
-                   scheduleId: schedule._id,
-                   employee: employeeEmail,
-                   clockIn: new Date().toISOString(),
-                   locationIn: `${latitude},${longitude}`,
-                   type: 'Drive Time',
-                   status: 'Pending'
-               };
+            } else {
+                // START DRIVE TIME
+                const tempId = `temp-${Date.now()}`;
+                const newTimesheet = {
+                    _id: tempId,
+                    scheduleId: schedule._id,
+                    employee: employeeEmail,
+                    clockIn: new Date().toISOString(),
+                    locationIn: `${latitude},${longitude}`,
+                    type: 'Drive Time',
+                    status: 'Pending'
+                };
 
-               const res = await fetch('/api/schedules', {
-                   method: 'POST',
-                   headers: { 'Content-Type': 'application/json' },
-                   body: JSON.stringify({
-                       action: 'saveIndividualTimesheet',
-                       payload: { timesheet: newTimesheet }
-                   })
-               });
-               const data = await res.json();
-               if (data.success) {
-                   success('Drive Time Started');
-                   fetchDailySchedules(scheduleDate);
-               } else {
-                   toastError(data.error || 'Failed to start drive time');
-               }
-           }
-       } catch (error) {
-           console.error(error);
-           toastError("Unable to retrieve location or save data.");
-       }
+                // OPTIMISTIC UPDATE: Update UI immediately
+                setDailySchedules(prev => prev.map(s => {
+                    if (s._id !== schedule._id) return s;
+                    return {
+                        ...s,
+                        timesheet: [...(s.timesheet || []), newTimesheet]
+                    };
+                }));
+                success('Drive Time Started');
+
+                // API call in background
+                fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'saveIndividualTimesheet',
+                        payload: { timesheet: newTimesheet }
+                    })
+                }).then(res => res.json()).then(data => {
+                    if (data.success && data.result) {
+                        // Update with real ID from server
+                        const savedTimesheet = data.result.timesheet?.find((ts: any) => 
+                            ts.employee === employeeEmail && ts.clockIn === newTimesheet.clockIn
+                        );
+                        if (savedTimesheet) {
+                            setDailySchedules(prev => prev.map(s => {
+                                if (s._id !== schedule._id) return s;
+                                return {
+                                    ...s,
+                                    timesheet: (s.timesheet || []).map((ts: any) => 
+                                        ts._id === tempId ? { ...ts, _id: savedTimesheet._id } : ts
+                                    )
+                                };
+                            }));
+                        }
+                    } else {
+                        toastError(data.error || 'Failed to save - reverting');
+                        setDailySchedules(prev => prev.map(s => {
+                            if (s._id !== schedule._id) return s;
+                            return {
+                                ...s,
+                                timesheet: (s.timesheet || []).filter((ts: any) => ts._id !== tempId)
+                            };
+                        }));
+                    }
+                }).catch(() => {
+                    toastError('Failed to save - reverting');
+                    setDailySchedules(prev => prev.map(s => {
+                        if (s._id !== schedule._id) return s;
+                        return {
+                            ...s,
+                            timesheet: (s.timesheet || []).filter((ts: any) => ts._id !== tempId)
+                        };
+                    }));
+                });
+            }
+        } catch (error) {
+            console.error(error);
+            toastError("Unable to retrieve location or save data.");
+        }
     };
 
     const handleSaveJHAForm = async (e: React.FormEvent) => {
