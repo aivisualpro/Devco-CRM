@@ -2002,94 +2002,30 @@ export default function SchedulePage() {
                                                 </h3>
                                             </div>
 
-                                            {/* Row 3: Job Location */}
-
-
-                                            {/* Row 4: Estimate # and Project Name */}
-                                            <div className="flex items-center gap-2 mb-3">
+                                            {/* Row 3: Estimate # & Date/Time */}
+                                            <div className="flex flex-col gap-1 mb-3">
                                                 {item.estimate && (
-                                                    <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                                    <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full w-fit">
                                                         {item.estimate.replace(/-[vV]\d+$/, '')}
                                                     </span>
                                                 )}
-                                                {item.description && (
-                                                    <span className="text-[10px] sm:text-[11px] font-medium text-slate-500 truncate">
-                                                        {item.description.split('\n')[0]?.substring(0, 30)}
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {/* Row 5: Assignees (left) + Service/Fringe/etc badges (right) */}
-                                            <div className="flex items-center justify-between mb-3">
-                                                {/* Assignees - left side */}
-                                                <div className="flex -space-x-2">
-                                                    {(item.assignees || []).filter(Boolean).slice(0, 4).map((email, i) => {
-                                                        const emp = initialData.employees.find(e => e.value === email);
-                                                        return (
-                                                            <div key={i} className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
-                                                                {emp?.image ? (
-                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    email?.[0]?.toUpperCase() || '?'
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                    {(item.assignees || []).filter(Boolean).length > 4 && (
-                                                        <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#38A169] border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold text-white shadow-sm">
-                                                            +{(item.assignees?.filter(Boolean).length || 0) - 4}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-                                                {/* Service, Fringe, Certified Payroll, Notified, Per Diem - right side */}
-                                                <div className="flex -space-x-1.5">
-                                                    {[
-                                                        { val: item.service, label: 'SV' },
-                                                        { val: item.fringe, label: 'FR' },
-                                                        { val: item.certifiedPayroll, label: 'CP' },
-                                                        { val: item.notifyAssignees, label: 'NA' },
-                                                        { val: item.perDiem, label: 'PD' }
-                                                    ].filter(attr => attr.val && attr.val !== 'No' && attr.val !== '-' && attr.val !== '').map((attr, i) => {
-                                                        // Look up in constants by description
-                                                        const constant = initialData.constants.find(c => c.description === attr.val);
-                                                        const hasImage = constant?.image;
-                                                        const hasColor = constant?.color;
-
-                                                        return (
-                                                            <div
-                                                                key={i}
-                                                                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full border border-white flex items-center justify-center text-[7px] sm:text-[8px] font-bold shadow-sm overflow-hidden"
-                                                                style={{
-                                                                    backgroundColor: hasColor || '#64748b',
-                                                                    color: 'white'
-                                                                }}
-                                                                title={`${attr.label}: ${attr.val}`}
-                                                            >
-                                                                {hasImage ? (
-                                                                    <img src={hasImage} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    attr.label
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
+                                                <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
+                                                    <span>{new Date(item.fromDate).toLocaleDateString()}</span>
+                                                    <span className="text-slate-300">|</span>
+                                                    <span>{extractTimeFromDateTime(item.fromDate)}</span>
+                                                    <span>-</span>
+                                                    <span>{extractTimeFromDateTime(item.toDate)}</span>
                                                 </div>
                                             </div>
 
-                                            {/* Row 6: Date (left) + PM/Foreman/SD (right) */}
+                                            {/* Bottom: Actions & Personnel */}
                                             <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
-                                                {/* Date - left side */}
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100/50 flex items-center justify-center text-emerald-600">
-                                                        <Clock size={12} />
-                                                    </div>
-                                                    <span className="text-[11px] sm:text-xs font-bold text-slate-700">
-                                                        {new Date(item.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                                    </span>
+                                                {/* Actions: JHA, DJT, Timesheet */}
+                                                <div className="flex items-center -space-x-1">
+                                                    {/* JHA */}
                                                     {item.hasJHA ? (
                                                         <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-orange-100 text-orange-600 ml-1 hover:bg-orange-200 transition-colors cursor-pointer" 
+                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                             title="View JHA"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -2102,15 +2038,14 @@ export default function SchedulePage() {
                                                                 setJhaModalOpen(true);
                                                             }}
                                                         >
-                                                            <ShieldCheck size={12} />
+                                                            <ShieldCheck size={12} strokeWidth={2.5} />
                                                         </div>
                                                     ) : (
                                                         <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer" 
+                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                             title="Create JHA"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                // Initialize new JHA
                                                                 setSelectedJHA({
                                                                     schedule_id: item._id,
                                                                     date: new Date(),
@@ -2123,12 +2058,14 @@ export default function SchedulePage() {
                                                                 setJhaModalOpen(true);
                                                             }}
                                                         >
-                                                            <Shield size={12} />
+                                                            <Shield size={12} strokeWidth={2.5} />
                                                         </div>
                                                     )}
+
+                                                    {/* DJT */}
                                                     {item.hasDJT ? (
                                                         <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-indigo-100 text-indigo-600 ml-1 hover:bg-indigo-200 transition-colors cursor-pointer" 
+                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                             title="View DJT"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -2141,11 +2078,11 @@ export default function SchedulePage() {
                                                                 setDjtModalOpen(true);
                                                             }}
                                                         >
-                                                            <FileCheck size={12} />
+                                                            <FileCheck size={12} strokeWidth={2.5} />
                                                         </div>
                                                     ) : (
                                                         <div 
-                                                            className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer" 
+                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                             title="Create DJT"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -2154,7 +2091,7 @@ export default function SchedulePage() {
                                                                     dailyJobDescription: '',
                                                                     customerPrintName: '',
                                                                     customerSignature: '',
-                                                                    createdBy: '', // Will be filled by user or system
+                                                                    createdBy: '', 
                                                                     clientEmail: '',
                                                                     emailCounter: 0
                                                                 });
@@ -2162,23 +2099,23 @@ export default function SchedulePage() {
                                                                 setDjtModalOpen(true);
                                                             }}
                                                         >
-                                                            <FilePlus size={12} />
+                                                            <FilePlus size={12} strokeWidth={2.5} />
                                                         </div>
                                                     )}
+                                                    
+                                                     {/* Timesheet */}
                                                     {(() => {
                                                         const userTimesheet = item.timesheet?.find(ts => ts.employee === currentUser?.email);
                                                         if (userTimesheet) {
                                                             return (
                                                                  <div 
-                                                                     className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-emerald-100 text-emerald-600 ml-1 hover:bg-emerald-200 transition-colors cursor-pointer" 
+                                                                     className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                      title="View My Timesheet"
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
                                                                          setSelectedTimesheet({
                                                                              ...userTimesheet,
-                                                                             // Keep full strings for view mode
                                                                              clockIn: userTimesheet.clockIn || item.fromDate,
-                                                                             // UI helpers for edit mode
                                                                              lunchStartTime: userTimesheet.lunchStart ? extractTimeFromDateTime(userTimesheet.lunchStart) : '',
                                                                              lunchEndTime: userTimesheet.lunchEnd ? extractTimeFromDateTime(userTimesheet.lunchEnd) : '',
                                                                          });
@@ -2186,20 +2123,20 @@ export default function SchedulePage() {
                                                                          setTimesheetModalOpen(true);
                                                                      }}
                                                                  >
-                                                                     <ClockCheck size={12} />
+                                                                     <ClockCheck size={12} strokeWidth={2.5} />
                                                                  </div>
                                                             );
                                                         } else {
                                                             return (
                                                                 <div 
-                                                                     className="relative z-10 flex items-center justify-center w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 ml-1 hover:bg-emerald-100 hover:text-emerald-600 transition-colors cursor-pointer" 
+                                                                     className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-emerald-100 hover:text-emerald-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                      title="Register Timesheet"
                                                                      onClick={(e) => {
                                                                          e.stopPropagation();
                                                                          setSelectedTimesheet({
                                                                              scheduleId: item._id,
                                                                              employee: currentUser?.email,
-                                                                             clockIn: item.fromDate, // Rule: Clockin is the fromDate
+                                                                             clockIn: item.fromDate, 
                                                                              lunchStartTime: '',
                                                                              lunchEndTime: '',
                                                                              comments: '',
@@ -2209,23 +2146,27 @@ export default function SchedulePage() {
                                                                          setTimesheetModalOpen(true);
                                                                      }}
                                                                  >
-                                                                     <Timer size={12} />
+                                                                     <Timer size={12} strokeWidth={2.5} />
                                                                  </div>
                                                             );
                                                         }
                                                     })()}
                                                 </div>
 
-                                                {/* PM / Foreman / SD - right side */}
-                                                <div className="flex -space-x-1.5">
-                                                    {[item.projectManager, item.foremanName].filter(Boolean).map((email, i) => {
+                                                {/* PM / Foreman / Assignees - mixed or separate? Card requested PM/Foreman specifically */}
+                                                <div className="flex items-center -space-x-1.5">
+                                                     {/* PM and Foreman */}
+                                                    {[item.projectManager, item.foremanName].map((email, i) => {
+                                                        if (!email) return null;
                                                         const emp = initialData.employees.find(e => e.value === email);
-                                                        const labels = ['PM', 'FM'];
+                                                        const labels = ['P', 'F']; 
+                                                        const colors = ['bg-[#0F4C75]', 'bg-[#10B981]'];
+                                                        
                                                         return (
                                                             <div
                                                                 key={i}
-                                                                className="w-6 h-6 sm:w-7 sm:h-7 rounded-full border-2 border-white flex items-center justify-center text-[8px] sm:text-[9px] font-bold shadow-sm overflow-hidden bg-[#0F4C75] text-white"
-                                                                title={`${labels[i]}: ${emp?.label || email}`}
+                                                                className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
+                                                                title={`${i === 0 ? 'Project Manager' : 'Foreman'}: ${emp?.label || email}`}
                                                             >
                                                                 {emp?.image ? (
                                                                     <img src={emp.image} alt="" className="w-full h-full object-cover" />
@@ -2235,6 +2176,9 @@ export default function SchedulePage() {
                                                             </div>
                                                         );
                                                     })}
+                                                    
+                                                    {/* Assignees (Optional: maybe hide if card too busy, or show small +count?) */}
+                                                     {/* Leaving assignees out of bottom row per specific design request for "project manager, foreman" */}
                                                 </div>
                                             </div>
 
