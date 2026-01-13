@@ -2715,7 +2715,15 @@ export default function SchedulePage() {
                                     type="datetime-local"
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                                     value={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, fromDate: e.target.value })}
+                                    onChange={(e) => {
+                                        const newFrom = e.target.value;
+                                        setEditingItem(prev => ({ 
+                                            ...prev, 
+                                            fromDate: newFrom,
+                                            // Auto-update To Date if it's empty or less than new From Date, or just convenience sync
+                                            toDate: (prev?.toDate && newFrom <= prev.toDate) ? prev.toDate : newFrom
+                                        }));
+                                    }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
@@ -2730,6 +2738,7 @@ export default function SchedulePage() {
                                     id="schedToDate"
                                     type="datetime-local"
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                    min={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : undefined}
                                     value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
                                     onKeyDown={(e) => {
