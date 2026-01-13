@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, RefreshCw, UploadCloud } from 'lucide-react';
+import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, RefreshCw } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
 import Papa from 'papaparse';
 import { z } from 'zod';
@@ -596,7 +596,7 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
-                                    <TableHeader className="w-16"><span className="sr-only">Actions</span></TableHeader>
+                                    <TableHeader className="w-10"><span className="sr-only">Actions</span></TableHeader>
 
                                 </TableRow>
                             </TableHead>
@@ -714,24 +714,14 @@ export default function EstimatesPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="flex items-center gap-1 justify-end">
-                                                        <button
-                                                            onClick={(e) => handleSync(e, est._id, 'Add')}
-                                                            disabled={syncingId === est._id}
-                                                            className={`p-1.5 rounded-full hover:bg-gray-100 transition-all ${syncingId === est._id ? 'text-gray-300' : 'text-gray-400 hover:text-green-600'}`}
-                                                            title="Add to AppSheet (New Record)"
-                                                        >
-                                                            <UploadCloud className="w-3.5 h-3.5" />
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => handleSync(e, est._id, 'Smart')}
-                                                            disabled={syncingId === est._id}
-                                                            className={`p-1.5 rounded-full hover:bg-gray-100 transition-all ${syncingId === est._id ? 'text-gray-300' : 'text-gray-400 hover:text-blue-600'}`}
-                                                            title="Sync to AppSheet (Update)"
-                                                        >
-                                                            <RefreshCw className={`w-3.5 h-3.5 ${syncingId === est._id ? 'animate-spin' : ''}`} />
-                                                        </button>
-                                                    </div>
+                                                    <button
+                                                        onClick={(e) => handleSync(e, est._id)}
+                                                        disabled={syncingId === est._id}
+                                                        className={`p-1.5 rounded-full hover:bg-gray-100 transition-all ${syncingId === est._id ? 'text-gray-400' : 'text-gray-400 hover:text-blue-600'}`}
+                                                        title="Sync to AppSheet"
+                                                    >
+                                                        <RefreshCw className={`w-3.5 h-3.5 ${syncingId === est._id ? 'animate-spin' : ''}`} />
+                                                    </button>
                                                 </TableCell>
 
                                             </TableRow>
