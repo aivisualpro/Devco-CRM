@@ -34,7 +34,7 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
         if (item.assignees && Array.isArray(item.assignees) && item.assignees.length > 0) {
             try {
                 // If it IS emails (which frontend sends), we just join them.
-                assigneesList = item.assignees.join(', ');
+                assigneesList = item.assignees.join(',');
             } catch (e) {
                 assigneesList = String(item.assignees || "");
             }
