@@ -271,9 +271,10 @@ export function MyDropDown({
                     {/* Add New Option */}
                     {onAdd && search && !filteredOptions.find(o => o.label.toLowerCase() === search.toLowerCase()) && (
                         <div
-                            onClick={(e) => {
+                            onMouseDown={async (e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
-                                handleAddNew();
+                                await handleAddNew();
                             }}
                             className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/50 border border-dashed border-slate-300 transition-all text-blue-600"
                         >
