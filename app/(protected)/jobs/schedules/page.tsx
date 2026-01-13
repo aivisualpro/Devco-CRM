@@ -2720,6 +2720,12 @@ export default function SchedulePage() {
                                             toDate: (prev?.toDate && newFrom <= prev.toDate) ? prev.toDate : newFrom
                                         }));
                                     }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            document.getElementById('schedToDate')?.focus();
+                                        }
+                                    }}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -2731,6 +2737,12 @@ export default function SchedulePage() {
                                     min={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : undefined}
                                     value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            document.getElementById('schedPM')?.focus();
+                                        }
+                                    }}
                                 />
                             </div>
                         </div>
@@ -2751,6 +2763,7 @@ export default function SchedulePage() {
                                         }))}
                                     value={editingItem?.projectManager || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
+                                    onNext={() => document.getElementById('schedForeman')?.focus()}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -2767,6 +2780,7 @@ export default function SchedulePage() {
                                         }))}
                                     value={editingItem?.foremanName || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
+                                    onNext={() => document.getElementById('schedTeam')?.focus()}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -2786,6 +2800,7 @@ export default function SchedulePage() {
                                     onChange={(val) => {
                                         setEditingItem(prev => ({ ...prev, assignees: val }));
                                     }}
+                                    onNext={() => document.getElementById('schedDesc')?.focus()}
                                 />
                             </div>
                         </div>
@@ -2905,7 +2920,7 @@ export default function SchedulePage() {
                                     }))}
                                     value={editingItem?.certifiedPayroll || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, certifiedPayroll: val })}
-                                    onNext={() => document.getElementById('schedTeam')?.focus()}
+                                    onNext={() => document.getElementById('schedAerial')?.focus()}
                                 />
                             </div>
                         </div>
