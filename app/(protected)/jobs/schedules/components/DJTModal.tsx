@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-    CheckCircle2, Edit, FilePlus
+    CheckCircle2, Edit, FilePlus, Clock
 } from 'lucide-react';
 import { Modal, EmptyState } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
@@ -13,11 +13,12 @@ interface DJTModalProps {
     isEditMode: boolean;
     setIsEditMode: (mode: boolean) => void;
     handleSave: (e: React.FormEvent) => void;
-    handleSaveSignature: (signature: string) => void;
+    handleSaveSignature: (data: any) => void;
     initialData: any;
     schedules: any[];
     activeSignatureEmployee: string | null;
     setActiveSignatureEmployee: (id: string | null) => void;
+    isSavingSignature?: boolean;
 }
 
 export const DJTModal = ({
@@ -32,8 +33,18 @@ export const DJTModal = ({
     initialData,
     schedules,
     activeSignatureEmployee,
-    setActiveSignatureEmployee
+    setActiveSignatureEmployee,
+    isSavingSignature = false
 }: DJTModalProps) => {
+    const [lunchStart, setLunchStart] = useState('12:00');
+    const [lunchEnd, setLunchEnd] = useState('12:30');
+
+    useEffect(() => {
+        if (activeSignatureEmployee) {
+            setLunchStart('12:00');
+            setLunchEnd('12:30');
+        }
+    }, [activeSignatureEmployee]);
 
     return (
         <Modal
@@ -144,19 +155,58 @@ export const DJTModal = ({
                                 
                                 {activeSignatureEmployee ? (
                                     <div className="max-w-md">
+                                        <div className="mb-4 grid grid-cols-2 gap-4 bg-slate-50/80 p-3 rounded-xl border border-slate-100 shadow-sm">
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                    <Clock size={10} className="text-[#0F4C75]" />
+                                                    Lunch Start
+                                                </label>
+                                                <div className="relative group">
+                                                    <input 
+                                                        type="time" 
+                                                        value={lunchStart}
+                                                        onChange={(e) => setLunchStart(e.target.value)}
+                                                        className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                    <Clock size={10} className="text-[#0F4C75]" />
+                                                    Lunch End
+                                                </label>
+                                                <div className="relative group">
+                                                    <input 
+                                                        type="time" 
+                                                        value={lunchEnd}
+                                                        onChange={(e) => setLunchEnd(e.target.value)}
+                                                        className="w-full text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] transition-all"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
                                         <div className="border border-slate-200 rounded-lg overflow-hidden">
                                              <SignaturePad 
+                                                isLoading={isSavingSignature}
                                                 employeeName={initialData.employees.find((e: any) => e.value === activeSignatureEmployee)?.label || activeSignatureEmployee}
-                                                onSave={handleSaveSignature} 
+                                                onSave={(sigUrl) => handleSaveSignature({
+                                                    signature: sigUrl,
+                                                    lunchStart,
+                                                    lunchEnd
+                                                })} 
                                             />
                                         </div>
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setActiveSignatureEmployee(null)} 
-                                            className="mt-2 text-xs text-slate-500 hover:text-slate-900 underline"
-                                        >
-                                            Cancel Signing
-                                        </button>
+                                        {isSavingSignature ? (
+                                            <p className="mt-2 text-xs text-slate-400 italic text-center animate-pulse">Saving signature and syncing timesheet...</p>
+                                        ) : (
+                                            <button 
+                                                type="button" 
+                                                onClick={() => setActiveSignatureEmployee(null)} 
+                                                className="mt-2 text-xs text-slate-500 hover:text-rose-500 hover:underline w-full text-center transition-colors"
+                                            >
+                                                Cancel Signing
+                                            </button>
+                                        )}
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -173,33 +223,60 @@ export const DJTModal = ({
                                                 const emp = initialData.employees.find((e: any) => e.value === email);
                                                 const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
                                                 
+                                                // Check for timesheet data existence - logic to display clock in/out if available
+                                                // Ideally, we would have timesheet data attached to the schedule or djt object.
+                                                // Assuming schedule.timesheet array exists and we can match by employee and date.
+                                                // But 'schedule' here comes from 'schedules' prop.
+                                                
+                                                const timesheet = schedule?.timesheet?.find((t: any) => t.employee === email);
+                                                // Note: This matches ANY timesheet for this employee on this schedule. 
+                                                // If there are multiple, it picks first. Basic logic for now.
+
                                                 return (
                                                     <div key={email} className={`relative p-3 rounded-lg border transition-all ${sig ? 'bg-white border-green-200' : 'bg-slate-50 border-slate-200 hover:border-slate-300'}`}>
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-8 h-8 rounded-full bg-white border border-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 shrink-0 uppercase">
                                                                 {emp?.image ? <img src={emp.image} className="w-full h-full rounded-full object-cover" /> : emp?.label?.[0]}
                                                             </div>
-                                                            <div className="overflow-hidden">
+                                                            <div className="overflow-hidden min-w-0 flex-1">
                                                                 <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || email}</p>
-                                                                <p className="text-[10px] text-slate-400">{sig ? 'Signed' : 'Pending'}</p>
+                                                                <p className="text-[10px] text-slate-400">{sig ? 'Signed & Clocked Out' : 'Pending'}</p>
                                                             </div>
                                                         </div>
                                                         
                                                         {sig ? (
-                                                            <div className="h-10 border-t border-slate-50 mt-2 flex items-center justify-center">
-                                                                <img src={sig.signature} className="max-h-full max-w-full object-contain opacity-80" />
+                                                            <div className="mt-3 space-y-3">
+                                                                <div className="h-12 border-t border-slate-50 flex items-center justify-center py-1">
+                                                                    <img src={sig.signature} className="max-h-full max-w-full object-contain opacity-90" />
+                                                                </div>
+                                                                {timesheet && (
+                                                                    <div className="grid grid-cols-2 gap-px bg-slate-100 rounded-lg overflow-hidden border border-slate-100">
+                                                                        <div className="bg-slate-50 p-2 flex flex-col items-center">
+                                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Clock In</span>
+                                                                            <span className="text-xs font-black text-slate-700 font-mono">
+                                                                                {new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
+                                                                            </span>
+                                                                        </div>
+                                                                        <div className="bg-slate-50 p-2 flex flex-col items-center">
+                                                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Clock Out</span>
+                                                                            <span className="text-xs font-black text-slate-700 font-mono">
+                                                                                {new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ) : (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => setActiveSignatureEmployee(email)}
-                                                                className="w-full py-1.5 mt-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-md transition-colors flex items-center justify-center gap-1"
+                                                                className="w-full py-2 mt-3 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm"
                                                             >
                                                                 <Edit size={12} /> Sign
                                                             </button>
                                                         )}
                                                         {sig && (
-                                                                <div className="absolute top-2 right-2 text-green-500"><CheckCircle2 size={12} /></div>
+                                                                <div className="absolute top-2 right-2 text-green-500"><CheckCircle2 size={16} /></div>
                                                         )}
                                                     </div>
                                                 );

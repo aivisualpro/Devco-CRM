@@ -9,7 +9,7 @@ import {
     Clock, MoreHorizontal, Briefcase, FileSpreadsheet,
     Calendar, DollarSign, ClipboardCheck, AlertTriangle,
     Settings, BarChart3, FileCheck, Shield, ShieldCheck, Plus, Sparkles,
-    ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail
+    ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle
 } from 'lucide-react';
 import { Header, Modal, Badge, EmptyState } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, TabsContent, BadgeTabs } from '@/components/ui/Tabs';
@@ -27,6 +27,24 @@ interface Stats {
     activeEstimates: number;
     completedEstimates: number;
     totalValue: number;
+}
+
+function deg2rad(deg: number) {
+    return deg * (Math.PI / 180);
+}
+
+function getDistanceFromLatLonInMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
+    var R = 3958.8; // Radius of the earth in miles
+    var dLat = deg2rad(lat2 - lat1);  // deg2rad below
+    var dLon = deg2rad(lon2 - lon1);
+    var a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        ;
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    var d = R * c; // Distance in miles
+    return d;
 }
 
 export default function DashboardPage() {
@@ -73,6 +91,7 @@ export default function DashboardPage() {
     const [djtModalOpen, setDjtModalOpen] = useState(false);
     const [selectedDJT, setSelectedDJT] = useState<any>(null);
     const [isDjtEditMode, setIsDjtEditMode] = useState(false);
+    const [isSavingSignature, setIsSavingSignature] = useState(false);
 
     // Timesheet State
     const [timesheetModalOpen, setTimesheetModalOpen] = useState(false);
@@ -122,6 +141,32 @@ export default function DashboardPage() {
                    item.foremanName === currentUser.email || 
                    (item.assignees || []).includes(currentUser.email);
         });
+    }, [dailySchedules, currentUser]);
+
+    // Check for any active drive time across ALL schedules for the current user
+    // Active = clockOut is not set (undefined/null/empty) - meaning still in progress
+    const globalActiveDriveTime = useMemo(() => {
+        if (!currentUser?.email) return null;
+        for (const schedule of dailySchedules) {
+            const activeTs = (schedule.timesheet || []).find((ts: any) => {
+                if (ts.employee !== currentUser.email) return false;
+                if (ts.type !== 'Drive Time') return false;
+                
+                // Check if clockOut is NOT set (active drive time)
+                // clockOut must be undefined, null, or empty string to be considered active
+                const clockOutValue = ts.clockOut;
+                const isActive = clockOutValue === undefined || 
+                                 clockOutValue === null || 
+                                 clockOutValue === '' ||
+                                 (typeof clockOutValue === 'string' && clockOutValue.trim() === '');
+                
+                return isActive;
+            });
+            if (activeTs) {
+                return { ...activeTs, scheduleTitle: schedule.title, scheduleId: schedule._id };
+            }
+        }
+        return null;
     }, [dailySchedules, currentUser]);
 
     const formatLocalDate = (dateInput: string | Date) => {
@@ -404,6 +449,163 @@ export default function DashboardPage() {
         });
     };
 
+    // Helper functions for distance calculation
+    const deg2rad = (deg: number) => {
+        return deg * (Math.PI / 180);
+    };
+
+    const getDistanceFromLatLonInMiles = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Radius of the earth in km
+        const dLat = deg2rad(lat2 - lat1);
+        const dLon = deg2rad(lon2 - lon1);
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distanceKm = R * c; // Distance in km
+        return distanceKm * 0.621371; // Convert to miles
+    };
+
+    const DriveTimeTimer = ({ startTime }: { startTime: string }) => {
+        const [duration, setDuration] = useState('00:00:00');
+
+        useEffect(() => {
+            const timer = setInterval(() => {
+                if (!startTime) return;
+                const start = new Date(startTime).getTime();
+                const now = new Date().getTime();
+                const diff = now - start;
+                
+                if (diff < 0) {
+                     setDuration('00:00:00');
+                     return;
+                }
+
+                const hours = Math.floor(diff / (1000 * 60 * 60));
+                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+                setDuration(
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+                );
+            }, 1000);
+
+            return () => clearInterval(timer);
+        }, [startTime]);
+
+        return (
+            <div className="ml-2 text-xs font-mono font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 min-w-[60px] text-center">
+                {duration}
+            </div>
+        );
+    };
+
+    // Drive Time Logic
+    const handleDriveTimeToggle = async (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {
+       e.stopPropagation();
+       
+       let employeeEmail = currentUser?.email;
+       // Fallback if currentUser is missing context
+       if (!employeeEmail && typeof window !== 'undefined') {
+            try {
+                employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
+            } catch (e) { console.error(e); }
+       }
+
+       if (!employeeEmail) {
+           toastError("User identity not found.");
+           return;
+       }
+
+       // Geolocation
+       if (!navigator.geolocation) {
+           toastError("Geolocation is not supported by your browser");
+           return;
+       }
+
+       const getPosition = (): Promise<GeolocationPosition> => {
+           return new Promise((resolve, reject) => {
+               navigator.geolocation.getCurrentPosition(resolve, reject);
+           });
+       };
+
+       try {
+           const position = await getPosition();
+           const { latitude, longitude } = position.coords;
+
+           if (activeDriveTime) {
+               // STOP DRIVE TIME
+               let distance = 0;
+               if (activeDriveTime.locationIn) {
+                   const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
+                   if (!isNaN(startLat) && !isNaN(startLng)) {
+                       distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
+                   }
+               }
+
+                const finalTimesheet = {
+                    ...activeDriveTime,
+                    clockOut: new Date().toISOString(),
+                    locationOut: `${latitude},${longitude}`,
+                    distance: distance ? parseFloat(distance.toFixed(2)) : 0
+                };
+
+               const res = await fetch('/api/schedules', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({
+                       action: 'saveIndividualTimesheet',
+                       payload: { timesheet: finalTimesheet }
+                   })
+               });
+               const data = await res.json();
+               if (data.success) {
+                   success('Drive Time Stopped');
+                   fetchDailySchedules(scheduleDate);
+               } else {
+                   toastError(data.error || 'Failed to stop drive time');
+               }
+
+           } else {
+               // START DRIVE TIME
+               // Check if user already has an active drive time on ANY schedule
+               if (globalActiveDriveTime) {
+                   toastError(`You already have an active drive time on "${globalActiveDriveTime.scheduleTitle}". Please stop it first.`);
+                   return;
+               }
+
+               const newTimesheet = {
+                   scheduleId: schedule._id,
+                   employee: employeeEmail,
+                   clockIn: new Date().toISOString(),
+                   locationIn: `${latitude},${longitude}`,
+                   type: 'Drive Time',
+                   status: 'Pending'
+               };
+
+               const res = await fetch('/api/schedules', {
+                   method: 'POST',
+                   headers: { 'Content-Type': 'application/json' },
+                   body: JSON.stringify({
+                       action: 'saveIndividualTimesheet',
+                       payload: { timesheet: newTimesheet }
+                   })
+               });
+               const data = await res.json();
+               if (data.success) {
+                   success('Drive Time Started');
+                   fetchDailySchedules(scheduleDate);
+               } else {
+                   toastError(data.error || 'Failed to start drive time');
+               }
+           }
+       } catch (error) {
+           console.error(error);
+           toastError("Unable to retrieve location or save data.");
+       }
+    };
+
     const handleSaveJHAForm = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -514,8 +716,29 @@ export default function DashboardPage() {
         }
     };
 
-    const handleSaveDJTSignature = async (dataUrl: string) => {
+    const handleSaveDJTSignature = async (dataInput: string | any) => {
         if (!activeSignatureEmployee || !selectedDJT) return;
+        
+        const dataUrl = typeof dataInput === 'string' ? dataInput : dataInput.signature;
+        const lunchStart = typeof dataInput === 'object' ? dataInput.lunchStart : null;
+        const lunchEnd = typeof dataInput === 'object' ? dataInput.lunchEnd : null;
+
+        setIsSavingSignature(true);
+        let location = 'Unknown';
+        if (navigator.geolocation) {
+             try {
+                 const pos = await Promise.race([
+                     new Promise<GeolocationPosition>((resolve, reject) => {
+                         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+                     }),
+                     new Promise<GeolocationPosition>((_, reject) => setTimeout(() => reject(new Error('Location timeout')), 3000))
+                 ]);
+                 location = `${pos.coords.latitude},${pos.coords.longitude}`;
+             } catch (e) {
+                 console.log('Location access denied, failed, or timed out', e);
+             }
+        }
+        
         try {
             const payload = {
                 schedule_id: selectedDJT.schedule_id || selectedDJT._id,
@@ -536,6 +759,55 @@ export default function DashboardPage() {
                     ...prev, 
                     signatures: [...(prev.signatures || []), newSig] 
                 }));
+
+                // Save Timesheet if lunch data provided
+                if (lunchStart && lunchEnd) {
+                    const scheduleId = selectedDJT.schedule_id || selectedDJT._id;
+                    const schedule = dailySchedules.find(s => s._id === scheduleId);
+                    
+                    if (schedule) {
+                        const clockInDate = new Date(schedule.fromDate);
+                        const dateStr = clockInDate.toISOString().split('T')[0];
+                        
+                        const combineDateAndTime = (dateComponent: string, timeComponent: string) => {
+                            return `${dateComponent}T${timeComponent}:00`; 
+                        };
+
+                        const timesheetPayload = {
+                             scheduleId: schedule._id,
+                             employee: activeSignatureEmployee,
+                             clockIn: schedule.fromDate,
+                             clockOut: new Date().toISOString(),
+                             lunchStart: combineDateAndTime(dateStr, lunchStart),
+                             lunchEnd: combineDateAndTime(dateStr, lunchEnd),
+                             type: 'Site Time',
+                             status: 'Pending'
+                        };
+                        
+                         const tsRes = await fetch('/api/schedules', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                action: 'saveIndividualTimesheet', 
+                                payload: { timesheet: timesheetPayload } 
+                            })
+                        });
+                        
+                        const tsData = await tsRes.json();
+                        if (tsData.success) {
+                             success('Timesheet Record Created');
+                             fetchDailySchedules(scheduleDate); 
+                        } else {
+                            console.error("Timesheet Error:", tsData.error);
+                            if (tsData.error?.includes("already exists")) {
+                                toastError('Timesheet already exists');
+                            } else {
+                                toastError('Failed to create timesheet record');
+                            }
+                        }
+                    }
+                }
+
                 setActiveSignatureEmployee(null);
             } else {
                 toastError(data.error || 'Failed to save signature');
@@ -543,6 +815,8 @@ export default function DashboardPage() {
         } catch (error) {
             console.error(error);
             toastError('Error saving signature');
+        } finally {
+            setIsSavingSignature(false);
         }
     };
 
@@ -1032,7 +1306,7 @@ export default function DashboardPage() {
                                                     {/* Bottom: Actions & Personnel */}
                                                     <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
                                                         {/* Actions: JHA, DJT, Timesheet */}
-                                                        <div className="flex items-center -space-x-1">
+                                                        <div className="flex items-center gap-1">
                                                             {/* JHA */}
                                                             {item.hasJHA ? (
                                                                 <div 
@@ -1116,53 +1390,42 @@ export default function DashboardPage() {
                                                             
                                                              {/* Timesheet */}
                                                             {(() => {
-                                                                const userTimesheet = item.timesheet?.find((ts: any) => ts.employee === currentUser?.email);
-                                                                if (userTimesheet) {
-                                                                    return (
-                                                                         <div 
-                                                                             className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                             title="View My Timesheet"
-                                                                             onClick={(e) => {
-                                                                                 e.stopPropagation();
-                                                                                 setSelectedTimesheet({
-                                                                                     ...userTimesheet,
-                                                                                     clockIn: userTimesheet.clockIn || item.fromDate,
-                                                                                     lunchStartTime: userTimesheet.lunchStart ? extractTimeFromDateTime(userTimesheet.lunchStart) : '',
-                                                                                     lunchEndTime: userTimesheet.lunchEnd ? extractTimeFromDateTime(userTimesheet.lunchEnd) : '',
-                                                                                 });
-                                                                                 setIsTimesheetEditMode(false);
-                                                                                 setTimesheetModalOpen(true);
-                                                                             }}
-                                                                         >
-                                                                             <ClockCheck size={12} strokeWidth={2.5} />
-                                                                         </div>
-                                                                    );
-                                                                } else {
-                                                                    return (
-                                                                        <div 
-                                                                             className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-emerald-100 hover:text-emerald-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                             title="Register Timesheet"
-                                                                             onClick={(e) => {
-                                                                                 e.stopPropagation();
-                                                                                 setSelectedTimesheet({
-                                                                                     scheduleId: item._id,
-                                                                                     employee: currentUser?.email,
-                                                                                     clockIn: item.fromDate, 
-                                                                                     lunchStartTime: '',
-                                                                                     lunchEndTime: '',
-                                                                                     comments: '',
-                                                                                     type: 'SITE'
-                                                                                 });
-                                                                                 setIsTimesheetEditMode(true);
-                                                                                 setTimesheetModalOpen(true);
-                                                                             }}
-                                                                         >
-                                                                             <Timer size={12} strokeWidth={2.5} />
-                                                                         </div>
-                                                                    );
-                                                                }
-                                                            })()}
-                                                        </div>
+                                                        const userTimesheets = item.timesheet?.filter((ts: any) => ts.employee === currentUser?.email) || [];
+                                                        const activeDriveTime = userTimesheets.find((ts: any) => (ts.type === 'Drive Time' || ts.type === 'Drive Time') && !ts.clockOut);
+                                                        
+                                                        // Priority: 1. Active Drive Time (Stop Button) -> 2. Existing Records (View Button) -> 3. No Records (Start Drive Time)
+                                                        
+                                                        if (activeDriveTime) {
+                                                            return (
+                                                                <>
+                                                                    <div 
+                                                                         className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
+                                                                         title="Stop Drive Time"
+                                                                         onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
+                                                                    >
+                                                                        <StopCircle size={14} strokeWidth={2.5} />
+                                                                    </div>
+                                                                    <DriveTimeTimer startTime={activeDriveTime.clockIn} />
+                                                                </>
+                                                            );
+                                                        } 
+                                                        
+                                                        // Fallback logic
+                                                        const displayedTs = userTimesheets.length > 0 ? userTimesheets[0] : null;
+
+                                                        return (
+                                                            <>
+                                                                 <div 
+                                                                     className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                     title="Start Drive Time"
+                                                                     onClick={(e) => handleDriveTimeToggle(item, null, e)}
+                                                                >
+                                                                    <Car size={14} strokeWidth={2.5} />
+                                                                </div>
+                                                            </>
+                                                        );
+                                                    })()}
+                                                </div>
 
                                                         {/* PM / Foreman - right side */}
                                                         <div className="flex items-center -space-x-1.5">
@@ -1930,6 +2193,7 @@ export default function DashboardPage() {
                 handleSave={handleSaveDJTForm}
                 handleSaveSignature={handleSaveDJTSignature}
                 initialData={{ employees }}
+                isSavingSignature={isSavingSignature}
                 schedules={dailySchedules}
                 activeSignatureEmployee={activeSignatureEmployee}
                 setActiveSignatureEmployee={setActiveSignatureEmployee}

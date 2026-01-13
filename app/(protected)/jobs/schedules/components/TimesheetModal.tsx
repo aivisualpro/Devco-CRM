@@ -1,5 +1,7 @@
 import { Modal, EmptyState } from '@/components/ui';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, MapPin } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { DriveMapModal } from './DriveMapModal';
 
 interface TimesheetModalProps {
     isOpen: boolean;
@@ -32,6 +34,47 @@ export const TimesheetModal = ({
             hour12: true
         });
     };
+
+    const [mapModalOpen, setMapModalOpen] = useState(false);
+
+    const distanceInfo = useMemo(() => {
+        if (!selectedTimesheet) return null;
+        const type = String(selectedTimesheet.type || '').toUpperCase();
+        if (!type.includes('DRIVE')) return null;
+
+        const locIn = selectedTimesheet.locationIn;
+        const locOut = selectedTimesheet.locationOut;
+        
+        let dist = 0;
+        let isCoords = false;
+
+        const isCoordStr = (val: any) => typeof val === 'string' && val.includes(',') && !isNaN(Number(val.split(',')[0]));
+
+        if (isCoordStr(locIn) && isCoordStr(locOut)) {
+            isCoords = true;
+             // Haversine
+             const [lat1, lon1] = locIn.split(',').map(Number);
+             const [lat2, lon2] = locOut.split(',').map(Number);
+             
+             const R = 3958.8; 
+             const dLat = (lat2 - lat1) * (Math.PI / 180);
+             const dLon = (lon2 - lon1) * (Math.PI / 180);
+             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                       Math.sin(dLon/2) * Math.sin(dLon/2);
+             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+             dist = R * c;
+        } else {
+             // Odometer fallback
+             const parse = (v: any) => parseFloat(String(v).replace(/,/g, '')) || 0;
+             const lIn = parse(locIn);
+             const lOut = parse(locOut);
+             if (lOut > lIn) dist = lOut - lIn;
+        }
+
+        return { distance: dist, isCoords, start: locIn, end: locOut };
+
+    }, [selectedTimesheet]);
 
     return (
         <Modal
@@ -117,8 +160,25 @@ export const TimesheetModal = ({
                             </div>
                             <div className="space-y-1">
                                 <label className="block text-xs font-bold text-slate-500 uppercase">Work Type</label>
-                                <p className="text-sm font-bold text-slate-900">SITE TIME</p>
+                                <p className="text-sm font-bold text-slate-900">{selectedTimesheet.type || 'SITE TIME'}</p>
                             </div>
+                            {distanceInfo && (
+                                 <div className="space-y-1 col-span-2">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase">Distance Traveled</label>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-sm font-bold text-slate-900">{distanceInfo.distance.toFixed(1)} miles</p>
+                                        {distanceInfo.isCoords && (
+                                            <button 
+                                                onClick={() => setMapModalOpen(true)}
+                                                className="text-xs flex items-center gap-1.5 px-2 py-1 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 transition-colors font-bold"
+                                            >
+                                                <MapPin size={12} />
+                                                View Map
+                                            </button>
+                                        )}
+                                    </div>
+                                 </div>
+                            )}
                         </div>
                         
                         {selectedTimesheet.comments && (
@@ -149,6 +209,13 @@ export const TimesheetModal = ({
             ) : (
                 <EmptyState title="No Record" message="No timesheet data found for your user." />
             )}
+        <DriveMapModal 
+                isOpen={mapModalOpen} 
+                onClose={() => setMapModalOpen(false)}
+                startLocation={distanceInfo?.start}
+                endLocation={distanceInfo?.end}
+                distance={distanceInfo?.distance}
+            />
         </Modal>
     );
 };

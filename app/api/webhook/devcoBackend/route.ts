@@ -15,7 +15,7 @@ import {
     Constant,
     Counter,
     Client,
-
+    Schedule,
     Employee,
     Template,
     GlobalCustomVariable,
@@ -1569,6 +1569,21 @@ export async function POST(request: NextRequest) {
                         { ...clientItem, updatedAt: new Date() },
                         { new: true, strict: false }
                     );
+
+                    // If the client name was updated, sync it to all related estimates and schedules
+                    if (clientItem.name && updated) {
+                        await Promise.all([
+                            Estimate.updateMany(
+                                { customerId: clientId },
+                                { $set: { customerName: clientItem.name } }
+                            ),
+                            Schedule.updateMany(
+                                { customerId: clientId },
+                                { $set: { customerName: clientItem.name } }
+                            )
+                        ]);
+                    }
+
                     return NextResponse.json({ success: true, result: updated });
                 } catch (err: any) {
                     console.error('[API] updateClient Error:', err);

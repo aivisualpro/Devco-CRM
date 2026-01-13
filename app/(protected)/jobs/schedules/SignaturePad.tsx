@@ -1,12 +1,13 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Eraser, Check } from 'lucide-react';
+import { Eraser, Check, Loader2 } from 'lucide-react';
 
 interface SignaturePadProps {
     onSave: (dataUrl: string) => void;
     employeeName: string;
+    isLoading?: boolean;
 }
 
-export default function SignaturePad({ onSave, employeeName }: SignaturePadProps) {
+export default function SignaturePad({ onSave, employeeName, isLoading = false }: SignaturePadProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hasSignature, setHasSignature] = useState(false);
@@ -34,6 +35,7 @@ export default function SignaturePad({ onSave, employeeName }: SignaturePadProps
     };
 
     const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+        if (isLoading) return;
         setIsDrawing(true);
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -82,6 +84,7 @@ export default function SignaturePad({ onSave, employeeName }: SignaturePadProps
     };
 
     const clearCanvas = () => {
+        if (isLoading) return;
         const canvas = canvasRef.current;
         if (canvas) {
             const ctx = canvas.getContext('2d');
@@ -93,6 +96,7 @@ export default function SignaturePad({ onSave, employeeName }: SignaturePadProps
     };
 
     const saveSignature = () => {
+        if (isLoading) return;
         const canvas = canvasRef.current;
         if (canvas && hasSignature) {
             const dataUrl = canvas.toDataURL('image/png');
@@ -103,7 +107,7 @@ export default function SignaturePad({ onSave, employeeName }: SignaturePadProps
     return (
         <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <h4 className="text-sm font-bold text-slate-700 mb-2">Signature for {employeeName}</h4>
-            <div className="relative w-full h-40 bg-slate-50 border border-slate-300 rounded-lg overflow-hidden touch-none">
+            <div className={`relative w-full h-40 bg-slate-50 border border-slate-300 rounded-lg overflow-hidden touch-none ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}>
                 <canvas
                     ref={canvasRef}
                     className="w-full h-full cursor-crosshair"
@@ -120,7 +124,8 @@ export default function SignaturePad({ onSave, employeeName }: SignaturePadProps
                 <button
                     type="button"
                     onClick={clearCanvas}
-                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors"
+                    disabled={isLoading}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-red-500 bg-slate-100 dark:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
                 >
                     <Eraser size={14} />
                     Clear
@@ -128,11 +133,20 @@ export default function SignaturePad({ onSave, employeeName }: SignaturePadProps
                 <button
                     type="button"
                     onClick={saveSignature}
-                    disabled={!hasSignature}
-                    className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!hasSignature || isLoading}
+                    className="flex items-center gap-1 px-4 py-1.5 text-xs font-bold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px] justify-center"
                 >
-                    <Check size={14} />
-                    Confirm & Save
+                    {isLoading ? (
+                        <>
+                            <Loader2 size={14} className="animate-spin" />
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Check size={14} />
+                            Confirm & Save
+                        </>
+                    )}
                 </button>
             </div>
         </div>
