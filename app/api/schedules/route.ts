@@ -25,6 +25,38 @@ async function updateAppSheetSchedule(data: any, action: "Add" | "Edit" | "Delet
         } catch { return ""; }
     };
 
+    // Fetch employee emails for assignees
+    let assigneesList = "";
+    if (data.assignees && Array.isArray(data.assignees) && data.assignees.length > 0) {
+        try {
+            // Assignees are likely names or IDs. Let's try to match them to employees.
+            // If they are names (which they seem to be based on frontend), we need to find the employee by First+Last name or similar.
+            // However, the frontend often stores just the name string (e.g. "John Doe"). 
+            // Ideally we'd have IDs or Emails. If we only have names, this is a best-effort lookup.
+            // BUT, looking at the models and page code, `assignees` is array of strings. 
+            // Employee model has firstName, lastName, email.
+            
+            // To be safe and performant, let's fetch ALL employees (cached/lean) and match in memory 
+            // or just query. Since this is a restricted set, querying by name $in is okay.
+            
+            // Wait, data.assignees might ALREADY be emails if the frontend sends them?
+            // Checking page.tsx, assignees dropdown uses employee `email` or `_id`? 
+            // The dropdown options mapped: value: e.email, label: e.firstName + lastName.
+            // So `data.assignees` likely contains EMAILS already!
+            // Let's verify: In page.tsx around line 1300 (not shown but inferred from default_api:view_file chunks above),
+            // the dropdown uses `value: e.email`. 
+            // So `data.assignees` IS an array of emails.
+            
+            // If it IS emails, we just join them.
+            assigneesList = data.assignees.join(', ');
+        } catch (e) {
+            console.error("Error processing assignees for AppSheet:", e);
+            assigneesList = data.assignees.join(', '); // Fallback
+        }
+    } else if (typeof data.assignees === 'string') {
+        assigneesList = data.assignees;
+    }
+
     const row = {
         "Record_ID": String(data._id || ""),
         "Title": String(data.title || ""),
@@ -34,7 +66,7 @@ async function updateAppSheetSchedule(data: any, action: "Add" | "Edit" | "Delet
         "Proposal Number": String(data.estimate || ""),
         "Project Manager Name": String(data.projectManager || ""),
         "Foreman Name": String(data.foremanName || ""),
-        "Assignees": Array.isArray(data.assignees) ? data.assignees.join(', ') : String(data.assignees || ""),
+        "Assignees": assigneesList, 
         "Description": String(data.description || ""),
         "Service Item": String(data.service || ""),
         "Color": String(data.item || ""), // Mapped 'item' to 'Color'
