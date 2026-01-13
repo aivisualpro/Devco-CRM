@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
                         .select('name _id')
                         .sort({ name: 1 })
                         .lean(),
-                    Employee.find()
+                    Employee.find({ isScheduleActive: true })
                         .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation')
                         .lean(),
                     Constant.find()
@@ -324,7 +324,7 @@ export async function POST(request: NextRequest) {
             case 'getInitialData': {
                 const [clients, employees, constants, estimates] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation').lean(),
+                    Employee.find({ isScheduleActive: true }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation').lean(),
                     Constant.find().lean(),
                     Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean()
                 ]);
