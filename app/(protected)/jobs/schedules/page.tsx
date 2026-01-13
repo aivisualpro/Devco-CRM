@@ -431,30 +431,35 @@ export default function SchedulePage() {
 
         // If updating, just update the single schedule
         if (editingItem?._id) {
-            try {
-                const res = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'updateSchedule', payload: { id: editingItem._id, ...editingItem } })
-                });
-                const data = await res.json();
+            // Optimistic Update
+            setIsModalOpen(false);
+            setEditingItem(null);
+            
+            const prevSchedules = [...schedules];
+            const updatedSchedule = { ...editingItem };
+            
+            setSchedules(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
+            
+            // Background Fetch
+            fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'updateSchedule', payload: { id: updatedSchedule._id, ...updatedSchedule } })
+            }).then(res => res.json()).then(data => {
                 if (data.success) {
                     success('Schedule updated');
-                    setIsModalOpen(false);
-                    setEditingItem(null);
-                    
-                    // Optimistic update
-                    setSchedules(prev => prev.map(s => s._id === editingItem._id ? { ...s, ...editingItem, ...data.result } : s));
-                    
-                    // Background re-fetch (optional, keep if you want 100% sync)
-                    // fetchPageData(false); // Validating in background
+                    // Optional: Update with server result if needed (e.g. timestamps)
+                    // setSchedules(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...data.result } : s));
                 } else {
                     toastError(data.error || 'Failed to update schedule');
+                    // Revert? For now just error is enough as user will see it didn't persist on reload if they care
+                    setSchedules(prevSchedules); 
                 }
-            } catch (err) {
+            }).catch(err => {
                 console.error(err);
                 toastError('Error updating schedule');
-            }
+                setSchedules(prevSchedules);
+            });
             return;
         }
 
@@ -485,55 +490,59 @@ export default function SchedulePage() {
             currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        try {
-            // Use bulk create via import action for efficiency
-            const res = await fetch('/api/schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'importSchedules', payload: { schedules: schedulesToCreate } })
-            });
-            const data = await res.json();
+        // Optimistic Create
+        setIsModalOpen(false);
+        setEditingItem(null);
+        
+        const prevSchedules = [...schedules];
+        setSchedules(prev => [...schedulesToCreate, ...prev]);
+
+        // Background Fetch
+        fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'importSchedules', payload: { schedules: schedulesToCreate } })
+        }).then(res => res.json()).then(data => {
             if (data.success) {
                 success(`Created ${schedulesToCreate.length} schedule${schedulesToCreate.length > 1 ? 's' : ''}`);
-                setIsModalOpen(false);
-                setEditingItem(null);
-                
-                // Optimistic update
-                setSchedules(prev => [...schedulesToCreate, ...prev]);
-                
-                // fetchPageData(false);
             } else {
                 toastError(data.error || 'Failed to create schedules');
+                setSchedules(prevSchedules);
             }
-        } catch (err) {
+        }).catch(err => {
             console.error(err);
             toastError('Error creating schedules');
-        }
+            setSchedules(prevSchedules);
+        });
     };
 
     const handleDelete = async () => {
         if (!deleteId) return;
-        try {
-            const res = await fetch('/api/schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deleteSchedule', payload: { id: deleteId } })
-            });
-            const data = await res.json();
+        
+        // Optimistic Delete
+        const prevSchedules = [...schedules];
+        const idToDelete = deleteId;
+        
+        setIsConfirmOpen(false);
+        setDeleteId(null);
+        setSchedules(prev => prev.filter(s => s._id !== idToDelete));
+        
+        fetch('/api/schedules', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'deleteSchedule', payload: { id: idToDelete } })
+        }).then(res => res.json()).then(data => {
             if (data.success) {
                 success('Schedule deleted');
-                setIsConfirmOpen(false);
-                setDeleteId(null);
-                
-                // Optimistic update
-                setSchedules(prev => prev.filter(s => s._id !== deleteId));
-                
-                // fetchPageData(false);
+            } else {
+                toastError(data.error || 'Failed to delete schedule');
+                setSchedules(prevSchedules);
             }
-        } catch (err) {
+        }).catch(err => {
             console.error(err);
             toastError('Error deleting schedule');
-        }
+            setSchedules(prevSchedules);
+        });
     };
 
     const parseCSV = (csvText: string) => {
