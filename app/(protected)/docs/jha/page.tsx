@@ -10,7 +10,7 @@ import {
     Modal, SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import { JHAModal } from '../schedules/components/JHAModal';
+import { JHAModal } from '../../jobs/schedules/components/JHAModal';
 
 interface Signature {
     employee: string;
@@ -190,7 +190,7 @@ export default function JHAPage() {
 
     const handleEditOpen = (jha: any) => {
         setSelectedJHA({ ...jha });
-        setIsEditMode(false);
+        setIsEditMode(true);
         setIsJHAModalOpen(true);
     };
 
@@ -313,7 +313,6 @@ export default function JHAPage() {
     return (
         <div className="flex flex-col h-full bg-slate-50">
             <Header 
-                title="Job Hazard Analysis"
                 rightContent={
                     <div className="flex items-center gap-3">
                         <div className="relative">
@@ -325,8 +324,8 @@ export default function JHAPage() {
                                 className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#0F4C75] w-64 shadow-sm"
                             />
                         </div>
-                        <Button onClick={handleCreateOpen} className="!bg-[#0F4C75] !rounded-full px-6">
-                            <Plus className="w-4 h-4 mr-2" /> New JHA
+                        <Button onClick={handleCreateOpen} size="icon" className="!bg-[#0F4C75] !rounded-full h-10 w-10 p-0 flex items-center justify-center">
+                            <Plus className="w-5 h-5" />
                         </Button>
                     </div>
                 }
@@ -345,8 +344,10 @@ export default function JHAPage() {
                         >
                             <TableHead className="bg-slate-50 border-b border-slate-100 z-10 sticky top-0">
                                 <TableRow>
-                                    <TableHeader className="pl-6 py-4">Status & Info</TableHeader>
-                                    <TableHeader>Estimate / Project</TableHeader>
+                                    <TableHeader className="pl-6 py-4">Date</TableHeader>
+                                    <TableHeader>Client</TableHeader>
+                                    <TableHeader>Estimate</TableHeader>
+                                    <TableHeader>Title</TableHeader>
                                     <TableHeader>USA No.</TableHeader>
                                     <TableHeader>Signatures</TableHeader>
                                     <TableHeader className="text-right pr-6">Actions</TableHeader>
@@ -355,7 +356,7 @@ export default function JHAPage() {
                             <TableBody>
                                 {paginatedJHAs.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-12 text-slate-400">
+                                        <TableCell colSpan={7} className="text-center py-12 text-slate-400">
                                             No JHA records found.
                                         </TableCell>
                                     </TableRow>
@@ -367,35 +368,41 @@ export default function JHAPage() {
                                             onClick={() => handleEditOpen(jha)}
                                         >
                                             <TableCell className="pl-6 py-4">
-                                                <div className="flex items-start gap-4">
-                                                    <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0F4C75] flex items-center justify-center shrink-0">
-                                                        <FileText size={20} />
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0F4C75] flex items-center justify-center shrink-0">
+                                                        <FileText size={16} />
                                                     </div>
                                                     <div>
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <span className="text-sm font-bold text-slate-700">
-                                                                {jha.date ? new Date(jha.date).toLocaleDateString() : 'N/A'}
-                                                            </span>
-                                                            <Badge variant="outline" className="text-[10px] text-slate-500 bg-white">
-                                                                {jha.jhaTime || '--:--'}
-                                                            </Badge>
+                                                        <div className="text-sm font-bold text-slate-700">
+                                                            {jha.date ? new Date(jha.date).toLocaleDateString() : 'N/A'}
                                                         </div>
-                                                        <span className="text-xs text-slate-500 font-medium">Created by {
-                                                            employees.find(e => e.value === jha.createdBy)?.label || jha.createdBy || 'Unknown'
-                                                        }</span>
+                                                        <div className="text-[10px] text-slate-400">
+                                                            {jha.jhaTime || '--:--'}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-bold text-slate-700">{jha.scheduleRef?.estimate || 'No Est'}</span>
-                                                    <span className="text-xs text-slate-500 line-clamp-1">{jha.scheduleRef?.title || jha.scheduleRef?.projectName || '-'}</span>
-                                                </div>
+                                                <span className="text-sm font-medium text-slate-600">
+                                                    {jha.scheduleRef?.customer?.name || jha.scheduleRef?.client?.name || jha.scheduleRef?.clientName || '-'}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200">
+                                                    {jha.scheduleRef?.estimate || 'No Est'}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-sm text-slate-600 font-medium line-clamp-1 max-w-[200px]" title={jha.scheduleRef?.title || jha.scheduleRef?.projectName}>
+                                                    {jha.scheduleRef?.title || jha.scheduleRef?.projectName || '-'}
+                                                </span>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col">
-                                                    <span className="text-sm font-medium text-slate-600">{jha.usaNo || '-'}</span>
-                                                    <span className="text-[10px] text-slate-400 uppercase tracking-wide">Sub: {jha.subcontractorUSANo || '-'}</span>
+                                                    <span className="text-sm font-mono text-slate-600">{jha.usaNo || '-'}</span>
+                                                    {jha.subcontractorUSANo && (
+                                                        <span className="text-[10px] text-slate-400">Sub: {jha.subcontractorUSANo}</span>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -403,7 +410,7 @@ export default function JHAPage() {
                                                     {(jha.signatures || []).map((sig: any, i: number) => {
                                                         const emp = employees.find(e => e.value === sig.employee);
                                                         return (
-                                                            <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center overflow-hidden" title={emp?.label || sig.employee}>
+                                                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center overflow-hidden" title={emp?.label || sig.employee}>
                                                                 {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-slate-500">{emp?.label?.[0]}</span>}
                                                             </div>
                                                         );
@@ -414,11 +421,11 @@ export default function JHAPage() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right pr-6">
-                                                <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleEditOpen(jha)} className="h-8 w-8 text-slate-400 hover:text-blue-600">
+                                                <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleEditOpen(jha)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
                                                         <Edit size={16} />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(jha)} className="h-8 w-8 text-slate-400 hover:text-red-600">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(jha)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
                                                         <Trash2 size={16} />
                                                     </Button>
                                                 </div>
