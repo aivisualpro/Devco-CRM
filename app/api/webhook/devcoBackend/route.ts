@@ -138,6 +138,13 @@ const getAppSheetConfig = () => ({
     tableName: process.env.APSHEET_ESTIMATE_TABLE || "Customer Jobs"
 });
 
+// AppSheet Client Configuration
+const getAppSheetClientConfig = () => ({
+    appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
+    accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
+    tableName: process.env.APSHEET_CUSTOMERS_TABLE || "Customers"
+});
+
 // Helper functions
 function toBoolean(value: unknown): boolean {
     if (value === 'Y' || value === 'y' || value === true) return true;
@@ -249,6 +256,62 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
     } catch (error) {
         console.error("[AppSheet] Network/Execution Error:", error);
         return { success: false, error: String(error) };
+    }
+}
+
+// AppSheet Client Sync Helper
+async function updateAppSheetClient(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
+    if (process.env.NODE_ENV !== 'production') {
+         console.log(`[AppSheet Client] Skipping ${action} sync: Not in production environment.`);
+         return; 
+    }
+
+    const { appId, accessKey, tableName } = getAppSheetClientConfig();
+    if (!appId || !accessKey) return;
+
+    const items = Array.isArray(data) ? data : [data];
+    if (items.length === 0) return;
+
+    const rows = items.map((client: any) => {
+        // Extract Primary Contact
+        const contacts = Array.isArray(client.contacts) ? client.contacts : [];
+        const primaryContact = contacts.find((c: any) => c.primary) || contacts.find((c: any) => c.active) || contacts[0] || {};
+        
+        // Extract Accounting Contact
+        const accountingContact = contacts.find((c: any) => c.type === 'Accounting') || {};
+
+        return {
+            "Record_ID": String(client._id || ""),
+            "Name": String(client.name || ""),
+            "Business Address": String(client.businessAddress || ""),
+            "Proposal Writer": String(client.proposalWriter || ""),
+            "Contact Full Name": String(primaryContact.name || ""),
+            "Email": String(primaryContact.email || ""),
+            "Phone": String(primaryContact.phone || ""),
+            "Accounting Contact": String(accountingContact.name || ""),
+            "Accounting email": String(accountingContact.email || ""),
+            "Status": String(client.status || "")
+        };
+    });
+
+    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
+
+    try {
+        await fetch(APPSHEET_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ApplicationAccessKey": accessKey
+            },
+            body: JSON.stringify({
+                Action: action,
+                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
+                Rows: rows
+            })
+        });
+        console.log(`[AppSheet Client] Synced ${action} for ${rows.length} clients.`);
+    } catch (error) {
+        console.error("[AppSheet Client] Error:", error);
     }
 }
 
@@ -1465,6 +1528,9 @@ export async function POST(request: NextRequest) {
                 delete (clientData as any).phone;
 
                 const newClient = await Client.create(clientData);
+                // Sync to AppSheet
+                updateAppSheetClient(newClient, "Add").catch(err => console.error('AppSheet Client Sync Error:', err));
+
                 return NextResponse.json({ success: true, result: newClient });
             }
 
@@ -1584,6 +1650,11 @@ export async function POST(request: NextRequest) {
                         ]);
                     }
 
+                    // Sync to AppSheet
+                    if (updated) {
+                         updateAppSheetClient(updated, "Edit").catch(err => console.error('AppSheet Client Sync Error:', err));
+                    }
+
                     return NextResponse.json({ success: true, result: updated });
                 } catch (err: any) {
                     console.error('[API] updateClient Error:', err);
@@ -1595,6 +1666,9 @@ export async function POST(request: NextRequest) {
                 const { id: clientDelId } = payload || {};
                 if (!clientDelId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
                 await Client.findByIdAndDelete(clientDelId);
+                // Sync to AppSheet
+                updateAppSheetClient({ _id: clientDelId }, "Delete").catch(err => console.error('AppSheet Client Sync Error:', err));
+
                 return NextResponse.json({ success: true });
             }
 
