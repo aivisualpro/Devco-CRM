@@ -10,7 +10,7 @@ import {
     Modal, SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import { JHAModal } from '../../jobs/schedules/components/JHAModal';
+import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 
 interface Signature {
     employee: string;
@@ -18,15 +18,16 @@ interface Signature {
     createdAt: string;
 }
 
-interface JHA {
+interface DJT {
     schedule_id?: string;
     scheduleRef?: Schedule;
-    date?: string;
-    jhaTime?: string;
+    date?: string; // Often inherent in schedule date, but DJT might have its own
+    djtTime?: string;
     createdBy?: string;
     signatures?: Signature[];
-    usaNo?: string;
-    subcontractorUSANo?: string;
+    dailyJobDescription?: string;
+    customerPrintName?: string;
+    customerSignature?: string;
     [key: string]: any;
 }
 
@@ -38,7 +39,8 @@ interface Schedule {
     projectName?: string;
     title?: string;
     fromDate?: string;
-    jha?: JHA;
+    djt?: DJT;
+    assignees?: string[];
     [key: string]: any;
 }
 
@@ -51,7 +53,7 @@ interface Employee {
     lastName?: string;
 }
 
-export default function JHAPage() {
+export default function JobTicketPage() {
     const { success, error } = useToast();
     
     // Data State
@@ -67,16 +69,13 @@ export default function JHAPage() {
     const itemsPerPage = 20;
 
     // View/Edit Modal State
-    const [isJHAModalOpen, setIsJHAModalOpen] = useState(false);
-    const [selectedJHA, setSelectedJHA] = useState<JHA | null>(null);
+    const [isDJTModalOpen, setIsDJTModalOpen] = useState(false);
+    const [selectedDJT, setSelectedDJT] = useState<DJT | null>(null);
     const [isEditMode, setIsEditMode] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
-    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-    // Stub for email modal since we might not implement full email flow yet or reuse another component
-    // For now we'll minimally support what JHAModal needs
-    const [emailModalOpen, setEmailModalOpen] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
+    const [isSavingSignature, setIsSavingSignature] = useState(false);
 
-    // Create New JHA Flow State
+    // Create New DJT Flow State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [selectedScheduleId, setSelectedScheduleId] = useState('');
 
@@ -88,14 +87,11 @@ export default function JHAPage() {
         setLoading(true);
         try {
             // Use getSchedulesPage for optimized single-request loading
-            // This returns schedules (last 60 days by default) AND initial data (employees, clients, estimates)
-            // It uses field selection to reduce payload size significantly
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: {
-                        // Optional: Extend range if needed, e.g., 6 months back
                         startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
                     }
                 }) 
@@ -105,8 +101,6 @@ export default function JHAPage() {
 
             if (data.success) {
                 setSchedules(data.result.schedules || []);
-                
-                // Employees are already formatted by getSchedulesPage
                 setEmployees(data.result.initialData.employees || []);
                 setEstimates(data.result.initialData.estimates || []);
                 setClients(data.result.initialData.clients || []);
@@ -138,17 +132,17 @@ export default function JHAPage() {
 
 
 
-    // Filtered JHA List (Schedules usually have jha object if created)
-    const existingJHAs = useMemo(() => {
+    // Filtered DJT List (Schedules usually have djt object if created)
+    const existingDJTs = useMemo(() => {
         return schedules
-            .filter(s => s.jha && Object.keys(s.jha).length > 0)
-            .map(s => ({ ...s.jha, schedule_id: s._id, scheduleRef: s })); 
+            .filter(s => s.djt && Object.keys(s.djt).length > 0)
+            .map(s => ({ ...s.djt, schedule_id: s._id, scheduleRef: s })); 
     }, [schedules]);
 
-    // Available Schedules for New JHA
+    // Available Schedules for New DJT
     const availableSchedules = useMemo(() => {
         return schedules
-            .filter(s => !s.jha || Object.keys(s.jha).length === 0)
+            .filter(s => !s.djt || Object.keys(s.djt).length === 0)
             .map(s => ({
                 value: s._id,
                 label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString() : 'No Date'}`,
@@ -157,23 +151,23 @@ export default function JHAPage() {
     }, [schedules]);
 
     // Search & Pagination for Table
-    const filteredJHAs = useMemo(() => {
-        if (!search) return existingJHAs;
+    const filteredDJTs = useMemo(() => {
+        if (!search) return existingDJTs;
         const lowerSearch = search.toLowerCase();
-        return existingJHAs.filter((jha: any) => {
-            const dateStr = jha.date ? new Date(jha.date).toLocaleDateString() : '';
-            const schedule = jha.scheduleRef;
+        return existingDJTs.filter((djt: any) => {
+            const dateStr = djt.date ? new Date(djt.date).toLocaleDateString() : '';
+            const schedule = djt.scheduleRef;
             return (
                 dateStr.includes(lowerSearch) ||
                 (schedule?.estimate || '').toLowerCase().includes(lowerSearch) ||
                 (schedule?.title || '').toLowerCase().includes(lowerSearch) ||
-                (jha.usaNo || '').toLowerCase().includes(lowerSearch)
+                (djt.dailyJobDescription || '').toLowerCase().includes(lowerSearch)
             );
         });
-    }, [existingJHAs, search]);
+    }, [existingDJTs, search]);
 
-    const paginatedJHAs = filteredJHAs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalPages = Math.ceil(filteredJHAs.length / itemsPerPage);
+    const paginatedDJTs = filteredDJTs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalPages = Math.ceil(filteredDJTs.length / itemsPerPage);
 
     // Handlers
     const handleCreateOpen = () => {
@@ -189,45 +183,44 @@ export default function JHAPage() {
         const schedule = schedules.find(s => s._id === selectedScheduleId);
         if (!schedule) return;
 
-        // Initialize new JHA
-        const newJHA: JHA = {
+        // Initialize new DJT
+        const newDJT: DJT = {
             schedule_id: schedule._id,
             scheduleRef: schedule,
             date: new Date().toISOString(), // Default to today
-            jhaTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            createdBy: '', // Should be current user, but we might not have session context here easily. Let's leave blank or try to infer?
+            djtTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             signatures: [],
+            dailyJobDescription: '',
             // Defaults
             active: true
         };
 
-        setSelectedJHA(newJHA);
+        setSelectedDJT(newDJT);
         setIsEditMode(true);
         setIsCreateModalOpen(false);
-        setIsJHAModalOpen(true);
+        setIsDJTModalOpen(true);
     };
 
-    const handleEditOpen = (jha: any) => {
-        setSelectedJHA({ ...jha });
+    const handleEditOpen = (djt: any) => {
+        setSelectedDJT({ ...djt });
         setIsEditMode(true);
-        setIsJHAModalOpen(true);
+        setIsDJTModalOpen(true);
     };
 
-    const handleViewOpen = (jha: any) => {
-        setSelectedJHA({ ...jha });
+    const handleViewOpen = (djt: any) => {
+        setSelectedDJT({ ...djt });
         setIsEditMode(false);
-        setIsJHAModalOpen(true);
+        setIsDJTModalOpen(true);
     };
 
-    const handleDelete = async (jha: any) => {
-        if (!confirm('Are you sure you want to delete this JHA?')) return;
+    const handleDelete = async (djt: any) => {
+        if (!confirm('Are you sure you want to delete this Job Ticket?')) return;
 
         try {
-            // We update the schedule to remove the JHA object (set to null/empty)
-            // Or maybe just empty object {} based on "hasJHA" logic
+            // We update the schedule to remove the DJT object (set to null/empty)
             const payload = {
-                id: jha.schedule_id,
-                jha: null // or {}
+                id: djt.schedule_id,
+                djt: null // or {}
             };
 
             const res = await fetch('/api/schedules', {
@@ -237,10 +230,10 @@ export default function JHAPage() {
             });
             const data = await res.json();
             if (data.success) {
-                success('JHA deleted successfully');
+                success('Job Ticket deleted successfully');
                 fetchData();
             } else {
-                error('Failed to delete JHA');
+                error('Failed to delete Job Ticket');
             }
         } catch (err) {
             console.error(err);
@@ -248,91 +241,104 @@ export default function JHAPage() {
         }
     };
 
-    const handleSaveJHA = async (e: React.FormEvent) => {
+    const handleSaveDJT = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedJHA) return;
+        if (!selectedDJT) return;
         
         try {
             const payload = {
-                id: selectedJHA.schedule_id,
-                jha: {
-                    ...selectedJHA,
+                id: selectedDJT.schedule_id,
+                djt: {
+                    ...selectedDJT,
                     // Ensure we don't save scheduleRef to DB if it was attached for UI
                     scheduleRef: undefined,
                     schedule_id: undefined
                 }
             };
 
-            const res = await fetch('/api/schedules', {
+            // Optimistic Update
+            const updatedDJT = { ...selectedDJT };
+            setSchedules(prev => prev.map(s => 
+                s._id === selectedDJT.schedule_id ? { ...s, djt: updatedDJT } : s
+            ));
+            setIsDJTModalOpen(false); // Close immediately for better UX
+            success('Job Ticket saved'); // Show success immediately
+
+            // Background Save
+            fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'updateSchedule', payload })
+            }).then(async (res) => {
+                const data = await res.json();
+                if (!data.success) {
+                    error('Failed to save Job Ticket in background');
+                    // Revert or refresh data if failed
+                    fetchData();
+                }
+            }).catch(() => {
+                error('Network error saving Job Ticket');
+                fetchData();
             });
 
-            const data = await res.json();
-            if (data.success) {
-                success('JHA saved successfully');
-                setIsJHAModalOpen(false);
-                fetchData();
-            } else {
-                error('Failed to save JHA');
-            }
         } catch (err) {
             console.error(err);
             error('An error occurred');
         }
     };
 
-    const handleSaveSignature = async (sigData: string) => {
-        if (!activeSignatureEmployee || !selectedJHA) return;
-
-        const newSignature = {
-            employee: activeSignatureEmployee,
-            signature: sigData,
-            createdAt: new Date().toISOString()
-        };
-
-        const currentSignatures = Array.isArray(selectedJHA.signatures) ? [...selectedJHA.signatures] : [];
-        // Remove existing if any
-        const filtered = currentSignatures.filter((s: any) => s.employee !== activeSignatureEmployee);
-        filtered.push(newSignature);
-
-        const updatedJHA = { ...selectedJHA, signatures: filtered };
-        setSelectedJHA(updatedJHA); // Update local state immediately
-
-        // Also save to DB immediately for signatures usually
+    const handleSaveSignature = async (signatureData: { signature: string, lunchStart?: string, lunchEnd?: string }) => {
+        if (!activeSignatureEmployee || !selectedDJT) return;
+        
+        setIsSavingSignature(true);
         try {
-             const payload = {
-                id: selectedJHA.schedule_id,
-                jha: {
-                    ...updatedJHA,
+            // 1. Create new signature object
+            const newSignature = {
+                employee: activeSignatureEmployee,
+                signature: signatureData.signature,
+                createdAt: new Date().toISOString()
+            };
+
+            const currentSignatures = Array.isArray(selectedDJT.signatures) ? [...selectedDJT.signatures] : [];
+            const filteredSignatures = currentSignatures.filter((s: any) => s.employee !== activeSignatureEmployee);
+            filteredSignatures.push(newSignature);
+
+            const updatedDJT = { ...selectedDJT, signatures: filteredSignatures };
+            setSelectedDJT(updatedDJT);
+
+            // Optimistic Update for Schedule List
+            setSchedules(prev => prev.map(s => 
+                s._id === selectedDJT.schedule_id ? { ...s, djt: updatedDJT } : s
+            ));
+
+            success('Signature saved'); // Feedback
+            setActiveSignatureEmployee(null);
+
+            // 2. Prepare Payload
+            const payload = {
+                id: selectedDJT.schedule_id,
+                djt: {
+                    ...updatedDJT,
                     scheduleRef: undefined,
-                    schedule_id: undefined
+                    schedule_id: undefined,
+                    schedule: undefined // Just in case
                 }
             };
 
+            // Background Save
             await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'updateSchedule', payload })
             });
-            success('Signature saved');
-            setActiveSignatureEmployee(null);
             
-            // Refresh in background
-            fetchData();
         } catch (err) {
+            console.error(err);
             error('Failed to save signature');
+            fetchData(); // Refresh on error
+        } finally {
+            setIsSavingSignature(false);
         }
-    };
-
-    // Placeholder for PDF download
-    const handleDownloadPDF = () => {
-        setIsGeneratingPDF(true);
-        setTimeout(() => {
-             setIsGeneratingPDF(false);
-             success('PDF Download not implemented in this view yet');
-        }, 1000);
     };
 
     return (
@@ -345,7 +351,7 @@ export default function JHAPage() {
                             <input 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                placeholder="Search JHAs..."
+                                placeholder="Search Job Tickets..."
                                 className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#0F4C75] w-64 shadow-sm"
                             />
                         </div>
@@ -372,25 +378,24 @@ export default function JHAPage() {
                                     <TableHeader className="pl-6 py-4">Date</TableHeader>
                                     <TableHeader>Client</TableHeader>
                                     <TableHeader>Estimate</TableHeader>
-                                    <TableHeader>Title</TableHeader>
-                                    <TableHeader>USA No.</TableHeader>
+                                    <TableHeader>Description</TableHeader>
                                     <TableHeader>Signatures</TableHeader>
                                     <TableHeader className="text-right pr-6">Actions</TableHeader>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
-                                {paginatedJHAs.length === 0 ? (
+                                {paginatedDJTs.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-12 text-slate-400">
-                                            No JHA records found.
+                                        <TableCell colSpan={6} className="text-center py-12 text-slate-400">
+                                            No Job Ticket records found.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    paginatedJHAs.map((jha: any, idx) => (
+                                    paginatedDJTs.map((djt: any, idx) => (
                                         <TableRow 
                                             key={idx} 
                                             className="hover:bg-slate-50/50 cursor-pointer transition-colors border-b border-slate-50 last:border-0"
-                                            onClick={() => handleViewOpen(jha)}
+                                            onClick={() => handleViewOpen(djt)}
                                         >
                                             <TableCell className="pl-6 py-4">
                                                 <div className="flex items-center gap-2">
@@ -399,40 +404,32 @@ export default function JHAPage() {
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-bold text-slate-700">
-                                                            {jha.date ? new Date(jha.date).toLocaleDateString() : 'N/A'}
+                                                            {djt.date ? new Date(djt.date).toLocaleDateString() : 'N/A'}
                                                         </div>
                                                         <div className="text-[10px] text-slate-400">
-                                                            {jha.jhaTime || '--:--'}
+                                                            {djt.djtTime || '--:--'}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 <span className="text-sm font-medium text-slate-600">
-                                                    {getClientName(jha.scheduleRef)}
+                                                    {getClientName(djt.scheduleRef)}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200">
-                                                    {jha.scheduleRef?.estimate || 'No Est'}
+                                                    {djt.scheduleRef?.estimate || 'No Est'}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <span className="text-sm text-slate-600 font-medium line-clamp-1 max-w-[200px]" title={jha.scheduleRef?.title || jha.scheduleRef?.projectName}>
-                                                    {jha.scheduleRef?.title || jha.scheduleRef?.projectName || '-'}
+                                                <span className="text-sm text-slate-600 font-medium line-clamp-1 max-w-[300px]" title={djt.dailyJobDescription}>
+                                                    {djt.dailyJobDescription || 'No description provided'}
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-mono text-slate-600">{jha.usaNo || '-'}</span>
-                                                    {jha.subcontractorUSANo && (
-                                                        <span className="text-[10px] text-slate-400">Sub: {jha.subcontractorUSANo}</span>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
                                                 <div className="flex -space-x-2">
-                                                    {(jha.signatures || []).map((sig: any, i: number) => {
+                                                    {(djt.signatures || []).map((sig: any, i: number) => {
                                                         const emp = employees.find(e => e.value === sig.employee);
                                                         return (
                                                             <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center overflow-hidden" title={emp?.label || sig.employee}>
@@ -440,17 +437,17 @@ export default function JHAPage() {
                                                             </div>
                                                         );
                                                     })}
-                                                    {(!jha.signatures || jha.signatures.length === 0) && (
+                                                    {(!djt.signatures || djt.signatures.length === 0) && (
                                                         <span className="text-xs text-slate-400 italic">None</span>
                                                     )}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right pr-6">
                                                 <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleEditOpen(jha)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleEditOpen(djt)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
                                                         <Edit size={16} />
                                                     </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(jha)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(djt)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
                                                         <Trash2 size={16} />
                                                     </Button>
                                                 </div>
@@ -468,14 +465,14 @@ export default function JHAPage() {
             <Modal
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
-                title="Create New JHA"
+                title="Create New Job Ticket"
                 maxWidth="md"
             >
                 <div className="space-y-6">
                     <div>
                         <p className="text-sm text-slate-600 mb-4">
-                            Select a schedule to create a Job Hazard Analysis for. 
-                            Only schedules without an existing JHA are listed.
+                            Select a schedule to create a Job Ticket for. 
+                            Only schedules without an existing Job Ticket are listed.
                         </p>
                         
                         <div className="space-y-2">
@@ -491,29 +488,27 @@ export default function JHAPage() {
                     </div>
                      <div className="flex justify-end gap-3 pt-4">
                         <Button variant="secondary" onClick={() => setIsCreateModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleCreateProceed} disabled={!selectedScheduleId}>Proceed to JHA Form</Button>
+                        <Button onClick={handleCreateProceed} disabled={!selectedScheduleId}>Proceed to Form</Button>
                     </div>
                 </div>
             </Modal>
 
-            {/* JHA Modal - Step 2 Edit/View */}
-            {selectedJHA && (
-                <JHAModal
-                    isOpen={isJHAModalOpen}
-                    onClose={() => setIsJHAModalOpen(false)}
-                    selectedJHA={selectedJHA}
-                    setSelectedJHA={setSelectedJHA}
+            {/* DJT Modal - Step 2 Edit/View */}
+            {selectedDJT && (
+                <DJTModal
+                    isOpen={isDJTModalOpen}
+                    onClose={() => setIsDJTModalOpen(false)}
+                    selectedDJT={selectedDJT}
+                    setSelectedDJT={setSelectedDJT}
                     isEditMode={!!isEditMode}
                     setIsEditMode={setIsEditMode}
-                    handleSave={handleSaveJHA}
+                    handleSave={handleSaveDJT}
                     handleSaveSignature={handleSaveSignature}
-                    isGeneratingPDF={isGeneratingPDF}
-                    handleDownloadPDF={handleDownloadPDF}
-                    setEmailModalOpen={setEmailModalOpen}
-                    initialData={{ employees, clients: [] }} // JHAModal primarily needs employees
+                    initialData={{ employees: employees }}
                     schedules={schedules}
                     activeSignatureEmployee={activeSignatureEmployee}
                     setActiveSignatureEmployee={setActiveSignatureEmployee}
+                    isSavingSignature={isSavingSignature}
                 />
             )}
         </div>

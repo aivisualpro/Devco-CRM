@@ -84,16 +84,31 @@ export const DJTModal = ({
                             <div className="space-y-2">
                                 <label className="block text-sm font-bold text-slate-900">Signature</label>
                                 <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-                                    <SignaturePad 
-                                        employeeName={selectedDJT.customerPrintName || "Customer"}
-                                        onSave={(sigUrl) => setSelectedDJT({...selectedDJT, customerSignature: sigUrl})} 
-                                    />
+                                    {selectedDJT.customerSignature ? (
+                                        <div className="relative p-4 flex flex-col items-center justify-center bg-slate-50">
+                                            <img 
+                                                src={selectedDJT.customerSignature} 
+                                                alt="Customer Signature" 
+                                                className="max-h-32 object-contain mb-4" 
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedDJT({...selectedDJT, customerSignature: null})}
+                                                className="text-xs text-red-500 hover:text-red-700 font-bold hover:underline"
+                                            >
+                                                Clear & Re-sign
+                                            </button>
+                                            <p className="absolute top-2 right-2 text-xs text-green-600 font-bold flex items-center gap-1">
+                                                <CheckCircle2 size={12} /> Captured
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <SignaturePad 
+                                            employeeName={selectedDJT.customerPrintName || "Customer"}
+                                            onSave={(sigUrl) => setSelectedDJT({...selectedDJT, customerSignature: sigUrl})} 
+                                        />
+                                    )}
                                 </div>
-                                {selectedDJT.customerSignature && (
-                                    <p className="text-xs text-green-600 font-bold flex items-center gap-1">
-                                        <CheckCircle2 size={12} /> Signature captured
-                                    </p>
-                                )}
                             </div>
 
                             <div className="flex gap-3 pt-2">

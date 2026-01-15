@@ -2,6 +2,7 @@
 
 import { Trash2, Info } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { getFringeRate, type FringeConstant } from '@/lib/estimateCalculations';
 
 interface LineItem {
     _id?: string;
@@ -13,7 +14,8 @@ interface LaborLineItemsTableProps {
     onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
     onExplain?: (item: LineItem) => void;
     onDelete?: (item: LineItem) => void;
-    fringeRate?: number; // Fringe rate value passed from parent
+    fringeRate?: number; // Global fringe rate
+    fringeConstants?: FringeConstant[];
 }
 
 function LiveInput({
@@ -91,7 +93,8 @@ function LaborRow({
     onUpdateItem,
     onExplain,
     onDelete,
-    fringeRate = 0
+    fringeRate = 0,
+    fringeConstants = []
 }: {
     item: LineItem;
     index: number;
@@ -99,6 +102,7 @@ function LaborRow({
     onExplain?: (item: LineItem) => void;
     onDelete?: (item: LineItem) => void;
     fringeRate?: number;
+    fringeConstants?: FringeConstant[];
 }) {
     const [localValues, setLocalValues] = useState({
         labor: String(item.labor ?? ''),
@@ -161,7 +165,11 @@ function LaborRow({
         const otPayrollTaxAmount = basePay * 1.5 * (taxesPct / 100);
         
         // 6. Fringe (value from constants)
-        const fringeAmount = fringeRate;
+        // Prefer item-specific fringe if available, otherwise use global rate
+        let fringeAmount = fringeRate;
+        if (item.fringe && fringeConstants) {
+            fringeAmount = getFringeRate(item.fringe as string, fringeConstants);
+        }
         
         // 7. Base Rate = basePay + wCompTax + payrollTax + fringe
         const baseRate = basePay + wCompTaxAmount + payrollTaxAmount + fringeAmount;
@@ -174,7 +182,7 @@ function LaborRow({
         const total = (totalHours * baseRate) + (totalOtHours * otRate);
         
         return isNaN(total) ? 0 : total;
-    }, [localValues.basePay, localValues.quantity, localValues.days, localValues.otPd, localValues.wCompPercent, localValues.payrollTaxesPercent, item.subClassification, fringeRate]);
+    }, [localValues.basePay, localValues.quantity, localValues.days, localValues.otPd, localValues.wCompPercent, localValues.payrollTaxesPercent, item.subClassification, item.fringe, fringeRate, fringeConstants]);
 
     const handleChange = (field: string, value: string) => {
         setLocalValues(prev => ({ ...prev, [field]: value }));
@@ -323,7 +331,8 @@ export function LaborLineItemsTable({
     onUpdateItem,
     onExplain,
     onDelete,
-    fringeRate = 0
+    fringeRate = 0,
+    fringeConstants = []
 }: LaborLineItemsTableProps) {
     if (!items || items.length === 0) {
         return (
@@ -384,6 +393,7 @@ export function LaborLineItemsTable({
                             onExplain={onExplain}
                             onDelete={onDelete}
                             fringeRate={fringeRate}
+                            fringeConstants={fringeConstants}
                         />
                     ))}
                 </tbody>

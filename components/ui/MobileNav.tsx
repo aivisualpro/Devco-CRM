@@ -93,7 +93,7 @@ const MobileNav = () => {
                         <div className="grid grid-cols-1 gap-3">
                             {getMenuContent()?.items.map((item) => {
                                 const Icon = item.icon;
-                                const isImplemented = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/roles', '/constants', '/chat', '/quickbooks', '/dashboard', '/docs'].some(path => item.href.startsWith(path));
+                                const isImplemented = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/roles', '/constants', '/chat', '/quickbooks', '/dashboard', '/docs/jha', '/docs/job-tickets'].some(path => item.href.startsWith(path));
 
                                 return (
                                     <Link

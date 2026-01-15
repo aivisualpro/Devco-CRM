@@ -23,6 +23,7 @@ import {
 } from './components';
 import {
     getLaborBreakdown,
+    getFringeRate,
     calculateLaborTotal,
     calculateEquipmentTotal,
     calculateMaterialTotal,
@@ -1819,6 +1820,8 @@ export default function EstimateViewPage() {
                         setOpenSections={setOpenSections}
                         chartData={chartData}
                         setActiveSection={setActiveSection}
+                        fringeRate={getFringeRate(formData?.fringe, fringeConstants)}
+                        fringeConstants={fringeConstants}
 
                         onAddItem={(sectionId) => {
                             const section = sections.find(s => s.id === sectionId);

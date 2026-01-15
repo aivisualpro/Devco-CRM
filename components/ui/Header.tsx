@@ -20,7 +20,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/roles', '/constants', '/chat', '/quickbooks', '/dashboard', '/docs'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/roles', '/constants', '/chat', '/quickbooks', '/dashboard', '/docs/jha', '/docs/job-tickets'];
 
 const menuStructure: MenuItem[] = [
     {

@@ -9,6 +9,7 @@ import { DisposalLineItemsTable } from './DisposalLineItemsTable';
 import { MiscellaneousLineItemsTable } from './MiscellaneousLineItemsTable';
 import { Copy, FileSpreadsheet, Trash2 } from 'lucide-react';
 import React from 'react';
+import { type FringeConstant } from '@/lib/estimateCalculations';
 
 interface EstimateLineItemsCardProps {
     sections: any[];
@@ -21,6 +22,8 @@ interface EstimateLineItemsCardProps {
     onEditItem: (sectionId: string, item: any, field?: string, value?: string | number) => void;
     onDeleteItem: (sectionId: string, item: any) => void;
     onExplain?: (item: any) => void;
+    fringeRate?: number;
+    fringeConstants?: FringeConstant[];
 }
 
 export function EstimateLineItemsCard({
@@ -33,7 +36,9 @@ export function EstimateLineItemsCard({
     onAddItem,
     onEditItem,
     onDeleteItem,
-    onExplain
+    onExplain,
+    fringeRate = 0,
+    fringeConstants = []
 }: EstimateLineItemsCardProps) {
     return (
         <div className="bg-[#eef2f6] rounded-[40px] p-4 flex flex-col h-full relative">
@@ -56,6 +61,8 @@ export function EstimateLineItemsCard({
                                 onUpdateItem={(item, field, value) => onEditItem(section.id, item, field, value)}
                                 onDelete={(item) => onDeleteItem(section.id, item)}
                                 onExplain={onExplain}
+                                fringeRate={fringeRate}
+                                fringeConstants={fringeConstants}
                             />
                         ) : section.id === 'Equipment' ? (
                             <EquipmentLineItemsTable
