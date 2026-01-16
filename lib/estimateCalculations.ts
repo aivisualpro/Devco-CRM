@@ -15,7 +15,13 @@ export interface LaborBreakdown {
     otPayrollTaxAmount: number;
     totalBaseRate: number;
     totalOtRate: number;
+    totalDtRate: number;
     grandTotal: number;
+    dtPd: number;
+    totalDtHours: number;
+    dtPayrollTaxAmount: number;
+    otWCompTaxAmount: number;
+    dtWCompTaxAmount: number;
 }
 
 export interface FringeConstant {
@@ -58,6 +64,7 @@ export function getLaborBreakdown(
     const qty = parseNum(item.quantity);
     const days = parseNum(item.days);
     const otPd = parseNum(item.otPd);
+    const dtPd = parseNum(item.dtPd);
     const wCompPct = parseNum(item.wCompPercent);
     const taxesPct = parseNum(item.payrollTaxesPercent);
     const fringeRate = getFringeRate(item.fringe as string, fringeConstants);
@@ -68,14 +75,20 @@ export function getLaborBreakdown(
     // 2. Total OT Hours
     const totalOtHours = qty * days * otPd;
 
+    // 2.5 Total DT Hours
+    const totalDtHours = qty * days * dtPd;
+
     // 3. WComp Tax
     const wCompTaxAmount = basePay * (wCompPct / 100);
+    const otWCompTaxAmount = (basePay * 1.5) * (wCompPct / 100);
+    const dtWCompTaxAmount = (basePay * 2) * (wCompPct / 100);
 
     // 4. Payroll Taxes
     const payrollTaxAmount = basePay * (taxesPct / 100);
 
     // 5 & 8. OT Payroll Taxes
     const otPayrollTaxAmount = basePay * 1.5 * (taxesPct / 100);
+    const dtPayrollTaxAmount = basePay * 2 * (taxesPct / 100);
 
     // 6. Fringes (Value from constants)
     const fringeAmount = fringeRate;
@@ -85,10 +98,14 @@ export function getLaborBreakdown(
 
     // 9. OT Rate = (Base Pay * 1.5) + WComp + OT Payroll Tax + Fringe
     const otBasePay = basePay * 1.5;
-    const otRate = otBasePay + wCompTaxAmount + otPayrollTaxAmount + fringeAmount;
+    const otRate = otBasePay + otWCompTaxAmount + otPayrollTaxAmount + fringeAmount;
+
+    // DT Rate = (Base Pay * 2) + WComp + DT Payroll Tax + Fringe
+    const dtBasePay = basePay * 2;
+    const dtRate = dtBasePay + dtWCompTaxAmount + dtPayrollTaxAmount + fringeAmount;
 
     // 10. Total
-    const total = (totalHours * baseRate) + (totalOtHours * otRate);
+    const total = (totalHours * baseRate) + (totalOtHours * otRate) + (totalDtHours * dtRate);
     const safeTotal = isNaN(total) ? 0 : total;
 
     return {
@@ -106,7 +123,13 @@ export function getLaborBreakdown(
         otPayrollTaxAmount,
         totalBaseRate: baseRate,
         totalOtRate: otRate,
-        grandTotal: safeTotal
+        totalDtRate: dtRate,
+        grandTotal: safeTotal,
+        dtPd,
+        totalDtHours,
+        dtPayrollTaxAmount,
+        otWCompTaxAmount,
+        dtWCompTaxAmount
     };
 }
 

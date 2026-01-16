@@ -112,6 +112,7 @@ function LaborRow({
         quantity: String(item.quantity ?? ''),
         days: String(item.days ?? ''),
         otPd: String(item.otPd ?? ''),
+        dtPd: String(item.dtPd ?? ''),
         wCompPercent: String(item.wCompPercent ?? ''),
         payrollTaxesPercent: String(item.payrollTaxesPercent ?? '')
     });
@@ -127,10 +128,11 @@ function LaborRow({
             quantity: dirtyFields.has('quantity') ? prev.quantity : String(item.quantity ?? ''),
             days: dirtyFields.has('days') ? prev.days : String(item.days ?? ''),
             otPd: dirtyFields.has('otPd') ? prev.otPd : String(item.otPd ?? ''),
+            dtPd: dirtyFields.has('dtPd') ? prev.dtPd : String(item.dtPd ?? ''),
             wCompPercent: dirtyFields.has('wCompPercent') ? prev.wCompPercent : String(item.wCompPercent ?? ''),
             payrollTaxesPercent: dirtyFields.has('payrollTaxesPercent') ? prev.payrollTaxesPercent : String(item.payrollTaxesPercent ?? '')
         }));
-    }, [item.labor, item.classification, item.subClassification, item.basePay, item.quantity, item.days, item.otPd, item.wCompPercent, item.payrollTaxesPercent]);
+    }, [item.labor, item.classification, item.subClassification, item.basePay, item.quantity, item.days, item.otPd, item.dtPd, item.wCompPercent, item.payrollTaxesPercent]);
 
     // Calculate labor total using the 10-step formula
     const liveTotal = useMemo(() => {
@@ -138,6 +140,7 @@ function LaborRow({
         const qty = parseFloat(localValues.quantity) || 0;
         const days = parseFloat(localValues.days) || 0;
         const otPd = parseFloat(localValues.otPd) || 0;
+        const dtPd = parseFloat(localValues.dtPd) || 0;
         const wCompPct = parseFloat(localValues.wCompPercent) || 0;
         const taxesPct = parseFloat(localValues.payrollTaxesPercent) || 0;
         
@@ -157,12 +160,15 @@ function LaborRow({
         
         // 3. WComp Tax = basePay * (wCompPct / 100)
         const wCompTaxAmount = basePay * (wCompPct / 100);
+        const otWCompTaxAmount = (basePay * 1.5) * (wCompPct / 100);
+        const dtWCompTaxAmount = (basePay * 2) * (wCompPct / 100);
         
         // 4. Payroll Taxes = basePay * (taxesPct / 100)
         const payrollTaxAmount = basePay * (taxesPct / 100);
         
         // 5 & 8. OT Payroll Taxes = basePay * 1.5 * (taxesPct / 100)
         const otPayrollTaxAmount = basePay * 1.5 * (taxesPct / 100);
+        const dtPayrollTaxAmount = basePay * 2 * (taxesPct / 100);
         
         // 6. Fringe (value from constants)
         // Prefer item-specific fringe if available, otherwise use global rate
@@ -174,12 +180,17 @@ function LaborRow({
         // 7. Base Rate = basePay + wCompTax + payrollTax + fringe
         const baseRate = basePay + wCompTaxAmount + payrollTaxAmount + fringeAmount;
         
-        // 9. OT Rate = (basePay * 1.5) + wCompTax + otPayrollTax + fringe
+        // 9. OT Rate = (basePay * 1.5) + otWCompTax + otPayrollTax + fringe
         const otBasePay = basePay * 1.5;
-        const otRate = otBasePay + wCompTaxAmount + otPayrollTaxAmount + fringeAmount;
+        const otRate = otBasePay + otWCompTaxAmount + otPayrollTaxAmount + fringeAmount; // Fixed: Use otWCompTaxAmount
+
+         // DT Rate = (basePay * 2) + dtWCompTax + dtPayrollTax + fringe
+         const dtBasePay = basePay * 2;
+         const dtRate = dtBasePay + dtWCompTaxAmount + dtPayrollTaxAmount + fringeAmount; // Fixed: Use dtWCompTaxAmount
         
-        // 10. Total = (totalHours * baseRate) + (totalOtHours * otRate)
-        const total = (totalHours * baseRate) + (totalOtHours * otRate);
+        // 10. Total = (totalHours * baseRate) + (totalOtHours * otRate) + (dtHours * dtRate)
+        const dtHours = qty * days * dtPd;
+        const total = (totalHours * baseRate) + (totalOtHours * otRate) + (dtHours * dtRate);
         
         return isNaN(total) ? 0 : total;
     }, [localValues.basePay, localValues.quantity, localValues.days, localValues.otPd, localValues.wCompPercent, localValues.payrollTaxesPercent, item.subClassification, item.fringe, fringeRate, fringeConstants]);
@@ -192,7 +203,7 @@ function LaborRow({
     const handleBlur = (field: string) => {
         if (dirtyFields.has(field)) {
             const value = localValues[field as keyof typeof localValues];
-            const numericFields = ['basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent'];
+            const numericFields = ['basePay', 'quantity', 'days', 'otPd', 'dtPd', 'wCompPercent', 'payrollTaxesPercent'];
             const finalValue = numericFields.includes(field) ? (parseFloat(value) || 0) : value;
             onUpdateItem?.(item, field, finalValue);
             setDirtyFields(prev => {
@@ -292,6 +303,16 @@ function LaborRow({
                 />
             </td>
             <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+                <LiveInput
+                    value={localValues.dtPd}
+                    inputType="number"
+                    onChange={(val) => handleChange('dtPd', val)}
+                    onBlur={() => handleBlur('dtPd')}
+                    placeholder="DTPD"
+                    inputId={`labor-${index}-7`}
+                />
+            </td>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
                 <span className="text-xs text-gray-700">{formatPercent(localValues.wCompPercent)}</span>
             </td>
             <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
@@ -370,6 +391,9 @@ export function LaborLineItemsTable({
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
                             OTPD
+                        </th>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                            DTPD
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
                             W.Comp

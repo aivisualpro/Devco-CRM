@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check, Pencil, X, FilePlus, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Link, Image, Eraser } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal } from '@/components/ui';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal, ClientModal } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
@@ -439,6 +439,10 @@ export default function EstimateViewPage() {
     const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
     const [isAddingProposalService, setIsAddingProposalService] = useState(false);
     const [hasCustomProposal, setHasCustomProposal] = useState(false); // Track if proposal has custom edits
+    
+    // Client Modal State
+    const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+    const [newClientName, setNewClientName] = useState('');
 
     const handleCreateTemplate = () => {
         setSaveType('create');
@@ -1569,9 +1573,9 @@ export default function EstimateViewPage() {
         }
     };
     
-    const handleAddClient = async (name: string) => {
+    const handleSaveClient = async (clientData: any) => {
         try {
-            const res = await apiCall('addClient', { item: { name, status: 'Active' } });
+            const res = await apiCall('addClient', { item: clientData });
             if (res.success && res.result) {
                 const newClient = res.result;
                 const opt = {
@@ -1580,14 +1584,59 @@ export default function EstimateViewPage() {
                     value: newClient._id || newClient.recordId
                 };
                 setClientOptions(prev => [...prev, opt].sort((a, b) => a.label.localeCompare(b.label)));
-                success('Client added');
-                return { id: opt.id, name: opt.label };
+                
+                // Update header directly
+                handleHeaderUpdate('customerName', newClient.name);
+                handleHeaderUpdate('customerId', newClient._id || newClient.recordId);
+                
+                // Auto-select primary contact/address if available
+                const primaryContact = newClient.contacts?.find((c: any) => c.primary || c.active);
+                if (primaryContact) {
+                    handleHeaderUpdate('contactName', primaryContact.name);
+                    // Use name as ID if backend doesn't provide specific contact ID
+                    handleHeaderUpdate('contactId', primaryContact.name); 
+                    handleHeaderUpdate('contactEmail', primaryContact.email || '');
+                    handleHeaderUpdate('contactPhone', primaryContact.phone || '');
+                } else {
+                     handleHeaderUpdate('contactName', '');
+                     handleHeaderUpdate('contactId', '');
+                     handleHeaderUpdate('contactEmail', '');
+                     handleHeaderUpdate('contactPhone', '');
+                }
+
+                const primaryAddress = newClient.addresses?.find((a: any) => (typeof a !== 'string' && a.primary)) || 
+                                       (newClient.businessAddress ? { address: newClient.businessAddress } : null);
+                
+                if (primaryAddress) {
+                    // Fix: Ensure we extract a string, handling cases where address might be falsy within object
+                    let addrStr = '';
+                    if (typeof primaryAddress === 'string') {
+                        addrStr = primaryAddress;
+                    } else if (primaryAddress && typeof primaryAddress === 'object') {
+                        // Fallback order: address -> businessAddress -> fullAddress -> street
+                        addrStr = primaryAddress.address || primaryAddress.businessAddress || primaryAddress.fullAddress || primaryAddress.street || '';
+                    }
+                    handleHeaderUpdate('jobAddress', addrStr);
+                } else {
+                    handleHeaderUpdate('jobAddress', '');
+                }
+                
+                success('Client added successfully');
+                setIsClientModalOpen(false);
+                setNewClientName('');
+            } else {
+                toastError('Failed to add client: ' + (res.error || 'Unknown error'));
             }
         } catch (e) {
             console.error(e);
             toastError('Error adding client');
         }
-        return null;
+    };
+
+    const handleAddClient = async (name: string) => {
+        setNewClientName(name);
+        setIsClientModalOpen(true);
+        return null; // Return null so the header card keeps waiting or handles it via state update
     };
 
     const handleUpdateClientContacts = async (updatedContacts: any[]) => {
@@ -2146,6 +2195,21 @@ export default function EstimateViewPage() {
                 customerId={formData.customerId}
                 onUpdate={(field, value) => handleHeaderUpdate(field as string, value)}
             />
+            
+            <ClientModal
+                isOpen={isClientModalOpen}
+                onClose={() => setIsClientModalOpen(false)}
+                onSave={handleSaveClient}
+                initialClient={{ name: newClientName }}
+                employees={employeesData.map(e => ({
+                    _id: e._id,
+                    firstName: e.firstName,
+                    lastName: e.lastName,
+                    profilePicture: e.profilePicture,
+                    email: e.email
+                }))}
+            />
+
         </div>
     );
 }
