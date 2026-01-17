@@ -197,53 +197,62 @@ export function VersionTimeline({
     return (
         <div className="flex flex-col h-full p-4 rounded-xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] overflow-hidden">
             {/* Version History Section */}
-            <div className="mb-6 flex flex-col h-1/2">
-                <div className="flex items-center justify-between mb-4">
-                    <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-                        Version History
-                    </label>
+            <div className="flex flex-col min-h-0">
+                <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/50">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1 h-3 bg-blue-500 rounded-full" />
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">
+                            Version History
+                        </label>
+                    </div>
                     {regularVersions.length > 0 && (
-                        <span className="text-[10px] bg-blue-100 text-blue-600 px-2.5 py-1 rounded-full font-bold">
-                            {regularVersions.length} versions
+                        <span className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-bold border border-blue-100/50">
+                            {regularVersions.length}
                         </span>
                     )}
                 </div>
 
-                <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+                <div className="space-y-2.5 max-h-[130px] overflow-y-auto pr-1 custom-scrollbar">
                     {regularVersions.length > 0 ? (
                         regularVersions.map((ver, idx) => (
                             <VersionItem key={ver._id} ver={ver} idx={idx} />
                         ))
                     ) : (
-                        <div className="text-center text-xs text-gray-400 py-4 italic">
+                        <div className="text-center text-[10px] text-gray-400 py-4 italic">
                             No versions found
                         </div>
                     )}
                 </div>
             </div>
 
-            <div className="h-px bg-slate-200/50 mb-6" />
+            {/* Styled Separator with no massive gap */}
+            <div className="py-4">
+                <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent" />
+            </div>
 
             {/* Change Orders Section */}
-            <div className="flex flex-col h-1/2">
-                <div className="flex items-center justify-between mb-4">
-                    <label className="text-sm font-bold text-slate-400 uppercase tracking-widest">
-                        Change Orders
-                    </label>
+            <div className="flex flex-col min-h-0">
+                <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-slate-200/50">
+                    <div className="flex items-center gap-2">
+                        <div className="w-1 h-3 bg-amber-500 rounded-full" />
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.1em]">
+                            Change Orders
+                        </label>
+                    </div>
                     {changeOrders.length > 0 && (
-                        <span className="text-[10px] bg-amber-100 text-amber-600 px-2.5 py-1 rounded-full font-bold">
-                            {changeOrders.length} COs
+                        <span className="text-[9px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-md font-bold border border-amber-100/50">
+                            {changeOrders.length}
                         </span>
                     )}
                 </div>
 
-                <div className="space-y-3 flex-1 overflow-y-auto pr-1">
+                <div className="space-y-2.5 max-h-[130px] overflow-y-auto pr-1 custom-scrollbar">
                     {changeOrders.length > 0 ? (
                         changeOrders.map((ver, idx) => (
                             <VersionItem key={ver._id} ver={ver} idx={idx} isCO={true} />
                         ))
                     ) : (
-                        <div className="text-center text-xs text-gray-400 py-4 italic">
+                        <div className="text-center text-[10px] text-gray-400 py-4 italic">
                             No change orders found
                         </div>
                     )}

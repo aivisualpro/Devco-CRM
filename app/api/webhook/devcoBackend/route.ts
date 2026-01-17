@@ -990,83 +990,100 @@ export async function POST(request: NextRequest) {
                 if (!deleteId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
                 // 1. Fetch before delete to get info for sync & renumbering
-                const estToDelete = await Estimate.findById(deleteId).lean();
+                const estToDelete = await Estimate.findById(deleteId).lean() as any;
                 if (!estToDelete) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
 
                 const estimateNumber = estToDelete.estimate;
+                const isCO = estToDelete.isChangeOrder === true;
+                const parentVersionId = estToDelete.parentVersionId;
                 
                 // 2. Delete the target version
                 await Estimate.findByIdAndDelete(deleteId);
                 
                 // 3. Handle AppSheet Sync for Deletion
-                if (estToDelete.estimate) {
+                if (estimateNumber) {
                      // Check if there are other versions left (temporarily, before renumbering)
-                     const remaining = await Estimate.find({ estimate: estToDelete.estimate }).sort({ versionNumber: -1 }).limit(1).lean();
+                     const remaining = await Estimate.find({ estimate: estimateNumber }).sort({ versionNumber: -1 }).limit(1).lean();
                      
                      if (remaining.length === 0) {
                          // No versions left, truly DELETE from AppSheet
                          updateAppSheet(estToDelete, null, "Delete").catch(err => console.error('Delete sync error:', err));
-                     } else {
-                         // We still have versions. We might need to sync the "new latest" if we deleted the latest.
-                         // But we'll handle final sync after renumbering to be safe.
                      }
                 }
 
-                // 4. Renumber logic: Shift subsequent versions down
-                // Fetch all remaining versions sorted by version number
-                const allVersions = await Estimate.find({ estimate: estimateNumber })
+                if (isCO) {
+                    // --- CASE A: Deleting a Change Order ---
+                    // Renumber remaining COs for this specific parent version
+                    const otherCOs = await Estimate.find({ 
+                        parentVersionId, 
+                        isChangeOrder: true 
+                    }).sort({ createdAt: 1 }).lean();
+
+                    for (let i = 0; i < otherCOs.length; i++) {
+                        const doc = otherCOs[i];
+                        const correctCONum = i + 1;
+                        const expectedId = `${parentVersionId}-CO${correctCONum}`;
+
+                        if (String(doc._id) !== expectedId) {
+                            const oldId = doc._id;
+                            const { _id, __v, ...data } = doc as any;
+                            
+                            // Re-create with new sequential ID
+                            await Estimate.create({
+                                ...data,
+                                _id: expectedId,
+                                updatedAt: new Date()
+                            });
+                            await Estimate.findByIdAndDelete(oldId);
+                        }
+                    }
+                } else {
+                    // --- CASE B: Deleting a Regular Version ---
+                    // Shift subsequent versions down, and also update their child COs
+                    const allVersions = await Estimate.find({ 
+                        estimate: estimateNumber, 
+                        isChangeOrder: { $ne: true } 
+                    })
                     .sort({ versionNumber: 1 })
                     .lean();
 
-                const renumberOps = [];
-                
-                for (let i = 0; i < allVersions.length; i++) {
-                    const doc = allVersions[i];
-                    const correctVerNum = i + 1;
-                    const expectedId = `${estimateNumber}-V${correctVerNum}`;
-                    
-                    // Check for BOTH version number mismatch AND ID mismatch
-                    // This auto-repairs corrupted data where ID says V3 but versionNumber says 2
-                    if (doc.versionNumber !== correctVerNum || String(doc._id) !== expectedId) {
-                        const oldId = doc._id;
-                        const newId = expectedId;
-
-                        // We must "Move" the document: Create Copy with New ID -> Delete Old
-                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                        const { _id, __v, ...data } = doc as any;
+                    for (let i = 0; i < allVersions.length; i++) {
+                        const doc = allVersions[i];
+                        const correctVerNum = i + 1;
+                        const expectedId = `${estimateNumber}-V${correctVerNum}`;
                         
-                        renumberOps.push(async () => {
-                            // Check if target ID exists (safety check)
-                            // If it exists, we might be overwriting, but in a sequential renumber 
-                            // of a sorted list where we process i=0..N, the target 'i+1' should be free 
-                            // IF we are shifting down.
-                            // BUT if we have corrupted duplicate states (e.g. V2 and V3 both think they are V2),
-                            // we need to be careful. 
-                            // Since we are creating a NEW document, if 'expectedId' exists, create will fail.
-                            // However, we deleted the target of the PREVIOUS slot in previous iteration if needed.
+                        if (doc.versionNumber !== correctVerNum || String(doc._id) !== expectedId) {
+                            const oldId = doc._id;
+                            const { _id, __v, ...data } = doc as any;
                             
-                            // Safe approach: Delete target ID if it exists (it technically shouldn't if we are shifting down into a gap, 
-                            // OR if we are renaming in place)
-                            // But wait, if we have V3 and we want to make it V2. V2 is already deleted (step 2 of main function).
-                            // So V2 slot is empty.
-                            
-                            // Create new at correct slot
+                            // 1. Move the regular version
                             await Estimate.create({
                                 ...data,
-                                _id: newId,
+                                _id: expectedId,
                                 versionNumber: correctVerNum,
                                 updatedAt: new Date()
                             });
-                            // Delete old record
                             await Estimate.findByIdAndDelete(oldId);
-                            console.log(`Renumbered/Repaired ${oldId} -> ${newId}`);
-                        });
-                    }
-                }
 
-                // Execute renumbering sequentially to avoid conflicts
-                for (const op of renumberOps) {
-                    await op();
+                            // 2. Find and update any COs linked to the OLD parent ID
+                            const childCOs = await Estimate.find({ parentVersionId: oldId, isChangeOrder: true }).lean();
+                            for (let j = 0; j < childCOs.length; j++) {
+                                const coDoc = childCOs[j];
+                                const coNumMatch = String(coDoc._id).match(/-CO(\d+)$/);
+                                const coNum = coNumMatch ? coNumMatch[1] : (j + 1);
+                                const newCOId = `${expectedId}-CO${coNum}`;
+
+                                const { _id: coId, __v: coV, ...coData } = coDoc as any;
+                                await Estimate.create({
+                                    ...coData,
+                                    _id: newCOId,
+                                    parentVersionId: expectedId,
+                                    updatedAt: new Date()
+                                });
+                                await Estimate.findByIdAndDelete(coId);
+                            }
+                        }
+                    }
                 }
 
                 // 5. Final Sync Check
