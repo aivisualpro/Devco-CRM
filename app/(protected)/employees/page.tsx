@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Upload, Pencil, Trash2, Plus, Phone, Mail, ChevronDown, Shield, UserCog, Users, User, Eye, Lock, Settings } from 'lucide-react';
-import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SaveButton, CancelButton, MyDropDown } from '@/components/ui';
+import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SaveButton, CancelButton, MyDropDown, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 
@@ -547,23 +547,35 @@ export default function EmployeesPage() {
                             onChange={handleImport}
                         />
                         <div className="hidden lg:block">
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isImporting}
-                                className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
-                                title={isImporting ? 'Importing...' : 'Import CSV'}
-                            >
-                                <Upload size={18} />
-                            </button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isImporting}
+                                        className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
+                                    >
+                                        <Upload size={18} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
 
-                        <button
-                            onClick={openAddModal}
-                            className="w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 hover:bg-[#0b3c5d] transition-all"
-                            title="Add New"
-                        >
-                            <Plus size={24} />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={openAddModal}
+                                    className="w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 hover:bg-[#0b3c5d] transition-all"
+                                >
+                                    <Plus size={24} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Add New</p>
+                            </TooltipContent>
+                        </Tooltip>
                     </div>
                 }
             />
@@ -784,26 +796,39 @@ export default function EmployeesPage() {
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                openEditModal(emp);
-                                                            }}
-                                                            className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
-                                                        >
-                                                            <Pencil className="w-3.5 h-3.5" />
-                                                        </button>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openEditModal(emp);
+                                                                    }}
+                                                                    className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Edit Employee</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
 
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                openDeleteModal(emp);
-                                                            }}
-                                                            className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
-                                                        >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                        </button>
-
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openDeleteModal(emp);
+                                                                    }}
+                                                                    className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Delete Employee</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

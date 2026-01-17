@@ -9,6 +9,7 @@ import {
     ACTIONS,
     DATA_SCOPE,
 } from '@/lib/permissions/types';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 
 // =====================================
 // PERMISSION CONTEXT
@@ -315,14 +316,20 @@ export function PermissionButton({
         if (hideIfDenied) return null;
         
         return (
-            <button
-                {...props}
-                disabled
-                title={disabledMessage}
-                className={`${props.className} opacity-50 cursor-not-allowed`}
-            >
-                {children}
-            </button>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        {...props}
+                        disabled
+                        className={`${props.className} opacity-50 cursor-not-allowed`}
+                    >
+                        {children}
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>{disabledMessage}</p>
+                </TooltipContent>
+            </Tooltip>
         );
     }
 

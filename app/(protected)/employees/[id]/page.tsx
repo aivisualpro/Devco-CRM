@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil } from 'lucide-react';
-import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton } from '@/components/ui';
+import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
@@ -225,13 +225,19 @@ export default function EmployeeViewPage() {
             <div className="flex-none bg-white">
             <Header
                 leftContent={
-                    <button
-                        onClick={() => router.push('/employees')}
-                        className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
-                        title="Back to List"
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                onClick={() => router.push('/employees')}
+                                className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+                            >
+                                <ArrowLeft className="w-5 h-5" />
+                            </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p>Back to List</p>
+                        </TooltipContent>
+                    </Tooltip>
                 }
                 rightContent={null}
             />

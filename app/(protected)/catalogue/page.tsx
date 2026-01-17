@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Package, Briefcase, Layers, Settings, Wrench, Truck, DollarSign, User, ShieldCheck, Mail, Phone, MapPin, MessageSquare } from 'lucide-react';
-import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, SkeletonTable } from '@/components/ui';
+import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import { useRef, useCallback } from 'react';
@@ -634,12 +634,26 @@ export default function CataloguePage() {
                                                     ))}
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-2">
-                                                            <button onClick={() => openEditModal(item)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
-                                                                <Pencil className="w-4 h-4" />
-                                                            </button>
-                                                            <button onClick={() => confirmDelete(item._id)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button onClick={() => openEditModal(item)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                                        <Pencil className="w-4 h-4" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Edit Item</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button onClick={() => confirmDelete(item._id)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Delete Item</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>

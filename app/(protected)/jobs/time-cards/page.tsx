@@ -10,7 +10,7 @@ import {
     Header, Loading, Modal,
     SearchableSelect, Card, Pagination,
     Table, TableHead, TableBody, TableRow, TableHeader, TableCell,
-    Badge
+    Badge, Tooltip, TooltipTrigger, TooltipContent
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -706,13 +706,19 @@ export default function TimeCardPage() {
                                 </div>
 
                                 {hasFilters && (
-                                    <button 
-                                        onClick={clearFilters}
-                                        className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
-                                        title="Clear all filters"
-                                    >
-                                        <RotateCcw size={16} />
-                                    </button>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button 
+                                                onClick={clearFilters}
+                                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                                            >
+                                                <RotateCcw size={16} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Clear all filters</p>
+                                        </TooltipContent>
+                                    </Tooltip>
                                 )}
                             </div>
                         </div>
@@ -752,19 +758,26 @@ export default function TimeCardPage() {
                                                 <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
                                             </TableCell>
                                             <TableCell className="text-center">
-                                                <div className="flex justify-center" title={ts.type}>
-                                                    {ts.type?.toLowerCase().includes('drive') ? (
-                                                        <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                                                            <Truck size={14} />
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div className="flex justify-center">
+                                                            {ts.type?.toLowerCase().includes('drive') ? (
+                                                                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                                                    <Truck size={14} />
+                                                                </div>
+                                                            ) : ts.type?.toLowerCase().includes('site') ? (
+                                                                <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                                                                    <MapPin size={14} />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-4 h-4 rounded-full bg-slate-100" />
+                                                            )}
                                                         </div>
-                                                    ) : ts.type?.toLowerCase().includes('site') ? (
-                                                        <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-                                                            <MapPin size={14} />
-                                                        </div>
-                                                    ) : (
-                                                        <div className="w-4 h-4 rounded-full bg-slate-100" />
-                                                    )}
-                                                </div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{ts.type}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             </TableCell>
                                             <TableCell className="font-bold text-[#0F4C75] text-xs">
                                                 {ts.estimate || '-'}
@@ -783,18 +796,32 @@ export default function TimeCardPage() {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
-                                                    <button 
-                                                        onClick={() => handleEditClick(ts)}
-                                                        className="p-1.5 hover:bg-white text-slate-400 hover:text-[#0F4C75] rounded-lg shadow-sm hover:shadow transition-all"
-                                                    >
-                                                        <Edit size={12} />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDelete(ts)}
-                                                        className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
-                                                    >
-                                                        <Trash2 size={12} />
-                                                    </button>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <button 
+                                                                onClick={() => handleEditClick(ts)}
+                                                                className="p-1.5 hover:bg-white text-slate-400 hover:text-[#0F4C75] rounded-lg shadow-sm hover:shadow transition-all"
+                                                            >
+                                                                <Edit size={12} />
+                                                            </button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Edit</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <button 
+                                                                onClick={() => handleDelete(ts)}
+                                                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
+                                                            >
+                                                                <Trash2 size={12} />
+                                                            </button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Delete</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

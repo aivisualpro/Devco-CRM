@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { MyDropDown, Modal, Input, Button } from '@/components/ui';
+import { MyDropDown, Modal, Input, Button, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
 import { VersionTimeline } from './VersionTimeline';
@@ -29,8 +29,9 @@ interface FormData {
     bidMarkUp?: string | number;
     fringe?: string;
     status?: string;
-    proposalWriter?: string;
+    proposalWriter?: string | string[];
     certifiedPayroll?: string;
+    prevailingWage?: boolean;
     services?: string[];
 
     [key: string]: unknown;
@@ -49,6 +50,9 @@ interface VersionEntry {
     versionNumber?: number;
     date?: string;
     totalAmount?: number;
+    status?: string;
+    isChangeOrder?: boolean;
+    parentVersionId?: string;
 }
 
 interface EstimateHeaderCardProps {
@@ -72,7 +76,7 @@ interface EstimateHeaderCardProps {
     certifiedPayrollOptions: { id: string; label: string; value: string; color?: string }[];
     employeeOptions: { id: string; label: string; value: string; color?: string; profilePicture?: string }[];
 
-    onHeaderUpdate: (field: string, value: string | number | boolean) => void;
+    onHeaderUpdate: (field: string, value: string | number | boolean | string[]) => void;
     onVersionClick: (id: string) => void;
     onAddConstant?: (data: any) => Promise<any>;
 
@@ -83,6 +87,8 @@ interface EstimateHeaderCardProps {
     onUpdateClientContacts: (contacts: any[]) => Promise<void>;
     onUpdateClientAddresses: (addresses: string[]) => Promise<void>;
     onCloneVersion?: (id: string, versionNumber: number) => void;
+    onAddChangeOrder?: (id: string) => void;
+    onDeleteVersion?: (id: string, versionNumber: number) => void;
 }
 
 
@@ -112,14 +118,17 @@ export function EstimateHeaderCard({
     onAddClient,
     onUpdateClientContacts,
     onUpdateClientAddresses,
-    onCloneVersion
+    onCloneVersion,
+    onAddChangeOrder,
+    onDeleteVersion
 }: EstimateHeaderCardProps) {
     const router = useRouter();
 
     const [isAddingContact, setIsAddingContact] = useState(false);
     const [newContactData, setNewContactData] = useState({ name: '', email: '', phone: '', type: 'Main Contact' });
+
     const [isEditingProjectName, setIsEditingProjectName] = useState(false);
-    const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | 'client' | 'contact' | 'address' | null>(null);
+    const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | 'prevailingWage' | 'client' | 'contact' | 'address' | null>(null);
     const [isAddingService, setIsAddingService] = useState(false);
 
 
@@ -239,6 +248,25 @@ export function EstimateHeaderCard({
         } catch (e) { console.error(e); }
     };
 
+    const toggleProposalWriter = (value: string) => {
+        const current = Array.isArray(formData.proposalWriter) 
+            ? formData.proposalWriter 
+            : formData.proposalWriter 
+                ? [formData.proposalWriter] 
+                : [];
+        
+        const exists = current.includes(value);
+        let updated: string[];
+        
+        if (exists) {
+            updated = current.filter(w => w !== value);
+        } else {
+            updated = [...current, value];
+        }
+        
+        onHeaderUpdate('proposalWriter', updated);
+    };
+
     const handleSaveNewContact = async () => {
         if (!newContactData.name) return;
         const currentContacts = contactOptions.map(c => ({
@@ -276,16 +304,22 @@ export function EstimateHeaderCard({
                                 Customer
                             </label>
                             {formData.customerId && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        router.push(`/clients/${formData.customerId}?from=${encodeURIComponent(window.location.pathname)}`);
-                                    }}
-                                    className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
-                                    title="Go to Client Profile"
-                                >
-                                    <ExternalLink className="w-3 h-3" />
-                                </button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/clients/${formData.customerId}?from=${encodeURIComponent(window.location.pathname)}`);
+                                            }}
+                                            className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
+                                        >
+                                            <ExternalLink className="w-3 h-3" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Go to Client Profile</p>
+                                    </TooltipContent>
+                                </Tooltip>
                             )}
                         </div>
                         <div 
@@ -497,12 +531,16 @@ export function EstimateHeaderCard({
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">
                                 Estimate No.
                             </label>
-                            <div
-                                className="text-base font-bold text-slate-600 truncate"
-                                title={formData.estimate || '-'}
-                            >
-                                {formData.estimate || '-'}
-                            </div>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="text-base font-bold text-slate-600 truncate">
+                                        {formData.estimate || '-'}
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{formData.estimate || '-'}</p>
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
                     </div>
 
@@ -560,7 +598,7 @@ export function EstimateHeaderCard({
                             {/* Certified Payroll */}
                             <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                    Certified Payroll
+                                    Cert. Pay
                                 </label>
                                 {(() => {
                                     const selectedOpt = certifiedPayrollOptions.find(f => f.value === formData.certifiedPayroll);
@@ -603,6 +641,55 @@ export function EstimateHeaderCard({
                                     positionMode="overlay"
                                 />
                             </div>
+
+                            {/* Prevailing Wage (Conditional) */}
+                            {formData.certifiedPayroll === 'Yes' && (
+                                <div className="flex-1 relative flex flex-col items-center p-2 animate-fadeIn">
+                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block text-center leading-tight">
+                                        Prev. Wage
+                                    </label>
+                                    {(() => {
+                                        const isPrevailing = formData.prevailingWage === true;
+                                        const isDropdownOpen = activeDropdown === 'prevailingWage';
+                                        
+                                        return (
+                                            <div
+                                                id="field-prevailingWage"
+                                                onClick={() => setActiveDropdown(activeDropdown === 'prevailingWage' ? null : 'prevailingWage')}
+                                                className={`
+                                                w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
+                                                ${isDropdownOpen
+                                                        ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
+                                                        : isPrevailing
+                                                            ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)]'
+                                                            : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6]'}
+                                            `}
+                                                style={isPrevailing ? { backgroundColor: '#10B981', color: 'white' } : { backgroundColor: '#FC5185', color: 'white' }}
+                                            >
+                                                {isPrevailing ? <Check className="w-5 h-5" /> : <span className="text-xs font-bold text-white">NO</span>}
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* Prevailing Wage Dropdown */}
+                                    <MyDropDown
+                                        isOpen={activeDropdown === 'prevailingWage'}
+                                        onClose={() => setActiveDropdown(null)}
+                                        options={[
+                                            { id: 'pw-yes', label: 'Yes', value: 'true', color: '#10B981' },
+                                            { id: 'pw-no', label: 'No', value: 'false', color: '#FC5185' }
+                                        ]}
+                                        selectedValues={formData.prevailingWage ? ['true'] : ['false']}
+                                        onSelect={(val) => {
+                                            onHeaderUpdate('prevailingWage', val === 'true');
+                                            setActiveDropdown(null);
+                                        }}
+                                        placeholder="Select..."
+                                        anchorId="field-prevailingWage"
+                                        positionMode="overlay"
+                                    />
+                                </div>
+                            )}
 
                         </div>
 
@@ -755,10 +842,13 @@ export function EstimateHeaderCard({
                                     Proposal Writer
                                 </label>
                                 {(() => {
-                                    const selectedEmp = employeeOptions.find(e => e.value === formData.proposalWriter);
-                                    const writerLabel = selectedEmp?.label || '';
-                                    const writerPic = selectedEmp?.profilePicture;
-                                    const hasValue = !!formData.proposalWriter;
+                                    const rawWriters = formData.proposalWriter;
+                                    const selectedIds = Array.isArray(rawWriters) 
+                                        ? rawWriters 
+                                        : rawWriters ? [rawWriters] : [];
+                                    
+                                    const selectedEmps = employeeOptions.filter(e => selectedIds.includes(e.value));
+                                    const hasValue = selectedEmps.length > 0;
                                     const isOpen = activeDropdown === 'proposalWriter';
 
                                     return (
@@ -766,25 +856,62 @@ export function EstimateHeaderCard({
                                             id="field-writer"
                                             onClick={() => setActiveDropdown(isOpen ? null : 'proposalWriter')}
                                             className={`
-                                    w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
+                                                w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
                                                 ${isOpen
-                                                    ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
+                                                    ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)] bg-slate-100'
                                                     : hasValue
                                                         ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)]'
                                                         : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'
                                                 }
-                                    `}
+                                            `}
                                         >
-                                            {hasValue && writerPic ? (
-                                                <img
-                                                    src={writerPic}
-                                                    alt={writerLabel}
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : hasValue ? (
-                                                <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-white text-xs font-bold">
-                                                    {writerLabel.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                                                </div>
+                                            {hasValue ? (
+                                                selectedEmps.length === 1 ? (
+                                                    // Single Writer
+                                                    selectedEmps[0].profilePicture ? (
+                                                        <img
+                                                            src={selectedEmps[0].profilePicture}
+                                                            alt={selectedEmps[0].label}
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-white text-xs font-bold">
+                                                            {selectedEmps[0].label.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                                                        </div>
+                                                    )
+                                                ) : (
+                                                    // Multiple Writers
+                                                    selectedEmps.length === 2 ? (
+                                                        <div className="w-full h-full flex items-stretch">
+                                                            {selectedEmps.map((emp, i) => (
+                                                                <div key={emp.value} className={`w-1/2 h-full overflow-hidden ${i === 0 ? 'border-r border-white/20' : ''}`}>
+                                                                     {emp.profilePicture ? (
+                                                                         <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
+                                                                     ) : (
+                                                                          <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-[10px] text-white font-bold">
+                                                                             {emp.label.charAt(0)}
+                                                                          </div>
+                                                                     )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        // 3 or more (Grid)
+                                                        <div className="w-full h-full grid grid-cols-2 grid-rows-2">
+                                                            {selectedEmps.slice(0, 4).map((emp) => (
+                                                                 <div key={emp.value} className="w-full h-full overflow-hidden border-white/20 border-r border-b [&:nth-child(2n)]:border-r-0 [&:nth-child(n+3)]:border-b-0">
+                                                                     {emp.profilePicture ? (
+                                                                         <img src={emp.profilePicture} alt={emp.label} className="w-full h-full object-cover" />
+                                                                     ) : (
+                                                                          <div className="w-full h-full flex items-center justify-center bg-[#0F4C75] text-[8px] text-white font-bold">
+                                                                             {emp.label.charAt(0)}
+                                                                          </div>
+                                                                     )}
+                                                                 </div>
+                                                            ))}
+                                                        </div>
+                                                    )
+                                                )
                                             ) : (
                                                 <span className="text-[10px] uppercase font-bold text-slate-400">Add</span>
                                             )}
@@ -799,16 +926,21 @@ export function EstimateHeaderCard({
                                     isOpen={activeDropdown === 'proposalWriter'}
                                     onClose={() => setActiveDropdown(null)}
                                     options={employeeOptions}
-                                    selectedValues={formData.proposalWriter ? [formData.proposalWriter] : []}
-                                    onSelect={(val) => {
-                                        onHeaderUpdate('proposalWriter', val === formData.proposalWriter ? '' : val);
-                                        setActiveDropdown(null);
-                                    }}
-                                    placeholder="Search writers..."
+                                    selectedValues={
+                                        Array.isArray(formData.proposalWriter) 
+                                        ? formData.proposalWriter 
+                                        : formData.proposalWriter 
+                                            ? [formData.proposalWriter] 
+                                            : []
+                                    }
+                                    onSelect={toggleProposalWriter}
+                                    placeholder="Select writers..."
                                     anchorId="field-writer"
                                     positionMode="overlay"
+                                    multiSelect={true}
                                 />
-                            </div>
+                                </div>
+
 
 
                             {/* Status Column */}
@@ -877,6 +1009,9 @@ export function EstimateHeaderCard({
                     currentId={currentEstimateId}
                     onVersionClick={onVersionClick}
                     onCloneVersion={onCloneVersion}
+                    onAddChangeOrder={onAddChangeOrder}
+                    onDeleteVersion={onDeleteVersion}
+                    statusOptions={statusOptions}
                 />
             </div>
 

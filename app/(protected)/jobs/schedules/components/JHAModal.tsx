@@ -2,7 +2,7 @@ import React from 'react';
 import { 
     Loader2, Download, Mail, Edit, CheckCircle2, AlertCircle, Plus, FilePlus, X
 } from 'lucide-react';
-import { Modal, EmptyState } from '@/components/ui';
+import { Modal, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
 
 interface JHAModalProps {
@@ -530,9 +530,16 @@ export const JHAModal = ({
                                                         <span className="text-[9px] font-bold text-slate-500">{emp?.label?.[0] || 'U'}</span>
                                                     )}
                                                     </div>
-                                                    <p className="text-xs font-bold text-slate-700 truncate max-w-[140px]" title={emp?.label || sig.employee}>
-                                                    {emp?.label || sig.employee}
-                                                    </p>
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <p className="text-xs font-bold text-slate-700 truncate max-w-[140px]">
+                                                                {emp?.label || sig.employee}
+                                                            </p>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{emp?.label || sig.employee}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                             </div>
 
                                             <p className="text-[10px] text-slate-400 font-medium">

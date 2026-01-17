@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Save, RefreshCw, Plus, Trash2, ChevronsUp, ChevronsDown, Copy, FileText, LayoutTemplate, ArrowLeft, Download, ChevronDown, ChevronRight, FileSpreadsheet, Check, Pencil, X, FilePlus, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify, List, ListOrdered, Link, Image, Eraser } from 'lucide-react';
-import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal, ClientModal } from '@/components/ui';
+import { Header, Loading, Button, AddButton, ConfirmModal, SkeletonEstimateHeader, SkeletonAccordion, FullEstimateSkeleton, Modal, LetterPageEditor, MyDropDown, MyTemplate, MyProposal, ClientModal, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import 'react-quill-new/dist/quill.snow.css';
@@ -65,8 +65,9 @@ interface Estimate {
     fringe?: string;
 
     services?: string[];
-    proposalWriter?: string;
+    proposalWriter?: string | string[];
     certifiedPayroll?: string;
+    prevailingWage?: boolean;
     oldOrNew?: string;
     labor?: LineItem[];
 
@@ -117,6 +118,10 @@ interface VersionEntry {
     versionNumber?: number;
     date?: string;
     totalAmount?: number;
+    status?: string;
+    isChangeOrder?: boolean;
+    parentVersionId?: string;
+    createdAt?: string;
 }
 
 // Section configurations
@@ -434,6 +439,9 @@ export default function EstimateViewPage() {
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
     const [newTemplateTitle, setNewTemplateTitle] = useState('');
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    // Confirmation State for Version Delete
+    const [versionToDelete, setVersionToDelete] = useState<{ id: string, number: number } | null>(null);
     const [saveType, setSaveType] = useState<'update' | 'create'>('update');
     const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
     const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
@@ -612,7 +620,8 @@ export default function EstimateViewPage() {
                         label: c.description || c.value,
                         value: c.description || c.value,
                         color: c.color
-                    }));
+                    }))
+                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
                 setStatusOptions(statuses);
 
                 // Process Service Options
@@ -626,7 +635,8 @@ export default function EstimateViewPage() {
                         label: (c.description || c.value || 'Unnamed Service').trim(),
                         value: (c.description || c.value || '').trim(),
                         color: c.color
-                    }));
+                    }))
+                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
                 setServiceOptions(services);
 
                 // Process Fringe Options
@@ -640,7 +650,8 @@ export default function EstimateViewPage() {
                         label: c.description || c.value,
                         value: (c.description || c.value || '').trim(), // Ensure trim
                         color: c.color
-                    }));
+                    }))
+                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
                 setFringeOptions(fringes);
 
                 // Process Certified Payroll Options
@@ -654,7 +665,8 @@ export default function EstimateViewPage() {
                         label: c.description || c.value,
                         value: (c.description || c.value || '').trim(),
                         color: c.color
-                    }));
+                    }))
+                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
                 setCertifiedPayrollOptions(certifiedPayroll);
 
                 // Fetch Employees for Proposal Writer
@@ -664,13 +676,14 @@ export default function EstimateViewPage() {
                     setEmployeesData(employeeRes.result);
                     
                     const employees = employeeRes.result
-                        .filter((emp: any) => emp.appRole === 'Admin')
+                        .filter((emp: any) => emp.status !== 'inactive')
                         .map((emp: any) => ({
                             id: emp._id,
                             label: `${emp.firstName} ${emp.lastName}`,
                             value: emp._id,
                             profilePicture: emp.profilePicture
-                        }));
+                        }))
+                        .sort((a: any, b: any) => a.label.localeCompare(b.label));
 
                     setEmployeeOptions(employees);
                 }
@@ -708,9 +721,14 @@ export default function EstimateViewPage() {
         try {
             const result = await apiCall('getEstimatesByProposal', { estimateNumber });
             if (result.success && result.result) {
-                const sorted = result.result.sort((a: VersionEntry, b: VersionEntry) =>
-                    (b.versionNumber || 0) - (a.versionNumber || 0)
-                );
+                // Sort by version number desc, then by date/id desc for stability
+                const sorted = result.result.sort((a: VersionEntry, b: VersionEntry) => {
+                    if ((b.versionNumber || 0) !== (a.versionNumber || 0)) {
+                        return (b.versionNumber || 0) - (a.versionNumber || 0);
+                    }
+                    // Same version number (e.g. COs) -> sort by ID or createdAt
+                    return b._id.localeCompare(a._id);
+                });
                 setVersionHistory(sorted);
             }
         } catch (err) {
@@ -766,7 +784,7 @@ export default function EstimateViewPage() {
                             });
                         }
                     }
-                    setContactOptions(contacts);
+                    setContactOptions(contacts.sort((a: any, b: any) => a.label.localeCompare(b.label)));
 
                     // Update Addresses
                     const addresses = [...(client.addresses || []), ...(client.address || [])].map((a: any) => {
@@ -789,7 +807,7 @@ export default function EstimateViewPage() {
                             value: bAddr
                         });
                     }
-                    setAddressOptions(addresses);
+                    setAddressOptions(addresses.sort((a: any, b: any) => a.label.localeCompare(b.label)));
                 }
             } catch (err) {
                 console.error('Error syncing client options:', err);
@@ -903,16 +921,18 @@ export default function EstimateViewPage() {
 
             // Only update if changed to avoid loops
             // Use a small epsilon for float comparison or exact match if preferred
-            if (Math.abs((prev[index].totalAmount || 0) - chartData.grandTotal) < 0.01) return prev;
+            if (Math.abs((prev[index].totalAmount || 0) - chartData.grandTotal) < 0.01 && 
+                prev[index].status === formData?.status) return prev;
 
             const newHistory = [...prev];
             newHistory[index] = {
                 ...newHistory[index],
-                totalAmount: chartData.grandTotal
+                totalAmount: chartData.grandTotal,
+                status: formData?.status
             };
             return newHistory;
         });
-    }, [chartData.grandTotal, estimate?._id]);
+    }, [chartData.grandTotal, estimate?._id, formData?.status]);
 
     // Auto-refresh preview when SERVICES change (debounce 500ms)
     // Only regenerate if services change - preserve saved proposal otherwise
@@ -1252,13 +1272,13 @@ export default function EstimateViewPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData?.services, templates, isEditingTemplate, viewingProposalId]);
 
-    const handleHeaderUpdate = async (field: string, value: string | number | boolean) => {
+    const handleHeaderUpdate = async (field: string, value: string | number | boolean | string[]) => {
         if (!formData) return;
         setFormData(prev => prev ? { ...prev, [field]: value } : null);
         setUnsavedChanges(true);
 
         // Auto-populate logic when Customer changes
-        if (field === 'customerId' && value) {
+        if (field === 'customerId' && value && typeof value === 'string') {
             try {
                 // Fetch Client Details (has both addresses and contacts now)
                 const clientRes = await apiCall('getClientById', { id: value });
@@ -1401,7 +1421,8 @@ export default function EstimateViewPage() {
                 overhead: estimate.overhead,
                 subcontractor: estimate.subcontractor,
                 disposal: estimate.disposal,
-                miscellaneous: estimate.miscellaneous
+                miscellaneous: estimate.miscellaneous,
+                prevailingWage: formData.certifiedPayroll === 'Yes' ? formData.prevailingWage : false
             };
 
             const result = await apiCall('updateEstimate', payload);
@@ -1504,7 +1525,7 @@ export default function EstimateViewPage() {
         try {
             const result = await apiCall('cloneEstimate', { id: id || estimate?._id });
             if (result.success && result.result) {
-                const newSlug = result.result.estimate ? `${result.result.estimate}-V${result.result.versionNumber || 1}` : result.result._id;
+                const newSlug = result.result._id; // Use ID for exact version
                 router.push(`/estimates/${newSlug}`);
                 success('Estimate cloned (v' + result.result.versionNumber + ')');
             } else {
@@ -1518,12 +1539,31 @@ export default function EstimateViewPage() {
         }
     };
 
+    const handleAddChangeOrder = async (id: string) => {
+        setLoading(true);
+        try {
+            const result = await apiCall('createChangeOrder', { id });
+            if (result.success && result.result) {
+                const newSlug = result.result._id;
+                router.push(`/estimates/${newSlug}`);
+                success('Change Order Created');
+            } else {
+                toastError('Failed to create change order');
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('Change order error:', err);
+            toastError('Failed to create change order');
+            setLoading(false);
+        }
+    };
+
     const handleCopy = async () => {
         setLoading(true);
         try {
             const result = await apiCall('copyEstimate', { id: estimate?._id });
             if (result.success && result.result) {
-                const newSlug = result.result.estimate ? `${result.result.estimate}-V${result.result.versionNumber || 1}` : result.result._id;
+                const newSlug = result.result._id;
                 router.push(`/estimates/${newSlug}`);
                 success('Estimate copied to new V1');
             } else {
@@ -1537,16 +1577,51 @@ export default function EstimateViewPage() {
         }
     };
 
+    const handleDeleteVersion = (versionId: string, versionNumber: number) => {
+        setVersionToDelete({ id: versionId, number: versionNumber });
+    };
 
+    const processDeleteVersion = async () => {
+        if (!versionToDelete) return;
 
+        setLoading(true);
+        try {
+            // 1. Delete the specific version (backend now handles renumbering)
+            const deleteRes = await apiCall('deleteEstimate', { id: versionToDelete.id });
+            if (!deleteRes.success) {
+                throw new Error(deleteRes.error || 'Failed to delete version');
+            }
+
+            success(`Version ${versionToDelete.number} deleted. Versions renumbered.`);
+
+            // 2. Handle Navigation Logic
+            if (estimate?.estimate) {
+                const res = await apiCall('getEstimatesByProposal', { estimateNumber: estimate.estimate });
+                if (res.success && res.result && res.result.length > 0) {
+                    const sorted = res.result.sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0));
+                    // Go to the latest version
+                    const latest = sorted[0];
+                    const slug = latest._id;
+                    window.location.href = `/estimates/${slug}`;
+                    return;
+                }
+            }
+            
+            // Fallback
+            router.push('/estimates');
+
+        } catch (err) {
+            console.error('Delete version error:', err);
+            toastError('Failed to delete version');
+            setLoading(false);
+        } finally {
+            setVersionToDelete(null);
+        }
+    };
 
     const handleVersionClick = (clickedId: string) => {
-        const clickedVersion = versionHistory.find(v => v._id === clickedId);
-        if (clickedVersion && clickedVersion.estimate) {
-            router.push(`/estimates/${clickedVersion.estimate}-V${clickedVersion.versionNumber || 1}`);
-        } else {
-            router.push(`/estimates/${clickedId}`);
-        }
+        // ALWAYS use clickedId (the _id) for navigation to ensure we hit the exact version/CO
+        router.push(`/estimates/${clickedId}`);
     };
 
     // Toggle all sections
@@ -1744,14 +1819,20 @@ export default function EstimateViewPage() {
                         {/* Toggle All */}
                         {/* Section Visibility Dropdown */}
                         <div className="relative">
-                            <button
-                                id="section-visibility-btn"
-                                onClick={() => setShowSectionMenu(!showSectionMenu)}
-                                className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                title="View Options"
-                            >
-                                <LayoutTemplate className="w-5 h-5" />
-                            </button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        id="section-visibility-btn"
+                                        onClick={() => setShowSectionMenu(!showSectionMenu)}
+                                        className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                    >
+                                        <LayoutTemplate className="w-5 h-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>View Options</p>
+                                </TooltipContent>
+                            </Tooltip>
                             <MyDropDown
                                 isOpen={showSectionMenu}
                                 onClose={() => setShowSectionMenu(false)}
@@ -1779,34 +1860,52 @@ export default function EstimateViewPage() {
 
                         {/* Refresh */}
                         {/* Back */}
-                        <button
-                            onClick={() => router.push('/estimates')}
-                            className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                            title="Back to Estimates"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => router.push('/estimates')}
+                                    className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                >
+                                    <ArrowLeft className="w-5 h-5" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Back to Estimates</p>
+                            </TooltipContent>
+                        </Tooltip>
 
 
 
                         {/* Copy */}
-                        <button
-                            onClick={handleCopy}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
-                            title="Copy to New Estimate"
-                        >
-                            <Copy className="w-5 h-5" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={handleCopy}
+                                    className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
+                                >
+                                    <Copy className="w-5 h-5" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Copy to New Estimate</p>
+                            </TooltipContent>
+                        </Tooltip>
 
 
                         {/* More Details */}
-                        <button
-                            onClick={() => setIsDetailsModalOpen(true)}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-xl transition-colors"
-                            title="More Details"
-                        >
-                            <FileSpreadsheet className="w-5 h-5" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => setIsDetailsModalOpen(true)}
+                                    className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-xl transition-colors"
+                                >
+                                    <FileSpreadsheet className="w-5 h-5" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>More Details</p>
+                            </TooltipContent>
+                        </Tooltip>
 
                         {/* Delete */}
 
@@ -1842,14 +1941,10 @@ export default function EstimateViewPage() {
                         onUpdateClientContacts={handleUpdateClientContacts}
                         onUpdateClientAddresses={handleUpdateClientAddresses}
                         onCloneVersion={handleClone}
+                        onAddChangeOrder={handleAddChangeOrder}
+                        onDeleteVersion={handleDeleteVersion}
 
-                        onVersionClick={(id) => {
-                            const v = versionHistory.find(vh => vh._id === id);
-                            if (v) {
-                                const slug = v.estimate ? `${v.estimate}-V${v.versionNumber || 1}` : v._id;
-                                router.push(`/estimates/${slug}`);
-                            }
-                        }}
+                        onVersionClick={handleVersionClick}
                     />
                     
                     {/* Estimate Docs Section */}
@@ -2025,6 +2120,16 @@ export default function EstimateViewPage() {
                 confirmText="Delete Item"
             />
 
+            {/* Delete Version Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!versionToDelete}
+                onClose={() => setVersionToDelete(null)}
+                onConfirm={processDeleteVersion}
+                title="Delete Version"
+                message={`Are you sure you want to delete Version ${versionToDelete?.number}? This action cannot be undone.`}
+                confirmText="Delete Version"
+            />
+
             {/* PDF Preview Modal */}
             {showPdfPreview && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -2110,7 +2215,6 @@ export default function EstimateViewPage() {
 
                                 return pageContentArray.map((pageHtml, idx) => (
                                     <div key={idx} className="flex flex-col items-center w-full">
-                                        {/* Letter page container - exact printable area */}
                                         <div
                                             className="bg-white shadow-2xl mx-auto relative"
                                             style={{
@@ -2136,7 +2240,6 @@ export default function EstimateViewPage() {
                         </div>
                     </div>
                 </div>
-
             )}
 
             {/* Save Template Modal */}

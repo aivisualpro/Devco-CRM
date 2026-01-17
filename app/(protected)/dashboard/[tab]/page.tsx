@@ -11,7 +11,7 @@ import {
     Settings, BarChart3, FileCheck, Shield, ShieldCheck, Plus, Sparkles,
     ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle
 } from 'lucide-react';
-import { Header, Modal, Badge, EmptyState } from '@/components/ui';
+import { Header, Modal, Badge, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, TabsContent, BadgeTabs } from '@/components/ui/Tabs';
 import SignaturePad from '../../jobs/schedules/SignaturePad';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
@@ -1335,15 +1335,20 @@ export default function DashboardPage() {
                                                         <div className="flex -space-x-1.5 shrink-0">
                                                             {(item.assignees || []).filter(Boolean).slice(0, 3).map((email: string, i: number) => {
                                                                 const emp = employees.find(e => e.value === email);
-                                                                return (
-                                                                    <div key={i} className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600" title={emp?.label || email}>
-                                                                        {emp?.image ? (
-                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            email?.[0]?.toUpperCase() || '?'
-                                                                        )}
-                                                                    </div>
-                                                                );
+                                                                    <Tooltip key={i}>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
+                                                                                {emp?.image ? (
+                                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                                ) : (
+                                                                                    email?.[0]?.toUpperCase() || '?'
+                                                                                )}
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>{emp?.label || email}</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
                                                             })}
                                                             {(item.assignees || []).filter(Boolean).length > 3 && (
                                                                 <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[8px] font-bold text-slate-500 shadow-sm">
@@ -1359,83 +1364,107 @@ export default function DashboardPage() {
                                                         <div className="flex items-center gap-1">
                                                             {/* JHA */}
                                                             {item.hasJHA ? (
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    title="View JHA"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const jhaWithSigs = { 
-                                                                            ...item.jha, 
-                                                                            signatures: item.JHASignatures || [] 
-                                                                        };
-                                                                        setSelectedJHA(jhaWithSigs);
-                                                                        setIsJhaEditMode(false);
-                                                                        setJhaModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <ShieldCheck size={12} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const jhaWithSigs = { 
+                                                                                    ...item.jha, 
+                                                                                    signatures: item.JHASignatures || [] 
+                                                                                };
+                                                                                setSelectedJHA(jhaWithSigs);
+                                                                                setIsJhaEditMode(false);
+                                                                                setJhaModalOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <ShieldCheck size={12} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>View JHA</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             ) : (
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    title="Create JHA"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedJHA({
-                                                                            schedule_id: item._id,
-                                                                            date: new Date(),
-                                                                            jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // Default time
-                                                                            emailCounter: 0,
-                                                                            signatures: [], // Empty signatures initially
-                                                                            scheduleRef: item // Pass reference for assignees access
-                                                                        });
-                                                                        setIsJhaEditMode(true);
-                                                                        setJhaModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <Shield size={12} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedJHA({
+                                                                                    schedule_id: item._id,
+                                                                                    date: new Date(),
+                                                                                    jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // Default time
+                                                                                    emailCounter: 0,
+                                                                                    signatures: [], // Empty signatures initially
+                                                                                    scheduleRef: item // Pass reference for assignees access
+                                                                                });
+                                                                                setIsJhaEditMode(true);
+                                                                                setJhaModalOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <Shield size={12} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Create JHA</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             )}
 
                                                             {/* DJT */}
                                                             {item.hasDJT ? (
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    title="View DJT"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const djtWithSigs = { 
-                                                                            ...item.djt, 
-                                                                            signatures: item.DJTSignatures || [] 
-                                                                        };
-                                                                        setSelectedDJT(djtWithSigs);
-                                                                        setIsDjtEditMode(false);
-                                                                        setDjtModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <FileCheck size={12} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const djtWithSigs = { 
+                                                                                    ...item.djt, 
+                                                                                    signatures: item.DJTSignatures || [] 
+                                                                                };
+                                                                                setSelectedDJT(djtWithSigs);
+                                                                                setIsDjtEditMode(false);
+                                                                                setDjtModalOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <FileCheck size={12} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>View DJT</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             ) : (
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    title="Create DJT"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedDJT({
-                                                                            schedule_id: item._id,
-                                                                            dailyJobDescription: '',
-                                                                            customerPrintName: '',
-                                                                            customerSignature: '',
-                                                                            createdBy: currentUser?.email,
-                                                                            clientEmail: '',
-                                                                            emailCounter: 0
-                                                                        });
-                                                                        setIsDjtEditMode(true);
-                                                                        setDjtModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <FilePlus size={12} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedDJT({
+                                                                                    schedule_id: item._id,
+                                                                                    dailyJobDescription: '',
+                                                                                    customerPrintName: '',
+                                                                                    customerSignature: '',
+                                                                                    createdBy: currentUser?.email,
+                                                                                    clientEmail: '',
+                                                                                    emailCounter: 0
+                                                                                });
+                                                                                setIsDjtEditMode(true);
+                                                                                setDjtModalOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <FilePlus size={12} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Create DJT</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             )}
                                                             
                                                              {/* Timesheet */}
@@ -1448,13 +1477,19 @@ export default function DashboardPage() {
                                                         if (activeDriveTime) {
                                                             return (
                                                                 <>
-                                                                    <div 
-                                                                         className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
-                                                                         title="Stop Drive Time"
-                                                                         onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
-                                                                    >
-                                                                        <StopCircle size={14} strokeWidth={2.5} />
-                                                                    </div>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div 
+                                                                                className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
+                                                                                onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
+                                                                            >
+                                                                                <StopCircle size={14} strokeWidth={2.5} />
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Stop Drive Time</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
                                                                     <DriveTimeTimer startTime={activeDriveTime.clockIn} />
                                                                 </>
                                                             );
@@ -1465,13 +1500,19 @@ export default function DashboardPage() {
 
                                                         return (
                                                             <>
-                                                                 <div 
-                                                                     className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                     title="Start Drive Time"
-                                                                     onClick={(e) => handleDriveTimeToggle(item, null, e)}
-                                                                >
-                                                                    <Car size={14} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => handleDriveTimeToggle(item, null, e)}
+                                                                        >
+                                                                            <Car size={14} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Start Drive Time</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             </>
                                                         );
                                                     })()}
@@ -1480,26 +1521,31 @@ export default function DashboardPage() {
                                                         {/* PM / Foreman - right side */}
                                                         <div className="flex items-center -space-x-1.5">
                                                              {/* PM and Foreman */}
-                                                            {[item.projectManager, item.foremanName].map((email, i) => {
-                                                                if (!email) return null;
-                                                                const emp = employees.find(e => e.value === email);
-                                                                const labels = ['P', 'F']; 
-                                                                const colors = ['bg-[#0F4C75]', 'bg-[#10B981]'];
-                                                                
-                                                                return (
-                                                                    <div
-                                                                        key={i}
-                                                                        className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
-                                                                        title={`${i === 0 ? 'Project Manager' : 'Foreman'}: ${emp?.label || email}`}
-                                                                    >
-                                                                        {emp?.image ? (
-                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            labels[i]
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
+                                                                 {[item.projectManager, item.foremanName].map((email, i) => {
+                                                                    if (!email) return null;
+                                                                    const emp = employees.find(e => e.value === email);
+                                                                    const labels = ['P', 'F']; 
+                                                                    const colors = ['bg-[#0F4C75]', 'bg-[#10B981]'];
+                                                                    
+                                                                    return (
+                                                                        <Tooltip key={i}>
+                                                                            <TooltipTrigger asChild>
+                                                                                <div
+                                                                                    className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
+                                                                                >
+                                                                                    {emp?.image ? (
+                                                                                        <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                                    ) : (
+                                                                                        labels[i]
+                                                                                    )}
+                                                                                </div>
+                                                                            </TooltipTrigger>
+                                                                            <TooltipContent>
+                                                                                <p>{`${i === 0 ? 'Project Manager' : 'Foreman'}: ${emp?.label || email}`}</p>
+                                                                            </TooltipContent>
+                                                                        </Tooltip>
+                                                                    );
+                                                                })}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -2199,9 +2245,16 @@ export default function DashboardPage() {
                                                             <span className="text-[9px] font-bold text-slate-500">{emp?.label?.[0] || 'U'}</span>
                                                         )}
                                                      </div>
-                                                     <p className="text-xs font-bold text-slate-700 truncate max-w-[140px]" title={emp?.label || sig.employee}>
-                                                        {emp?.label || sig.employee}
-                                                     </p>
+                                                     <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <p className="text-xs font-bold text-slate-700 truncate max-w-[140px]">
+                                                               {emp?.label || sig.employee}
+                                                            </p>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{emp?.label || sig.employee}</p>
+                                                        </TooltipContent>
+                                                     </Tooltip>
                                                 </div>
 
                                                 <p className="text-[10px] text-slate-400 font-medium">

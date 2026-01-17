@@ -8,7 +8,7 @@ import {
     Clock, Truck, BadgeDollarSign
 } from 'lucide-react';
 import { 
-    Header, Loading, Modal
+    Header, Loading, Modal, Tooltip, TooltipTrigger, TooltipContent
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -765,12 +765,26 @@ export default function PayrollReportPage() {
                             <div className="h-8 w-px bg-slate-200/50 mx-1" />
 
                             {/* Action Icons - Neumorphic */}
-                            <button className="p-3 bg-[#F4F7FA] rounded-2xl text-slate-500 hover:text-slate-900 transition-all neu-outset hover:neu-pressed active:scale-95" title="Print Report">
-                                <Printer size={18} />
-                            </button>
-                            <button onClick={handleExportCSV} className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95" title="Export CSV">
-                                <Download size={18} />
-                            </button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button className="p-3 bg-[#F4F7FA] rounded-2xl text-slate-500 hover:text-slate-900 transition-all neu-outset hover:neu-pressed active:scale-95">
+                                        <Printer size={18} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Print Report</p>
+                                </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button onClick={handleExportCSV} className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95">
+                                        <Download size={18} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Export CSV</p>
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
                     }
                 />

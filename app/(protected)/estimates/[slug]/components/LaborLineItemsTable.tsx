@@ -193,7 +193,7 @@ function LaborRow({
         const total = (totalHours * baseRate) + (totalOtHours * otRate) + (dtHours * dtRate);
         
         return isNaN(total) ? 0 : total;
-    }, [localValues.basePay, localValues.quantity, localValues.days, localValues.otPd, localValues.wCompPercent, localValues.payrollTaxesPercent, item.subClassification, item.fringe, fringeRate, fringeConstants]);
+    }, [localValues.basePay, localValues.quantity, localValues.days, localValues.otPd, localValues.dtPd, localValues.wCompPercent, localValues.payrollTaxesPercent, item.subClassification, item.fringe, fringeRate, fringeConstants]);
 
     const handleChange = (field: string, value: string) => {
         setLocalValues(prev => ({ ...prev, [field]: value }));

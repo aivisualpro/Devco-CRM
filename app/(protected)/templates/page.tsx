@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Pencil, Trash2, LayoutTemplate, Calendar, Copy } from 'lucide-react';
-import { Header, AddButton, SearchInput, Pagination, ConfirmModal, ToastContainer, MyDropDown } from '@/components/ui';
+import { Header, AddButton, SearchInput, Pagination, ConfirmModal, ToastContainer, MyDropDown, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface Template {
@@ -263,7 +263,14 @@ export default function TemplatesPage() {
                                 >
                                     {/* Content */}
                                     <div className="flex-1 mt-2">
-                                        <h3 className="text-lg font-bold text-gray-700 mb-3 truncate" title={item.title}>{item.title}</h3>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <h3 className="text-lg font-bold text-gray-700 mb-3 truncate">{item.title}</h3>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{item.title}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
                                         
                                         <div className="flex items-center justify-between mb-4 h-10">
                                             <div
@@ -276,30 +283,48 @@ export default function TemplatesPage() {
 
                                             {/* Action Buttons */}
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleClone(item); }}
-                                                    className="p-2 text-blue-500 rounded-full transition-all active:scale-95 hover:text-blue-600 cursor-pointer"
-                                                    style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
-                                                    title="Clone Template"
-                                                >
-                                                    <Copy className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
-                                                    className="p-2 text-blue-600 rounded-full transition-all active:scale-95 hover:text-blue-700 cursor-pointer"
-                                                    style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
-                                                    title="Edit Template"
-                                                >
-                                                    <Pencil className="w-3.5 h-3.5" />
-                                                </button>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); confirmDelete(item._id); }}
-                                                    className="p-2 text-red-500 rounded-full transition-all active:scale-95 hover:text-red-600 cursor-pointer"
-                                                    style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
-                                                    title="Delete Template"
-                                                >
-                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                </button>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleClone(item); }}
+                                                            className="p-2 text-blue-500 rounded-full transition-all active:scale-95 hover:text-blue-600 cursor-pointer"
+                                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                                        >
+                                                            <Copy className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Clone Template</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleEdit(item); }}
+                                                            className="p-2 text-blue-600 rounded-full transition-all active:scale-95 hover:text-blue-700 cursor-pointer"
+                                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                                        >
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Edit Template</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); confirmDelete(item._id); }}
+                                                            className="p-2 text-red-500 rounded-full transition-all active:scale-95 hover:text-red-600 cursor-pointer"
+                                                            style={{ background: '#e0e5ec', boxShadow: '5px 5px 10px #bebebe, -5px -5px 10px #ffffff' }}
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Delete Template</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             </div>
                                         </div>
 
@@ -317,13 +342,19 @@ export default function TemplatesPage() {
                                                 onClick={(e) => e.stopPropagation()}
                                             />
                                         ) : (
-                                            <p
-                                                className="text-gray-500 text-sm leading-relaxed line-clamp-3 cursor-pointer hover:text-gray-700 transition-colors select-none"
-                                                onDoubleClick={(e) => { e.stopPropagation(); startEditingDesc(item); }}
-                                                title="Double click to edit description"
-                                            >
-                                                {item.subTitleDescription || 'No description provided. Double click to add one.'}
-                                            </p>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <p
+                                                        className="text-gray-500 text-sm leading-relaxed line-clamp-3 cursor-pointer hover:text-gray-700 transition-colors select-none"
+                                                        onDoubleClick={(e) => { e.stopPropagation(); startEditingDesc(item); }}
+                                                    >
+                                                        {item.subTitleDescription || 'No description provided. Double click to add one.'}
+                                                    </p>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Double click to edit description</p>
+                                                </TooltipContent>
+                                            </Tooltip>
                                         )}
 
                                         {/* Services Dropdown and Tags */}
@@ -332,16 +363,22 @@ export default function TemplatesPage() {
                                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                     Associated Services
                                                 </label>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setActiveDropdown(activeDropdown === item._id ? null : item._id);
-                                                    }}
-                                                    className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                                    title="Manage Services"
-                                                >
-                                                    <Plus className="w-4 h-4" />
-                                                </button>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setActiveDropdown(activeDropdown === item._id ? null : item._id);
+                                                            }}
+                                                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                                        >
+                                                            <Plus className="w-4 h-4" />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>Manage Services</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             </div>
 
                                             <div className="relative">

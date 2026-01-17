@@ -7,7 +7,7 @@ import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval }
 import Papa from 'papaparse';
 import { z } from 'zod';
 
-import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable } from '@/components/ui';
+import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, BadgeTabs } from '@/components/ui/Tabs';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -28,7 +28,9 @@ interface Estimate {
     services?: string[];
     fringe?: string;
     certifiedPayroll?: string;
-    proposalWriter?: string;
+    proposalWriter?: string | string[];
+    isChangeOrder?: boolean;
+    parentVersionId?: string;
     createdAt?: string;
     updatedAt?: string;
 }
@@ -211,6 +213,9 @@ export default function EstimatesPage() {
 
         const latestVersions = new Map<string, Estimate>();
         estimates.forEach(e => {
+            // Only consider non-change order versions as the "latest" representative of the original contract
+            if (e.isChangeOrder) return;
+
             const key = e.estimate || e._id;
             if (!latestVersions.has(key)) {
                 latestVersions.set(key, e);
@@ -219,6 +224,14 @@ export default function EstimatesPage() {
                 if ((e.versionNumber || 0) > (current.versionNumber || 0)) {
                     latestVersions.set(key, e);
                 }
+            }
+        });
+
+        // If an estimate ONLY has change orders (rare), pick the latest one of those
+        estimates.forEach(e => {
+            const key = e.estimate || e._id;
+            if (!latestVersions.has(key)) {
+                latestVersions.set(key, e);
             }
         });
 
@@ -462,23 +475,35 @@ export default function EstimatesPage() {
                             }}
                             placeholder="Search estimates..."
                         />
-                        <button
-                            onClick={handleCreate}
-                            disabled={isCreating}
-                            className="p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
-                            title="New Estimate"
-                        >
-                            <Plus size={20} className={`duration-300 transition-transform ${isCreating ? 'animate-spin text-white/50' : 'group-hover:rotate-90'}`} />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={handleCreate}
+                                    disabled={isCreating}
+                                    className="p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                                >
+                                    <Plus size={20} className={`duration-300 transition-transform ${isCreating ? 'animate-spin text-white/50' : 'group-hover:rotate-90'}`} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>New Estimate</p>
+                            </TooltipContent>
+                        </Tooltip>
 
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isImporting}
-                            className={`p-2 rounded-lg transition-colors border ${isImporting ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-gray-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 border-gray-200 hover:border-[#0F4C75]/30'}`}
-                            title="Import from CSV"
-                        >
-                            <Upload className={`w-5 h-5 ${isImporting ? 'animate-pulse' : ''}`} />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isImporting}
+                                    className={`p-2 rounded-lg transition-colors border ${isImporting ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-gray-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 border-gray-200 hover:border-[#0F4C75]/30'}`}
+                                >
+                                    <Upload className={`w-5 h-5 ${isImporting ? 'animate-pulse' : ''}`} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import from CSV</p>
+                            </TooltipContent>
+                        </Tooltip>
                         <input
                             type="file"
                             ref={fileInputRef}
@@ -530,41 +555,43 @@ export default function EstimatesPage() {
                         >
                             <TableHead>
                                 <TableRow>
-                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">Estimate<SortIcon column="estimate" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-16 text-xs">
+                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-16 text-[10px]">
                                         <div className="flex items-center">V.<SortIcon column="versionNumber" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">Date<SortIcon column="date" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-50">
                                         <div className="flex items-center">Customer<SortIcon column="customerName" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         Writer
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         Fringe
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         CP
                                     </TableHeader>
-                                    <TableHeader className="text-xs">Services</TableHeader>
-                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader className="text-[10px]">Services</TableHeader>
+                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">Sub<SortIcon column="subTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">%<SortIcon column="bidMarkUp" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">Margin<SortIcon column="margin" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-xs">
-                                        <div className="flex items-center">Total<SortIcon column="grandTotal" /></div>
+                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-[9px] whitespace-nowrap">
+                                        <div className="flex items-center">Org. Cont<SortIcon column="grandTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-xs">
+                                    <TableHeader className="text-[9px] whitespace-nowrap">Chg. Order</TableHeader>
+                                    <TableHeader className="text-[9px] whitespace-nowrap">Upd. Contract</TableHeader>
+                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
 
@@ -601,7 +628,7 @@ export default function EstimatesPage() {
                                                     router.push(`/estimates/${slug}`);
                                                 }}
                                             >
-                                                <TableCell className="font-medium text-gray-900 text-xs">
+                                                <TableCell className="font-medium text-gray-900 text-[10px]">
                                                     {est.estimate || '-'}
                                                 </TableCell>
                                                 <TableCell>
@@ -610,44 +637,73 @@ export default function EstimatesPage() {
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="text-gray-500 text-xs">
+                                                    <div className="text-gray-500 text-[10px]">
                                                         {est.date || '-'}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-xs">{getCustomerName(est)}</TableCell>
+                                                <TableCell className="text-[10px] max-w-[150px]">
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="truncate">{getCustomerName(est)}</div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{getCustomerName(est)}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TableCell>
                                                 <TableCell>
-                                                    <div className="flex">
-                                                        {est.proposalWriter ? (
-                                                            getEmployee(est.proposalWriter)?.profilePicture ? (
-                                                                <img
-                                                                    src={getEmployee(est.proposalWriter)!.profilePicture}
-                                                                    alt={est.proposalWriter}
-                                                                    className="w-8 h-8 rounded-full border border-gray-200 object-cover"
-                                                                    title={est.proposalWriter}
-                                                                />
-                                                            ) : (
-                                                                <div
-                                                                    className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 border border-gray-200"
-                                                                    title={est.proposalWriter}
-                                                                >
-                                                                    {est.proposalWriter.substring(0, 2).toUpperCase()}
-                                                                </div>
-                                                            )
-                                                        ) : (
-                                                            <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />
+                                                    <div className="flex -space-x-2">
+                                                        {(() => {
+                                                            const writers = Array.isArray(est.proposalWriter) 
+                                                                ? est.proposalWriter 
+                                                                : est.proposalWriter ? [est.proposalWriter] : [];
+                                                                
+                                                            if (writers.length === 0) {
+                                                                return <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />;
+                                                            }
+
+                                                            return writers.slice(0, 4).map((writer, idx) => {
+                                                                const emp = getEmployee(writer);
+                                                                return (
+                                                                    <div key={idx} className="relative z-0 hover:z-10 transition-all">
+                                                                        {emp?.profilePicture ? (
+                                                                            <img
+                                                                                src={emp.profilePicture}
+                                                                                alt={writer}
+                                                                                className="w-8 h-8 rounded-full border-2 border-white object-cover shadow-sm"
+                                                                                title={writer}
+                                                                            />
+                                                                        ) : (
+                                                                            <div
+                                                                                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 border-2 border-white shadow-sm"
+                                                                                title={writer}
+                                                                            >
+                                                                                {writer.substring(0, 2).toUpperCase()}
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            });
+                                                        })()}
+                                                        {Array.isArray(est.proposalWriter) && est.proposalWriter.length > 4 && (
+                                                            <div className="relative z-0 hover:z-10 transition-all">
+                                                                 <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-[10px] text-gray-600 border-2 border-white shadow-sm">
+                                                                    +{est.proposalWriter.length - 4}
+                                                                 </div>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
                                                     {est.fringe && (
-                                                        <Badge {...getBadgeProps('Fringe', est.fringe)}>
+                                                        <Badge {...getBadgeProps('Fringe', est.fringe)} className="text-[10px] px-2 py-0">
                                                             {est.fringe}
                                                         </Badge>
                                                     )}
                                                 </TableCell>
                                                 <TableCell>
                                                     {est.certifiedPayroll && (
-                                                        <Badge {...getBadgeProps('Certified Payroll', est.certifiedPayroll)}>
+                                                        <Badge {...getBadgeProps('Certified Payroll', est.certifiedPayroll)} className="text-[10px] px-2 py-0">
                                                             {est.certifiedPayroll}
                                                         </Badge>
                                                     )}
@@ -662,25 +718,41 @@ export default function EstimatesPage() {
                                                             >
                                                                 {s.label}
                                                             </span>
-                                                        )) : <span className="text-gray-400 text-xs">-</span>}
+                                                        )) : <span className="text-gray-400 text-[10px]">-</span>}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-xs">
+                                                <TableCell className="font-medium text-[10px]">
                                                     {formatCurrency(est.subTotal)}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <span className="text-xs font-medium text-gray-600">
+                                                    <span className="text-[10px] font-medium text-gray-600">
                                                         {est.bidMarkUp ? String(est.bidMarkUp).replace('%', '') : '-'}
                                                     </span>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-green-600 text-xs">
+                                                <TableCell className="font-medium text-green-600 text-[10px]">
                                                     {formatCurrency(est.margin)}
                                                 </TableCell>
-                                                <TableCell className="font-bold text-gray-900 text-xs">
+                                                <TableCell className="font-bold text-gray-900 text-[9px]">
                                                     {formatCurrency(est.grandTotal)}
                                                 </TableCell>
+                                                <TableCell className="font-medium text-amber-600 text-[9px]">
+                                                    {(() => {
+                                                        const coTotal = estimates
+                                                            .filter(e => e.estimate === est.estimate && e.isChangeOrder)
+                                                            .reduce((sum, e) => sum + (e.grandTotal || 0), 0);
+                                                        return formatCurrency(coTotal);
+                                                    })()}
+                                                </TableCell>
+                                                <TableCell className="font-bold text-blue-900 text-[9px]">
+                                                    {(() => {
+                                                        const coTotal = estimates
+                                                            .filter(e => e.estimate === est.estimate && e.isChangeOrder)
+                                                            .reduce((sum, e) => sum + (e.grandTotal || 0), 0);
+                                                        return formatCurrency((est.grandTotal || 0) + coTotal);
+                                                    })()}
+                                                </TableCell>
                                                 <TableCell>
-                                                    <Badge {...getBadgeProps('Status', est.status || 'draft')}>
+                                                    <Badge {...getBadgeProps('Status', est.status || 'draft')} className="text-[10px] px-2 py-0">
                                                         {est.status || 'draft'}
                                                     </Badge>
                                                 </TableCell>

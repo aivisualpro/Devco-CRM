@@ -14,7 +14,8 @@ import {
     Header, AddButton, Card, SearchInput, Table, TableHead,
     TableBody, TableRow, TableHeader, TableCell, Pagination,
     EmptyState, Loading, Modal, ConfirmModal, Badge,
-    SkeletonTable, SearchableSelect, BadgeTabs, MyDropDown
+    SkeletonTable, SearchableSelect, BadgeTabs, MyDropDown,
+    Tooltip, TooltipTrigger, TooltipContent
 } from '@/components/ui';
 import { JHAModal } from './components/JHAModal';
 import { DJTModal } from './components/DJTModal';
@@ -1894,26 +1895,38 @@ export default function SchedulePage() {
 
                     <div className="flex items-center gap-2 sm:gap-3">
                         {/* Mobile Search Button */}
-                        <button
-                            onClick={() => {
-                                if (searchInputRef.current) {
-                                    searchInputRef.current.focus();
-                                }
-                            }}
-                            className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
-                            title="Search"
-                        >
-                            <Search size={18} />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => {
+                                        if (searchInputRef.current) {
+                                            searchInputRef.current.focus();
+                                        }
+                                    }}
+                                    className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
+                                >
+                                    <Search size={18} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Search</p>
+                            </TooltipContent>
+                        </Tooltip>
                         
                         {/* Mobile Filter Button */}
-                        <button
-                            onClick={() => setShowMobileFilters(!showMobileFilters)}
-                            className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
-                            title="Filters"
-                        >
-                            <Filter size={18} />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => setShowMobileFilters(!showMobileFilters)}
+                                    className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
+                                >
+                                    <Filter size={18} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Filters</p>
+                            </TooltipContent>
+                        </Tooltip>
 
                         <SearchInput
                             ref={searchInputRef}
@@ -1964,55 +1977,97 @@ export default function SchedulePage() {
                             className="hidden"
                             accept=".csv"
                         />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
-                            title="Import Schedules"
-                        >
-                            <Upload size={18} className={isImporting ? 'animate-pulse' : ''} />
-                        </button>
-                        <button
-                            onClick={() => timesheetInputRef.current?.click()}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
-                            title="Import Timesheets"
-                        >
-                            <Clock size={18} className={isImporting ? 'animate-pulse' : ''} />
-                        </button>
-                        <button
-                            onClick={() => jhaInputRef.current?.click()}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
-                            title="Import JHA"
-                        >
-                            <Import size={18} className={isImporting ? 'animate-pulse' : ''} />
-                        </button>
-                        <button
-                            onClick={() => jhaSignatureInputRef.current?.click()}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
-                            title="Import JHA Signatures"
-                        >
-                            <ClipboardList size={18} className={isImporting ? 'animate-pulse' : ''} />
-                        </button>
-                        <button
-                            onClick={() => djtInputRef.current?.click()}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
-                            title="Import DJT"
-                        >
-                            <FileSpreadsheet size={18} className={isImporting ? 'animate-pulse' : ''} />
-                        </button>
-                        <button
-                            onClick={() => djtSignatureInputRef.current?.click()}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
-                            title="Import DJT Signatures"
-                        >
-                            <FileText size={18} className={isImporting ? 'animate-pulse' : ''} />
-                        </button>
-                        <button
-                            onClick={openCreateModal}
-                            className="hidden sm:flex p-2 sm:p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
-                            title="Create Schedule"
-                        >
-                            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                                >
+                                    <Upload size={18} className={isImporting ? 'animate-pulse' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import Schedules</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => timesheetInputRef.current?.click()}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                                >
+                                    <Clock size={18} className={isImporting ? 'animate-pulse' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import Timesheets</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => jhaInputRef.current?.click()}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                                >
+                                    <Import size={18} className={isImporting ? 'animate-pulse' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import JHA</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => jhaSignatureInputRef.current?.click()}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                                >
+                                    <ClipboardList size={18} className={isImporting ? 'animate-pulse' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import JHA Signatures</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => djtInputRef.current?.click()}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                                >
+                                    <FileSpreadsheet size={18} className={isImporting ? 'animate-pulse' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import DJT</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => djtSignatureInputRef.current?.click()}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600"
+                                >
+                                    <FileText size={18} className={isImporting ? 'animate-pulse' : ''} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Import DJT Signatures</p>
+                            </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={openCreateModal}
+                                    className="hidden sm:flex p-2 sm:p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                                >
+                                    <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Create Schedule</p>
+                            </TooltipContent>
+                        </Tooltip>
                     </div>
                 }
             />
@@ -2258,26 +2313,40 @@ export default function SchedulePage() {
 
                                         {/* Action Overlay */}
                                         <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 flex gap-2">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingItem(item);
-                                                    setIsModalOpen(true);
-                                                }}
-                                                className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-[#0F4C75] hover:bg-blue-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                            >
-                                                <Edit size={14} />
-                                            </button>
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setDeleteId(item._id);
-                                                    setIsConfirmOpen(true);
-                                                }}
-                                                className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                            >
-                                                <Trash2 size={14} />
-                                            </button>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setEditingItem(item);
+                                                            setIsModalOpen(true);
+                                                        }}
+                                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-[#0F4C75] hover:bg-blue-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                                    >
+                                                        <Edit size={14} />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Edit Schedule</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setDeleteId(item._id);
+                                                            setIsConfirmOpen(true);
+                                                        }}
+                                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Delete Schedule</p>
+                                                </TooltipContent>
+                                            </Tooltip>
                                         </div>
 
                                         <div className="flex flex-col h-full justify-between">
@@ -2365,13 +2434,20 @@ export default function SchedulePage() {
                                                     {(item.assignees || []).filter(Boolean).slice(0, 3).map((email: string, i: number) => {
                                                         const emp = initialData.employees.find(e => e.value === email);
                                                         return (
-                                                            <div key={i} className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600" title={emp?.label || email}>
-                                                                {emp?.image ? (
-                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    email?.[0]?.toUpperCase() || '?'
-                                                                )}
-                                                            </div>
+                                                            <Tooltip key={i}>
+                                                                <TooltipTrigger asChild>
+                                                                    <div className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
+                                                                        {emp?.image ? (
+                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            email?.[0]?.toUpperCase() || '?'
+                                                                        )}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{emp?.label || email}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         );
                                                     })}
                                                     {(item.assignees || []).filter(Boolean).length > 3 && (
@@ -2388,83 +2464,107 @@ export default function SchedulePage() {
                                                 <div className="flex items-center gap-1">
                                                     {/* JHA */}
                                                     {item.hasJHA ? (
-                                                        <div 
-                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                            title="View JHA"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const jhaWithSigs = { 
-                                                                    ...item.jha, 
-                                                                    signatures: item.JHASignatures || [] 
-                                                                };
-                                                                setSelectedJHA(jhaWithSigs);
-                                                                setIsJhaEditMode(false);
-                                                                setJhaModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <ShieldCheck size={12} strokeWidth={2.5} />
-                                                        </div>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div 
+                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const jhaWithSigs = { 
+                                                                            ...item.jha, 
+                                                                            signatures: item.JHASignatures || [] 
+                                                                        };
+                                                                        setSelectedJHA(jhaWithSigs);
+                                                                        setIsJhaEditMode(false);
+                                                                        setJhaModalOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <ShieldCheck size={12} strokeWidth={2.5} />
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>View JHA</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
                                                     ) : (
-                                                        <div 
-                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                            title="Create JHA"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedJHA({
-                                                                    schedule_id: item._id,
-                                                                    date: new Date(),
-                                                                    jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // Default time
-                                                                    emailCounter: 0,
-                                                                    signatures: [], // Empty signatures initially
-                                                                    scheduleRef: item // Pass reference for assignees access
-                                                                });
-                                                                setIsJhaEditMode(true);
-                                                                setJhaModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <Shield size={12} strokeWidth={2.5} />
-                                                        </div>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div 
+                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedJHA({
+                                                                            schedule_id: item._id,
+                                                                            date: new Date(),
+                                                                            jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // Default time
+                                                                            emailCounter: 0,
+                                                                            signatures: [], // Empty signatures initially
+                                                                            scheduleRef: item // Pass reference for assignees access
+                                                                        });
+                                                                        setIsJhaEditMode(true);
+                                                                        setJhaModalOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <Shield size={12} strokeWidth={2.5} />
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Create JHA</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
                                                     )}
 
                                                     {/* DJT */}
                                                     {item.hasDJT ? (
-                                                        <div 
-                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                            title="View DJT"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                const djtWithSigs = { 
-                                                                    ...item.djt, 
-                                                                    signatures: item.DJTSignatures || [] 
-                                                                };
-                                                                setSelectedDJT(djtWithSigs);
-                                                                setIsDjtEditMode(false);
-                                                                setDjtModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <FileCheck size={12} strokeWidth={2.5} />
-                                                        </div>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div 
+                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const djtWithSigs = { 
+                                                                            ...item.djt, 
+                                                                            signatures: item.DJTSignatures || [] 
+                                                                        };
+                                                                        setSelectedDJT(djtWithSigs);
+                                                                        setIsDjtEditMode(false);
+                                                                        setDjtModalOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <FileCheck size={12} strokeWidth={2.5} />
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>View DJT</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
                                                     ) : (
-                                                        <div 
-                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                            title="Create DJT"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedDJT({
-                                                                    schedule_id: item._id,
-                                                                    dailyJobDescription: '',
-                                                                    customerPrintName: '',
-                                                                    customerSignature: '',
-                                                                    createdBy: '', 
-                                                                    clientEmail: '',
-                                                                    emailCounter: 0
-                                                                });
-                                                                setIsDjtEditMode(true);
-                                                                setDjtModalOpen(true);
-                                                            }}
-                                                        >
-                                                            <FilePlus size={12} strokeWidth={2.5} />
-                                                        </div>
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <div 
+                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setSelectedDJT({
+                                                                            schedule_id: item._id,
+                                                                            dailyJobDescription: '',
+                                                                            customerPrintName: '',
+                                                                            customerSignature: '',
+                                                                            createdBy: '', 
+                                                                            clientEmail: '',
+                                                                            emailCounter: 0
+                                                                        });
+                                                                        setIsDjtEditMode(true);
+                                                                        setDjtModalOpen(true);
+                                                                    }}
+                                                                >
+                                                                    <FilePlus size={12} strokeWidth={2.5} />
+                                                                </div>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Create DJT</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
                                                     )}
                                                     
                                                      {/* Timesheet */}
@@ -2477,13 +2577,19 @@ export default function SchedulePage() {
                                                         if (activeDriveTime) {
                                                             return (
                                                                 <>
-                                                                <div 
-                                                                     className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
-                                                                     title="Stop Drive Time"
-                                                                     onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
-                                                                >
-                                                                    <StopCircle size={14} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
+                                                                            onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
+                                                                        >
+                                                                            <StopCircle size={14} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Stop Drive Time</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                                 <DriveTimeTimer startTime={activeDriveTime.clockIn} />
                                                                 </>
                                                             );
@@ -2494,13 +2600,19 @@ export default function SchedulePage() {
 
                                                         return (
                                                             <>
-                                                                <div 
-                                                                     className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                     title="Start Drive Time"
-                                                                     onClick={(e) => handleDriveTimeToggle(item, null, e)}
-                                                                >
-                                                                    <Car size={14} strokeWidth={2.5} />
-                                                                </div>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => handleDriveTimeToggle(item, null, e)}
+                                                                        >
+                                                                            <Car size={14} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Start Drive Time</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             </>
                                                         );
                                                     })()}
@@ -2516,17 +2628,22 @@ export default function SchedulePage() {
                                                         const colors = ['bg-[#0F4C75]', 'bg-[#10B981]'];
                                                         
                                                         return (
-                                                            <div
-                                                                key={i}
-                                                                className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
-                                                                title={`${i === 0 ? 'Project Manager' : 'Foreman'}: ${emp?.label || email}`}
-                                                            >
-                                                                {emp?.image ? (
-                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    labels[i]
-                                                                )}
-                                                            </div>
+                                                            <Tooltip key={i}>
+                                                                <TooltipTrigger asChild>
+                                                                    <div
+                                                                        className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
+                                                                    >
+                                                                        {emp?.image ? (
+                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            labels[i]
+                                                                        )}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{`${i === 0 ? 'Project Manager' : 'Foreman'}: ${emp?.label || email}`}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         );
                                                     })}
                                                     
@@ -2890,25 +3007,37 @@ export default function SchedulePage() {
                                                                                         {hours > 0 ? hours.toFixed(2) : '-'}
                                                                                     </td>
                                                                                     <td className="p-2 text-right">
-                                                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                                                                            <button 
-                                                                                                onClick={(e) => { e.stopPropagation(); /* TODO: Edit logic */ }}
-                                                                                                className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
-                                                                                                title="Edit"
-                                                                                            >
-                                                                                                <Edit size={12} />
-                                                                                            </button>
-                                                                                            <button 
-                                                                                                onClick={(e) => { 
-                                                                                                    e.stopPropagation(); 
-                                                                                                    handleDeleteTimesheet(ts._id || ts.recordId); 
-                                                                                                }}
-                                                                                                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                                                                                title="Delete"
-                                                                                            >
-                                                                                                <Trash2 size={12} />
-                                                                                            </button>
-                                                                                        </div>
+                                                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                                                                                <Tooltip>
+                                                                                                    <TooltipTrigger asChild>
+                                                                                                        <button 
+                                                                                                            onClick={(e) => { e.stopPropagation(); /* TODO: Edit logic */ }}
+                                                                                                            className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
+                                                                                                        >
+                                                                                                            <Edit size={12} />
+                                                                                                        </button>
+                                                                                                    </TooltipTrigger>
+                                                                                                    <TooltipContent>
+                                                                                                        <p>Edit</p>
+                                                                                                    </TooltipContent>
+                                                                                                </Tooltip>
+                                                                                                <Tooltip>
+                                                                                                    <TooltipTrigger asChild>
+                                                                                                        <button 
+                                                                                                            onClick={(e) => { 
+                                                                                                                e.stopPropagation(); 
+                                                                                                                handleDeleteTimesheet(ts._id || ts.recordId); 
+                                                                                                            }}
+                                                                                                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                                                        >
+                                                                                                            <Trash2 size={12} />
+                                                                                                        </button>
+                                                                                                    </TooltipTrigger>
+                                                                                                    <TooltipContent>
+                                                                                                        <p>Delete</p>
+                                                                                                    </TooltipContent>
+                                                                                                </Tooltip>
+                                                                                            </div>
                                                                                     </td>
                                                                                 </tr>
                                                                             );
@@ -2962,13 +3091,19 @@ export default function SchedulePage() {
             </main >
 
             {/* Floating Action Button - Mobile Only */}
-            <button
-                onClick={openCreateModal}
-                className="sm:hidden fixed bottom-24 right-6 z-50 w-14 h-14 bg-[#0F4C75] text-white rounded-full shadow-2xl hover:bg-[#0a3a5c] transition-all flex items-center justify-center group active:scale-95"
-                title="Create Schedule"
-            >
-                <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
-            </button>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        onClick={openCreateModal}
+                        className="sm:hidden fixed bottom-24 right-6 z-50 w-14 h-14 bg-[#0F4C75] text-white rounded-full shadow-2xl hover:bg-[#0a3a5c] transition-all flex items-center justify-center group active:scale-95"
+                    >
+                        <Plus size={24} className="group-hover:rotate-90 transition-transform duration-300" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Create Schedule</p>
+                </TooltipContent>
+            </Tooltip>
 
 
             {/* Create/Edit Modal */}

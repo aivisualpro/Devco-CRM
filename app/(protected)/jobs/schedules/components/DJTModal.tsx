@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
     CheckCircle2, Edit, FilePlus, Clock
 } from 'lucide-react';
-import { Modal, EmptyState } from '@/components/ui';
+import { Modal, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
 
 interface DJTModalProps {
@@ -254,7 +254,14 @@ export const DJTModal = ({
                                                                 {emp?.image ? <img src={emp.image} className="w-full h-full rounded-full object-cover" /> : emp?.label?.[0]}
                                                             </div>
                                                             <div className="overflow-hidden min-w-0 flex-1">
-                                                                <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || email}</p>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || email}</p>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>{emp?.label || email}</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                                 <p className="text-[10px] text-slate-400">{sig ? 'Signed & Clocked Out' : 'Pending'}</p>
                                                             </div>
                                                         </div>

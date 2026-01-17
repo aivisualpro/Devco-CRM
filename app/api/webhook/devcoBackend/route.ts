@@ -208,6 +208,7 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
         "Job Location / Address": String(data.jobAddress || ""),
         "Labor Agreement": String(data.fringe || ""),
         "Certified Payroll": String(data.certifiedPayroll || ""),
+        "Prevailing Wage": data.prevailingWage === true ? "Yes" : "No",
         "Project ID": String(data.projectId || ""),
         "FB Name": String(data.fbName || ""),
         "FB Address": String(data.fbAddress || ""),
@@ -452,18 +453,22 @@ export async function POST(request: NextRequest) {
                 const { slug } = payload || {};
                 if (!slug) return NextResponse.json({ success: false, error: 'Missing slug' }, { status: 400 });
 
-                // Format: EstimateNumber-V[VersionNumber]
-                // Use lastIndexOf to handle potential '-V' in the estimate number itself safely
-                const lastIndex = slug.lastIndexOf('-V');
-                if (lastIndex === -1) return NextResponse.json({ success: false, error: 'Invalid slug format' }, { status: 400 });
+                // Try by ID first (works for V1-CO1 etc)
+                let est = await Estimate.findById(slug).lean();
 
-                const estimateNumber = slug.substring(0, lastIndex);
-                const versionStr = slug.substring(lastIndex + 2);
-                const versionNumber = parseInt(versionStr, 10);
+                if (!est) {
+                    // Fallback to slug parsing: EstimateNumber-V[VersionNumber]
+                    const lastIndex = slug.lastIndexOf('-V');
+                    if (lastIndex !== -1) {
+                        const estimateNumber = slug.substring(0, lastIndex);
+                        const versionStr = slug.substring(lastIndex + 2);
+                        const versionNumber = parseInt(versionStr, 10);
 
-                if (isNaN(versionNumber)) return NextResponse.json({ success: false, error: 'Invalid version number' }, { status: 400 });
-
-                const est = await Estimate.findOne({ estimate: estimateNumber, versionNumber }).lean();
+                        if (!isNaN(versionNumber)) {
+                            est = await Estimate.findOne({ estimate: estimateNumber, versionNumber }).lean();
+                        }
+                    }
+                }
 
                 if (!est) return NextResponse.json({ success: false, error: 'Not found' }, { status: 404 });
 
@@ -535,7 +540,9 @@ export async function POST(request: NextRequest) {
                         versionNumber: (e.versionNumber as number) || (idx + 1),
                         date: dateStr,
                         totalAmount: parseNum(e.grandTotal) || 0,
-                        status: e.status
+                        status: e.status,
+                        isChangeOrder: e.isChangeOrder === true,
+                        parentVersionId: e.parentVersionId
                     };
                 });
 
@@ -614,7 +621,10 @@ export async function POST(request: NextRequest) {
                     const activityId = new Types.ObjectId().toString();
                     await Activity.create({
                         _id: activityId,
-                        user: (estimateData as any).proposalWriter || (estimateData as any).createdBy || '',
+                        user: (() => {
+                            const u = (estimateData as any).proposalWriter || (estimateData as any).createdBy || '';
+                            return Array.isArray(u) ? u.join(', ') : String(u);
+                        })(),
                         action: 'created_estimate',
                         type: 'estimate',
                         title: `Created Estimate #${est.estimate}`,
@@ -642,15 +652,29 @@ export async function POST(request: NextRequest) {
                 if (!sourceEst) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
 
                 // 2. Determine Next Version
-                const versions = await Estimate.find({ estimate: sourceEst.estimate })
-                    .sort({ versionNumber: -1 })
-                    .limit(1);
+                const allVersions = await Estimate.find({ estimate: sourceEst.estimate })
+                    .select('versionNumber')
+                    .lean();
 
-                const nextVersion = (versions[0]?.versionNumber || 1) + 1;
+                // Build a set of existing version numbers
+                const existingVersions = new Set(allVersions.map((v: any) => v.versionNumber).filter(n => typeof n === 'number'));
+
+                // Find the first missing number starting from 1
+                let nextVersion = 1;
+                while (existingVersions.has(nextVersion)) {
+                    nextVersion++;
+                }
+                let newId = `${sourceEst.estimate}-V${nextVersion}`;
+
+                // Collision Detection Loop: Ensure we don't hit a duplicate ID
+                // (e.g. if version numbering got out of sync with IDs)
+                while (await Estimate.exists({ _id: newId })) {
+                    nextVersion++;
+                    newId = `${sourceEst.estimate}-V${nextVersion}`;
+                }
 
                 // 3. Create New Estimate Document
-                const newId = `${sourceEst.estimate}-V${nextVersion}`;
-
+                
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { _id, createdAt, updatedAt, __v, ...sourceData } = sourceEst as any;
 
@@ -758,6 +782,76 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: newEst });
             }
 
+            case 'createChangeOrder': {
+                const { id: sourceId } = payload || {};
+                if (!sourceId) return NextResponse.json({ success: false, error: 'Missing source id' }, { status: 400 });
+
+                // 1. Fetch Source Version
+                const sourceEst = await Estimate.findById(sourceId).lean();
+                if (!sourceEst) return NextResponse.json({ success: false, error: 'Version not found' }, { status: 404 });
+
+                // 2. Determine Next Change Order Number for this version
+                // IDs are formatted as Estimate-V[num]-CO[num]
+                const regex = new RegExp(`^${sourceId}-CO([0-9]+)$`);
+                const existingCOs = await Estimate.find({ _id: { $regex: regex } })
+                    .select('_id')
+                    .lean();
+
+                let nextCO = 1;
+                const usedCONumbers = existingCOs.map((co: any) => {
+                    const match = co._id.match(regex);
+                    return match ? parseInt(match[1], 10) : 0;
+                });
+
+                if (usedCONumbers.length > 0) {
+                    nextCO = Math.max(...usedCONumbers) + 1;
+                }
+
+                const newId = `${sourceId}-CO${nextCO}`;
+
+                // 3. Create New Change Order Document
+                // copy ONLY header info, NOT line items or proposals as requested
+                const { 
+                    _id, createdAt, updatedAt, __v,
+                    labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous,
+                    proposals, proposal,
+                    ...headerData 
+                } = sourceEst as any;
+
+                const newCOData = {
+                    ...headerData,
+                    _id: newId,
+                    isChangeOrder: true,
+                    parentVersionId: sourceId,
+                    status: 'In Progress',
+                    // Initialize empty arrays
+                    labor: [],
+                    equipment: [],
+                    material: [],
+                    tools: [],
+                    overhead: [],
+                    subcontractor: [],
+                    disposal: [],
+                    miscellaneous: [],
+                    proposals: [],
+                    
+                    date: new Date().toLocaleDateString(),
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                };
+
+                const newCO = await Estimate.create(newCOData);
+
+                // Sync to AppSheet - This is a new record with a unique ID that still shares the Proposal Number
+                // We'll treat it as an Add? Or Edit? 
+                // AppSheet key is "Proposal Number" (estimate). If we want multiple COs in AppSheet, 
+                // AppSheet might need a different key or we just overwrite the main one. 
+                // Usually COs are separate records in AppSheet too.
+                updateAppSheet(newCO, null, "Add").catch(err => console.error('CO sync error:', err));
+
+                return NextResponse.json({ success: true, result: newCO });
+            }
+
             case 'updateEstimate': {
                 const { id: estId, ...updateData } = payload || {};
                 if (!estId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
@@ -775,7 +869,10 @@ export async function POST(request: NextRequest) {
                         const activityId = new Types.ObjectId().toString();
                         await Activity.create({
                             _id: activityId,
-                            user: (updateData as any).proposalWriter || (updateData as any).createdBy || '',
+                            user: (() => {
+                                const u = (updateData as any).proposalWriter || (updateData as any).createdBy || '';
+                                return Array.isArray(u) ? u.join(', ') : String(u);
+                            })(),
                             action: 'updated_estimate',
                             type: 'estimate',
                             title: `Updated Estimate #${updated.estimate}`,
@@ -892,24 +989,97 @@ export async function POST(request: NextRequest) {
                 const { id: deleteId } = payload || {};
                 if (!deleteId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
 
-                // Fetch before delete to get info for sync
-                const estToDelete = await Estimate.findById(deleteId);
+                // 1. Fetch before delete to get info for sync & renumbering
+                const estToDelete = await Estimate.findById(deleteId).lean();
+                if (!estToDelete) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
+
+                const estimateNumber = estToDelete.estimate;
                 
+                // 2. Delete the target version
                 await Estimate.findByIdAndDelete(deleteId);
                 
-                if (estToDelete && estToDelete.estimate) {
-                     // Check if there are other versions left
+                // 3. Handle AppSheet Sync for Deletion
+                if (estToDelete.estimate) {
+                     // Check if there are other versions left (temporarily, before renumbering)
                      const remaining = await Estimate.find({ estimate: estToDelete.estimate }).sort({ versionNumber: -1 }).limit(1).lean();
                      
-                     if (remaining.length > 0) {
-                         // Still have versions, sync the LATEST one to AppSheet
-                         const latest = remaining[0];
-                         // "Edit" the record to reflect previous state (rollback)
-                         updateAppSheet(latest, null, "Edit").catch(err => console.error('Delete-Rollback sync error:', err));
-                     } else {
+                     if (remaining.length === 0) {
                          // No versions left, truly DELETE from AppSheet
-                         updateAppSheet(estToDelete.toObject(), null, "Delete").catch(err => console.error('Delete sync error:', err));
+                         updateAppSheet(estToDelete, null, "Delete").catch(err => console.error('Delete sync error:', err));
+                     } else {
+                         // We still have versions. We might need to sync the "new latest" if we deleted the latest.
+                         // But we'll handle final sync after renumbering to be safe.
                      }
+                }
+
+                // 4. Renumber logic: Shift subsequent versions down
+                // Fetch all remaining versions sorted by version number
+                const allVersions = await Estimate.find({ estimate: estimateNumber })
+                    .sort({ versionNumber: 1 })
+                    .lean();
+
+                const renumberOps = [];
+                
+                for (let i = 0; i < allVersions.length; i++) {
+                    const doc = allVersions[i];
+                    const correctVerNum = i + 1;
+                    const expectedId = `${estimateNumber}-V${correctVerNum}`;
+                    
+                    // Check for BOTH version number mismatch AND ID mismatch
+                    // This auto-repairs corrupted data where ID says V3 but versionNumber says 2
+                    if (doc.versionNumber !== correctVerNum || String(doc._id) !== expectedId) {
+                        const oldId = doc._id;
+                        const newId = expectedId;
+
+                        // We must "Move" the document: Create Copy with New ID -> Delete Old
+                        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                        const { _id, __v, ...data } = doc as any;
+                        
+                        renumberOps.push(async () => {
+                            // Check if target ID exists (safety check)
+                            // If it exists, we might be overwriting, but in a sequential renumber 
+                            // of a sorted list where we process i=0..N, the target 'i+1' should be free 
+                            // IF we are shifting down.
+                            // BUT if we have corrupted duplicate states (e.g. V2 and V3 both think they are V2),
+                            // we need to be careful. 
+                            // Since we are creating a NEW document, if 'expectedId' exists, create will fail.
+                            // However, we deleted the target of the PREVIOUS slot in previous iteration if needed.
+                            
+                            // Safe approach: Delete target ID if it exists (it technically shouldn't if we are shifting down into a gap, 
+                            // OR if we are renaming in place)
+                            // But wait, if we have V3 and we want to make it V2. V2 is already deleted (step 2 of main function).
+                            // So V2 slot is empty.
+                            
+                            // Create new at correct slot
+                            await Estimate.create({
+                                ...data,
+                                _id: newId,
+                                versionNumber: correctVerNum,
+                                updatedAt: new Date()
+                            });
+                            // Delete old record
+                            await Estimate.findByIdAndDelete(oldId);
+                            console.log(`Renumbered/Repaired ${oldId} -> ${newId}`);
+                        });
+                    }
+                }
+
+                // Execute renumbering sequentially to avoid conflicts
+                for (const op of renumberOps) {
+                    await op();
+                }
+
+                // 5. Final Sync Check
+                // If we shifted versions, the "Latest" version might have a new ID/Version.
+                // Sync the current latest to ensure AppSheet has the correct data for the "Estimate Number" key.
+                const finalLatest = await Estimate.find({ estimate: estimateNumber })
+                    .sort({ versionNumber: -1 })
+                    .limit(1)
+                    .lean();
+                
+                if (finalLatest.length > 0) {
+                     // Sync this as an Edit (restoring the "Estimate" record to the content of the latest version)
+                     updateAppSheet(finalLatest[0], null, "Edit").catch(err => console.error('Renumber-Sync error:', err));
                 }
 
                 return NextResponse.json({ success: true });

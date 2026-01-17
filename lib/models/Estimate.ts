@@ -21,8 +21,9 @@ export interface IEstimate extends Document {
     fringe?: string;
     bidMarkUp?: string;
     confirmed?: boolean;
-    proposalWriter?: string;
+    proposalWriter?: string | string[];
     certifiedPayroll?: string;
+    prevailingWage?: boolean;
 
     // New fields
     createdBy?: string;
@@ -119,8 +120,9 @@ const EstimateSchema = new Schema({
 
     bidMarkUp: { type: String },
 
-    proposalWriter: { type: String },
+    proposalWriter: { type: Schema.Types.Mixed }, // string or string[]
     certifiedPayroll: { type: String },
+    prevailingWage: { type: Boolean }, // New field displayed if certifiedPayroll is Yes
 
     // New fields
     createdBy: { type: String },

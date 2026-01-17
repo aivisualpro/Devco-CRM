@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase, Search, ChevronRight, X, MessageSquare } from 'lucide-react';
-import { Header, Button, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect } from '@/components/ui';
+import { Header, Button, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface ClientContact {
@@ -333,14 +333,20 @@ export default function ClientsPage() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            className="hidden lg:flex p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600 disabled:opacity-50"
-                            title={isImporting ? 'Importing...' : 'Import CSV'}
-                            disabled={isImporting}
-                        >
-                            <Upload className={`w-4 h-4 ${isImporting ? 'animate-pulse' : ''}`} />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="hidden lg:flex p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600 disabled:opacity-50"
+                                    disabled={isImporting}
+                                >
+                                    <Upload className={`w-4 h-4 ${isImporting ? 'animate-pulse' : ''}`} />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                            </TooltipContent>
+                        </Tooltip>
 
                         <button
                             onClick={openAddModal}
@@ -348,13 +354,19 @@ export default function ClientsPage() {
                         >
                             <Plus size={24} />
                         </button>
-                        <button
-                            onClick={openAddModal}
-                            className="hidden md:flex p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
-                            title="New Client"
-                        >
-                            <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                        </button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <button
+                                    onClick={openAddModal}
+                                    className="hidden md:flex p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                                >
+                                    <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                                </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>New Client</p>
+                            </TooltipContent>
+                        </Tooltip>
                     </div>
                 }
             />
@@ -432,16 +444,22 @@ export default function ClientsPage() {
                                                     </a>
                                                 </div>
 
-                                                <div
-                                                    className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-normal text-slate-600 border border-slate-200 overflow-hidden shadow-sm"
-                                                    title={writer ? `${writer.firstName} ${writer.lastName}` : 'Unassigned'}
-                                                >
-                                                    {writer?.profilePicture ? (
-                                                        <img src={writer.profilePicture} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        writer ? `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` : '?'
-                                                    )}
-                                                </div>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div
+                                                            className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-normal text-slate-600 border border-slate-200 overflow-hidden shadow-sm"
+                                                        >
+                                                            {writer?.profilePicture ? (
+                                                                <img src={writer.profilePicture} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                writer ? `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` : '?'
+                                                            )}
+                                                        </div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{writer ? `${writer.firstName} ${writer.lastName}` : 'Unassigned'}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             </div>
                                         </div>
                                     );
@@ -512,23 +530,38 @@ export default function ClientsPage() {
                                                     <TableCell>
                                                         <div className="flex items-start gap-2 max-w-[200px]">
                                                             <MapPin className="w-3.5 h-3.5 text-[#0F4C75] mt-0.5 shrink-0" />
-                                                            <span title={client.businessAddress} className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                                                                {client.businessAddress || '-'}
-                                                            </span>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <span className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                                                                        {client.businessAddress || '-'}
+                                                                    </span>
+                                                                </TooltipTrigger>
+                                                                {client.businessAddress && (
+                                                                    <TooltipContent>
+                                                                        <p>{client.businessAddress}</p>
+                                                                    </TooltipContent>
+                                                                )}
+                                                            </Tooltip>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell>
                                                         {writer ? (
-                                                            <div 
-                                                                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-normal text-slate-600 overflow-hidden border border-slate-200 shadow-sm"
-                                                                title={`${writer.firstName} ${writer.lastName}`}
-                                                            >
-                                                                {writer.profilePicture ? (
-                                                                    <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
-                                                                )}
-                                                            </div>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <div 
+                                                                        className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-normal text-slate-600 overflow-hidden border border-slate-200 shadow-sm"
+                                                                    >
+                                                                        {writer.profilePicture ? (
+                                                                            <img src={writer.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                        ) : (
+                                                                            `${writer.firstName?.[0] || ''}${writer.lastName?.[0] || ''}` || '?'
+                                                                        )}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{`${writer.firstName} ${writer.lastName}`}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         ) : (
                                                             <span className="text-gray-400 text-[10px] italic">N/A</span>
                                                         )}
@@ -559,18 +592,33 @@ export default function ClientsPage() {
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                                            <button
-                                                                onClick={() => openEditModal(client)}
-                                                                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                            >
-                                                                <Pencil className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() => openDeleteModal(client)}
-                                                                className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button
+                                                                        onClick={() => openEditModal(client)}
+                                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                                    >
+                                                                        <Pencil className="w-4 h-4" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Edit Client</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button
+                                                                        onClick={() => openDeleteModal(client)}
+                                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                                    >
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Delete Client</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
