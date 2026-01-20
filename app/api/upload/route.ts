@@ -1,20 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
-import { v4 as uuidv4 } from 'uuid';
+import { v2 as cloudinary } from 'cloudinary';
 
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
-const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://${R2_BUCKET_NAME}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
-
-const s3Client = new S3Client({
-    region: "auto",
-    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID || "",
-        secretAccessKey: R2_SECRET_ACCESS_KEY || "",
-    },
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
 export async function POST(request: NextRequest) {
@@ -27,43 +18,35 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'No file provided' }, { status: 400 });
         }
 
-        if (!R2_BUCKET_NAME || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
-            return NextResponse.json({ success: false, error: 'Storage not configured' }, { status: 500 });
+        if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+            return NextResponse.json({ success: false, error: 'Cloudinary not configured' }, { status: 500 });
         }
 
-        // Generate unique filename
-        const ext = file.name.split('.').pop() || 'bin';
-        const uniqueName = `${uuidv4()}.${ext}`;
-        const key = `${folder}/${uniqueName}`;
-
-        // Convert file to buffer
+        // Convert file to base64
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        const base64 = buffer.toString('base64');
+        const dataUri = `data:${file.type};base64,${base64}`;
 
-        // Upload to R2
-        const command = new PutObjectCommand({
-            Bucket: R2_BUCKET_NAME,
-            Key: key,
-            Body: buffer,
-            ContentType: file.type || 'application/octet-stream',
+        // Upload to Cloudinary
+        const result = await cloudinary.uploader.upload(dataUri, {
+            folder: `devcocrm/${folder}`,
+            resource_type: 'auto',
         });
-
-        await s3Client.send(command);
-
-        // Construct the URL (using the API route to serve files)
-        const url = `/api/docs/${key}?name=${encodeURIComponent(file.name)}`;
 
         return NextResponse.json({
             success: true,
-            url,
-            key,
+            url: result.secure_url,
+            publicId: result.public_id,
             name: file.name,
             type: file.type,
-            size: file.size
+            size: file.size,
+            width: result.width,
+            height: result.height
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error('Upload error:', error);
-        return NextResponse.json({ success: false, error: 'Upload failed' }, { status: 500 });
+        return NextResponse.json({ success: false, error: error.message || 'Upload failed' }, { status: 500 });
     }
 }
