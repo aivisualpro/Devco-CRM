@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle
 } from 'lucide-react';
 
 import SignaturePad from './SignaturePad';
@@ -23,6 +23,14 @@ import { TimesheetModal } from './components/TimesheetModal';
 import { DriveMapModal } from './components/DriveMapModal';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
+import { usePermissions } from '@/hooks/usePermissions';
+
+interface Objective {
+    text: string;
+    completed: boolean;
+    completedBy?: string;
+    completedAt?: string;
+}
 
 interface ScheduleItem {
     _id: string;
@@ -55,11 +63,12 @@ interface ScheduleItem {
     hasDJT?: boolean;
     djt?: any;
     DJTSignatures?: any[];
-    todayObjectives?: string[];
+    todayObjectives?: Objective[];
 }
 
 export default function SchedulePage() {
     const { success, error: toastError } = useToast();
+    const { user } = usePermissions();
     
     // Map Modal State
     const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -502,6 +511,64 @@ export default function SchedulePage() {
 
 
 
+    const handleToggleObjective = async (scheduleId: string, index: number, currentStatus: boolean) => {
+        // Find existing schedule
+        const schedule = schedules.find(s => s._id === scheduleId);
+        if (!schedule) return;
+
+        // Clone deeply to avoid mutation issues
+        const updatedObjectives = schedule.todayObjectives ? [...schedule.todayObjectives] : [];
+        if (!updatedObjectives[index]) return; 
+
+        // Update object
+        const updatedObj = typeof updatedObjectives[index] === 'string' 
+            ? { text: updatedObjectives[index] as string, completed: !currentStatus }
+            : { ...updatedObjectives[index], completed: !currentStatus };
+
+        // Add metadata if completing
+        if (!currentStatus) { // If marking as complete
+            updatedObj.completedBy = user?.email || 'Unknown';
+            updatedObj.completedAt = new Date().toISOString();
+        } else {
+            updatedObj.completedBy = undefined;
+            updatedObj.completedAt = undefined;
+        }
+
+        updatedObjectives[index] = updatedObj;
+
+        // Optimistic update locally
+        setSchedules(prev => prev.map(s => s._id === scheduleId ? { ...s, todayObjectives: updatedObjectives } : s));
+        if (selectedSchedule?._id === scheduleId) {
+            setSelectedSchedule(prev => prev ? { ...prev, todayObjectives: updatedObjectives } : null);
+        }
+
+        // Send to API
+        try {
+            const payload = {
+                action: 'updateSchedule',
+                payload: {
+                    ...schedule,
+                    todayObjectives: updatedObjectives
+                }
+            };
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                success('Objective updated');
+            } else {
+                 throw new Error(data.error || 'Failed to update');
+            }
+        } catch (err) {
+            console.error(err);
+            toastError("Failed to update objective");
+            // Revert on error could be implemented here
+        }
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -529,10 +596,7 @@ export default function SchedulePage() {
             }
         }
 
-        if (!editingItem?.assignees || editingItem.assignees.length === 0) {
-            toastError('At least one Assignee is required');
-            return;
-        }
+
 
         // If updating, just update the single schedule
         if (editingItem?._id) {
@@ -2485,10 +2549,47 @@ export default function SchedulePage() {
                                                 </div>
                                             </div>
 
-                                            {/* Row 11: Scope / Notes (Moved to end) */}
+                                            {/* Today's Objectives */}
+                                            {selectedSchedule.todayObjectives && selectedSchedule.todayObjectives.length > 0 && (
+                                                <div className="pt-4 border-t border-slate-100">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Today&apos;s Objectives</p>
+                                                    <div className="space-y-2">
+                                                        {selectedSchedule.todayObjectives.map((obj, i) => {
+                                                            const isCompleted = typeof obj === 'string' ? false : obj.completed;
+                                                            const text = typeof obj === 'string' ? obj : obj.text;
+                                                            return (
+                                                                <div 
+                                                                    key={i} 
+                                                                    className="flex items-start gap-2 cursor-pointer group"
+                                                                    onClick={() => handleToggleObjective(selectedSchedule._id, i, isCompleted)}
+                                                                >
+                                                                    {isCompleted ? (
+                                                                        <CheckCircle2 className="w-5 h-5 text-orange-400 shrink-0 fill-orange-100" />
+                                                                    ) : (
+                                                                        <Circle className="w-5 h-5 text-slate-300 shrink-0 group-hover:text-slate-400 transition-colors" />
+                                                                    )}
+                                                                    <div className="flex flex-col">
+                                                                        <span className={`text-sm ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-700'}`}>
+                                                                            {text}
+                                                                        </span>
+                                                                        {typeof obj !== 'string' && obj.completed && obj.completedBy && (
+                                                                            <span className="text-[10px] text-slate-400">
+                                                                                Completed by {obj.completedBy}
+                                                                                {obj.completedAt && ` at ${new Date(obj.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Row 11: Scope of Work */}
                                             {selectedSchedule.description && (
                                                 <div className="pt-4 border-t border-slate-100">
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope / Notes</p>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope of Work</p>
                                                     <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
                                                         {selectedSchedule.description}
                                                     </p>
@@ -3101,7 +3202,8 @@ export default function SchedulePage() {
                                             const val = e.currentTarget.value.trim();
                                             if (val) {
                                                 const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                                setEditingItem({ ...editingItem, todayObjectives: [...current, val] });
+                                                const newObjective: Objective = { text: val, completed: false };
+                                                setEditingItem({ ...editingItem, todayObjectives: [...current, newObjective] });
                                                 e.currentTarget.value = '';
                                             }
                                         }
@@ -3115,7 +3217,8 @@ export default function SchedulePage() {
                                         if (input && input.value.trim()) {
                                             const val = input.value.trim();
                                             const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                            setEditingItem({ ...editingItem, todayObjectives: [...current, val] });
+                                            const newObjective: Objective = { text: val, completed: false };
+                                            setEditingItem({ ...editingItem, todayObjectives: [...current, newObjective] });
                                             input.value = '';
                                         }
                                     }}
@@ -3124,21 +3227,25 @@ export default function SchedulePage() {
                                 </button>
                             </div>
                             <div className="flex flex-wrap gap-2 mt-2">
-                                {(Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : []).map((obj: string, idx: number) => (
-                                    <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-lg group">
-                                        <span className="text-sm text-slate-700 font-medium">{obj}</span>
-                                        <button
-                                            type="button"
-                                            className="text-slate-400 hover:text-red-500 transition-colors"
-                                            onClick={() => {
-                                                const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                                setEditingItem({ ...editingItem, todayObjectives: current.filter((_: string, i: number) => i !== idx) });
-                                            }}
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    </div>
-                                ))}
+                                {(Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : []).map((obj: Objective | string, idx: number) => {
+                                    const objText = typeof obj === 'string' ? obj : obj.text;
+                                    const isCompleted = typeof obj === 'string' ? false : obj.completed;
+                                    return (
+                                        <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg group ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-slate-100 border-slate-200'}`}>
+                                            <span className={`text-sm font-medium ${isCompleted ? 'text-green-700 line-through' : 'text-slate-700'}`}>{objText}</span>
+                                            <button
+                                                type="button"
+                                                className="text-slate-400 hover:text-red-500 transition-colors"
+                                                onClick={() => {
+                                                    const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
+                                                    setEditingItem({ ...editingItem, todayObjectives: current.filter((_: Objective | string, i: number) => i !== idx) });
+                                                }}
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                         

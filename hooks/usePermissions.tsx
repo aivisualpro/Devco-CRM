@@ -25,6 +25,7 @@ interface PermissionContextType {
     isSuperAdmin: boolean;
     getEditableFields: (module: ModuleKey) => string[];
     getDataScope: (module: ModuleKey) => string;
+    user: { userId: string; email: string; role: string } | null;
 }
 
 const PermissionContext = createContext<PermissionContextType | null>(null);
@@ -34,6 +35,7 @@ const PermissionContext = createContext<PermissionContextType | null>(null);
 // =====================================
 export function PermissionProvider({ children }: { children: React.ReactNode }) {
     const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+    const [user, setUser] = useState<{ userId: string; email: string; role: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +49,9 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
             
             if (data.success) {
                 setPermissions(data.permissions);
+                if (data.user) {
+                    setUser(data.user);
+                }
             } else {
                 setError(data.error || 'Failed to load permissions');
             }
@@ -161,6 +166,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         isSuperAdmin: permissions?.isSuperAdmin ?? false,
         getEditableFields,
         getDataScope,
+        user,
     };
 
     return (

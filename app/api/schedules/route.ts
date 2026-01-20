@@ -56,7 +56,9 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
             "Per Diem": String(item.perDiem || ""),
             "Aerial Image": String(item.aerialImage || ""),
             "Site Layout": String(item.siteLayout || ""),
-            "todayObjectives": Array.isArray(item.todayObjectives) ? item.todayObjectives.join(' , ') : String(item.todayObjectives || "") 
+            "todayObjectives": Array.isArray(item.todayObjectives) 
+                ? item.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ') 
+                : String(item.todayObjectives || "") 
         };
     });
 

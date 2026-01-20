@@ -27,7 +27,14 @@ export interface ISchedule extends Document {
     djt?: any;
     JHASignatures?: any[];
     DJTSignatures?: any[];
-    todayObjectives?: string[];
+    todayObjectives?: IObjective[];
+}
+
+export interface IObjective {
+    text: string;
+    completed: boolean;
+    completedBy?: string; // Employee email who completed it
+    completedAt?: Date;   // When it was completed
 }
 
 export interface ITimesheet {
@@ -110,7 +117,12 @@ const ScheduleSchema = new Schema({
     djt: { type: Object, default: null },
     JHASignatures: { type: [], default: [] },
     DJTSignatures: { type: [], default: [] },
-    todayObjectives: { type: [String], default: [] }
+    todayObjectives: { type: [{
+        text: { type: String, required: true },
+        completed: { type: Boolean, default: false },
+        completedBy: { type: String },
+        completedAt: { type: Date }
+    }], default: [] }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

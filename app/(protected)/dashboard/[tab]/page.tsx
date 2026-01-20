@@ -9,7 +9,7 @@ import {
     Clock, MoreHorizontal, Briefcase, FileSpreadsheet,
     Calendar, DollarSign, ClipboardCheck, AlertTriangle,
     Settings, BarChart3, FileCheck, Shield, ShieldCheck, Plus, Sparkles,
-    ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle
+    ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle, Circle
 } from 'lucide-react';
 import { Header, Modal, Badge, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { Geolocation } from '@capacitor/geolocation';
@@ -18,6 +18,7 @@ import SignaturePad from '../../jobs/schedules/SignaturePad';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 import { TimesheetModal } from '../../jobs/schedules/components/TimesheetModal';
 import { useToast } from '@/hooks/useToast';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface Stats {
     catalogueItems: number;
@@ -51,6 +52,7 @@ export default function DashboardPage() {
     const router = useRouter();
     const params = useParams();
     const { success, error: toastError } = useToast();
+    const { user } = usePermissions();
     const [stats, setStats] = useState<Stats>({
         catalogueItems: 0,
         laborItems: 0,
@@ -313,11 +315,68 @@ export default function DashboardPage() {
             a.remove();
 
             success('JHA PDF downloaded successfully!');
-        } catch (error: any) {
-            console.error('JHA PDF Error:', error);
-            toastError(error.message || 'Failed to download PDF');
+        } catch (err) {
+            console.error('Download PDF error:', err);
+            toastError("Failed to generate PDF");
         } finally {
             setIsGeneratingJHAPDF(false);
+        }
+    };
+
+    const handleToggleObjective = async (scheduleId: string, index: number, currentStatus: boolean) => {
+        // Find existing schedule
+        const schedule = dailySchedules.find(s => s._id === scheduleId);
+        if (!schedule) return;
+
+        // Clone deeply to avoid mutation issues
+        const updatedObjectives = schedule.todayObjectives ? [...schedule.todayObjectives] : [];
+        if (!updatedObjectives[index]) return; 
+
+        // Update object
+        const updatedObj = typeof updatedObjectives[index] === 'string' 
+            ? { text: updatedObjectives[index] as string, completed: !currentStatus }
+            : { ...updatedObjectives[index], completed: !currentStatus };
+
+        // Add metadata if completing
+        if (!currentStatus) { // If marking as complete
+            updatedObj.completedBy = user?.email || 'Unknown';
+            updatedObj.completedAt = new Date().toISOString();
+        } else {
+            updatedObj.completedBy = undefined;
+            updatedObj.completedAt = undefined;
+        }
+
+        updatedObjectives[index] = updatedObj;
+
+        // Optimistic update locally
+        setDailySchedules(prev => prev.map(s => s._id === scheduleId ? { ...s, todayObjectives: updatedObjectives } : s));
+        if (selectedSchedule?._id === scheduleId) {
+            setSelectedSchedule(prev => prev ? { ...prev, todayObjectives: updatedObjectives } : null);
+        }
+
+        // Send to API
+        try {
+            const payload = {
+                action: 'updateSchedule',
+                payload: {
+                    ...schedule,
+                    todayObjectives: updatedObjectives
+                }
+            };
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                success('Objective updated');
+            } else {
+                 throw new Error(data.error || 'Failed to update');
+            }
+        } catch (err) {
+            console.error(err);
+            toastError("Failed to update objective");
         }
     };
 
@@ -1586,6 +1645,7 @@ export default function DashboardPage() {
                     maxWidth="2xl"
                 >
                     <div className="bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
+                        {/* 1. Tag + Client */}
                         <div className="flex items-center gap-4">
                             {(() => {
                                 const tagConstant = constants.find(c => c.description === selectedSchedule.item);
@@ -1615,47 +1675,52 @@ export default function DashboardPage() {
                             })()}
                             <div>
                                 <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
-                                {(() => {
-                                    const est = estimates.find(e => e.value === selectedSchedule.estimate);
-                                    const displayAddress = est?.jobAddress;
-
-                                    if (displayAddress && displayAddress !== 'N/A') {
-                                        return <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>;
-                                    }
-                                    return null;
-                                })()}
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-1">
-                            <div>
-                                <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
-                            </div>
-                            <div className="mt-2 flex items-center gap-3">
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-2">
-                                        <Calendar size={14} className="text-slate-400" />
-                                        <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
-                                            From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                        </span>
+                        {/* 2. Job Address */}
+                        {(() => {
+                            const est = estimates.find(e => e.value === selectedSchedule.estimate);
+                            const displayAddress = est?.jobAddress;
+                            if (displayAddress && displayAddress !== 'N/A') {
+                                return (
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>
                                     </div>
-                                    {selectedSchedule.toDate && (
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3.5" />
-                                            <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
-                                                To: {new Date(selectedSchedule.toDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-                                {selectedSchedule.estimate && (
-                                    <Badge variant="info" className="py-0 h-5">{selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}</Badge>
+                                );
+                            }
+                            return null;
+                        })()}
+
+                        {/* 3. Title */}
+                        <div>
+                            <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
+                        </div>
+
+                        {/* 4. Estimate + FromDate + Times */}
+                        <div className="flex items-center gap-3">
+                            {selectedSchedule.estimate && (
+                                <Badge variant="info" className="py-0 h-5">{selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}</Badge>
+                            )}
+                            <div className="flex items-center gap-2">
+                                <Calendar size={14} className="text-slate-400" />
+                                <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
+                                    From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                </span>
+                                {selectedSchedule.toDate && (
+                                    <>
+                                        <span className="text-xs font-bold text-slate-400">-</span>
+                                        <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
+                                            {new Date(selectedSchedule.toDate).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                        </span>
+                                    </>
                                 )}
                             </div>
                         </div>
 
                         <div className="h-px bg-slate-100 my-2" />
 
+                        {/* 5. PM + Foreman */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {[
                                 { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
@@ -1679,6 +1744,7 @@ export default function DashboardPage() {
 
                         <div className="h-px bg-slate-100 my-2" />
 
+                        {/* 6. Assignees */}
                         <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Assignees</p>
                             <div className="flex flex-wrap gap-2">
@@ -1699,6 +1765,7 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
+                        {/* 7. Service + Tag + Per Diem + Certified Payroll */}
                         <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
@@ -1709,30 +1776,59 @@ export default function DashboardPage() {
                                 <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
                             </div>
                             <div>
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
-                                <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                    {selectedSchedule.notifyAssignees || 'No'}
-                                </Badge>
-                            </div>
-                            <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
                                 <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
                                     <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
                                     {selectedSchedule.perDiem || 'No'}
                                 </Badge>
                             </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Certified Payroll</p>
+                                <Badge variant={selectedSchedule.certifiedPayroll === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                    <div className={`w-2 h-2 rounded-full ${selectedSchedule.certifiedPayroll === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                    {selectedSchedule.certifiedPayroll || 'No'}
+                                </Badge>
+                            </div>
                         </div>
 
-                        {selectedSchedule.description && (
+                        {/* 8. Today's Objectives */}
+                        {selectedSchedule.todayObjectives && selectedSchedule.todayObjectives.length > 0 && (
                             <div className="pt-4 border-t border-slate-100">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope / Notes</p>
-                                <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                    {selectedSchedule.description}
-                                </p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Today&apos;s Objectives</p>
+                                <div className="space-y-2">
+                                    {selectedSchedule.todayObjectives.map((obj: any, i: number) => {
+                                        const isCompleted = typeof obj === 'string' ? false : obj.completed;
+                                        const text = typeof obj === 'string' ? obj : obj.text;
+                                        return (
+                                            <div 
+                                                key={i} 
+                                                className="flex items-start gap-2 cursor-pointer group"
+                                                onClick={() => handleToggleObjective(selectedSchedule._id, i, isCompleted)}
+                                            >
+                                                {isCompleted ? (
+                                                    <CheckCircle2 className="w-5 h-5 text-orange-400 shrink-0 fill-orange-100" />
+                                                ) : (
+                                                    <Circle className="w-5 h-5 text-slate-300 shrink-0 group-hover:text-slate-400 transition-colors" />
+                                                )}
+                                                <div className="flex flex-col">
+                                                    <span className={`text-xs sm:text-sm ${isCompleted ? 'text-slate-500 line-through' : 'text-slate-700'}`}>
+                                                        {text}
+                                                    </span>
+                                                    {typeof obj !== 'string' && obj.completed && obj.completedBy && (
+                                                        <span className="text-[10px] text-slate-400">
+                                                            Completed by {obj.completedBy}
+                                                            {obj.completedAt && ` at ${new Date(obj.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
-                        
+
+                        {/* 9. Aerial Image + Site Layout */}
                         {(selectedSchedule.aerialImage || selectedSchedule.siteLayout) && (
                             <div className="pt-4 border-t border-slate-100">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1775,6 +1871,16 @@ export default function DashboardPage() {
                                         </div>
                                     )}
                                 </div>
+                            </div>
+                        )}
+
+                        {/* 10. Scope of Work */}
+                        {selectedSchedule.description && (
+                            <div className="pt-4 border-t border-slate-100">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope of Work</p>
+                                <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    {selectedSchedule.description}
+                                </p>
                             </div>
                         )}
                     </div>
