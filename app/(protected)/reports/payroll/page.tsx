@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
     Printer, Download,
@@ -274,7 +274,7 @@ interface EmployeeReport {
     };
 }
 
-export default function PayrollReportPage() {
+function PayrollReportContent() {
     const { success: toastSuccess, error: toastError } = useToast();
     const [loading, setLoading] = useState(true);
     const [rawSchedules, setRawSchedules] = useState<any[]>([]);
@@ -1532,5 +1532,13 @@ export default function PayrollReportPage() {
                 }
             `}</style>
         </div>
+    );
+}
+
+export default function PayrollReportPage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <PayrollReportContent />
+        </Suspense>
     );
 }
