@@ -36,7 +36,7 @@ function deg2rad(deg: number) {
 }
 
 function getDistanceFromLatLonInMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
-    var EARTH_RADIUS_MI = 6371; // Using spreadsheet constant
+    var EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
     var dLat = deg2rad(lat2 - lat1);
     var dLon = deg2rad(lon2 - lon1);
     var a =
@@ -45,7 +45,7 @@ function getDistanceFromLatLonInMiles(lat1: number, lon1: number, lat2: number, 
         Math.sin(dLon / 2) * Math.sin(dLon / 2)
         ;
     var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return EARTH_RADIUS_MI * c; // Matches spreadsheet logic
+    return EARTH_RADIUS_MI * c;
 }
 
 export default function DashboardPage() {
@@ -603,18 +603,20 @@ export default function DashboardPage() {
                  if (activeDriveTime.locationIn && positionFound) {
                      const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
                      if (!isNaN(startLat) && !isNaN(startLng)) {
-                         distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
+                         // Driving Distance (Haversine * 1.19)
+                         distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude) * 1.19;
                      }
                  }
 
                  const isDumpWashout = activeDriveTime.dumpWashout === 'TRUE' || activeDriveTime.type?.toLowerCase().includes('washout');
+                 const isShopTime = activeDriveTime.shopTime === 'TRUE' || activeDriveTime.type?.toLowerCase().includes('shop');
                  
                  const finalTimesheet = {
                      ...activeDriveTime,
                      clockOut: new Date().toISOString(),
                      locationOut: `${latitude},${longitude}`,
                      distance: distance ? parseFloat(distance.toFixed(2)) : 0,
-                     hours: distance > 0 ? parseFloat((distance / 55).toFixed(2)) : (isDumpWashout ? 0.50 : 0)
+                     hours: distance > 0 ? parseFloat((distance / 55).toFixed(2)) : (isDumpWashout ? 0.50 : (isShopTime ? 0.25 : 0))
                  };
 
                  // OPTIMISTIC UPDATE: Update UI immediately

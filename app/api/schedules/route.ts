@@ -305,7 +305,7 @@ export async function POST(request: NextRequest) {
                      // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
                      matchStage.$expr = {
                         $in: [
-                            { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "America/Los_Angeles" } }, // Adjust timezone as needed or use UTC if dates are stored normalized
+                            { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "UTC" } }, // Use UTC to match nominal date-only storage
                             selectedDates
                         ]
                      };

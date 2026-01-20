@@ -69,8 +69,9 @@ const getWeekNumber = (d: Date) => {
 
 // --- Constants ---
 const SPEED_MPH = 55;
-const EARTH_RADIUS_MI = 6371; // Using spreadsheet constant (KM radius treated as miles)
+const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
 const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
+const DRIVING_FACTOR = 1.19;
 
 // --- Helpers ---
 
@@ -141,16 +142,22 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
 
     // --- Distance Calculation Logic ---
     const isDumpWashout = String(ts.dumpWashout).toLowerCase() === 'yes' || String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true;
+    const isShopTime = String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true;
     const manualDist = parseFloat(ts.manualDistance);
 
     if (typeLower.includes('drive')) {
         // Respect manual override if present
         if (!isNaN(manualDist) && manualDist > 0) {
             distance = manualDist;
+        } else if (tsDate < FORMULA_CUTOFF_DATE) {
+            // Before Cutoff: Distance is derived from hours
+            distance = hours * 55;
         } else {
-            // Strict Calculation Rules
+            // After Cutoff: Calculate Driving distance
             if (isDumpWashout) {
-                distance = 30; 
+                distance = 30; // 0.5hr * 60 or specific rule? Keeping 30 as per previous
+            } else if (isShopTime) {
+                distance = 13.75; // 0.25hr * 55
             } else {
                 // Must have both locations to calculate
                 if (!ts.locationIn || !ts.locationOut) {
@@ -163,20 +170,14 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
                     const isValidCoord = (loc: any) => typeof loc === 'object' && (Math.abs(loc.lat) > 0.1 || Math.abs(loc.lon) > 0.1);
 
                     if (isValidCoord(locIn) && isValidCoord(locOut)) {
-                        distance = haversine((locIn as any).lat, (locIn as any).lon, (locOut as any).lat, (locOut as any).lon);
+                        // Apply Driving Factor to Haversine
+                        distance = haversine((locIn as any).lat, (locIn as any).lon, (locOut as any).lat, (locOut as any).lon) * DRIVING_FACTOR;
                     } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
                         distance = locOut - locIn;
                     } else {
                         distance = 0;
                     }
                 }
-            }
-        }
-    } else {
-        // Legacy fallback for non-drive types (if needed)
-        if (distance === 0) {
-            if (typeof locIn === 'object' && typeof locOut === 'object') {
-                distance = haversine((locIn as any).lat, (locIn as any).lon, (locOut as any).lat, (locOut as any).lon);
             }
         }
     }

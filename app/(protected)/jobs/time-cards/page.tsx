@@ -29,6 +29,7 @@ interface TimesheetEntry {
     locationIn?: string;
     locationOut?: string;
     dumpWashout?: boolean | string;
+    shopTime?: boolean | string;
     scheduleId: string; // Parent Schedule ID
     estimate?: string; // From parent
     comments?: string; 
@@ -54,8 +55,9 @@ interface ScheduleDoc {
 // --- Constants ---
 const SPEED_MPH = 55;
 const ROAD_ADJUSTMENT_FACTOR = 1.0; // No longer needed as we're following spreadsheet logic
-const EARTH_RADIUS_MI = 6371; // Using spreadsheet constant (KM radius treated as miles for 60% road buffer)
+const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
 const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
+const DRIVING_FACTOR = 1.19;
 
 // --- Helpers ---
 
@@ -180,32 +182,37 @@ const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
         return h + (roundedM / 60);
     };
 
-    // Calculate Distance if missing but coords exist
-    if (distance === 0) {
-        if (typeof locIn === 'object' && typeof locOut === 'object') {
-            distance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon);
-        } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
-            distance = locOut - locIn;
-        }
-    }
-
-    // Determine Hours
+    // Distance & Hours Calculation Logic
     if (typeLower.includes('drive')) {
-        // Enforce formula only for records ON OR AFTER Jan 12, 2026
-        if (tsDate >= FORMULA_CUTOFF_DATE) {
+        if (tsDate < FORMULA_CUTOFF_DATE) {
+            // Before Cutoff: Distance derived from hours
+            hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(String(ts.hours)) || 0);
+            distance = hours * SPEED_MPH;
+        } else {
+            // After Cutoff: Calculate Driving distance
+            if (distance === 0) {
+                if (typeof locIn === 'object' && typeof locOut === 'object') {
+                    // Applied Driving Factor 1.19 for Road Miles Approximation
+                    distance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
+                } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
+                    distance = locOut - locIn;
+                }
+            }
+
+            // Derive Hours from distance
             if (distance > 0) {
                 hours = distance / SPEED_MPH;
             } else {
                 const dw = String(ts.dumpWashout).toLowerCase();
+                const st = String(ts.shopTime).toLowerCase();
                 if (dw === 'yes' || dw === 'true' || ts.dumpWashout === true) {
                     hours = 0.5;
+                } else if (st === 'yes' || st === 'true' || ts.shopTime === true) {
+                    hours = 0.25;
                 } else {
                     hours = calcTimeHours();
                 }
             }
-        } else {
-            // Keep imported/old data
-            hours = hours || calcTimeHours();
         }
     } else {
         // Site time always uses clock time

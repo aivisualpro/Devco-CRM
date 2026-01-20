@@ -304,12 +304,14 @@ export default function SchedulePage() {
         return 'Client';
     };
 
-    // Format date as YYYY-MM-DD in local timezone (avoids UTC conversion issues)
+    // Format date as YYYY-MM-DD in UTC (consistent with how Mongo treats "YYYY-MM-DD" imports)
     const formatLocalDate = (dateInput: string | Date) => {
+        if (!dateInput) return '';
         const date = new Date(dateInput);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        if (isNaN(date.getTime())) return '';
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     };
 
@@ -365,8 +367,8 @@ export default function SchedulePage() {
         const fetchMonthActivity = async () => {
              const year = currentDate.getFullYear();
              const month = currentDate.getMonth();
-             const start = new Date(year, month, 1).toISOString();
-             const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+             const start = new Date(Date.UTC(year, month, 1)).toISOString();
+             const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59)).toISOString();
 
              try {
                  const res = await fetch('/api/schedules', {
@@ -1465,35 +1467,42 @@ export default function SchedulePage() {
 
         const isCoord = (val: any) => typeof val === 'string' && val.includes(',') && !isNaN(Number(val.split(',')[0]));
 
-        // Calculate Distance (always needed for display if type is Drive Time or just available)
+        const DISTANCE_CUTOFF = new Date('2026-01-12T00:00:00');
+        const tsDateStr = ts.clockIn || scheduleDate;
+        const tsDate = new Date(tsDateStr);
+        const DRIVING_FACTOR = 1.19;
+
+        // Calculate Hours & Distance
         if (!type.includes('SITE')) {
-            if (isCoord(ts.locationIn) && isCoord(ts.locationOut)) {
-                // Coordinate based distance
-                const [lat1, lon1] = ts.locationIn.split(',').map(Number);
-                const [lat2, lon2] = ts.locationOut.split(',').map(Number);
-                distance = getDistanceFromLatLonInMiles(lat1, lon1, lat2, lon2);
+            if (tsDate < DISTANCE_CUTOFF) {
+                // BEFORE CUTOFF: Use hours in database for distance
+                hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(String(ts.hours)) || 0);
+                distance = hours * 55;
             } else {
-                // Odometer based distance
-                const locIn = parseLoc(ts.locationIn);
-                const locOut = parseLoc(ts.locationOut);
-                if (locOut > locIn) {
-                    distance = locOut - locIn;
+                // ON/AFTER CUTOFF: Calculate driving distance
+                if (isCoord(ts.locationIn) && isCoord(ts.locationOut)) {
+                    const [lat1, lon1] = ts.locationIn.split(',').map(Number);
+                    const [lat2, lon2] = ts.locationOut.split(',').map(Number);
+                    // Straight line distance (3958.8 radius) * Driving Factor (1.364)
+                    distance = getDistanceFromLatLonInMiles(lat1, lon1, lat2, lon2) * DRIVING_FACTOR;
+                } else {
+                    const locIn = parseLoc(ts.locationIn);
+                    const locOut = parseLoc(ts.locationOut);
+                    if (locOut > locIn) {
+                        distance = locOut - locIn;
+                    }
+                }
+
+                // Hours from distance (for new records)
+                if (distance > 0) {
+                    hours = distance / 55;
+                } else if (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') {
+                    hours = 0.5;
+                } else if (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) {
+                    hours = 0.25;
                 }
             }
         }
-
-        if (type.includes('DRIVE')) {
-            if (distance > 0) {
-                 // Rule: Distance / 55
-                 hours = distance / 55;
-            } else if (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') {
-                 // Rule: If Dump/Washout is Yes, 0.5 hours
-                 hours = 0.5;
-            } else if (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) {
-                 // Rule: If Shop Time is True, 0.25 hours
-                 hours = 0.25;
-            }
-        } 
         else if (type.includes('SITE')) {
             // Rule: Calculate Duration
             if (ts.clockIn && ts.clockOut) {
@@ -1616,7 +1625,8 @@ export default function SchedulePage() {
                 if (activeDriveTime.locationIn) {
                     const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
                     if (!isNaN(startLat) && !isNaN(startLng)) {
-                        distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
+                        // Driving Distance (Haversine * 1.19)
+                        distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude) * 1.19;
                     }
                 }
 
@@ -1936,15 +1946,22 @@ export default function SchedulePage() {
                                         value={selectedDates[selectedDates.length - 1] || ''}
                                         onChange={(e) => {
                                             if (e.target.value && selectedDates[0]) {
-                                                // Create range from first selected date to this date
-                                                const start = new Date(selectedDates[0]);
-                                                const end = new Date(e.target.value);
+                                                // Create range from first selected date to this date (Using UTC to avoid shifts)
+                                                // Assuming values are "YYYY-MM-DD"
+                                                const startParts = selectedDates[0].split('-').map(Number);
+                                                const endParts = e.target.value.split('-').map(Number);
+                                                
+                                                const start = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+                                                const end = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+                                                
                                                 const range = [];
-                                                for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                                                    const year = d.getFullYear();
-                                                    const month = String(d.getMonth() + 1).padStart(2, '0');
-                                                    const day = String(d.getDate()).padStart(2, '0');
+                                                let curr = new Date(start);
+                                                while (curr <= end) {
+                                                    const year = curr.getUTCFullYear();
+                                                    const month = String(curr.getUTCMonth() + 1).padStart(2, '0');
+                                                    const day = String(curr.getUTCDate()).padStart(2, '0');
                                                     range.push(`${year}-${month}-${day}`);
+                                                    curr.setUTCDate(curr.getUTCDate() + 1);
                                                 }
                                                 setSelectedDates(range);
                                             }
