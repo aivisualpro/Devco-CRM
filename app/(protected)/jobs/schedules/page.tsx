@@ -1486,9 +1486,12 @@ export default function SchedulePage() {
             if (distance > 0) {
                  // Rule: Distance / 55
                  hours = distance / 55;
-            } else if (String(ts.dumpWashout).toLowerCase() === 'yes' || ts.dumpWashout === true) {
+            } else if (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') {
                  // Rule: If Dump/Washout is Yes, 0.5 hours
                  hours = 0.5;
+            } else if (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) {
+                 // Rule: If Shop Time is True, 0.25 hours
+                 hours = 0.25;
             }
         } 
         else if (type.includes('SITE')) {
@@ -2402,104 +2405,105 @@ export default function SchedulePage() {
                                                     {(() => {
                                                         const userTimesheets = item.timesheet?.filter((ts: any) => ts.employee === currentUser?.email) || [];
                                                         const activeDriveTime = userTimesheets.find((ts: any) => (ts.type === 'Drive Time' || ts.type === 'Drive Time') && !ts.clockOut);
-                                                        
-                                                        // Priority: 1. Active Drive Time (Stop Button) -> 2. Existing Records (View Button) -> 3. No Records (Start Drive Time)
-                                                        
-                                                        if (activeDriveTime) {
-                                                            return (
-                                                                <>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
-                                                                            onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
-                                                                        >
-                                                                            <StopCircle size={14} strokeWidth={2.5} />
-                                                                        </div>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>Stop Drive Time</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <div 
-                                                                                className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                                onClick={(e) => handleQuickTimesheet(item, 'Dump Washout', e)}
-                                                                            >
-                                                                                <Droplets size={14} strokeWidth={2.5} />
-                                                                            </div>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                            <p>Dump Washout</p>
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
+                                                                                                                // Priority: 1. Active Drive Time (Stop Button) -> 2. Existing Records (View Button) -> 3. No Records (Start Drive Time)
+                                                         const hasDumpWashout = userTimesheets.some((ts: any) => String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes');
+                                                         const hasShopTime = userTimesheets.some((ts: any) => String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true);
 
-                                                                    <Tooltip>
-                                                                        <TooltipTrigger asChild>
-                                                                            <div 
-                                                                                className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                                onClick={(e) => handleQuickTimesheet(item, 'Shop Time', e)}
-                                                                            >
-                                                                                <Warehouse size={14} strokeWidth={2.5} />
-                                                                            </div>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                            <p>Shop Time</p>
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
-                                                                </>
-                                                            );
-                                                        }
-                                                        
-                                                        // Fallback: Show ONLY Start Button for new session (View button removed per request)
-                                                        const displayedTs = userTimesheets.length > 0 ? userTimesheets[0] : null;
+                                                         if (activeDriveTime) {
+                                                             return (
+                                                                 <>
+                                                                 <Tooltip>
+                                                                     <TooltipTrigger asChild>
+                                                                         <div 
+                                                                             className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
+                                                                             onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
+                                                                         >
+                                                                             <StopCircle size={14} strokeWidth={2.5} />
+                                                                         </div>
+                                                                     </TooltipTrigger>
+                                                                     <TooltipContent>
+                                                                         <p>Stop Drive Time</p>
+                                                                     </TooltipContent>
+                                                                 </Tooltip>
+                                                                     <Tooltip>
+                                                                         <TooltipTrigger asChild>
+                                                                             <div 
+                                                                                 className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasDumpWashout ? 'bg-teal-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 cursor-pointer'}`} 
+                                                                                 onClick={(e) => !hasDumpWashout && handleQuickTimesheet(item, 'Dump Washout', e)}
+                                                                             >
+                                                                                 <Droplets size={14} strokeWidth={2.5} />
+                                                                             </div>
+                                                                         </TooltipTrigger>
+                                                                         <TooltipContent>
+                                                                             <p>{hasDumpWashout ? 'Dump Washout Registered' : 'Dump Washout'}</p>
+                                                                         </TooltipContent>
+                                                                     </Tooltip>
 
-                                                        return (
-                                                            <>
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                            onClick={(e) => handleDriveTimeToggle(item, null, e)}
-                                                                        >
-                                                                            <Car size={14} strokeWidth={2.5} />
-                                                                        </div>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>Start Drive Time</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
+                                                                     <Tooltip>
+                                                                         <TooltipTrigger asChild>
+                                                                             <div 
+                                                                                 className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasShopTime ? 'bg-amber-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 cursor-pointer'}`} 
+                                                                                 onClick={(e) => !hasShopTime && handleQuickTimesheet(item, 'Shop Time', e)}
+                                                                             >
+                                                                                 <Warehouse size={14} strokeWidth={2.5} />
+                                                                             </div>
+                                                                         </TooltipTrigger>
+                                                                         <TooltipContent>
+                                                                             <p>{hasShopTime ? 'Shop Time Registered' : 'Shop Time'}</p>
+                                                                         </TooltipContent>
+                                                                     </Tooltip>
+                                                                 </>
+                                                             );
+                                                         }
+                                                         
+                                                         // Fallback: Show ONLY Start Button for new session (View button removed per request)
+                                                         const displayedTs = userTimesheets.length > 0 ? userTimesheets[0] : null;
 
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                            onClick={(e) => handleQuickTimesheet(item, 'Dump Washout', e)}
-                                                                        >
-                                                                            <Droplets size={14} strokeWidth={2.5} />
-                                                                        </div>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>Dump Washout</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
+                                                         return (
+                                                             <>
+                                                                 <Tooltip>
+                                                                     <TooltipTrigger asChild>
+                                                                         <div 
+                                                                             className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                             onClick={(e) => handleDriveTimeToggle(item, null, e)}
+                                                                         >
+                                                                             <Car size={14} strokeWidth={2.5} />
+                                                                         </div>
+                                                                     </TooltipTrigger>
+                                                                     <TooltipContent>
+                                                                         <p>Start Drive Time</p>
+                                                                     </TooltipContent>
+                                                                 </Tooltip>
 
-                                                                <Tooltip>
-                                                                    <TooltipTrigger asChild>
-                                                                        <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                            onClick={(e) => handleQuickTimesheet(item, 'Shop Time', e)}
-                                                                        >
-                                                                            <Warehouse size={14} strokeWidth={2.5} />
-                                                                        </div>
-                                                                    </TooltipTrigger>
-                                                                    <TooltipContent>
-                                                                        <p>Shop Time</p>
-                                                                    </TooltipContent>
-                                                                </Tooltip>
-                                                            </>
-                                                        );
+                                                                 <Tooltip>
+                                                                     <TooltipTrigger asChild>
+                                                                         <div 
+                                                                             className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasDumpWashout ? 'bg-teal-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 cursor-pointer'}`} 
+                                                                             onClick={(e) => !hasDumpWashout && handleQuickTimesheet(item, 'Dump Washout', e)}
+                                                                         >
+                                                                             <Droplets size={14} strokeWidth={2.5} />
+                                                                         </div>
+                                                                     </TooltipTrigger>
+                                                                     <TooltipContent>
+                                                                         <p>{hasDumpWashout ? 'Dump Washout Registered' : 'Dump Washout'}</p>
+                                                                     </TooltipContent>
+                                                                 </Tooltip>
+
+                                                                 <Tooltip>
+                                                                     <TooltipTrigger asChild>
+                                                                         <div 
+                                                                             className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasShopTime ? 'bg-amber-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 cursor-pointer'}`} 
+                                                                             onClick={(e) => !hasShopTime && handleQuickTimesheet(item, 'Shop Time', e)}
+                                                                         >
+                                                                             <Warehouse size={14} strokeWidth={2.5} />
+                                                                         </div>
+                                                                     </TooltipTrigger>
+                                                                     <TooltipContent>
+                                                                         <p>{hasShopTime ? 'Shop Time Registered' : 'Shop Time'}</p>
+                                                                     </TooltipContent>
+                                                                 </Tooltip>
+                                                             </>
+                                                         );
                                                     })()}
                                                 </div>
 
@@ -2910,9 +2914,15 @@ export default function SchedulePage() {
                                                                                                     (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
                                                                                                 )}
                                                                                             </div>
-                                                                                            <div className="min-w-0">
+                                                                                             <div className="min-w-0 flex items-center gap-2">
                                                                                                 <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
-                                                                                            </div>
+                                                                                                {(String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') && (
+                                                                                                    <Droplets size={12} className="text-teal-500" />
+                                                                                                )}
+                                                                                                {(String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) && (
+                                                                                                    <Warehouse size={12} className="text-amber-500" />
+                                                                                                )}
+                                                                                             </div>
                                                                                         </div>
                                                                                     </td>
                                                                                     <td className="p-2 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
