@@ -142,6 +142,10 @@ export default function SchedulePage() {
         tsId: null
     });
 
+    // Calendar & Activity State
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [monthlyActivityDates, setMonthlyActivityDates] = useState<Set<string>>(new Set());
+
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const user = localStorage.getItem('devco_user');
@@ -348,11 +352,51 @@ export default function SchedulePage() {
     };
 
     const scheduledDatesRaw = useMemo(() => {
-        return new Set(schedules.map(s => {
-            try { return formatLocalDate(s.fromDate); }
-            catch { return ''; }
-        }));
-    }, [schedules]);
+        const dates = new Set(monthlyActivityDates);
+        // Also include loaded schedules just in case (e.g. recent updates locally)
+        schedules.forEach(s => {
+             try { dates.add(formatLocalDate(s.fromDate)); } catch {}
+        });
+        return dates;
+    }, [schedules, monthlyActivityDates]);
+
+    // Fetch monthly activity when month/year changes
+    useEffect(() => {
+        const fetchMonthActivity = async () => {
+             const year = currentDate.getFullYear();
+             const month = currentDate.getMonth();
+             const start = new Date(year, month, 1).toISOString();
+             const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+
+             try {
+                 const res = await fetch('/api/schedules', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                         action: 'getScheduleActivity',
+                         payload: {
+                             start,
+                             end
+                         }
+                     })
+                 });
+                 const data = await res.json();
+                 if (data.success && Array.isArray(data.result)) {
+                     const dates = new Set<string>();
+                     data.result.forEach((s: any) => {
+                         try { dates.add(formatLocalDate(s.fromDate)); } catch {}
+                     });
+                     setMonthlyActivityDates(dates);
+                 }
+             } catch (e) {
+                 console.error("Failed to fetch monthly activity", e);
+             }
+        };
+
+        if (currentUser) {
+            fetchMonthActivity();
+        }
+    }, [currentDate, currentUser]);
 
     // Get day name from date string (using local timezone)
     const getDayName = (dateStr: string) => {
@@ -423,11 +467,20 @@ export default function SchedulePage() {
         // This is "acceptable" for infinite scroll lists usually.
         
         return schedules.filter(s => {
+            const scheduleDate = formatLocalDate(s.fromDate);
+
+            // Strict Filter: Verify the item visually falls on one of the selected dates
+            // This catches timezone drifts where server returns an item it thinks is on Day X (UTC)
+            // but client renders it on Day Y (Local).
+            if (selectedDates.length > 0 && !selectedDates.includes(scheduleDate)) {
+                return false;
+            }
+
             if (activeDayTab === 'all') return true;
-             const scheduleDate = formatLocalDate(s.fromDate);
+             
              return getDayName(scheduleDate) === activeDayTab;
         });
-    }, [schedules, activeDayTab]);
+    }, [schedules, activeDayTab, selectedDates]);
 
 
 
@@ -746,7 +799,7 @@ export default function SchedulePage() {
         }
     };
 
-    const [currentDate, setCurrentDate] = useState(new Date());
+
     const [viewType, setViewType] = useState<'calendar' | 'timeline'>('calendar');
 
 

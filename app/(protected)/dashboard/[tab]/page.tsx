@@ -351,7 +351,7 @@ export default function DashboardPage() {
         // Optimistic update locally
         setDailySchedules(prev => prev.map(s => s._id === scheduleId ? { ...s, todayObjectives: updatedObjectives } : s));
         if (selectedSchedule?._id === scheduleId) {
-            setSelectedSchedule(prev => prev ? { ...prev, todayObjectives: updatedObjectives } : null);
+            setSelectedSchedule((prev: any) => prev ? { ...prev, todayObjectives: updatedObjectives } : null);
         }
 
         // Send to API

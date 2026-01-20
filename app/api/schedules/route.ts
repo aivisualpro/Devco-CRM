@@ -254,6 +254,32 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: updatedSchedule });
             }
 
+            case 'getScheduleActivity': {
+                const { start, end, userEmail } = payload || {};
+                const filters: any = {};
+                
+                if (start && end) {
+                    filters.fromDate = { 
+                        $gte: new Date(start), 
+                        $lte: new Date(end) 
+                    };
+                }
+
+                // User Permission Filter
+                if (userEmail) {
+                    const userFilter = [
+                        { projectManager: userEmail },
+                        { foremanName: userEmail },
+                        { assignees: userEmail }
+                    ];
+                    filters.$or = userFilter;
+                }
+
+                // Fetch only fromDate
+                const results = await Schedule.find(filters).select('fromDate').lean();
+                return NextResponse.json({ success: true, result: results });
+            }
+
             case 'getSchedulesPage': {
                 const { 
                     page = 1, 
