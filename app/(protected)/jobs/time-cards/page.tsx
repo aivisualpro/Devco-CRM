@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import {
-    ChevronRight, ChevronDown, User, Calendar as CalendarIcon,
+    ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock
 } from 'lucide-react';
 import Link from 'next/link';
@@ -10,7 +10,8 @@ import {
     Header, Loading, Modal,
     SearchableSelect, Card, Pagination,
     Table, TableHead, TableBody, TableRow, TableHeader, TableCell,
-    Badge, Tooltip, TooltipTrigger, TooltipContent
+    Badge, Tooltip, TooltipTrigger, TooltipContent,
+    ConfirmModal
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -33,6 +34,8 @@ interface TimesheetEntry {
     comments?: string; 
     manualDistance?: string | number;
     manualDuration?: string | number;
+    distance?: number;
+    hours?: number;
     
     // Computed locally
     hoursVal?: number;
@@ -49,8 +52,10 @@ interface ScheduleDoc {
 }
 
 // --- Constants ---
-const KM_TO_MI = 0.621371;
 const SPEED_MPH = 55;
+const ROAD_ADJUSTMENT_FACTOR = 1.0; // No longer needed as we're following spreadsheet logic
+const EARTH_RADIUS_MI = 6371; // Using spreadsheet constant (KM radius treated as miles for 60% road buffer)
+const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
 
 // --- Helpers ---
 
@@ -101,20 +106,32 @@ const formatDateOnly = (dateStr?: string) => {
 };
 
 const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Earth's radius in km
+    const R = EARTH_RADIUS_MI; 
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // KM
+    return R * c; // Matches spreadsheet result (e.g. 276 for the test coords)
+};
+
+const toLocalISO = (iso?: string) => {
+    if (!iso) return "";
+    const clean = iso.split('.')[0];
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const offset = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - offset);
+    return local.toISOString().slice(0, 16);
 };
 
 const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
     const typeLower = (ts.type || '').toLowerCase();
-    let hours = 0;
-    let distance = 0;
+    
+    // Prioritize persisted numerical values from the app/database
+    let distance = typeof ts.distance === 'number' ? ts.distance : (parseFloat(String(ts.distance)) || 0);
+    let hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(String(ts.hours)) || 0);
 
     const parseLoc = (val: any) => {
         const str = String(val || '').trim();
@@ -128,23 +145,13 @@ const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
         return isNaN(num) ? 0 : num;
     };
 
-    // Manual Overrides
-    if (typeLower.includes('drive') && ts.manualDistance) {
-        distance = parseFloat(String(ts.manualDistance)) || 0;
-        hours = distance / SPEED_MPH;
-        return { hours, distance };
-    }
-    if (typeLower.includes('site') && ts.manualDuration) {
-        hours = parseFloat(String(ts.manualDuration)) || 0;
-        distance = 0;
-        return { hours, distance };
-    }
-
     const locIn = parseLoc(ts.locationIn);
     const locOut = parseLoc(ts.locationOut);
+    const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
+    const tsDate = new Date(tsDateStr);
 
-    const calcTime = () => {
-        if (!ts.clockIn || !ts.clockOut) return 0;
+    const calcTimeHours = () => {
+        if (!ts.clockIn || !ts.clockOut) return hours;
         const start = new Date(ts.clockIn).getTime();
         const end = new Date(ts.clockOut).getTime();
         let durationMs = end - start;
@@ -154,15 +161,13 @@ const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
             const lEnd = new Date(ts.lunchEnd).getTime();
             if (lEnd > lStart) durationMs -= (lEnd - lStart);
         }
-
-        if (durationMs <= 0) return 0;
-
-        const totalHoursRaw = durationMs / (1000 * 60 * 60);
-        const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
-        const tsDate = new Date(tsDateStr);
-        const cutoffDate = new Date('2025-10-26T00:00:00');
+        if (durationMs <= 0) return hours;
         
-        if (tsDate < cutoffDate) return totalHoursRaw;
+        const totalHoursRaw = durationMs / (1000 * 60 * 60);
+
+        // Pre-2025 cutoff (existing logic)
+        const cutoff2025 = new Date('2025-10-26T00:00:00');
+        if (tsDate < cutoff2025) return totalHoursRaw;
         if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
 
         const h = Math.floor(totalHoursRaw);
@@ -172,37 +177,39 @@ const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
         else if (m > 14 && m <= 29) roundedM = 15;
         else if (m > 29 && m <= 44) roundedM = 30;
         else if (m > 44 && m <= 59) roundedM = 45;
-        
         return h + (roundedM / 60);
     };
 
-    if (typeLower === 'drive time') {
-        let distKm = 0;
-
-        // Determine calculation method: GPS vs Odometer
+    // Calculate Distance if missing but coords exist
+    if (distance === 0) {
         if (typeof locIn === 'object' && typeof locOut === 'object') {
-            distKm = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon);
-            distance = distKm * KM_TO_MI;
-            hours = distance / SPEED_MPH;
-        } 
-        else if (typeof locOut === 'number' && typeof locIn === 'number' && locOut > locIn) {
-            distKm = locOut - locIn;
-            distance = distKm * KM_TO_MI;
-            hours = distance / SPEED_MPH;
-        } 
-        else {
-            hours = calcTime();
-            if (hours === 0) {
+            distance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon);
+        } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
+            distance = locOut - locIn;
+        }
+    }
+
+    // Determine Hours
+    if (typeLower.includes('drive')) {
+        // Enforce formula only for records ON OR AFTER Jan 12, 2026
+        if (tsDate >= FORMULA_CUTOFF_DATE) {
+            if (distance > 0) {
+                hours = distance / SPEED_MPH;
+            } else {
                 const dw = String(ts.dumpWashout).toLowerCase();
                 if (dw === 'yes' || dw === 'true' || ts.dumpWashout === true) {
                     hours = 0.5;
+                } else {
+                    hours = calcTimeHours();
                 }
             }
-            distance = hours * SPEED_MPH;
+        } else {
+            // Keep imported/old data
+            hours = hours || calcTimeHours();
         }
-    } else if (typeLower === 'site time') {
-        hours = calcTime();
-        distance = 0;
+    } else {
+        // Site time always uses clock time
+        hours = calcTimeHours();
     }
 
     return { hours, distance };
@@ -232,10 +239,35 @@ export default function TimeCardPage() {
     // nodeValue: identifying string (e.g. '2025', '2025-52', '2025-52-email@co.com')
     const [selectedNode, setSelectedNode] = useState<{ type: string, value: string }>({ type: 'ROOT', value: 'All' });
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+    const [isMobile, setIsMobile] = useState(false);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [mobileSelectedDate, setMobileSelectedDate] = useState(new Date());
+    const dateInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        
+        const userStr = localStorage.getItem('devco_user');
+        if (userStr) {
+            try {
+                setCurrentUser(JSON.parse(userStr));
+            } catch (e) {
+                console.error("Failed to parse user", e);
+            }
+        }
+        
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
     const ITEMS_PER_PAGE = 50;
+
+    // Delete Confirm State
+    const [deleteTs, setDeleteTs] = useState<TimesheetEntry | null>(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     // Edit State
     const [editingRecord, setEditingRecord] = useState<TimesheetEntry | null>(null);
@@ -331,16 +363,32 @@ export default function TimeCardPage() {
     // 1. Apply Top Filters first
     const filteredRecords = useMemo(() => {
         return allRecords.filter(r => {
-            if (filEmployee && r.employee !== filEmployee) return false;
+            // Mobile specific filtering: Only show current user's records for the selected date
+            if (isMobile) {
+                if (currentUser && r.employee !== currentUser.email) return false;
+                
+                if (r.clockIn) {
+                    const recordDate = new Date(r.clockIn).toLocaleDateString();
+                    const selectedDateStr = mobileSelectedDate.toLocaleDateString();
+                    if (recordDate !== selectedDateStr) return false;
+                } else {
+                    return false;
+                }
+            } else {
+                // Desktop filters
+                if (filEmployee && r.employee !== filEmployee) return false;
+                if (filType && r.type !== filType) return false;
+            }
+
             if (filEstimate) {
                 const baseRecord = normalizeEst(r.estimate);
                 const baseFilter = normalizeEst(filEstimate);
                 if (baseRecord !== baseFilter) return false;
             }
-            if (filType && r.type !== filType) return false;
+            
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, mobileSelectedDate]);
 
     // 2. Build Tree Structure
     const treeData = useMemo(() => {
@@ -414,10 +462,27 @@ export default function TimeCardPage() {
 
     // --- Actions ---
     
-    const handleDelete = async (ts: TimesheetEntry) => {
-        if (!confirm('Are you sure you want to delete this timesheet?')) return;
+    const handleDeleteClick = (ts: TimesheetEntry) => {
+        setDeleteTs(ts);
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleDelete = async () => {
+        if (!deleteTs) return;
+        const ts = deleteTs;
         
+        // Optimistic UI Update: Remove the record immediately from the frontend
+        const originalSchedules = [...rawSchedules];
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== ts.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: (s.timesheet || []).filter((t: any) => (t._id || t.recordId) !== (ts._id || ts.recordId))
+            };
+        }));
+
         try {
+            // Proceed with backend deletion in the background
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -438,9 +503,10 @@ export default function TimeCardPage() {
                 })
             });
             
-            if ((await resSave.json()).success) {
+            const saveRes = await resSave.json();
+            if (saveRes.success) {
                 success("Timesheet deleted");
-                fetchTimeCards(); 
+                // No need to fetchTimeCards() here because we already updated the state optimistically
             } else {
                 throw new Error("Failed to save");
             }
@@ -448,6 +514,11 @@ export default function TimeCardPage() {
         } catch (e) {
             console.error(e);
             toastError("Error deleting timesheet");
+            // Rollback optimistic update on error
+            setRawSchedules(originalSchedules);
+        } finally {
+            setDeleteTs(null);
+            setIsDeleteModalOpen(false);
         }
     };
 
@@ -459,54 +530,66 @@ export default function TimeCardPage() {
     const handleSaveEdit = async () => {
         if (!editingRecord || !editForm.scheduleId) return;
         
+        const originalSchedules = [...rawSchedules];
+        
+        // Optimistic UI Update
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== editForm.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: (s.timesheet || []).map((t: any) => {
+                    if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
+                        return { ...t, ...editForm };
+                    }
+                    return t;
+                })
+            };
+        }));
+
         try {
-            setLoading(true);
-            // 1. Get Schedule
+            // Close modal immediately
+            setEditingRecord(null);
+            setEditForm({});
+
+            // Background update
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ action: 'getScheduleById', payload: { id: editingRecord.scheduleId } })
+                body: JSON.stringify({ action: 'getScheduleById', payload: { id: editForm.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
             
             const schedule = dataGet.result;
-            
-            // 2. Update the specific timesheet in the array
-            // Map over existing timesheets and replace the one that matches _id
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
-                    // Merge existing with updates
-                    // Remove calculated fields before saving if present (though interface usually handles this, be safe)
                     const { hoursVal, distanceVal, ...rest } = editForm;
                     return { ...t, ...rest };
                 }
                 return t;
             });
             
-            // 3. Save
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ 
                     action: 'updateSchedule', 
-                    payload: { id: editingRecord.scheduleId, timesheet: updatedTimesheets }
+                    payload: { id: editForm.scheduleId, timesheet: updatedTimesheets }
                 })
             });
             
-            if ((await resSave.json()).success) {
+            const saveResult = await resSave.json();
+            if (saveResult.success) {
                 success("Timesheet updated");
-                setEditingRecord(null);
-                setEditForm({});
-                fetchTimeCards(); 
             } else {
                 throw new Error("Failed to save");
             }
-
+            
         } catch (e) {
             console.error(e);
             toastError("Failed to update timesheet");
-            setLoading(false);
+            // Rollback on error
+            setRawSchedules(originalSchedules);
         }
     };
 
@@ -532,25 +615,149 @@ export default function TimeCardPage() {
     const uniqueTypes = ["Drive Time", "Site Time"];
 
     return (
-        <div className="flex flex-col h-full bg-[#F8FAFC]">
-            <div className="flex-none">
-                <Header 
-                    rightContent={
-                        <div className="flex items-center gap-3">
-                            <Link 
-                                href="/reports/payroll"
-                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
-                            >
-                                <FileText size={16} />
-                                Payroll Report
-                            </Link>
-                        </div>
-                    }
-                />
-            </div>
+        <div className="flex flex-col h-full bg-[#f8fafc]">
+            {!isMobile && (
+                <div className="flex-none">
+                    <Header 
+                        rightContent={
+                            <div className="flex items-center gap-3">
+                                <Link 
+                                    href="/reports/payroll"
+                                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
+                                >
+                                    <FileText size={16} />
+                                    Payroll Report
+                                </Link>
+                            </div>
+                        }
+                    />
+                </div>
+            )}
 
-            <main className="flex-1 min-h-0 p-4 flex flex-col max-w-[1920px] w-full mx-auto">
-                <div className="flex-1 flex gap-4 min-h-0">
+            <main className={`flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden ${isMobile ? 'pt-8' : 'p-4'}`}>
+                {isMobile ? (
+                    <div className="flex-1 bg-white rounded-t-[48px] shadow-2xl border-t border-slate-100 flex flex-col overflow-hidden">
+                        <div className="flex-1 overflow-y-auto px-6 pt-10 pb-20 space-y-6">
+                            {/* Premium Date Selector */}
+                            <div className="flex items-center justify-between mb-8 px-2">
+                                <button 
+                                    onClick={() => {
+                                        const d = new Date(mobileSelectedDate);
+                                        d.setDate(d.getDate() - 1);
+                                        setMobileSelectedDate(d);
+                                    }}
+                                    className="w-12 h-12 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all active:scale-90"
+                                >
+                                    <ChevronLeft size={24} />
+                                </button>
+                                
+                                <div className="text-center cursor-pointer relative group flex-1" onClick={() => dateInputRef.current?.showPicker()}>
+                                    <h3 className="text-[28px] font-black text-slate-900 mb-1 tracking-tight">
+                                        {mobileSelectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                                    </h3>
+                                    <p className="text-sm font-bold text-slate-400 tracking-wide">
+                                        {mobileSelectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                    </p>
+                                    <input 
+                                        type="date"
+                                        ref={dateInputRef}
+                                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                        value={mobileSelectedDate.toISOString().split('T')[0]}
+                                        onChange={(e) => {
+                                            if (e.target.value) {
+                                                const [y, m, d] = e.target.value.split('-').map(Number);
+                                                setMobileSelectedDate(new Date(y, m - 1, d));
+                                            }
+                                        }} 
+                                    />
+                                </div>
+
+                                <button 
+                                    onClick={() => {
+                                        const d = new Date(mobileSelectedDate);
+                                        d.setDate(d.getDate() + 1);
+                                        setMobileSelectedDate(d);
+                                    }}
+                                    className="w-12 h-12 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all active:scale-90"
+                                >
+                                    <ChevronRight size={24} />
+                                </button>
+                            </div>
+
+                            {paginatedData.length > 0 ? (
+                            paginatedData.map((ts, idx) => (
+                                <div 
+                                    key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`}
+                                    className={`relative overflow-hidden rounded-[24px] border shadow-sm transition-all active:scale-[0.98] ${
+                                        ts.type?.toLowerCase().includes('drive') 
+                                            ? 'bg-blue-50/50 border-blue-100' 
+                                            : 'bg-emerald-50/50 border-emerald-100'
+                                    }`}
+                                >
+                                    <div className={`absolute top-0 left-0 bottom-0 w-2 ${
+                                        ts.type?.toLowerCase().includes('drive') ? 'bg-blue-500' : 'bg-emerald-500'
+                                    }`} />
+                                    
+                                    <div className="p-5">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    {ts.type?.toLowerCase().includes('drive') ? (
+                                                        <Truck size={16} className="text-blue-600" />
+                                                    ) : (
+                                                        <MapPin size={16} className="text-emerald-600" />
+                                                    )}
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                                        {ts.type}
+                                                    </span>
+                                                </div>
+                                                <h3 className="text-lg font-black text-slate-800 leading-tight">
+                                                    {ts.projectName || 'Internal Work'}
+                                                </h3>
+                                                <p className="text-xs font-bold text-[#0F4C75]">
+                                                    {ts.estimate || 'No Estimate'}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-2xl font-black text-slate-900 leading-none">
+                                                    {(ts.hoursVal || 0).toFixed(2)}
+                                                </div>
+                                                <div className="text-[10px] font-bold text-slate-500 uppercase">Hours</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
+                                            <div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock In</span>
+                                                <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockIn)}</span>
+                                            </div>
+                                            <div>
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock Out</span>
+                                                <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockOut)}</span>
+                                            </div>
+                                        </div>
+
+                                        {(ts.distanceVal || 0) > 0 && (
+                                            <div className="mt-4 flex items-center gap-2 px-3 py-1.5 bg-white/60 rounded-xl w-fit border border-white">
+                                                <span className="text-xs font-black text-blue-600">
+                                                    {(ts.distanceVal || 0).toFixed(1)} miles driven
+                                                </span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))) : (
+                                <div className="flex flex-col items-center justify-center py-20 text-center">
+                                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                                        <Clock className="text-slate-300" size={32} />
+                                    </div>
+                                    <h4 className="text-slate-400 font-bold">No entries found for this date</h4>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex gap-4 min-h-0">
                     
                     {/* Left Sidebar - Tree View */}
                     <div className="w-[300px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
@@ -740,7 +947,7 @@ export default function TimeCardPage() {
                                 </TableHead>
                                 <TableBody>
                                     {paginatedData.length > 0 ? paginatedData.map((ts, idx) => (
-                                        <TableRow key={ts._id || idx} className="group hover:bg-[#F1F5F9] transition-all cursor-default">
+                                        <TableRow key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`} className="group hover:bg-[#F1F5F9] transition-all cursor-default">
                                             <TableCell className="relative overflow-hidden">
                                                 <div className="absolute left-0 top-0 bottom-0 w-0 group-hover:w-1 bg-[#0F4C75] transition-all" />
                                                 <div className="flex items-center gap-2.5">
@@ -812,7 +1019,7 @@ export default function TimeCardPage() {
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <button 
-                                                                onClick={() => handleDelete(ts)}
+                                                                onClick={() => handleDeleteClick(ts)}
                                                                 className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
                                                             >
                                                                 <Trash2 size={12} />
@@ -849,9 +1056,9 @@ export default function TimeCardPage() {
                             />
                         </div>
                     </div>
-
                 </div>
-            </main>
+            )}
+        </main>
 
             <Modal
                 isOpen={!!editingRecord}
@@ -1036,6 +1243,15 @@ export default function TimeCardPage() {
                     </div>
                 </div>
             </Modal>
+            <ConfirmModal 
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Timesheet"
+                message="Are you sure you want to delete this timesheet? This action cannot be undone."
+                confirmText="Delete"
+                variant="danger"
+            />
 
         </div>
     );

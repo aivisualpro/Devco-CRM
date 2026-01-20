@@ -14,7 +14,7 @@ export default function ProtectedLayout({
 
     return (
         <PermissionProvider>
-            <div className="h-screen overflow-hidden flex flex-col relative pb-20 md:pb-0 pt-[env(safe-area-inset-top,0px)]" style={{ background: '#f0f2f5' }}>
+            <div className="h-screen overflow-hidden flex flex-col relative pb-[calc(env(safe-area-inset-bottom,0px)+4rem)] md:pb-0 pt-[env(safe-area-inset-top,0px)]" style={{ background: '#f0f2f5' }}>
                 {children}
 
                 <MobileNav />

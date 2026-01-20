@@ -52,6 +52,8 @@ export interface ITimesheet {
     createdAt?: string; 
     manualDistance?: string;
     manualDuration?: string;
+    distance?: number;
+    hours?: number;
 }
 
 const TimesheetSchema = new Schema({
@@ -76,7 +78,9 @@ const TimesheetSchema = new Schema({
     createdBy: { type: String },
     createdAt: { type: String },
     manualDistance: { type: String },
-    manualDuration: { type: String }
+    manualDuration: { type: String },
+    distance: { type: Number },
+    hours: { type: Number }
 });
 
 const ScheduleSchema = new Schema({
@@ -109,6 +113,13 @@ const ScheduleSchema = new Schema({
     timestamps: true,
     collection: 'devcoschedules'
 });
+
+// Add indexes for faster queries
+ScheduleSchema.index({ fromDate: -1 });
+ScheduleSchema.index({ projectManager: 1 });
+ScheduleSchema.index({ foremanName: 1 });
+ScheduleSchema.index({ assignees: 1 });
+ScheduleSchema.index({ customerId: 1 });
 
 if (process.env.NODE_ENV === 'development') {
     delete mongoose.models.Schedule;

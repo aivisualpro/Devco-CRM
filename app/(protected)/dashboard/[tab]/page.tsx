@@ -12,6 +12,7 @@ import {
     ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle
 } from 'lucide-react';
 import { Header, Modal, Badge, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { Geolocation } from '@capacitor/geolocation';
 import { Tabs, TabsList, TabsTrigger, TabsContent, BadgeTabs } from '@/components/ui/Tabs';
 import SignaturePad from '../../jobs/schedules/SignaturePad';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
@@ -34,8 +35,8 @@ function deg2rad(deg: number) {
 }
 
 function getDistanceFromLatLonInMiles(lat1: number, lon1: number, lat2: number, lon2: number) {
-    var R = 3958.8; // Radius of the earth in miles
-    var dLat = deg2rad(lat2 - lat1);  // deg2rad below
+    var EARTH_RADIUS_MI = 6371; // Using spreadsheet constant
+    var dLat = deg2rad(lat2 - lat1);
     var dLon = deg2rad(lon2 - lon1);
     var a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -43,8 +44,7 @@ function getDistanceFromLatLonInMiles(lat1: number, lon1: number, lat2: number, 
         Math.sin(dLon / 2) * Math.sin(dLon / 2)
         ;
     var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    var d = R * c; // Distance in miles
-    return d;
+    return EARTH_RADIUS_MI * c; // Matches spreadsheet logic
 }
 
 export default function DashboardPage() {
@@ -99,7 +99,12 @@ export default function DashboardPage() {
     const [isTimesheetEditMode, setIsTimesheetEditMode] = useState(false);
 
     // Schedule Logic
-    const [scheduleDate, setScheduleDate] = useState(new Date());
+    const [scheduleDate, setScheduleDate] = useState<Date>(() => {
+        // Use a stable date for initial render to avoid hydration mismatch
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d;
+    });
     const [dailySchedules, setDailySchedules] = useState<any[]>([]);
     const [scheduleLoading, setScheduleLoading] = useState(false);
     const dateInputRef = useRef<HTMLInputElement>(null);
@@ -130,8 +135,12 @@ export default function DashboardPage() {
                     console.error('Failed to parse user', e);
                 }
             }
+
+            if (window.innerWidth < 768 && dashboardTab !== 'jobschedule') {
+                setDashboardTab('jobschedule');
+            }
         }
-    }, []);
+    }, [dashboardTab]);
 
     // Filter schedules based on current user
     const filteredDailySchedules = useMemo(() => {
@@ -455,7 +464,7 @@ export default function DashboardPage() {
     };
 
     const getDistanceFromLatLonInMiles = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-        const R = 6371; // Radius of the earth in km
+        const EARTH_RADIUS_MI = 6371; // Using spreadsheet constant
         const dLat = deg2rad(lat2 - lat1);
         const dLon = deg2rad(lon2 - lon1);
         const a =
@@ -463,8 +472,7 @@ export default function DashboardPage() {
             Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
             Math.sin(dLon / 2) * Math.sin(dLon / 2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distanceKm = R * c; // Distance in km
-        return distanceKm * 0.621371; // Convert to miles
+        return EARTH_RADIUS_MI * c; // Matches spreadsheet logic
     };
 
     const DriveTimeTimer = ({ startTime }: { startTime: string }) => {
@@ -519,49 +527,80 @@ export default function DashboardPage() {
        }
 
        // Geolocation
-       if (!navigator.geolocation) {
-           toastError("Geolocation is not supported by your browser");
-           return;
-       }
-
-       const getPosition = (): Promise<GeolocationPosition> => {
-           return new Promise((resolve, reject) => {
-               navigator.geolocation.getCurrentPosition(resolve, reject);
-           });
+       const getPosition = async (): Promise<{coords: {latitude: number, longitude: number}}> => {
+           const perm = await Geolocation.checkPermissions();
+           if (perm.location !== 'granted') {
+               const req = await Geolocation.requestPermissions();
+               if (req.location !== 'granted') {
+                   throw { code: 1, message: 'Permission denied' };
+               }
+           }
+           
+           try {
+               // High accuracy attempt
+               return await Geolocation.getCurrentPosition({
+                   enableHighAccuracy: true,
+                   timeout: 10000
+               });
+           } catch (e) {
+               // Fallback to low accuracy
+               return await Geolocation.getCurrentPosition({
+                   enableHighAccuracy: false,
+                   timeout: 5000
+               });
+           }
        };
 
-       try {
-            const position = await getPosition();
-            const { latitude, longitude } = position.coords;
+        try {
+             let latitude = 0;
+             let longitude = 0;
+             let positionFound = false;
 
-            if (activeDriveTime) {
-                // STOP DRIVE TIME
-                let distance = 0;
-                if (activeDriveTime.locationIn) {
-                    const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
-                    if (!isNaN(startLat) && !isNaN(startLng)) {
-                        distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
-                    }
-                }
+             try {
+                 const position = await getPosition();
+                 latitude = position.coords.latitude;
+                 longitude = position.coords.longitude;
+                 positionFound = true;
+             } catch (locErr: any) {
+                 console.warn("Location retrieval failed:", locErr);
+                 const errorMsg = locErr?.code === 1 
+                     ? "GPS Permission Denied. Please enable Location Services in your app settings to record Drive Time."
+                     : "GPS location timed out. Location is required for Drive Time to calculate distance and hours.";
+                 toastError(errorMsg);
+                 return; // Block for Drive Time
+             }
 
-                const finalTimesheet = {
-                    ...activeDriveTime,
-                    clockOut: new Date().toISOString(),
-                    locationOut: `${latitude},${longitude}`,
-                    distance: distance ? parseFloat(distance.toFixed(2)) : 0
-                };
+             if (activeDriveTime) {
+                 // STOP DRIVE TIME
+                 let distance = 0;
+                 if (activeDriveTime.locationIn && positionFound) {
+                     const [startLat, startLng] = activeDriveTime.locationIn.split(',').map(Number);
+                     if (!isNaN(startLat) && !isNaN(startLng)) {
+                         distance = getDistanceFromLatLonInMiles(startLat, startLng, latitude, longitude);
+                     }
+                 }
 
-                // OPTIMISTIC UPDATE: Update UI immediately
-                setDailySchedules(prev => prev.map(s => {
-                    if (s._id !== schedule._id) return s;
-                    return {
-                        ...s,
-                        timesheet: (s.timesheet || []).map((ts: any) => 
-                            ts._id === activeDriveTime._id ? finalTimesheet : ts
-                        )
-                    };
-                }));
-                success('Drive Time Stopped');
+                 const isDumpWashout = activeDriveTime.dumpWashout === 'TRUE' || activeDriveTime.type?.toLowerCase().includes('washout');
+                 
+                 const finalTimesheet = {
+                     ...activeDriveTime,
+                     clockOut: new Date().toISOString(),
+                     locationOut: `${latitude},${longitude}`,
+                     distance: distance ? parseFloat(distance.toFixed(2)) : 0,
+                     hours: distance > 0 ? parseFloat((distance / 55).toFixed(2)) : (isDumpWashout ? 0.50 : 0)
+                 };
+
+                 // OPTIMISTIC UPDATE: Update UI immediately
+                 setDailySchedules(prev => prev.map(s => {
+                     if (s._id !== schedule._id) return s;
+                     return {
+                         ...s,
+                         timesheet: (s.timesheet || []).map((ts: any) => 
+                             ts._id === activeDriveTime._id ? finalTimesheet : ts
+                         )
+                     };
+                 }));
+                 success('Drive Time Stopped');
 
                 // API call in background
                 fetch('/api/schedules', {
@@ -650,9 +689,12 @@ export default function DashboardPage() {
                     }));
                 });
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toastError("Unable to retrieve location or save data.");
+            const msg = error?.message?.toLowerCase().includes('location') 
+                ? "Location access denied or timed out. Please check your GPS settings."
+                : "Unable to retrieve location or save data.";
+            toastError(msg);
         }
     };
 
@@ -968,7 +1010,12 @@ export default function DashboardPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'getSchedulesPage',
-                    payload: { startDate: start.toISOString(), endDate: end.toISOString() }
+                    payload: { 
+                        startDate: start.toISOString(), 
+                        endDate: end.toISOString(),
+                        userEmail: currentUser?.email,
+                        skipInitialData: constants.length > 0 && employees.length > 0
+                    }
                 })
             });
             const data = await res.json();
@@ -1099,13 +1146,14 @@ export default function DashboardPage() {
                     <Tabs 
                         value={dashboardTab} 
                         onValueChange={(id) => setDashboardTab(id as 'activity' | 'jobschedule')}
-                        className="mb-6"
+                        className="w-full"
                     >
-                        <TabsList>
-                            <TabsTrigger value="jobschedule">Job Schedule</TabsTrigger>
-                            <TabsTrigger value="activity">Daily Activity</TabsTrigger>
-                        </TabsList>
-
+                        <div className="hidden md:flex mb-6 shrink-0">
+                            <TabsList>
+                                <TabsTrigger value="jobschedule">Job Schedule</TabsTrigger>
+                                <TabsTrigger value="activity">Daily Activity</TabsTrigger>
+                            </TabsList>
+                        </div>
                         <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
                             <TabsContent value="activity">
                                 <div className="bg-white rounded-[32px] p-6 border border-slate-100 shadow-sm min-h-[500px]">
@@ -1184,7 +1232,7 @@ export default function DashboardPage() {
                             </TabsContent>
 
                             <TabsContent value="jobschedule">
-                                <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px] pb-32">
+                                <div className="bg-white rounded-[32px] p-4 border border-slate-100 shadow-sm min-h-[500px] pb-6">
                                     <div className="flex items-center justify-between mb-5 px-2">
                                     <button 
                                         onClick={() => {
@@ -1198,16 +1246,18 @@ export default function DashboardPage() {
                                     </button>
                                     
                                     <div className="text-center cursor-pointer relative group" onClick={() => dateInputRef.current?.showPicker()}>
-                                        <h3 className="text-2xl font-black text-slate-900 group-hover:text-[#0066FF] transition-colors mb-1">
+                                        <h3 className="text-2xl font-black text-slate-900 group-hover:text-[#0066FF] transition-colors mb-1" suppressHydrationWarning>
                                             {scheduleDate.toLocaleDateString('en-US', { weekday: 'long' })}
                                         </h3>
-                                        <p className="text-sm font-bold text-slate-400">
+                                        <p className="text-sm font-bold text-slate-400" suppressHydrationWarning>
                                             {scheduleDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                                         </p>
                                         <input 
                                             type="date"
                                             ref={dateInputRef}
                                             className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                            value={mounted ? scheduleDate.toISOString().split('T')[0] : ''}
+                                            suppressHydrationWarning
                                             onChange={(e) => {
                                                 if (e.target.value) {
                                                     const [y, m, d] = e.target.value.split('-').map(Number);
@@ -1322,7 +1372,7 @@ export default function DashboardPage() {
                                                                     {item.estimate.replace(/-[vV]\d+$/, '')}
                                                                 </span>
                                                             )}
-                                                            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
+                                                            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500" suppressHydrationWarning>
                                                                 <span>{new Date(item.fromDate).toLocaleDateString()}</span>
                                                                 <span className="text-slate-300">|</span>
                                                                 <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
@@ -1361,13 +1411,13 @@ export default function DashboardPage() {
                                                     {/* Bottom: Actions & Personnel */}
                                                     <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
                                                         {/* Actions: JHA, DJT, Timesheet */}
-                                                        <div className="flex items-center gap-1">
+                                                        <div className="flex items-center gap-3">
                                                             {/* JHA */}
                                                             {item.hasJHA ? (
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 const jhaWithSigs = { 
@@ -1379,7 +1429,7 @@ export default function DashboardPage() {
                                                                                 setJhaModalOpen(true);
                                                                             }}
                                                                         >
-                                                                            <ShieldCheck size={12} strokeWidth={2.5} />
+                                                                            <ShieldCheck size={18} strokeWidth={2.5} />
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
@@ -1390,7 +1440,7 @@ export default function DashboardPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 setSelectedJHA({
@@ -1405,7 +1455,7 @@ export default function DashboardPage() {
                                                                                 setJhaModalOpen(true);
                                                                             }}
                                                                         >
-                                                                            <Shield size={12} strokeWidth={2.5} />
+                                                                            <Shield size={18} strokeWidth={2.5} />
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
@@ -1419,7 +1469,7 @@ export default function DashboardPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 const djtWithSigs = { 
@@ -1431,7 +1481,7 @@ export default function DashboardPage() {
                                                                                 setDjtModalOpen(true);
                                                                             }}
                                                                         >
-                                                                            <FileCheck size={12} strokeWidth={2.5} />
+                                                                            <FileCheck size={18} strokeWidth={2.5} />
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
@@ -1442,7 +1492,7 @@ export default function DashboardPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                             onClick={(e) => {
                                                                                 e.stopPropagation();
                                                                                 setSelectedDJT({
@@ -1458,7 +1508,7 @@ export default function DashboardPage() {
                                                                                 setDjtModalOpen(true);
                                                                             }}
                                                                         >
-                                                                            <FilePlus size={12} strokeWidth={2.5} />
+                                                                            <FilePlus size={18} strokeWidth={2.5} />
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
@@ -1480,17 +1530,16 @@ export default function DashboardPage() {
                                                                     <Tooltip>
                                                                         <TooltipTrigger asChild>
                                                                             <div 
-                                                                                className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
+                                                                                className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
                                                                                 onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
                                                                             >
-                                                                                <StopCircle size={14} strokeWidth={2.5} />
+                                                                                <StopCircle size={18} strokeWidth={2.5} />
                                                                             </div>
                                                                         </TooltipTrigger>
                                                                         <TooltipContent>
                                                                             <p>Stop Drive Time</p>
                                                                         </TooltipContent>
                                                                     </Tooltip>
-                                                                    <DriveTimeTimer startTime={activeDriveTime.clockIn} />
                                                                 </>
                                                             );
                                                         } 
@@ -1503,10 +1552,10 @@ export default function DashboardPage() {
                                                                 <Tooltip>
                                                                     <TooltipTrigger asChild>
                                                                         <div 
-                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                                             onClick={(e) => handleDriveTimeToggle(item, null, e)}
                                                                         >
-                                                                            <Car size={14} strokeWidth={2.5} />
+                                                                            <Car size={18} strokeWidth={2.5} />
                                                                         </div>
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
@@ -1519,7 +1568,7 @@ export default function DashboardPage() {
                                                 </div>
 
                                                         {/* PM / Foreman - right side */}
-                                                        <div className="flex items-center -space-x-1.5">
+                                                        <div className="flex items-center gap-2">
                                                              {/* PM and Foreman */}
                                                                  {[item.projectManager, item.foremanName].map((email, i) => {
                                                                     if (!email) return null;
@@ -1531,7 +1580,7 @@ export default function DashboardPage() {
                                                                         <Tooltip key={i}>
                                                                             <TooltipTrigger asChild>
                                                                                 <div
-                                                                                    className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
+                                                                                    className={`w-9 h-9 rounded-full border-2 border-white flex items-center justify-center text-[11px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
                                                                                 >
                                                                                     {emp?.image ? (
                                                                                         <img src={emp.image} alt="" className="w-full h-full object-cover" />
@@ -1618,14 +1667,14 @@ export default function DashboardPage() {
                                 <div className="flex flex-col gap-1">
                                     <div className="flex items-center gap-2">
                                         <Calendar size={14} className="text-slate-400" />
-                                        <span className="text-xs font-bold text-slate-700">
+                                        <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
                                             From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                         </span>
                                     </div>
                                     {selectedSchedule.toDate && (
                                         <div className="flex items-center gap-2">
                                             <div className="w-3.5" />
-                                            <span className="text-xs font-bold text-slate-700">
+                                            <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
                                                 To: {new Date(selectedSchedule.toDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
                                             </span>
                                         </div>
@@ -2013,7 +2062,7 @@ export default function DashboardPage() {
                                 )}
                             </div>
 
-                            <div className="flex justify-end pt-4 border-t border-slate-100">
+                            <div className="flex justify-end pt-4 pb-[calc(env(safe-area-inset-bottom,20px)+2rem)] border-t border-slate-100">
                                 <button
                                     type="submit"
                                     className="px-8 py-3 bg-[#0F4C75] hover:bg-[#0b3d61] text-white font-bold rounded-xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] w-full sm:w-auto"

@@ -45,9 +45,14 @@ export const TimesheetModal = ({
         const locIn = selectedTimesheet.locationIn;
         const locOut = selectedTimesheet.locationOut;
         
-        let dist = 0;
-        let isCoords = false;
+        // Prioritize persisted distance
+        let dist = typeof selectedTimesheet.distance === 'number' ? selectedTimesheet.distance : parseFloat(selectedTimesheet.distance);
+        if (!isNaN(dist) && dist > 0) {
+            const isCoords = typeof locIn === 'string' && locIn.includes(',') && typeof locOut === 'string' && locOut.includes(',');
+            return { distance: dist, isCoords, start: locIn, end: locOut };
+        }
 
+        let isCoords = false;
         const isCoordStr = (val: any) => typeof val === 'string' && val.includes(',') && !isNaN(Number(val.split(',')[0]));
 
         if (isCoordStr(locIn) && isCoordStr(locOut)) {
@@ -61,9 +66,9 @@ export const TimesheetModal = ({
              const dLon = (lon2 - lon1) * (Math.PI / 180);
              const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-                       Math.sin(dLon/2) * Math.sin(dLon/2);
+                       Math.sin(dLon/2) * Math.sin(dLon / 2);
              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-             dist = R * c;
+             dist = R * c * 1.364; // Approximate Road Miles
         } else {
              // Odometer fallback
              const parse = (v: any) => parseFloat(String(v).replace(/,/g, '')) || 0;
@@ -72,7 +77,7 @@ export const TimesheetModal = ({
              if (lOut > lIn) dist = lOut - lIn;
         }
 
-        return { distance: dist, isCoords, start: locIn, end: locOut };
+        return { distance: dist || 0, isCoords, start: locIn, end: locOut };
 
     }, [selectedTimesheet]);
 

@@ -250,95 +250,101 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getSchedulesPage': {
-                const { startDate, endDate } = payload || {};
+                const { startDate, endDate, userEmail, skipInitialData } = payload || {};
                 const query: any = {};
                 
-                // If no dates provided, limit to last 60 days to keep things snappy
+                // Date range filtering
                 if (!startDate && !endDate) {
                     const sixtyDaysAgo = new Date();
                     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
                     query.fromDate = { $gte: sixtyDaysAgo.toISOString() };
                 } else {
-                    if (startDate || endDate) {
-                        query.fromDate = {};
-                        if (startDate) query.fromDate.$gte = startDate;
-                        if (endDate) query.fromDate.$lte = endDate;
-                    }
+                    query.fromDate = {};
+                    if (startDate) query.fromDate.$gte = startDate;
+                    if (endDate) query.fromDate.$lte = endDate;
                 }
 
-                // Combined fetch for schedules + initial data (reduces API calls)
-                // Using projections to only fetch what's actually rendered
-                // Combined fetch for schedules + initial data (reduces API calls)
-                // Using projections to only fetch what's actually rendered
-                const [schedules, clients, employees, constants, estimates] = await Promise.all([
+                // Server-side filtering for the logged-in user (Super Fast)
+                if (userEmail) {
+                    query.$or = [
+                        { projectManager: userEmail },
+                        { foremanName: userEmail },
+                        { assignees: userEmail }
+                    ];
+                }
+
+                // Execute queries in parallel
+                const fetchPromises: any[] = [
                     Schedule.find(query)
                         .select('title estimate customerId customerName fromDate toDate foremanName projectManager assignees service item perDiem fringe certifiedPayroll notifyAssignees description jobLocation aerialImage siteLayout jha djt timesheet JHASignatures DJTSignatures createdAt updatedAt')
                         .sort({ fromDate: -1 })
-                        .lean(),
-                    Client.find()
-                        .select('name _id')
-                        .sort({ name: 1 })
-                        .lean(),
-                    Employee.find()
-                        .select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive')
-                        .lean(),
-                    Constant.find()
-                        .select('type description color image')
-                        .lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } })
-                        .select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone')
                         .lean()
-                ]);
+                ];
 
-                // Determine hasJHA/hasDJT check based on embedded object
-                const schedulesWithMetaData = schedules.map((s: any) => ({
+                // Only fetch initialData if specifically requested (to save bandwidth)
+                if (!skipInitialData) {
+                    fetchPromises.push(
+                        Client.find().select('name _id').sort({ name: 1 }).lean(),
+                        Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
+                        Constant.find().select('type description color image').lean(),
+                        Estimate.find({ status: { $ne: 'deleted' } })
+                            .select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone')
+                            .lean()
+                    );
+                }
+
+                const [schedules, ...metadata] = await Promise.all(fetchPromises);
+                const [clients, employees, constants, estimates] = metadata;
+
+                // Determine hasJHA/hasDJT check
+                const schedulesWithMetaData = (schedules || []).map((s: any) => ({
                     ...s,
                     hasJHA: !!s.jha && Object.keys(s.jha).length > 0,
                     hasDJT: !!s.djt && Object.keys(s.djt).length > 0
                 }));
 
-                // Process estimates to keep unique estimate numbers
-                const uniqueEstimates = new Map();
-                estimates
-                    .sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
-                    .forEach((e: any) => {
-                        if (e.estimate && !uniqueEstimates.has(e.estimate)) {
-                            const pName = e.projectTitle || e.projectName || '';
-                            uniqueEstimates.set(e.estimate, { 
-                                value: e.estimate, 
-                                label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
-                                customerId: e.customerId,
-                                projectTitle: pName,
-                                jobAddress: e.jobAddress,
-                                contactName: e.contactName || e.contact,
-                                contactPhone: e.contactPhone || e.phone,
-                                contactEmail: e.contactEmail
-                            });
-                        }
-                    });
+                const result: any = { schedules: schedulesWithMetaData };
 
-                return NextResponse.json({
-                    success: true,
-                    result: {
-                        schedules: schedulesWithMetaData,
-                        initialData: {
-                            clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
-                            employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { 
-                                value: e.email, 
-                                label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
-                                image: e.profilePicture,
-                                hourlyRateSITE: (e as any).hourlyRateSITE,
-                                hourlyRateDrive: (e as any).hourlyRateDrive,
-                                classification: (e as any).classification,
-                                companyPosition: (e as any).companyPosition,
-                                designation: (e as any).designation,
-                                isScheduleActive: (e as any).isScheduleActive
-                            }])).values()),
-                            constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
-                            estimates: Array.from(uniqueEstimates.values())
-                        }
-                    }
-                });
+                if (!skipInitialData) {
+                    // Process estimates to keep unique estimate numbers (Latest first)
+                    const uniqueEstimates = new Map();
+                    estimates
+                        ?.sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime())
+                        .forEach((e: any) => {
+                            if (e.estimate && !uniqueEstimates.has(e.estimate)) {
+                                const pName = e.projectTitle || e.projectName || '';
+                                uniqueEstimates.set(e.estimate, { 
+                                    value: e.estimate, 
+                                    label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
+                                    customerId: e.customerId,
+                                    projectTitle: pName,
+                                    jobAddress: e.jobAddress,
+                                    contactName: e.contactName || e.contact,
+                                    contactPhone: e.contactPhone || e.phone,
+                                    contactEmail: e.contactEmail
+                                });
+                            }
+                        });
+
+                    result.initialData = {
+                        clients: Array.from(new Map(clients?.filter((c: any) => c?._id).map((c: any) => [c._id.toString(), c]) || []).values()),
+                        employees: Array.from(new Map(employees?.filter((e: any) => e?.email).map((e: any) => [e.email, { 
+                            value: e.email, 
+                            label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
+                            image: e.profilePicture,
+                            hourlyRateSITE: (e as any).hourlyRateSITE,
+                            hourlyRateDrive: (e as any).hourlyRateDrive,
+                            classification: (e as any).classification,
+                            companyPosition: (e as any).companyPosition,
+                            designation: (e as any).designation,
+                            isScheduleActive: (e as any).isScheduleActive
+                        }]) || []).values()),
+                        constants: Array.from(new Map(constants?.filter((c: any) => c?.type && c?.description).map((c: any) => [`${c.type}-${c.description}`, c]) || []).values()),
+                        estimates: Array.from(uniqueEstimates.values())
+                    };
+                }
+
+                return NextResponse.json({ success: true, result });
             }
 
             case 'getInitialData': {

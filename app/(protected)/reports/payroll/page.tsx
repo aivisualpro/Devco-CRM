@@ -67,26 +67,29 @@ const getWeekNumber = (d: Date) => {
 };
 
 // --- Constants ---
-const KM_TO_MI = 0.621371;
 const SPEED_MPH = 55;
+const EARTH_RADIUS_MI = 6371; // Using spreadsheet constant (KM radius treated as miles)
+const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
 
 // --- Helpers ---
 
 const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Earth's radius in km
+    const R = 3958.8; // Earth's radius in miles
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // KM
+    return EARTH_RADIUS_MI * c; // Matches spreadsheet logic
 };
 
 const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
     const typeLower = (ts.type || '').toLowerCase();
-    let hours = 0;
-    let distance = 0;
+    
+    // Prioritize persisted numerical values from the app/database
+    let distance = typeof ts.distance === 'number' ? ts.distance : (parseFloat(ts.distance) || 0);
+    let hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(ts.hours) || 0);
 
     const parseLoc = (val: any) => {
         const str = String(val || '').trim();
@@ -100,23 +103,13 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
         return isNaN(num) ? 0 : num;
     };
 
-    // Manual Overrides
-    if (typeLower.includes('drive') && ts.manualDistance) {
-        distance = parseFloat(String(ts.manualDistance)) || 0;
-        hours = distance / SPEED_MPH;
-        return { hours, distance };
-    }
-    if (typeLower.includes('site') && ts.manualDuration) {
-        hours = parseFloat(String(ts.manualDuration)) || 0;
-        distance = 0;
-        return { hours, distance };
-    }
-
     const locIn = parseLoc(ts.locationIn);
     const locOut = parseLoc(ts.locationOut);
+    const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
+    const tsDate = new Date(tsDateStr);
 
-    const calcTime = () => {
-        if (!ts.clockIn || !ts.clockOut) return ts.hoursVal || 0;
+    const calcTimeHours = () => {
+        if (!ts.clockIn || !ts.clockOut) return hours;
         const start = new Date(ts.clockIn).getTime();
         const end = new Date(ts.clockOut).getTime();
         let durationMs = end - start;
@@ -126,15 +119,13 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
             const lEnd = new Date(ts.lunchEnd).getTime();
             if (lEnd > lStart) durationMs -= (lEnd - lStart);
         }
-
-        if (durationMs <= 0) return ts.hoursVal || 0;
-
-        const totalHoursRaw = durationMs / (1000 * 60 * 60);
-        const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
-        const tsDate = new Date(tsDateStr);
-        const cutoffDate = new Date('2025-10-26T00:00:00');
+        if (durationMs <= 0) return hours;
         
-        if (tsDate < cutoffDate) return totalHoursRaw;
+        const totalHoursRaw = durationMs / (1000 * 60 * 60);
+
+        // Pre-2025 cutoff (existing logic)
+        const cutoff2025 = new Date('2025-10-26T00:00:00');
+        if (tsDate < cutoff2025) return totalHoursRaw;
         if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
 
         const h = Math.floor(totalHoursRaw);
@@ -144,35 +135,39 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
         else if (m > 14 && m <= 29) roundedM = 15;
         else if (m > 29 && m <= 44) roundedM = 30;
         else if (m > 44 && m <= 59) roundedM = 45;
-        
         return h + (roundedM / 60);
     };
 
-    if (typeLower.includes('drive')) {
-        let distKm = 0;
+    // Calculate Distance if missing but coords exist
+    if (distance === 0) {
         if (typeof locIn === 'object' && typeof locOut === 'object') {
-            distKm = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon);
-            distance = distKm * KM_TO_MI;
-            hours = distance / SPEED_MPH;
-        } 
-        else if (typeof locOut === 'number' && typeof locIn === 'number' && locOut > locIn) {
-            distKm = locOut - locIn;
-            distance = distKm * KM_TO_MI;
-            hours = distance / SPEED_MPH;
-        } 
-        else {
-            hours = calcTime();
-            if (hours === 0) {
+            distance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon);
+        } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
+            distance = locOut - locIn;
+        }
+    }
+
+    // Determine Hours
+    if (typeLower.includes('drive')) {
+        // Enforce formula only for records ON OR AFTER Jan 12, 2026
+        if (tsDate >= FORMULA_CUTOFF_DATE) {
+            if (distance > 0) {
+                hours = distance / SPEED_MPH;
+            } else {
                 const dw = String(ts.dumpWashout).toLowerCase();
                 if (dw === 'yes' || dw === 'true' || ts.dumpWashout === true) {
                     hours = 0.5;
+                } else {
+                    hours = calcTimeHours();
                 }
             }
-            distance = hours * SPEED_MPH;
+        } else {
+            // Keep imported/old data
+            hours = hours || calcTimeHours();
         }
     } else {
-        hours = calcTime();
-        distance = 0;
+        // Site time always uses clock time
+        hours = calcTimeHours();
     }
 
     return { hours, distance };

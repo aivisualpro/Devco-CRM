@@ -6,7 +6,8 @@ const config: CapacitorConfig = {
   webDir: 'mobile-build',
   server: {
     androidScheme: 'https',
-    url: 'https://devco-alpha.vercel.app/',
+    url: 'http://192.168.1.23:3000',
+    //url: 'https://devco-alpha.vercel.app/',
     cleartext: true
   }
 };
