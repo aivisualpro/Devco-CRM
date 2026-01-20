@@ -3159,25 +3159,37 @@ export default function SchedulePage() {
 
                         {/* Row 8: Aerial Image & Site Layout */}
                         <div className="grid grid-cols-2 gap-4 mt-4">
+                            {/* Aerial Image */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
-                                <div className="space-y-2">
-                                    {editingItem?.aerialImage && (
-                                        <div className="relative group">
-                                            <img 
-                                                src={editingItem.aerialImage} 
-                                                alt="Aerial View" 
-                                                className="w-full h-32 object-cover rounded-lg border border-slate-200"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditingItem({ ...editingItem, aerialImage: '' })}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    )}
+                                <div className="flex flex-col h-[200px]">
+                                    {/* Preview area - fixed height */}
+                                    <div className="flex-1 min-h-[140px] mb-2">
+                                        {editingItem?.aerialImage ? (
+                                            <div className="relative group h-full">
+                                                <img 
+                                                    src={editingItem.aerialImage} 
+                                                    alt="Aerial View" 
+                                                    className="w-full h-full object-cover rounded-lg border border-slate-200"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingItem({ ...editingItem, aerialImage: '' })}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                <div className="text-center text-slate-400">
+                                                    <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                                    <p className="text-[10px] font-medium">No image</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Input area */}
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="text"
@@ -3193,54 +3205,77 @@ export default function SchedulePage() {
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* Site Layout */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-bold text-slate-900">Site Layout</label>
-                                <div className="space-y-2">
-                                    {/* Show embedded Google Earth preview if it's a Google Earth URL */}
-                                    {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') && (
-                                        <div className="relative group">
-                                            <div className="w-full h-48 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                                                <iframe
-                                                    src={editingItem.siteLayout}
-                                                    width="100%"
-                                                    height="100%"
-                                                    style={{ border: 0 }}
-                                                    allowFullScreen
-                                                    loading="lazy"
-                                                    className="w-full h-full"
+                                <div className="flex flex-col h-[200px]">
+                                    {/* Preview area - fixed height */}
+                                    <div className="flex-1 min-h-[140px] mb-2">
+                                        {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') ? (() => {
+                                            const coordsMatch = editingItem.siteLayout.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                            const lat = coordsMatch?.[1];
+                                            const lng = coordsMatch?.[2];
+                                            const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
+                                            
+                                            return embedUrl ? (
+                                                <div className="relative group h-full">
+                                                    <div className="w-full h-full rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                                                        <iframe
+                                                            width="100%"
+                                                            height="100%"
+                                                            style={{ border: 0 }}
+                                                            src={embedUrl}
+                                                            className="w-full h-full"
+                                                            loading="lazy"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
+                                                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                    <div className="text-center text-slate-400">
+                                                        <MapPin className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                                        <p className="text-[10px] font-medium">Invalid URL</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })() : editingItem?.siteLayout ? (
+                                            <div className="relative group h-full">
+                                                <img 
+                                                    src={editingItem.siteLayout} 
+                                                    alt="Site Layout" 
+                                                    className="w-full h-full object-cover rounded-lg border border-slate-200"
+                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
+                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
-                                                className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    )}
-                                    {/* Show image preview for non-Google Earth URLs */}
-                                    {editingItem?.siteLayout && !editingItem.siteLayout.includes('earth.google.com') && (
-                                        <div className="relative group">
-                                            <img 
-                                                src={editingItem.siteLayout} 
-                                                alt="Site Layout" 
-                                                className="w-full h-32 object-contain bg-slate-50 rounded-lg border border-slate-200"
-                                                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
-                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                            >
-                                                <X className="w-3 h-3" />
-                                            </button>
-                                        </div>
-                                    )}
+                                        ) : (
+                                            <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                <div className="text-center text-slate-400">
+                                                    <MapPin className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                                    <p className="text-[10px] font-medium">No layout</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Input area */}
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="text"
-                                            placeholder="Paste Google Earth or image URL..."
+                                            placeholder="Paste Google Earth URL..."
                                             className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                                             value={editingItem?.siteLayout || ''}
                                             onChange={(e) => setEditingItem({ ...editingItem, siteLayout: e.target.value })}
@@ -3250,19 +3285,6 @@ export default function SchedulePage() {
                                             folder="schedules/layout"
                                         />
                                     </div>
-                                    {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') && (
-                                        <div className="flex justify-end">
-                                            <a
-                                                href={editingItem.siteLayout}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider"
-                                            >
-                                                <MapPin size={12} />
-                                                Open in Google Earth
-                                            </a>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
