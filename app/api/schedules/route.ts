@@ -254,14 +254,25 @@ export async function POST(request: NextRequest) {
                 const query: any = {};
                 
                 // Date range filtering
+                // Date range filtering - Flexible Window
                 if (!startDate && !endDate) {
                     const sixtyDaysAgo = new Date();
                     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
                     query.fromDate = { $gte: sixtyDaysAgo.toISOString() };
                 } else {
                     query.fromDate = {};
-                    if (startDate) query.fromDate.$gte = startDate;
-                    if (endDate) query.fromDate.$lte = endDate;
+                    // Look back 60 days to catch long-running jobs active in this week
+                    if (startDate) {
+                        const s = new Date(startDate);
+                        s.setDate(s.getDate() - 60);
+                        query.fromDate.$gte = s.toISOString();
+                    }
+                    // Look ahead 14 days to catch jobs starting immediately after (e.g. Mon start, Sun clock-in)
+                    if (endDate) {
+                        const e = new Date(endDate);
+                        e.setDate(e.getDate() + 14);
+                        query.fromDate.$lte = e.toISOString();
+                    }
                 }
 
                 // Server-side filtering for the logged-in user (Super Fast)

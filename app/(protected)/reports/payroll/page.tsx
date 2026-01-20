@@ -139,29 +139,56 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
         return h + (roundedM / 60);
     };
 
-    // Calculate Distance if missing but coords exist
-    if (distance === 0) {
-        if (typeof locIn === 'object' && typeof locOut === 'object') {
-            distance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon);
-        } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
-            distance = locOut - locIn;
+    // --- Distance Calculation Logic ---
+    const isDumpWashout = String(ts.dumpWashout).toLowerCase() === 'yes' || String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true;
+    const manualDist = parseFloat(ts.manualDistance);
+
+    if (typeLower.includes('drive')) {
+        // Respect manual override if present
+        if (!isNaN(manualDist) && manualDist > 0) {
+            distance = manualDist;
+        } else {
+            // Strict Calculation Rules
+            if (isDumpWashout) {
+                distance = 30; 
+            } else {
+                // Must have both locations to calculate
+                if (!ts.locationIn || !ts.locationOut) {
+                    distance = 0;
+                } else {
+                    const locIn = parseLoc(ts.locationIn);
+                    const locOut = parseLoc(ts.locationOut);
+
+                    // Check for valid object coordinates (and filter out 0,0 defaults)
+                    const isValidCoord = (loc: any) => typeof loc === 'object' && (Math.abs(loc.lat) > 0.1 || Math.abs(loc.lon) > 0.1);
+
+                    if (isValidCoord(locIn) && isValidCoord(locOut)) {
+                        distance = haversine((locIn as any).lat, (locIn as any).lon, (locOut as any).lat, (locOut as any).lon);
+                    } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
+                        distance = locOut - locIn;
+                    } else {
+                        distance = 0;
+                    }
+                }
+            }
+        }
+    } else {
+        // Legacy fallback for non-drive types (if needed)
+        if (distance === 0) {
+            if (typeof locIn === 'object' && typeof locOut === 'object') {
+                distance = haversine((locIn as any).lat, (locIn as any).lon, (locOut as any).lat, (locOut as any).lon);
+            }
         }
     }
 
-    // Determine Hours
-    if (typeLower.includes('drive')) {
+    // --- Hours Calculation Logic ---
+    const manualHrs = parseFloat(ts.manualDuration);
+    if (!isNaN(manualHrs) && manualHrs > 0) {
+        hours = manualHrs;
+    } else if (typeLower.includes('drive')) {
         // Enforce formula only for records ON OR AFTER Jan 12, 2026
         if (tsDate >= FORMULA_CUTOFF_DATE) {
-            if (distance > 0) {
-                hours = distance / SPEED_MPH;
-            } else {
-                const dw = String(ts.dumpWashout).toLowerCase();
-                if (dw === 'yes' || dw === 'true' || ts.dumpWashout === true) {
-                    hours = 0.5;
-                } else {
-                    hours = calcTimeHours();
-                }
-            }
+             hours = (distance > 0) ? (distance / SPEED_MPH) : 0;
         } else {
             // Keep imported/old data
             hours = hours || calcTimeHours();
