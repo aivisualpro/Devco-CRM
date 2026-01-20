@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
     Printer, Download,
     Users, Calendar as CalendarIcon, MapPin,
@@ -173,6 +174,14 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
     return { hours, distance };
 };
 
+const parseRate = (val: any) => {
+    if (typeof val === 'number') return val;
+    if (!val || val === '') return null;
+    const cleaned = String(val).replace(/[^0-9.-]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+};
+
 const generateWeeks = (year: number) => {
     const weeks = [];
     // Start from current or end of year
@@ -200,6 +209,7 @@ const generateWeeks = (year: number) => {
 interface DayReport {
     date: Date;
     estimates: string[];
+    projectNames: string[];
     certified: boolean;
     reg: number;
     ot: number;
@@ -222,6 +232,10 @@ interface EmployeeReport {
     totalOt: number;
     totalDt: number;
     totalTravel: number;
+    totalRegAmount: number;
+    totalOtAmount: number;
+    totalDtAmount: number;
+    totalTravelAmount: number;
     totalDiem: number;
     totalHrs: number;
     rateSite: number;
@@ -238,8 +252,24 @@ export default function PayrollReportPage() {
     const [loading, setLoading] = useState(true);
     const [rawSchedules, setRawSchedules] = useState<any[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
-    const [currentWeekStart, setCurrentWeekStart] = useState(startOfWeek(new Date()));
-    const [filterEmployee, setFilterEmployee] = useState<string>('all');
+    const [estimatesMap, setEstimatesMap] = useState<Record<string, any>>({});
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
+
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+        const weekParam = searchParams.get('week');
+        if (weekParam) {
+            const d = new Date(weekParam + 'T00:00:00');
+            if (!isNaN(d.getTime())) return startOfWeek(d);
+        }
+        return startOfWeek(new Date());
+    });
+
+    const [filterEmployee, setFilterEmployee] = useState<string>(() => {
+        return searchParams.get('employee') || 'all';
+    });
+
     const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
     const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
     const [employeeSearch, setEmployeeSearch] = useState('');
@@ -247,6 +277,17 @@ export default function PayrollReportPage() {
         employee: EmployeeReport, 
         type: 'Regular' | 'Overtime' | 'Double Time' | 'Travel' | 'Per Diem' | 'General' 
     } | null>(null);
+
+    // Sync state with URL
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams);
+        params.set('week', currentWeekStart.toISOString().split('T')[0]);
+        params.set('employee', filterEmployee);
+        const newUrl = `${pathname}?${params.toString()}`;
+        if (window.location.search !== `?${params.toString()}`) {
+            router.replace(newUrl);
+        }
+    }, [currentWeekStart, filterEmployee, pathname, router, searchParams]);
 
     const [editingRecord, setEditingRecord] = useState<any | null>(null);
     const [editForm, setEditForm] = useState<any>({});
@@ -294,6 +335,11 @@ export default function PayrollReportPage() {
                 const eMap: Record<string, any> = {};
                 emps.forEach((e: any) => eMap[e.value] = e);
                 setEmployeesMap(eMap);
+
+                const estimates = data.result.initialData?.estimates || [];
+                const estMap: Record<string, any> = {};
+                estimates.forEach((e: any) => estMap[e.value] = e);
+                setEstimatesMap(estMap);
             }
         } catch (err) {
             console.error(err);
@@ -399,11 +445,14 @@ export default function PayrollReportPage() {
                                 return {
                                     date: d,
                                     estimates: new Set<string>(),
+                                    projectNames: new Set<string>(),
                                     certified: false,
                                     siteHrs: 0,
                                     driveHrs: 0,
                                     travelHrs: 0,
                                     diem: 0,
+                                    dayRateSite: null as number | null,
+                                    dayRateDrive: null as number | null,
                                     entries: []
                                 };
                             })
@@ -416,6 +465,9 @@ export default function PayrollReportPage() {
                     const enrichedTs = { ...ts, scheduleId: sched._id, calcHours: hours, calcDistance: distance, estimate: sched.estimate };
                     employeesWork[empEmail].days[dayIdx].entries.push(enrichedTs);
                     employeesWork[empEmail].days[dayIdx].estimates.add(sched.estimate);
+                    
+                    const pName = estimatesMap[sched.estimate]?.projectTitle || sched.title;
+                    if (pName) employeesWork[empEmail].days[dayIdx].projectNames.add(pName);
                     if (schedCertified) employeesWork[empEmail].days[dayIdx].certified = true;
 
                     if (ts.type?.toLowerCase().includes('site')) {
@@ -428,6 +480,12 @@ export default function PayrollReportPage() {
                     if (ts.perDiem) {
                         employeesWork[empEmail].days[dayIdx].diem = (employeesWork[empEmail].days[dayIdx].diem || 0) + (parseFloat(ts.perDiem) || 0);
                     }
+
+                    // Capture daily rates from entries if present
+                    const rateS = parseRate(ts.hourlyRateSITE);
+                    const rateD = parseRate(ts.hourlyRateDrive);
+                    if (rateS !== null) employeesWork[empEmail].days[dayIdx].dayRateSite = rateS;
+                    if (rateD !== null) employeesWork[empEmail].days[dayIdx].dayRateDrive = rateD;
                 }
             });
         });
@@ -441,19 +499,14 @@ export default function PayrollReportPage() {
             const empInfo = employeesMap[ew.email] || {};
             
             // Robust rate parsing
-            const parseRate = (val: any) => {
-                if (typeof val === 'number') return val;
-                if (!val || val === '') return null;
-                const cleaned = String(val).replace(/[^0-9.-]/g, '');
-                const num = parseFloat(cleaned);
-                return isNaN(num) ? null : num;
-            };
+
 
             // Use employee profile rate, but check for zero accurately
             const rateSite = parseRate(empInfo.hourlyRateSITE) ?? 45; 
             const rateTravel = parseRate(empInfo.hourlyRateDrive) ?? (rateSite * 0.75);
 
             let totalReg = 0, totalOt = 0, totalDt = 0, totalTravel = 0, totalDiem = 0;
+            let totalRegAmount = 0, totalOtAmount = 0, totalDtAmount = 0, totalTravelAmount = 0;
             const rawSiteEntries: any[] = [];
             const rawDriveEntries: any[] = [];
 
@@ -470,14 +523,40 @@ export default function PayrollReportPage() {
                 totalTravel += travel;
                 totalDiem += d.diem;
                 
+                const dayRateSite = d.dayRateSite ?? rateSite;
+                const dayRateTravel = d.dayRateDrive ?? rateTravel;
+
+                totalRegAmount += reg * dayRateSite;
+                totalOtAmount += ot * dayRateSite * 1.5;
+                totalDtAmount += dt * dayRateSite * 2.0;
+                totalTravelAmount += travel * dayRateTravel;
+
+                // Sort entries to ensure progressive tallying for Reg/OT attribution
+                d.entries.sort((a: any, b: any) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime());
+                
+                let dayTally = 0;
                 d.entries.forEach((ent: any) => {
-                    if (ent.type?.toLowerCase().includes('site')) rawSiteEntries.push(ent);
-                    else if (ent.type?.toLowerCase().includes('drive')) rawDriveEntries.push(ent);
+                    if (ent.type?.toLowerCase().includes('site')) {
+                        const h = ent.calcHours;
+                        const startTally = dayTally;
+                        dayTally += h;
+
+                        // Attribution
+                        ent.attrReg = Math.max(0, Math.min(8, dayTally) - Math.min(8, startTally));
+                        ent.attrOt = Math.max(0, Math.min(12, dayTally) - Math.min(12, Math.max(8, startTally)));
+                        ent.attrDt = Math.max(0, dayTally - Math.max(12, startTally));
+
+                        rawSiteEntries.push({ ...ent, hourlyRateSITE: ent.hourlyRateSITE || dayRateSite });
+                    }
+                    else if (ent.type?.toLowerCase().includes('drive')) {
+                        rawDriveEntries.push({ ...ent, hourlyRateDrive: ent.hourlyRateDrive || dayRateTravel });
+                    }
                 });
 
                 return {
                     ...d,
                     estimates: Array.from(d.estimates as Set<string>),
+                    projectNames: Array.from(d.projectNames as Set<string>),
                     reg,
                     ot,
                     dt,
@@ -486,7 +565,7 @@ export default function PayrollReportPage() {
                 };
             });
 
-            const totalAmount = (totalReg * rateSite) + (totalOt * rateSite * 1.5) + (totalDt * rateSite * 2.0) + (totalTravel * rateTravel) + totalDiem;
+            const totalAmount = totalRegAmount + totalOtAmount + totalDtAmount + totalTravelAmount + totalDiem;
 
             return {
                 employee: ew.email,
@@ -500,6 +579,10 @@ export default function PayrollReportPage() {
                 totalOt,
                 totalDt,
                 totalTravel,
+                totalRegAmount,
+                totalOtAmount,
+                totalDtAmount,
+                totalTravelAmount,
                 totalDiem,
                 totalHrs: totalReg + totalOt + totalDt + totalTravel,
                 rateSite,
@@ -547,9 +630,14 @@ export default function PayrollReportPage() {
 
             };
 
-            // 1. Job ID Row
-            const jobValues = emp.days.map(d => d.estimates.length > 0 ? d.estimates.join(' | ') : '');
-            rows.push(createRow('Job ID', jobValues, '', '', ''));
+            // 1. Project Row (Combined Job ID & Project Name)
+            const projValues = emp.days.map(d => {
+                const est = d.estimates.length > 0 ? d.estimates.join(' | ') : '';
+                const proj = d.projectNames.length > 0 ? d.projectNames.join(' | ') : '';
+                if (est && proj) return `${est} (${proj})`;
+                return est || proj || '';
+            });
+            rows.push(createRow('Project', projValues, '', '', ''));
 
             // 2. Certified Row
             const certValues = emp.days.map(d => d.certified ? 'YES' : 'NO');
@@ -561,8 +649,8 @@ export default function PayrollReportPage() {
                 'Regular', 
                 regValues, 
                 emp.totalReg.toFixed(2), 
-                `$${emp.rateSite.toFixed(2)}`, 
-                `$${(emp.totalReg * emp.rateSite).toFixed(2)}`
+                emp.totalReg > 0 ? `$${(emp.totalRegAmount / emp.totalReg).toFixed(2)}` : `$${emp.rateSite.toFixed(2)}`, 
+                `$${emp.totalRegAmount.toFixed(2)}`
             ));
 
             // 4. Overtime Row
@@ -571,8 +659,8 @@ export default function PayrollReportPage() {
                 'Overtime', 
                 otValues, 
                 emp.totalOt.toFixed(2), 
-                `$${(emp.rateSite * 1.5).toFixed(2)}`, 
-                `$${(emp.totalOt * emp.rateSite * 1.5).toFixed(2)}`
+                emp.totalOt > 0 ? `$${(emp.totalOtAmount / emp.totalOt).toFixed(2)}` : `$${(emp.rateSite * 1.5).toFixed(2)}`, 
+                `$${emp.totalOtAmount.toFixed(2)}`
             ));
 
             // 5. Double Time Row
@@ -581,8 +669,8 @@ export default function PayrollReportPage() {
                 'Double Time', 
                 dtValues, 
                 emp.totalDt.toFixed(2), 
-                `$${(emp.rateSite * 2.0).toFixed(2)}`, 
-                `$${(emp.totalDt * emp.rateSite * 2.0).toFixed(2)}`
+                emp.totalDt > 0 ? `$${(emp.totalDtAmount / emp.totalDt).toFixed(2)}` : `$${(emp.rateSite * 2.0).toFixed(2)}`, 
+                `$${emp.totalDtAmount.toFixed(2)}`
             ));
 
             // 6. Travel Row
@@ -591,8 +679,8 @@ export default function PayrollReportPage() {
                 'Travel', 
                 travelValues, 
                 emp.totalTravel.toFixed(2), 
-                `$${emp.rateTravel.toFixed(2)}`, 
-                `$${(emp.totalTravel * emp.rateTravel).toFixed(2)}`
+                emp.totalTravel > 0 ? `$${(emp.totalTravelAmount / emp.totalTravel).toFixed(2)}` : `$${emp.rateTravel.toFixed(2)}`, 
+                `$${emp.totalTravelAmount.toFixed(2)}`
             ));
 
             // 7. Per Diem Row
@@ -760,16 +848,7 @@ export default function PayrollReportPage() {
                             <div className="h-8 w-px bg-slate-200/50 mx-1" />
 
                             {/* Action Icons - Neumorphic */}
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <button className="p-3 bg-[#F4F7FA] rounded-2xl text-slate-500 hover:text-slate-900 transition-all neu-outset hover:neu-pressed active:scale-95">
-                                        <Printer size={18} />
-                                    </button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Print Report</p>
-                                </TooltipContent>
-                            </Tooltip>
+                            {/* Action Icons - Neumorphic */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button onClick={handleExportCSV} className="p-3 bg-[#F4F7FA] rounded-2xl text-[#0F4C75] transition-all neu-outset hover:neu-pressed active:scale-95">
@@ -861,10 +940,17 @@ export default function PayrollReportPage() {
                                                 </div>
                                             </td>
                                             
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40">Job ID</td>
+                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40">Project</td>
                                             {emp.days.map((d, i) => (
-                                                <td key={i} className="px-2 py-2 text-[9px] font-bold text-[#0F4C75] text-center border-b border-white/40">
-                                                    {d.estimates.length > 0 ? d.estimates.join(', ') : ''}
+                                                <td key={i} className="px-2 py-2 text-center border-b border-white/40">
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <span className="text-[9px] font-black text-[#0F4C75] leading-tight">
+                                                            {d.estimates.length > 0 ? d.estimates.join(', ') : ''}
+                                                        </span>
+                                                        <span className="text-[8px] font-bold text-[#0F4C75]/70 italic leading-tight">
+                                                            {d.projectNames.length > 0 ? d.projectNames.join(', ') : ''}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                             ))}
                                             <td colSpan={2} className="border-b border-white/40"></td>
@@ -890,8 +976,12 @@ export default function PayrollReportPage() {
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-900 bg-white/40 border-b border-white/40">{emp.totalReg.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 bg-white/40 border-b border-white/40">${emp.rateSite.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-900 bg-white/40 border-b border-white/40">${(emp.totalReg * emp.rateSite).toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 bg-white/40 border-b border-white/40">
+                                                ${emp.totalReg > 0 ? (emp.totalRegAmount / emp.totalReg).toFixed(2) : emp.rateSite.toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-900 bg-white/40 border-b border-white/40">
+                                                ${emp.totalRegAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
 
                                         <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Overtime' })}>
@@ -902,8 +992,12 @@ export default function PayrollReportPage() {
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalOt.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">${(emp.rateSite * 1.5).toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">${(emp.totalOt * emp.rateSite * 1.5).toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
+                                                ${emp.totalOt > 0 ? (emp.totalOtAmount / emp.totalOt).toFixed(2) : (emp.rateSite * 1.5).toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                ${emp.totalOtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
 
                                         <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Double Time' })}>
@@ -914,8 +1008,12 @@ export default function PayrollReportPage() {
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalDt.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">${(emp.rateSite * 2.0).toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">${(emp.totalDt * emp.rateSite * 2.0).toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
+                                                ${emp.totalDt > 0 ? (emp.totalDtAmount / emp.totalDt).toFixed(2) : (emp.rateSite * 2.0).toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                ${emp.totalDtAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
 
                                         <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Travel' })}>
@@ -926,8 +1024,12 @@ export default function PayrollReportPage() {
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalTravel.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">${emp.rateTravel.toFixed(2)}</td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">${(emp.totalTravel * emp.rateTravel).toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-[11px] font-bold text-slate-400 border-b border-white/40">
+                                                ${emp.totalTravel > 0 ? (emp.totalTravelAmount / emp.totalTravel).toFixed(2) : emp.rateTravel.toFixed(2)}
+                                            </td>
+                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                ${emp.totalTravelAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
 
                                         <tr className="hover:bg-blue-50/50 transition-colors cursor-help" onClick={() => setSelectedDetail({ employee: emp, type: 'Per Diem' })}>
@@ -939,7 +1041,9 @@ export default function PayrollReportPage() {
                                             ))}
                                             <td className="px-4 py-2 border-b border-white/40"></td>
                                             <td className="px-4 py-2 border-b border-white/40"></td>
-                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">${emp.totalDiem.toLocaleString()}</td>
+                                            <td className="px-4 py-2 text-right text-[12px] font-black text-slate-800 border-b border-white/40">
+                                                ${emp.totalDiem.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </td>
                                         </tr>
 
                                         <tr className="bg-[#F4F7FA]">
@@ -949,10 +1053,10 @@ export default function PayrollReportPage() {
                                                     {d.total > 0 ? d.total.toFixed(2) : '--'}
                                                 </td>
                                             ))}
-                                            <td className="px-4 py-4 text-center text-[13px] font-black text-slate-900 bg-white/20 border-b-[20px] border-transparent">{emp.totalHrs.toFixed(1)}</td>
+                                            <td className="px-4 py-4 text-center text-[13px] font-black text-slate-900 bg-white/20 border-b-[20px] border-transparent">{emp.totalHrs.toFixed(2)}</td>
                                             <td className="px-4 py-4 bg-white/20 border-b-[20px] border-transparent"></td>
                                             <td className="px-4 py-4 text-right text-xl font-black bg-white/40 text-[#00CC00] tracking-tighter italic border-b-[20px] border-transparent">
-                                                ${emp.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                ${emp.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>
                                         </tr>
                                     </tbody>
@@ -968,14 +1072,14 @@ export default function PayrollReportPage() {
                         <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.4em] opacity-40">Global Expense</span>
                             <div className="text-4xl font-black text-slate-900 tracking-tighter italic">
-                                ${reportData.reduce((acc, curr) => acc + curr.totalAmount, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                ${reportData.reduce((acc, curr) => acc + curr.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                         </div>
                         <div className="w-[1px] h-12 bg-slate-200/50 hidden md:block"></div>
                         <div className="flex flex-col gap-1">
                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.4em] opacity-40">Operating Hours</span>
                             <div className="text-4xl font-black text-[#0F4C75] tracking-tighter italic">
-                                {reportData.reduce((acc, curr) => acc + curr.totalHrs, 0).toFixed(1)}
+                                {reportData.reduce((acc, curr) => acc + curr.totalHrs, 0).toFixed(2)}
                             </div>
                         </div>
                     </div>
@@ -1026,6 +1130,11 @@ export default function PayrollReportPage() {
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400">Clock In/Out</th>
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-center">Lunch</th>
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">Computed Hrs</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">
+                                                        {selectedDetail.type === 'Overtime' ? 'OT Hrs' : selectedDetail.type === 'Double Time' ? 'DT Hrs' : 'Reg Hrs'}
+                                                    </th>
+                                                    <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">Rate</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">Amount</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-white/20">
@@ -1042,7 +1151,23 @@ export default function PayrollReportPage() {
                                                         <td className="px-4 py-3 text-center opacity-40">
                                                             {ent.lunchStart ? '30m' : '--'}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right font-black text-slate-900">{ent.calcHours.toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-right font-bold text-slate-400">{ent.calcHours.toFixed(2)}</td>
+                                                        <td className="px-4 py-3 text-right font-black text-[#0F4C75]">
+                                                            {(selectedDetail.type === 'Overtime' ? ent.attrOt : selectedDetail.type === 'Double Time' ? ent.attrDt : ent.attrReg).toFixed(2)}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-medium text-slate-400 italic">
+                                                            ${(
+                                                                (parseRate(ent.hourlyRateSITE) || 0) * 
+                                                                (selectedDetail.type === 'Overtime' ? 1.5 : selectedDetail.type === 'Double Time' ? 2.0 : 1.0)
+                                                            ).toFixed(2)}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-black text-slate-900">
+                                                            ${(
+                                                                (selectedDetail.type === 'Overtime' ? ent.attrOt : selectedDetail.type === 'Double Time' ? ent.attrDt : ent.attrReg) * 
+                                                                (parseRate(ent.hourlyRateSITE) || 0) * 
+                                                                (selectedDetail.type === 'Overtime' ? 1.5 : selectedDetail.type === 'Double Time' ? 2.0 : 1.0)
+                                                            ).toFixed(2)}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                                 {selectedDetail.employee.rawEntries.site.length === 0 && (
@@ -1067,6 +1192,7 @@ export default function PayrollReportPage() {
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400">Type</th>
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400">Method</th>
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">Miles</th>
+                                                    <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">Rate</th>
                                                     <th className="px-4 py-3 text-[9px] font-black uppercase text-slate-400 text-right">Computed Hrs</th>
                                                 </tr>
                                             </thead>
@@ -1082,6 +1208,7 @@ export default function PayrollReportPage() {
                                                             {ent.locationIn?.includes(',') ? 'GPS Haversine' : (ent.locationIn ? 'Odometer' : 'Manual/Time')}
                                                         </td>
                                                         <td className="px-4 py-3 text-right opacity-60">{ent.calcDistance.toFixed(1)}mi</td>
+                                                        <td className="px-4 py-3 text-right font-medium text-slate-400 italic">${parseRate(ent.hourlyRateDrive)?.toFixed(2) || '--'}</td>
                                                         <td className="px-4 py-3 text-right font-black text-slate-900">{ent.calcHours.toFixed(2)}</td>
                                                     </tr>
                                                 ))}
@@ -1118,13 +1245,28 @@ export default function PayrollReportPage() {
                                         <Info size={24} className="text-blue-300" />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Calculation Note</p>
-                                        <p className="text-sm font-bold">Rounding at 15-min intervals. 7.75h automatic bump to 8h.</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest opacity-60">
+                                            {selectedDetail.type === 'Regular' ? 'Regular Total' : 
+                                             selectedDetail.type === 'Overtime' ? 'Overtime Total' :
+                                             selectedDetail.type === 'Double Time' ? 'Double Time Total' :
+                                             selectedDetail.type === 'Travel' ? 'Travel Total' : 'Breakdown Total'}
+                                        </p>
+                                        <p className="text-xl font-black text-white italic">
+                                            ${(
+                                                selectedDetail.type === 'Regular' ? selectedDetail.employee.totalRegAmount :
+                                                selectedDetail.type === 'Overtime' ? selectedDetail.employee.totalOtAmount :
+                                                selectedDetail.type === 'Double Time' ? selectedDetail.employee.totalDtAmount :
+                                                selectedDetail.type === 'Travel' ? selectedDetail.employee.totalTravelAmount :
+                                                selectedDetail.type === 'Per Diem' ? selectedDetail.employee.totalDiem : 0
+                                            ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Net for Week</p>
-                                    <p className="text-3xl font-black italic tracking-tighter">${selectedDetail.employee.totalAmount.toLocaleString(undefined, {minimumFractionDigits:2})}</p>
+                                    <p className="text-3xl font-black italic tracking-tighter">
+                                        ${selectedDetail.employee.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -1354,6 +1496,10 @@ export default function PayrollReportPage() {
                     background: var(--neu-dark);
                     border-radius: 10px;
                 }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #cbd5e0;
+                }
+                
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
                     background: #cbd5e0;
                 }
