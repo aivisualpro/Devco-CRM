@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-    CheckCircle2, Edit, FilePlus, Clock
+    CheckCircle2, Edit, FilePlus, Clock, Download, Loader2
 } from 'lucide-react';
 import { Modal, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
@@ -19,6 +19,8 @@ interface DJTModalProps {
     activeSignatureEmployee: string | null;
     setActiveSignatureEmployee: (id: string | null) => void;
     isSavingSignature?: boolean;
+    isGeneratingPDF?: boolean;
+    handleDownloadPDF?: () => void;
 }
 
 export const DJTModal = ({
@@ -34,7 +36,9 @@ export const DJTModal = ({
     schedules,
     activeSignatureEmployee,
     setActiveSignatureEmployee,
-    isSavingSignature = false
+    isSavingSignature = false,
+    isGeneratingPDF = false,
+    handleDownloadPDF
 }: DJTModalProps) => {
     const [lunchStart, setLunchStart] = useState('12:00');
     const [lunchEnd, setLunchEnd] = useState('12:30');
@@ -132,13 +136,25 @@ export const DJTModal = ({
                     <div className="space-y-6 pt-2">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                             <h4 className="text-sm font-bold text-slate-900 uppercase tracking-tight">Summary</h4>
-                            <button
-                                onClick={() => setIsEditMode(true)}
-                                className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs font-bold hover:bg-black transition-all shadow-sm"
-                            >
-                                <Edit size={14} />
-                                EDIT
-                            </button>
+                            <div className="flex items-center gap-2">
+                                {handleDownloadPDF && (
+                                    <button
+                                        onClick={handleDownloadPDF}
+                                        disabled={isGeneratingPDF}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-600 hover:text-[#0F4C75] hover:border-[#0F4C75] transition-all shadow-sm disabled:opacity-50"
+                                    >
+                                        {isGeneratingPDF ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                        PDF
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => setIsEditMode(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-[#1A1A1A] text-white rounded-lg text-xs font-bold hover:bg-black transition-all shadow-sm"
+                                >
+                                    <Edit size={14} />
+                                    EDIT
+                                </button>
+                            </div>
                         </div>
 
                         <div className="space-y-6 text-sm">

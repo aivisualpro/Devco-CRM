@@ -475,39 +475,7 @@ export default function DashboardPage() {
         return EARTH_RADIUS_MI * c; // Matches spreadsheet logic
     };
 
-    const DriveTimeTimer = ({ startTime }: { startTime: string }) => {
-        const [duration, setDuration] = useState('00:00:00');
 
-        useEffect(() => {
-            const timer = setInterval(() => {
-                if (!startTime) return;
-                const start = new Date(startTime).getTime();
-                const now = new Date().getTime();
-                const diff = now - start;
-                
-                if (diff < 0) {
-                     setDuration('00:00:00');
-                     return;
-                }
-
-                const hours = Math.floor(diff / (1000 * 60 * 60));
-                const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-                setDuration(
-                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-                );
-            }, 1000);
-
-            return () => clearInterval(timer);
-        }, [startTime]);
-
-        return (
-            <div className="ml-2 text-xs font-mono font-medium text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-100 min-w-[60px] text-center">
-                {duration}
-            </div>
-        );
-    };
 
     // Drive Time Logic
     const handleDriveTimeToggle = async (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {

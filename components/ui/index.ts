@@ -35,3 +35,4 @@ export { ErrorBoundary, useErrorHandler } from './ErrorBoundary';
 export { ClientModal } from './ClientModal';
 export * from './select';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
+export { UploadButton } from './UploadButton';

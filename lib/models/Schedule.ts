@@ -27,6 +27,7 @@ export interface ISchedule extends Document {
     djt?: any;
     JHASignatures?: any[];
     DJTSignatures?: any[];
+    todayObjectives?: string[];
 }
 
 export interface ITimesheet {
@@ -108,7 +109,8 @@ const ScheduleSchema = new Schema({
     jha: { type: Object, default: null },
     djt: { type: Object, default: null },
     JHASignatures: { type: [], default: [] },
-    DJTSignatures: { type: [], default: [] }
+    DJTSignatures: { type: [], default: [] },
+    todayObjectives: { type: [String], default: [] }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

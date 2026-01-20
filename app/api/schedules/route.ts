@@ -53,7 +53,10 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
             "Labor Agreement": String(item.fringe || ""),
             "Certified Payroll": String(item.certifiedPayroll || ""),
             "Notify Assignees": String(item.notifyAssignees || ""),
-            "Per Diem": String(item.perDiem || "")
+            "Per Diem": String(item.perDiem || ""),
+            "Aerial Image": String(item.aerialImage || ""),
+            "Site Layout": String(item.siteLayout || ""),
+            "todayObjectives": Array.isArray(item.todayObjectives) ? item.todayObjectives.join(' , ') : String(item.todayObjectives || "") 
         };
     });
 
@@ -250,73 +253,157 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getSchedulesPage': {
-                const { startDate, endDate, userEmail, skipInitialData } = payload || {};
-                const query: any = {};
-                
-                // Date range filtering
-                // Date range filtering - Flexible Window
-                if (!startDate && !endDate) {
-                    const sixtyDaysAgo = new Date();
-                    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-                    query.fromDate = { $gte: sixtyDaysAgo.toISOString() };
-                } else {
-                    query.fromDate = {};
-                    // Look back 60 days to catch long-running jobs active in this week
-                    if (startDate) {
-                        const s = new Date(startDate);
-                        s.setDate(s.getDate() - 60);
-                        query.fromDate.$gte = s.toISOString();
-                    }
-                    // Look ahead 14 days to catch jobs starting immediately after (e.g. Mon start, Sun clock-in)
-                    if (endDate) {
-                        const e = new Date(endDate);
-                        e.setDate(e.getDate() + 14);
-                        query.fromDate.$lte = e.toISOString();
-                    }
+                const { 
+                    page = 1, 
+                    limit = 20, 
+                    search = '', 
+                    filters = {}, 
+                    selectedDates = [], 
+                    userEmail, 
+                    skipInitialData 
+                } = payload || {};
+
+                const matchStage: any = {};
+
+                // 1. Date Filter (Week View)
+                if (selectedDates && selectedDates.length > 0) {
+                     // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
+                     matchStage.$expr = {
+                        $in: [
+                            { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "America/Los_Angeles" } }, // Adjust timezone as needed or use UTC if dates are stored normalized
+                            selectedDates
+                        ]
+                     };
                 }
 
-                // Server-side filtering for the logged-in user (Super Fast)
+                // 2. Search Filter (Multi-field)
+                if (search) {
+                    const searchRegex = { $regex: search, $options: 'i' };
+                    matchStage.$or = [
+                        { title: searchRegex },
+                        { customerName: searchRegex },
+                        { estimate: searchRegex },
+                        { jobLocation: searchRegex },
+                        { service: searchRegex },
+                        { item: searchRegex }
+                    ];
+                }
+
+                // 3. User Permission Filter (Super Fast)
                 if (userEmail) {
-                    query.$or = [
+                    const userFilter = [
                         { projectManager: userEmail },
                         { foremanName: userEmail },
                         { assignees: userEmail }
                     ];
+                     if (matchStage.$or) {
+                        matchStage.$and = [
+                            { $or: matchStage.$or },
+                            { $or: userFilter }
+                        ];
+                        delete matchStage.$or;
+                    } else {
+                        matchStage.$or = userFilter;
+                    }
                 }
 
-                // Execute queries in parallel
-                const fetchPromises: any[] = [
-                    Schedule.find(query)
-                        .select('title estimate customerId customerName fromDate toDate foremanName projectManager assignees service item perDiem fringe certifiedPayroll notifyAssignees description jobLocation aerialImage siteLayout jha djt timesheet JHASignatures DJTSignatures createdAt updatedAt')
-                        .sort({ fromDate: -1 })
-                        .lean()
+                // 4. Specific Dropdown Filters
+                if (filters.estimate) matchStage.estimate = filters.estimate;
+                if (filters.client) matchStage.customerId = filters.client; // Assuming client ID passed
+                if (filters.service) matchStage.service = filters.service;
+                if (filters.tag) matchStage.item = filters.tag;
+                if (filters.certifiedPayroll) matchStage.certifiedPayroll = filters.certifiedPayroll;
+                
+                if (filters.employee) {
+                     const empQuery = [
+                        { projectManager: filters.employee },
+                        { foremanName: filters.employee },
+                        { assignees: filters.employee }
+                    ];
+                    // Merge with existing AND/OR structure if necessary, but usually this is standalone AND
+                    // Simplest way for adding to TOP level AND:
+                    if (matchStage.$or && !userEmail && !search) { 
+                        // If only other $or exists (unlikely given logic above), rigorous merge needed.
+                        // But here, filters.employee implies an AND requirement on top of others.
+                        // So we use $and explicitly if there's potential conflict, or just implied AND key
+                        // But we can't have duplicate keys in object.
+                        // Let's use $and for safety if we already have complex logic
+                         matchStage.$and = [
+                            ...(matchStage.$and || []),
+                            { $or: empQuery }
+                         ];
+                    } else {
+                         // If we already have $and
+                         if (matchStage.$and) {
+                             matchStage.$and.push({ $or: empQuery });
+                         } else {
+                             // Create $and to combine with potential existing $or (from search/user) OR just standalone
+                             // Wait, if matchStage.$or exists from search/user, we shouldn't overwrite it.
+                             if (matchStage.$or) {
+                                  matchStage.$and = [ { $or: matchStage.$or }, { $or: empQuery } ];
+                                  delete matchStage.$or;
+                             } else {
+                                 matchStage.$or = empQuery;
+                             }
+                         }
+                    }
+                }
+
+                const skip = (page - 1) * limit;
+
+                const pipeline: any[] = [
+                    { $match: matchStage },
+                    {
+                        $facet: {
+                            metadata: [{ $count: "total" }],
+                            data: [
+                                { $sort: { fromDate: -1 } },
+                                { $skip: skip },
+                                { $limit: limit },
+                                // Project fields needed for UI to reduce payload
+                                { $project: {
+                                    title: 1, estimate: 1, customerId: 1, customerName: 1, 
+                                    fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1, 
+                                    assignees: 1, service: 1, item: 1, perDiem: 1, fringe: 1, 
+                                    certifiedPayroll: 1, notifyAssignees: 1, description: 1, 
+                                    jobLocation: 1, aerialImage: 1, siteLayout: 1, 
+                                    jha: 1, djt: 1, timesheet: 1, JHASignatures: 1, DJTSignatures: 1,
+                                    todayObjectives: 1,
+                                    createdAt: 1, updatedAt: 1
+                                }}
+                            ]
+                        }
+                    }
                 ];
 
-                // Only fetch initialData if specifically requested (to save bandwidth)
-                if (!skipInitialData) {
-                    fetchPromises.push(
-                        Client.find().select('name _id').sort({ name: 1 }).lean(),
-                        Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
-                        Constant.find().select('type description color image').lean(),
-                        Estimate.find({ status: { $ne: 'deleted' } })
-                            .select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone')
-                            .lean()
-                    );
-                }
+                const [aggResult, ...metadata] = await Promise.all([
+                    Schedule.aggregate(pipeline),
+                    !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
+                    !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]),
+                    !skipInitialData ? Constant.find().select('type description color image').lean() : Promise.resolve([]),
+                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([])
+                ]);
 
-                const [schedules, ...metadata] = await Promise.all(fetchPromises);
+                const resultDocs = aggResult[0].data;
+                const totalCount = aggResult[0].metadata[0]?.total || 0;
+
+                // Process initial data... (Same as before)
                 const [clients, employees, constants, estimates] = metadata;
 
-                // Determine hasJHA/hasDJT check
-                const schedulesWithMetaData = (schedules || []).map((s: any) => ({
+                const schedulesWithMetaData = resultDocs.map((s: any) => ({
                     ...s,
                     hasJHA: !!s.jha && Object.keys(s.jha).length > 0,
                     hasDJT: !!s.djt && Object.keys(s.djt).length > 0
                 }));
 
-                const result: any = { schedules: schedulesWithMetaData };
+                const finalResult: any = { 
+                    schedules: schedulesWithMetaData,
+                    total: totalCount,
+                    page,
+                    totalPages: Math.ceil(totalCount / limit)
+                };
 
-                if (!skipInitialData) {
+                 if (!skipInitialData) {
                     // Process estimates to keep unique estimate numbers (Latest first)
                     const uniqueEstimates = new Map();
                     estimates
@@ -332,12 +419,83 @@ export async function POST(request: NextRequest) {
                                     jobAddress: e.jobAddress,
                                     contactName: e.contactName || e.contact,
                                     contactPhone: e.contactPhone || e.phone,
-                                    contactEmail: e.contactEmail
+                                    contactEmail: e.contactEmail,
+                                    // New fields
+                                    scopeOfWork: (() => {
+                                        if (e.projectDescription) return e.projectDescription;
+                                        // Fallback to latest proposal content
+                                        if (e.proposals && e.proposals.length > 0) {
+                                            const latest = e.proposals.sort((a: any, b: any) => new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime())[0];
+                                            let html = '';
+                                            if (latest?.customPages?.[0]?.content) {
+                                                html = latest.customPages[0].content;
+                                            } else if (latest?.htmlContent) {
+                                                html = latest.htmlContent;
+                                            }
+
+                                            if (html) {
+                                                // 1. Locate "PROJECT SCOPE OF WORK" and ignore everything before it
+                                                // We look for the phrase in a case-insensitive way
+                                                const scopeIndex = html.toLowerCase().indexOf('project scope of work');
+                                                if (scopeIndex !== -1) {
+                                                    html = html.substring(scopeIndex + 'project scope of work'.length);
+                                                }
+
+                                                // 2. Convert <p> and <br> to newlines to preserve spacing
+                                                // Replace block tags with double newlines for paragraph separation
+                                                html = html.replace(/<\/p>/gi, '\n\n')
+                                                           .replace(/<br\s*\/?>/gi, '\n')
+                                                           .replace(/<\/div>/gi, '\n')
+                                                           .replace(/<\/tr>/gi, '\n');
+                                                
+                                                // 3. Strip remaining HTML tags
+                                                let text = html.replace(/<[^>]*>/g, '');
+
+                                                // 4. Remove "Lump Sum" line if present
+                                                const lumpSumIndex = text.indexOf('{{aggregations.grandTotal}}');
+                                                if (lumpSumIndex !== -1) {
+                                                    text = text.substring(0, lumpSumIndex);
+                                                }
+
+                                                // 5. Decode HTML entities (basic ones)
+                                                text = text.replace(/&nbsp;/g, ' ')
+                                                           .replace(/&amp;/g, '&')
+                                                           .replace(/&lt;/g, '<')
+                                                           .replace(/&gt;/g, '>');
+
+                                                // 6. Clean up excessive whitespace
+                                                // We want to keep newlines but merge multiple spaces
+                                                // Split by newline, trim lines, rejoin
+                                                text = text.split('\n').map((line: string) => line.trim()).filter((line: string) => line).join('\n').trim();
+
+                                                // 6. Format as bullet points based on periods
+                                                // Split by period. If a period exists, it creates a new line.
+                                                // We will replace every period that has text after it with a newline and bullet.
+                                                
+                                                // First, split by period.
+                                                const segments = text.split('.');
+                                                
+                                                // Filter out empty segments and trim
+                                                const cleanSegments = segments.map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+                                                
+                                                if (cleanSegments.length > 0) {
+                                                    // Join with period + newline + bullet
+                                                    return '• ' + cleanSegments.join('.\n\n• ') + '.';
+                                                }
+                                                
+                                                return text;
+                                            }
+                                        }
+                                        return e.scopeOfWork || '';
+                                    })(),
+                                    services: e.services || [],
+                                    fringe: e.fringe || 'No',
+                                    certifiedPayroll: e.certifiedPayroll || 'No'
                                 });
                             }
                         });
 
-                    result.initialData = {
+                    finalResult.initialData = {
                         clients: Array.from(new Map(clients?.filter((c: any) => c?._id).map((c: any) => [c._id.toString(), c]) || []).values()),
                         employees: Array.from(new Map(employees?.filter((e: any) => e?.email).map((e: any) => [e.email, { 
                             value: e.email, 
@@ -355,7 +513,7 @@ export async function POST(request: NextRequest) {
                     };
                 }
 
-                return NextResponse.json({ success: true, result });
+                return NextResponse.json({ success: true, result: finalResult });
             }
 
             case 'getInitialData': {
