@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DEVCOERP</string>
+    <string name="title_activity_main">DEVCOERP</string>
+    <string name="package_name">com.devcocrm.app</string>
+    <string name="custom_url_scheme">com.devcocrm.app</string>
+</resources>

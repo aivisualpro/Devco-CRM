@@ -65,11 +65,11 @@ export default function DashboardPage() {
     const [mounted, setMounted] = useState(false);
     
     // Sync tab with URL
-    const dashboardTab = (params?.tab as string) || 'activity';
+    const dashboardTab = (params?.tab as string) || 'jobschedule';
     
     useEffect(() => {
         if (params && params.tab && !['activity', 'jobschedule'].includes(params.tab as string)) {
-            router.replace('/dashboard/activity');
+            router.replace('/dashboard/jobschedule');
         }
     }, [params, router]);
 
@@ -1095,15 +1095,15 @@ export default function DashboardPage() {
                 <Header showDashboardActions={true} />
             </div>
             <div className="flex-1 overflow-y-auto bg-[#f8fafc] overflow-x-hidden">
-                <div className="max-w-[1600px] mx-auto p-4">
+                <div className="max-w-[1600px] mx-auto p-4 pt-14 md:pt-4">
                     <Tabs 
                         value={dashboardTab} 
                         onValueChange={(id) => setDashboardTab(id as 'activity' | 'jobschedule')}
                         className="mb-6"
                     >
                         <TabsList>
-                            <TabsTrigger value="activity">Daily Activity</TabsTrigger>
                             <TabsTrigger value="jobschedule">Job Schedule</TabsTrigger>
+                            <TabsTrigger value="activity">Daily Activity</TabsTrigger>
                         </TabsList>
 
                         <div className={`${mounted ? 'animate-fade-in-up' : 'opacity-0'}`}>
@@ -1799,7 +1799,7 @@ export default function DashboardPage() {
 
                             {/* Section: Daily Work */}
                             <div className="space-y-4">
-                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Daily Work</h4>
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-3 mb-4">Daily Work</h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {[
                                         { key: 'operatingMiniEx', label: 'Operating Mini Ex' },
@@ -1816,14 +1816,14 @@ export default function DashboardPage() {
                                         { key: 'otherDailyWork', label: 'Other Daily Work' },
                                     ].map((item) => (
                                         <div key={item.key} className="space-y-2">
-                                            <label className={`p-3 h-full rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${(selectedJHA as any)[item.key] ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                            <label className={`p-4 h-full rounded-2xl border flex items-center gap-4 cursor-pointer transition-all duration-300 ${(selectedJHA as any)[item.key] ? 'bg-[#0F4C75]/5 border-[#0F4C75] shadow-[0_4px_12px_rgba(15,76,117,0.08)]' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md'}`}>
                                                 <input
                                                     type="checkbox"
-                                                    className="w-4 h-4 text-[#0F4C75] rounded focus:ring-[#0F4C75]"
+                                                    className="w-5 h-5 text-[#0F4C75] rounded-lg border-slate-300 focus:ring-[#0F4C75]"
                                                     checked={!!(selectedJHA as any)[item.key]}
                                                     onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
                                                 />
-                                                <span className={`text-xs font-bold ${(selectedJHA as any)[item.key] ? 'text-blue-900' : 'text-slate-600'}`}>{item.label}</span>
+                                                <span className={`text-sm font-bold ${(selectedJHA as any)[item.key] ? 'text-[#0F4C75]' : 'text-slate-600'}`}>{item.label}</span>
                                             </label>
                                             {item.key === 'otherDailyWork' && (selectedJHA as any).otherDailyWork && (
                                                 <textarea
@@ -1841,7 +1841,7 @@ export default function DashboardPage() {
 
                             {/* Section: Jobsite Hazards */}
                             <div className="space-y-4">
-                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Jobsite Hazards</h4>
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-3 mb-4">Jobsite Hazards</h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                     {[
                                         { key: 'sidewalks', label: 'Sidewalks', commentKey: 'commentsOnSidewalks' },
@@ -1858,14 +1858,14 @@ export default function DashboardPage() {
                                         { key: 'otherJobsiteHazards', label: 'Other Jobsite Hazards', commentKey: 'commentsOnOther' },
                                     ].map((item) => (
                                         <div key={item.key} className="space-y-2">
-                                            <label className={`p-3 rounded-lg border flex items-center gap-3 cursor-pointer transition-all ${(selectedJHA as any)[item.key] ? 'bg-orange-50 border-orange-200 shadow-sm' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
+                                            <label className={`p-4 rounded-2xl border flex items-center gap-4 cursor-pointer transition-all duration-300 ${(selectedJHA as any)[item.key] ? 'bg-orange-50 border-orange-500 shadow-[0_4px_12px_rgba(249,115,22,0.1)]' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md'}`}>
                                                 <input
                                                     type="checkbox"
-                                                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-600"
+                                                    className="w-5 h-5 text-orange-600 rounded-lg border-slate-300 focus:ring-orange-600"
                                                     checked={!!(selectedJHA as any)[item.key]}
                                                     onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
                                                 />
-                                                <span className={`text-xs font-bold ${(selectedJHA as any)[item.key] ? 'text-orange-900' : 'text-slate-600'}`}>{item.label}</span>
+                                                <span className={`text-sm font-bold ${(selectedJHA as any)[item.key] ? 'text-orange-900' : 'text-slate-600'}`}>{item.label}</span>
                                             </label>
                                             {!!(selectedJHA as any)[item.key] && (
                                                 <div className="animate-fade-in-down">
@@ -1895,8 +1895,8 @@ export default function DashboardPage() {
 
                             {/* Section: Emergency Action Plan */}
                             <div className="space-y-4">
-                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-2">Emergency Action Plan</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <h4 className="text-sm font-black text-[#0F4C75] uppercase border-b border-slate-100 pb-3 mb-4">Emergency Action Plan</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                      {[
                                         { key: 'stagingAreaDiscussed', label: 'Staging Area Discussed' },
                                         { key: 'rescueProceduresDiscussed', label: 'Rescue Procedures Discussed' },
@@ -1905,14 +1905,14 @@ export default function DashboardPage() {
                                         { key: 'firstAidAndCPREquipmentOnsite', label: 'First Aid/CPR Onsite' },
                                         { key: 'closestHospitalDiscussed', label: 'Closest Hospital Discussed' },
                                      ].map((item) => (
-                                        <label key={item.key} className="flex items-center gap-3 cursor-pointer group p-2 hover:bg-slate-50 rounded-lg transition-colors">
+                                        <label key={item.key} className={`p-4 rounded-2xl border flex items-center gap-4 cursor-pointer transition-all duration-300 ${(selectedJHA as any)[item.key] ? 'bg-emerald-50 border-emerald-500 shadow-[0_4px_12px_rgba(16,185,129,0.1)]' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm hover:shadow-md'}`}>
                                             <input
                                                 type="checkbox"
-                                                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-600"
+                                                className="w-5 h-5 text-emerald-600 rounded-lg border-slate-300 focus:ring-emerald-600"
                                                 checked={!!(selectedJHA as any)[item.key]}
                                                 onChange={(e) => setSelectedJHA({ ...selectedJHA, [item.key]: e.target.checked })}
                                             />
-                                            <span className="text-sm font-medium text-slate-700 group-hover:text-[#0F4C75] transition-colors">{item.label}</span>
+                                            <span className={`text-sm font-bold ${(selectedJHA as any)[item.key] ? 'text-emerald-900' : 'text-slate-700'}`}>{item.label}</span>
                                         </label>
                                      ))}
                                 </div>

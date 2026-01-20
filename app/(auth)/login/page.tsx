@@ -86,9 +86,9 @@ export default function LoginPage() {
                         />
                         <div>
                             <h1 className="text-3xl font-bold tracking-wide">
-                                DEVCO <span className="font-light text-white/70">ERP</span>
+                                DEVCOERP
                             </h1>
-                            <p className="text-blue-100 text-sm">Enterprise Resource Planning</p>
+                            <p className="text-blue-100 text-sm">Cloud Solutions</p>
                         </div>
                     </div>
 
@@ -134,7 +134,7 @@ export default function LoginPage() {
                             className="rounded-2xl shadow-lg mx-auto mb-4"
                         />
                         <h1 className="text-2xl font-bold text-slate-900">
-                            DEVCO <span className="font-light text-slate-400">ERP</span>
+                            DEVCOERP
                         </h1>
                     </div>
 
@@ -241,7 +241,7 @@ export default function LoginPage() {
 
                     {/* Footer */}
                     <p className="text-center text-slate-400 text-sm mt-8">
-                        © 2026 DevCo ERP. All rights reserved.
+                        © 2026 DEVCOERP. All rights reserved.
                     </p>
                 </div>
             </div>

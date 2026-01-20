@@ -52,7 +52,7 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
     }[maxWidth];
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
+        <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-[calc(env(safe-area-inset-top,0px)+2rem)] md:pt-0">
             {/* Reduced blur from xl to md for better performance */}
             <div 
                 className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
