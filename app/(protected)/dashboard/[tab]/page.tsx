@@ -9,7 +9,7 @@ import {
     Clock, MoreHorizontal, Briefcase, FileSpreadsheet,
     Calendar, DollarSign, ClipboardCheck, AlertTriangle,
     Settings, BarChart3, FileCheck, Shield, ShieldCheck, Plus, Sparkles,
-    ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle, Circle
+    ChevronRight, ChevronLeft, Truck, Tag, MapPin, X, Edit, Trash2, Phone, FilePlus, ClipboardList, CheckCircle2, AlertCircle, Timer, ClockCheck, Download, Loader2, Mail, Car, StopCircle, Circle, Droplets, Warehouse
 } from 'lucide-react';
 import { Header, Modal, Badge, EmptyState, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { Geolocation } from '@capacitor/geolocation';
@@ -724,6 +724,73 @@ export default function DashboardPage() {
             toastError(msg);
         }
     };
+    
+    const handleQuickTimesheet = async (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        let employeeEmail = currentUser?.email;
+        if (!employeeEmail && typeof window !== 'undefined') {
+             try {
+                 employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
+             } catch (e) { console.error(e); }
+        }
+ 
+        if (!employeeEmail) {
+            toastError("User identity not found.");
+            return;
+        }
+
+        const hours = type === 'Dump Washout' ? 0.50 : 0.25;
+        const now = new Date();
+        const clockIn = new Date(now.getTime() - (hours * 60 * 60 * 1000)).toISOString();
+        const clockOut = now.toISOString();
+
+        const newTimesheet = {
+            _id: `ts-${Date.now()}`,
+            scheduleId: schedule._id,
+            employee: employeeEmail,
+            clockIn: clockIn,
+            clockOut: clockOut,
+            type: 'Drive Time',
+            hours: hours,
+            dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
+            shopTime: type === 'Shop Time' ? 'true' : undefined,
+            status: 'Pending',
+            createdAt: now.toISOString()
+        };
+
+        // Optimistic update
+        setDailySchedules(prev => prev.map(s => {
+            if (s._id !== schedule._id) return s;
+            return {
+                ...s,
+                timesheet: [...(s.timesheet || []), newTimesheet]
+            };
+        }));
+
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'saveIndividualTimesheet',
+                    payload: { timesheet: newTimesheet }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success(`${type} Registered`);
+            } else {
+                toastError(data.error || `Failed to save ${type}`);
+                // Revert
+                fetchDailySchedules(scheduleDate);
+            }
+        } catch (error) {
+            console.error(error);
+            toastError(`Error saving ${type}`);
+            fetchDailySchedules(scheduleDate);
+        }
+    };
 
     const handleSaveJHAForm = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1412,6 +1479,7 @@ export default function DashboardPage() {
                                                         <div className="flex -space-x-1.5 shrink-0">
                                                             {(item.assignees || []).filter(Boolean).slice(0, 3).map((email: string, i: number) => {
                                                                 const emp = employees.find(e => e.value === email);
+                                                                return (
                                                                     <Tooltip key={i}>
                                                                         <TooltipTrigger asChild>
                                                                             <div className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
@@ -1426,6 +1494,7 @@ export default function DashboardPage() {
                                                                             <p>{emp?.label || email}</p>
                                                                         </TooltipContent>
                                                                     </Tooltip>
+                                                                );
                                                             })}
                                                             {(item.assignees || []).filter(Boolean).length > 3 && (
                                                                 <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[8px] font-bold text-slate-500 shadow-sm">
@@ -1567,6 +1636,34 @@ export default function DashboardPage() {
                                                                             <p>Stop Drive Time</p>
                                                                         </TooltipContent>
                                                                     </Tooltip>
+
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div 
+                                                                                className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                                onClick={(e) => handleQuickTimesheet(item, 'Dump Washout', e)}
+                                                                            >
+                                                                                <Droplets size={18} strokeWidth={2.5} />
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Dump Washout</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div 
+                                                                                className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                                onClick={(e) => handleQuickTimesheet(item, 'Shop Time', e)}
+                                                                            >
+                                                                                <Warehouse size={18} strokeWidth={2.5} />
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Shop Time</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
                                                                 </>
                                                             );
                                                         } 
@@ -1587,6 +1684,34 @@ export default function DashboardPage() {
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
                                                                         <p>Start Drive Time</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => handleQuickTimesheet(item, 'Dump Washout', e)}
+                                                                        >
+                                                                            <Droplets size={18} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Dump Washout</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-9 h-9 rounded-full bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => handleQuickTimesheet(item, 'Shop Time', e)}
+                                                                        >
+                                                                            <Warehouse size={18} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Shop Time</p>
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </>

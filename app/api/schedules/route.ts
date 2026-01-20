@@ -288,13 +288,20 @@ export async function POST(request: NextRequest) {
                     filters = {}, 
                     selectedDates = [], 
                     userEmail, 
-                    skipInitialData 
+                    skipInitialData,
+                    startDate,
+                    endDate
                 } = payload || {};
 
                 const matchStage: any = {};
 
-                // 1. Date Filter (Week View)
-                if (selectedDates && selectedDates.length > 0) {
+                // 1. Date Filter (Range or Week View)
+                if (startDate && endDate) {
+                    matchStage.fromDate = {
+                        $gte: new Date(startDate),
+                        $lte: new Date(endDate)
+                    };
+                } else if (selectedDates && selectedDates.length > 0) {
                      // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
                      matchStage.$expr = {
                         $in: [

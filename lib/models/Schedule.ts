@@ -55,6 +55,7 @@ export interface ITimesheet {
     hourlyRateSITE?: string; // $ value (stored as string based on request, or number if parsed) - User said "$ value", usually string in import but helpful as number. User request: "$ value"
     hourlyRateDrive?: string; // $ value
     dumpWashout?: string; // string
+    shopTime?: string; // string
     comments?: string; // long text
     createdBy?: string;
     createdAt?: string; 
@@ -82,6 +83,7 @@ const TimesheetSchema = new Schema({
     hourlyRateSITE: { type: String },
     hourlyRateDrive: { type: String },
     dumpWashout: { type: String },
+    shopTime: { type: String },
     comments: { type: String },
     createdBy: { type: String },
     createdAt: { type: String },

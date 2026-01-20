@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle, Droplets, Warehouse
 } from 'lucide-react';
 
 import SignaturePad from './SignaturePad';
@@ -899,8 +899,11 @@ export default function SchedulePage() {
             // Build variables from selectedJHA and its parent schedule
             const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
             
-            // Find matching estimate for contact info
-            const estimate = initialData.estimates.find(e => e.estimateNum === schedule?.estimate || e._id === schedule?.estimate);
+            // Find matching estimate for contact info - match by estimate number (value field)
+            const estimate = initialData.estimates.find((e: any) => {
+                const estNum = e.value || e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            });
             
             // Find matching client for customer name
             const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
@@ -910,16 +913,21 @@ export default function SchedulePage() {
                 ...selectedJHA,
                 // Customer name from clients collection
                 customerId: client?.name || schedule?.customerName || '',
-                // Contact info from estimate
+                // Contact info from estimate (contact field stores name like "Danny Escobar")
                 contactName: estimate?.contactName || estimate?.contact || '',
                 contactPhone: estimate?.contactPhone || estimate?.phone || '',
-                jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
+                // Job address from estimate
+                jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
+                // Estimate number from parent schedule
+                estimate: schedule?.estimate || '',
+                estimateNum: schedule?.estimate || '',
                 // Other schedule info
                 customerName: schedule?.customerName || '',
                 jobLocation: schedule?.jobLocation || '',
-                estimateNum: schedule?.estimate || '',
                 foremanName: schedule?.foremanName || '',
+                projectName: estimate?.projectTitle || estimate?.projectName || '',
                 date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                day: new Date(selectedJHA.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
             // Convert booleans to "✔️" for checkboxes in the template
@@ -1002,8 +1010,11 @@ export default function SchedulePage() {
             // Build variables from selectedDJT and its parent schedule
             const schedule = schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
             
-            // Find matching estimate for contact info
-            const estimate = initialData.estimates.find(e => e.estimateNum === schedule?.estimate || e._id === schedule?.estimate);
+            // Find matching estimate for contact info - match by estimate number (value field)
+            const estimate = initialData.estimates.find((e: any) => {
+                const estNum = e.value || e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            });
             
             // Find matching client for customer name
             const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
@@ -1023,9 +1034,12 @@ export default function SchedulePage() {
                 // Other schedule info
                 customerName: schedule?.customerName || '',
                 jobLocation: schedule?.jobLocation || '',
+                estimate: schedule?.estimate || '',
                 estimateNum: schedule?.estimate || '',
+                projectName: estimate?.projectTitle || estimate?.projectName || '',
                 foremanName: schedule?.foremanName || '',
-                date: new Date().toLocaleDateString(), // DJT usually for 'today' or selected date
+                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString(),
+                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
             // Customer Signature
@@ -1716,6 +1730,73 @@ export default function SchedulePage() {
             toastError("Unable to retrieve location or save data.");
         }
     };
+    
+    const handleQuickTimesheet = async (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        let employeeEmail = currentUser?.email;
+        if (!employeeEmail && typeof window !== 'undefined') {
+             try {
+                 employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
+             } catch (e) { console.error(e); }
+        }
+ 
+        if (!employeeEmail) {
+            toastError("User identity not found.");
+            return;
+        }
+
+        const hours = type === 'Dump Washout' ? 0.50 : 0.25;
+        const now = new Date();
+        const clockIn = new Date(now.getTime() - (hours * 60 * 60 * 1000)).toISOString();
+        const clockOut = now.toISOString();
+
+        const newTimesheet = {
+            _id: `ts-${Date.now()}`,
+            scheduleId: schedule._id,
+            employee: employeeEmail,
+            clockIn: clockIn,
+            clockOut: clockOut,
+            type: 'Drive Time',
+            hours: hours,
+            dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
+            shopTime: type === 'Shop Time' ? 'true' : undefined,
+            status: 'Pending',
+            createdAt: now.toISOString()
+        };
+
+        // Optimistic update
+        setSchedules(prev => prev.map(s => {
+            if (s._id !== schedule._id) return s;
+            return {
+                ...s,
+                timesheet: [...(s.timesheet || []), newTimesheet]
+            };
+        }));
+
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'saveIndividualTimesheet',
+                    payload: { timesheet: newTimesheet }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success(`${type} Registered`);
+            } else {
+                toastError(data.error || `Failed to save ${type}`);
+                // Revert
+                fetchPageData(1, true);
+            }
+        } catch (error) {
+            console.error(error);
+            toastError(`Error saving ${type}`);
+            fetchPageData(1, true);
+        }
+    };
 
     const handleDeleteTimesheet = (tsId: string) => {
         setDeleteConfirmation({ isOpen: true, tsId });
@@ -2340,7 +2421,33 @@ export default function SchedulePage() {
                                                                         <p>Stop Drive Time</p>
                                                                     </TooltipContent>
                                                                 </Tooltip>
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div 
+                                                                                className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                                onClick={(e) => handleQuickTimesheet(item, 'Dump Washout', e)}
+                                                                            >
+                                                                                <Droplets size={14} strokeWidth={2.5} />
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Dump Washout</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
 
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div 
+                                                                                className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                                onClick={(e) => handleQuickTimesheet(item, 'Shop Time', e)}
+                                                                            >
+                                                                                <Warehouse size={14} strokeWidth={2.5} />
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p>Shop Time</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
                                                                 </>
                                                             );
                                                         }
@@ -2361,6 +2468,34 @@ export default function SchedulePage() {
                                                                     </TooltipTrigger>
                                                                     <TooltipContent>
                                                                         <p>Start Drive Time</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => handleQuickTimesheet(item, 'Dump Washout', e)}
+                                                                        >
+                                                                            <Droplets size={14} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Dump Washout</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div 
+                                                                            className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                                            onClick={(e) => handleQuickTimesheet(item, 'Shop Time', e)}
+                                                                        >
+                                                                            <Warehouse size={14} strokeWidth={2.5} />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Shop Time</p>
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </>

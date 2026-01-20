@@ -18,14 +18,29 @@ const SCOPES = [
     'https://www.googleapis.com/auth/drive'
 ];
 
-// Create auth client
+// Cache auth client to avoid re-authorizing on every request
+let cachedAuthClient: JWT | null = null;
+let authExpiry: number = 0;
+
+// Create auth client with caching
 const getAuthClient = async () => {
+    const now = Date.now();
+    // Reuse cached client if still valid (expires after 50 minutes to be safe, tokens last 60min)
+    if (cachedAuthClient && authExpiry > now) {
+        return cachedAuthClient;
+    }
+    
     const client = new JWT({
         email: CLIENT_EMAIL,
         key: PRIVATE_KEY,
         scopes: SCOPES
     });
     await client.authorize();
+    
+    // Cache for 50 minutes
+    cachedAuthClient = client;
+    authExpiry = now + (50 * 60 * 1000);
+    
     return client;
 };
 
@@ -40,80 +55,73 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
     const tempImageIds: string[] = [];
 
     try {
-        // Step 1: Copy template (unavoidable)
-        const copyRes = await drive.files.copy({
-            fileId: templateId,
-            supportsAllDrives: true,
-            requestBody: { name: `T_${Date.now()}`, parents: [SHARED_DRIVE_FOLDER_ID] }
-        });
-        tempFileId = copyRes.data.id!;
+        // Step 1: Copy template and prepare images in parallel
+        const [copyRes, imageResultsRaw] = await Promise.all([
+            drive.files.copy({
+                fileId: templateId,
+                supportsAllDrives: true,
+                requestBody: { name: `T_${Date.now()}`, parents: [SHARED_DRIVE_FOLDER_ID] }
+            }),
+            Promise.all(Object.entries(variables).map(async ([key, value]) => {
+                const str = String(value ?? '');
+                if (str.length > 50 && (str.startsWith('data:image') || str.startsWith('http'))) {
+                    try {
+                        let buf: Buffer;
+                        if (str.startsWith('data:image')) {
+                            buf = Buffer.from(str.split(',')[1], 'base64');
+                        } else {
+                            const r = await fetch(str);
+                            if (!r.ok) return null;
+                            buf = Buffer.from(await r.arrayBuffer());
+                        }
+                        
+                        const res = await drive.files.create({
+                            supportsAllDrives: true,
+                            fields: 'id',
+                            requestBody: { name: `i_${Date.now()}.png`, mimeType: 'image/png', parents: [SHARED_DRIVE_FOLDER_ID] },
+                            media: { mimeType: 'image/png', body: Readable.from(buf) }
+                        });
+                        const id = res.data.id!;
+                        tempImageIds.push(id);
+                        
+                        // Fire and forget permission update
+                        drive.permissions.create({ fileId: id, supportsAllDrives: true, requestBody: { role: 'reader', type: 'anyone' } }).catch(() => {});
+                        
+                        const marker = `__I${key}__`;
+                        return { key, marker, url: `https://drive.google.com/uc?export=view&id=${id}` };
+                    } catch { return null; }
+                }
+                return null;
+            }))
+        ]);
 
-        // Step 2: Build minimal replacement requests (only {{key}} format for speed)
+        tempFileId = copyRes.data.id!;
+        const imageResults = imageResultsRaw.filter((ir): ir is NonNullable<typeof ir> => ir !== null);
+
+        // Step 2: Build and apply text replacements
         const requests: any[] = [];
-        const imageJobs: { key: string; value: string; marker: string }[] = [];
+        const imageMarkers = new Set(imageResults.map(ir => ir.key));
 
         for (const [key, value] of Object.entries(variables)) {
             if (typeof value === 'boolean' || Array.isArray(value)) continue;
-            const str = String(value ?? '');
             
-            // Image detection: must have real data
-            if (str.length > 50 && (str.startsWith('data:image') || str.startsWith('http'))) {
-                const marker = `__I${key}__`;
-                imageJobs.push({ key, value: str, marker });
-                requests.push({ replaceAllText: { containsText: { text: `{{${key}}}`, matchCase: false }, replaceText: marker } });
+            if (imageMarkers.has(key)) {
+                const ir = imageResults.find(r => r.key === key);
+                if (ir) {
+                    requests.push({ replaceAllText: { containsText: { text: `{{${key}}}`, matchCase: false }, replaceText: ir.marker } });
+                }
             } else {
-                requests.push({ replaceAllText: { containsText: { text: `{{${key}}}`, matchCase: false }, replaceText: str } });
+                requests.push({ replaceAllText: { containsText: { text: `{{${key}}}`, matchCase: false }, replaceText: String(value ?? '') } });
             }
         }
 
-        // Boolean markers cleanup
-        for (const [key, value] of Object.entries(variables)) {
-            if (typeof value === 'boolean') {
-                requests.push({ replaceAllText: { containsText: { text: `{{if_${key}}}`, matchCase: false }, replaceText: '' } });
-                requests.push({ replaceAllText: { containsText: { text: `{{endif}}`, matchCase: false }, replaceText: '' } });
-            }
-        }
-
-        // Fragment cleanup
-        ['hasSignatures}}', 'if_hasSignatures}}', '{if_', '{endif}', 'endif}}', '_hasSignatures}}'].forEach(f => {
-            requests.push({ replaceAllText: { containsText: { text: f, matchCase: false }, replaceText: '' } });
-        });
-
-        // Step 3: Apply all text replacements in ONE batch
+        // Apply text replacements
         if (requests.length > 0) {
             await docs.documents.batchUpdate({ documentId: tempFileId, requestBody: { requests } });
         }
 
-        // Step 4: Handle images (if any) - this is the slowest part
-        if (imageJobs.length > 0) {
-            // Upload all images in parallel
-            const imageResults = await Promise.all(imageJobs.map(async (job) => {
-                try {
-                    let buf: Buffer;
-                    if (job.value.startsWith('data:image')) {
-                        buf = Buffer.from(job.value.split(',')[1], 'base64');
-                    } else {
-                        const r = await fetch(job.value);
-                        if (!r.ok) return null;
-                        buf = Buffer.from(await r.arrayBuffer());
-                    }
-                    
-                    const res = await drive.files.create({
-                        supportsAllDrives: true,
-                        fields: 'id',
-                        requestBody: { name: `i_${Date.now()}.png`, mimeType: 'image/png', parents: [SHARED_DRIVE_FOLDER_ID] },
-                        media: { mimeType: 'image/png', body: Readable.from(buf) }
-                    });
-                    const id = res.data.id!;
-                    tempImageIds.push(id);
-                    
-                    // Fire and forget - don't wait
-                    drive.permissions.create({ fileId: id, supportsAllDrives: true, requestBody: { role: 'reader', type: 'anyone' } }).catch(() => {});
-                    
-                    return { marker: job.marker, url: `https://drive.google.com/uc?export=view&id=${id}` };
-                } catch { return null; }
-            }));
-
+        // Step 3: Handle images (if any)
+        if (imageResults.length > 0) {
             // Get doc structure to find markers
             const doc = await docs.documents.get({ documentId: tempFileId });
             const ops: any[] = [];
@@ -147,7 +155,7 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
             }
         }
 
-        // Step 5: Export PDF
+        // Step 4: Export PDF
         const pdf = await drive.files.export({ fileId: tempFileId, mimeType: 'application/pdf' }, { responseType: 'arraybuffer' });
         return Buffer.from(pdf.data as ArrayBuffer);
 
@@ -157,8 +165,6 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
         tempImageIds.forEach(id => drive.files.delete({ fileId: id, supportsAllDrives: true }).catch(() => {}));
     }
 }
-
-
 
 export async function cleanupTempFiles() {
     const auth = await getAuthClient();
