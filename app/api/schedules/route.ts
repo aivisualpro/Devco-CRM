@@ -9,7 +9,9 @@ const getAppSheetConfig = () => ({
 });
 
 async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
-    // Auto-sync to AppSheet on all environments
+    // Only sync to AppSheet on production (Vercel)
+    if (process.env.NODE_ENV !== 'production') return;
+
     const { appId, accessKey, tableName } = getAppSheetConfig();
     if (!appId || !accessKey) return;
 
@@ -599,13 +601,18 @@ export async function POST(request: NextRequest) {
             }
 
             case 'syncToAppSheet': {
+                // Only sync to AppSheet on production (Vercel)
+                if (process.env.NODE_ENV !== 'production') {
+                    return NextResponse.json({ success: false, error: 'AppSheet sync only works on production' });
+                }
+
                 const { id } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Schedule ID is required' });
                 
                 const schedule = await Schedule.findById(id).lean();
                 if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
 
-                // Force sync to AppSheet (bypassing NODE_ENV check)
+                // Sync to AppSheet
                 const { appId, accessKey, tableName } = getAppSheetConfig();
                 if (!appId || !accessKey) {
                     return NextResponse.json({ success: false, error: 'AppSheet configuration missing' });
