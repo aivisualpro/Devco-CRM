@@ -242,7 +242,8 @@ export const DJTModal = ({
                                 ) : (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         {(() => {
-                                            const schedule = schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
+                                            // Prefer attached scheduleRef (from getDJTs) or finding in list (from Schedules view)
+                                            const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
                                             const assignees = schedule?.assignees || [];
                                             const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
 

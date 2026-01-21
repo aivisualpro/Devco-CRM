@@ -173,22 +173,24 @@ export async function POST(request: NextRequest) {
                 const { page = 1, limit = 20, search = '' } = payload || {};
                 const skip = (page - 1) * limit;
 
+                // Build query to find Schedules that HAVE a DJT
+                // We access the 'devcoschedules' collection via Schedule model.
+                
                 const pipeline: any[] = [
+                    // 1. Only schedules with DJT
+                    { $match: { 
+                        'djt': { $exists: true, $ne: null },
+                        // Optional: Ensure it's not an empty object if that's possible
+                        // 'djt._id': { $exists: true } 
+                    }},
+                    
+                    // 2. Lookups (Lightweight first)
+                    // Schedule already has customerId and estimate string.
+                    // We can look them up directly.
                     {
-                        $lookup: {
-                            from: 'devcoschedules',
-                            let: { schedId: "$schedule_id" },
-                            pipeline: [
-                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$schedId" }] } } }
-                            ],
-                            as: 'scheduleDocs'
-                        }
-                    },
-                    { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
-                    {
-                        $lookup: {
+                         $lookup: {
                             from: 'clients',
-                            let: { cid: "$scheduleDocs.customerId" },
+                            let: { cid: "$customerId" },
                             pipeline: [
                                 { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$cid" }] } } }
                             ],
@@ -199,25 +201,28 @@ export async function POST(request: NextRequest) {
                     {
                         $lookup: {
                             from: 'estimatesdb',
-                            localField: 'scheduleDocs.estimate',
+                            localField: 'estimate',
                             foreignField: 'estimate',
                             as: 'estimateDocs'
                         }
                     },
                     { $unwind: { path: '$estimateDocs', preserveNullAndEmptyArrays: true } },
+                    
+                    // 3. Computed fields for Search
                     {
                         $addFields: {
-                            computedCustomerName: { 
+                             computedCustomerName: { 
                                 $ifNull: [
-                                    '$scheduleDocs.customerName', 
+                                    '$customerName', 
                                     '$clientDocs.name',
                                     '$estimateDocs.customerName',
                                     '-'
                                 ] 
                             },
-                             computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
-                             computedTitle: { $ifNull: ['$scheduleDocs.title', '$scheduleDocs.projectName', '-'] },
-                             dateStr: { $dateToString: { format: "%m/%d/%Y", date: "$createdAt" } } // DJT usually relies on createdAt or explicit date? Assuming createdAt if no date field
+                            computedEstimate: { $ifNull: ['$estimate', 'No Est'] },
+                            computedTitle: { $ifNull: ['$title', '$projectName', '-'] },
+                            // Use DJT date or Schedule date
+                            dateStr: { $dateToString: { format: "%m/%d/%Y", date: { $ifNull: ["$djt.date", "$fromDate"] } } }
                         }
                     }
                 ];
@@ -227,7 +232,7 @@ export async function POST(request: NextRequest) {
                     pipeline.push({
                         $match: {
                             $or: [
-                                { dailyJobDescription: searchRegex },
+                                { 'djt.dailyJobDescription': searchRegex },
                                 { computedCustomerName: searchRegex },
                                 { computedEstimate: searchRegex },
                                 { computedTitle: searchRegex },
@@ -238,7 +243,8 @@ export async function POST(request: NextRequest) {
                 }
 
                 pipeline.push(
-                    { $sort: { createdAt: -1 } },
+                    // Sort by Schedule Date (likely Indexed)
+                    { $sort: { fromDate: -1 } },
                     {
                         $facet: {
                             metadata: [{ $count: "total" }],
@@ -247,25 +253,28 @@ export async function POST(request: NextRequest) {
                                 { $limit: limit },
                                 {
                                     $project: {
-                                        _id: 1, 
-                                        schedule_id: 1,
-                                        dailyJobDescription: 1,
-                                        customerPrintName: 1,
-                                        customerSignature: 1,
-                                        createdBy: 1,
-                                        createdAt: 1,
-                                        clientEmail: 1,
-                                        emailCounter: 1,
-                                        // Add other DJT fields here as needed
+                                        _id: { $ifNull: ["$djt._id", "$_id"] }, // Use DJT ID if present, else Schedule ID (though it should be DJT ID)
+                                        schedule_id: "$_id",
+                                        dailyJobDescription: "$djt.dailyJobDescription",
+                                        customerPrintName: "$djt.customerPrintName",
+                                        customerSignature: "$djt.customerSignature",
+                                        createdBy: "$djt.createdBy",
+                                        createdAt: "$djt.createdAt",
+                                        date: { $ifNull: ["$djt.date", "$fromDate"] },
+                                        djtTime: "$djt.djtTime",
+                                        clientEmail: "$djt.clientEmail",
+                                        emailCounter: "$djt.emailCounter",
                                         
-                                        // Merge signatures from schedule if available
-                                        DJTSignatures: { $ifNull: ['$scheduleDocs.DJTSignatures', '$DJTSignatures', []] },
+                                        // Merge signatures from schedule array
+                                        signatures: { $ifNull: ['$DJTSignatures', []] },
 
                                         scheduleRef: {
-                                            $mergeObjects: [
-                                                '$scheduleDocs',
-                                                { customerName: '$computedCustomerName' }
-                                            ]
+                                            _id: "$_id",
+                                            estimate: "$estimate",
+                                            title: "$title",
+                                            fromDate: "$fromDate",
+                                            customerName: "$computedCustomerName",
+                                            customerId: "$customerId"
                                         }
                                     }
                                 }
@@ -274,7 +283,8 @@ export async function POST(request: NextRequest) {
                     }
                 );
                 
-                const result = await DailyJobTicket.aggregate(pipeline as any[]).allowDiskUse(true);
+                // Use Schedule.aggregate instead of DailyJobTicket.aggregate
+                const result = await Schedule.aggregate(pipeline as any[]);
                 const data = result[0].data;
                 const total = result[0].metadata[0]?.total || 0;
 

@@ -77,6 +77,7 @@ export default function JobTicketPage() {
     const [isEditMode, setIsEditMode] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
     const [isSavingSignature, setIsSavingSignature] = useState(false);
+    const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
 
     // Create New DJT Flow State
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -272,9 +273,24 @@ export default function JobTicketPage() {
 
             // Optimistic Update
             const updatedDJT = { ...selectedDJT };
+            
+            // Update DJT list
+            setDjts(prev => {
+                const exists = prev.find(d => d.schedule_id === selectedDJT.schedule_id || (selectedDJT._id && d._id === selectedDJT._id));
+                if (exists) {
+                    return prev.map(d => 
+                        (d.schedule_id === selectedDJT.schedule_id || (selectedDJT._id && d._id === selectedDJT._id)) ? { ...d, ...updatedDJT } : d
+                    );
+                } else {
+                    return [updatedDJT, ...prev];
+                }
+            });
+
+            // Update schedules list (for dropdowns etc)
             setSchedules(prev => prev.map(s => 
                 s._id === selectedDJT.schedule_id ? { ...s, djt: updatedDJT } : s
             ));
+            
             setIsDJTModalOpen(false); // Close immediately for better UX
             success('Job Ticket saved'); // Show success immediately
 
@@ -320,6 +336,11 @@ export default function JobTicketPage() {
             const updatedDJT = { ...selectedDJT, signatures: filteredSignatures };
             setSelectedDJT(updatedDJT);
 
+            // Optimistic Update for DJT List
+            setDjts(prev => prev.map(d => 
+                (d.schedule_id === selectedDJT.schedule_id || d._id === selectedDJT._id) ? { ...d, signatures: filteredSignatures } : d
+            ));
+
             // Optimistic Update for Schedule List
             setSchedules(prev => prev.map(s => 
                 s._id === selectedDJT.schedule_id ? { ...s, djt: updatedDJT } : s
@@ -352,6 +373,110 @@ export default function JobTicketPage() {
             fetchData(); // Refresh on error
         } finally {
             setIsSavingSignature(false);
+        }
+    };
+
+    const handleDownloadDjtPdf = async () => {
+        if (!selectedDJT) return;
+        setIsGeneratingDJTPDF(true);
+        try {
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
+            
+            // Build variables from selectedDJT and its parent schedule
+            // In this view, scheduleRef is attached directly to djt
+            const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
+            
+            // Find matching estimate for contact info - match by estimate number (value field)
+            const estimate = estimates.find((e: any) => {
+                const estNum = e.value || e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            });
+            
+            // Find matching client for customer name
+            const client = clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
+            
+            // Combine fields
+            const variables: Record<string, any> = {
+                dailyJobDescription: selectedDJT.dailyJobDescription || '',
+                customerPrintName: selectedDJT.customerPrintName || '',
+                
+                // Customer name from clients collection or schedule
+                customerId: client?.name || schedule?.customerName || '',
+                // Contact info from estimate
+                contactName: estimate?.contactName || estimate?.contact || '',
+                contactPhone: estimate?.contactPhone || estimate?.phone || '',
+                jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
+                // Other schedule info
+                customerName: schedule?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                estimate: schedule?.estimate || '',
+                estimateNum: schedule?.estimate || '',
+                projectName: estimate?.projectTitle || estimate?.projectName || '',
+                foremanName: schedule?.foremanName || '',
+                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString(),
+                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+            };
+
+            // Customer Signature
+            if (selectedDJT.customerSignature) {
+                variables['customerSignature'] = selectedDJT.customerSignature;
+            }
+
+            // Prepare multiple signatures (Clear slots up to 15)
+            for (let i = 1; i <= 15; i++) {
+                variables[`sig_name_${i}`] = '';
+                variables[`sig_img_${i}`] = '';
+                variables[`Print Name_${i}`] = '';
+                variables[`Times_${i}`] = '';
+            }
+
+            if (selectedDJT.signatures && selectedDJT.signatures.length > 0) {
+                variables.hasSignatures = true;
+                selectedDJT.signatures.forEach((sig: any, index: number) => {
+                    const empName = employees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                    
+                     const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
+                     if (timesheet) {
+                         const inTime = new Date(timesheet.clockIn).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                         const outTime = new Date(timesheet.clockOut).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                         variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
+                     }
+                });
+            } else {
+                variables.hasSignatures = false;
+            }
+
+            const response = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate DJT PDF');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `DJT_${schedule?.customerName || 'Report'}_${new Date().toISOString().split('T')[0]}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+            success('DJT PDF downloaded successfully!');
+        } catch (err: any) {
+            console.error('DJT PDF Error:', err);
+            error(err.message || 'Failed to download DJT PDF');
+        } finally {
+            setIsGeneratingDJTPDF(false);
         }
     };
 
@@ -518,11 +643,13 @@ export default function JobTicketPage() {
                     setIsEditMode={setIsEditMode}
                     handleSave={handleSaveDJT}
                     handleSaveSignature={handleSaveSignature}
-                    initialData={{ employees: employees }}
+                    initialData={{ employees, estimates, clients }}
                     schedules={schedules}
                     activeSignatureEmployee={activeSignatureEmployee}
                     setActiveSignatureEmployee={setActiveSignatureEmployee}
                     isSavingSignature={isSavingSignature}
+                    isGeneratingPDF={isGeneratingDJTPDF}
+                    handleDownloadPDF={handleDownloadDjtPdf}
                 />
             )}
         </div>
