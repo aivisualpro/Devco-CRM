@@ -9,8 +9,7 @@ const getAppSheetConfig = () => ({
 });
 
 async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
-    if (process.env.NODE_ENV !== 'production') return;
-
+    // Auto-sync to AppSheet on all environments
     const { appId, accessKey, tableName } = getAppSheetConfig();
     if (!appId || !accessKey) return;
 
@@ -104,6 +103,7 @@ export async function POST(request: NextRequest) {
             case 'createSchedule': {
                 const doc = await Schedule.create({
                     ...payload,
+                    syncedToAppSheet: true,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
                         updateOne: {
                             filter: { _id: idToUse },
                             update: {
-                                $set: { ...rest, _id: idToUse },
+                                $set: { ...rest, _id: idToUse, syncedToAppSheet: true },
                                 $setOnInsert: { createdAt: new Date() }
                             },
                             upsert: true
@@ -654,6 +654,8 @@ export async function POST(request: NextRequest) {
                 const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
 
                 try {
+                    console.log("[AppSheet Sync] Attempting to Add record:", id);
+                    
                     // First try to Add the record (for new records)
                     let response = await fetch(APPSHEET_URL, {
                         method: "POST",
@@ -669,10 +671,25 @@ export async function POST(request: NextRequest) {
                     });
 
                     let responseText = await response.text();
+                    console.log("[AppSheet Sync] Add response:", response.status, responseText);
                     
-                    // If Add fails because record already exists, try Edit
-                    if (!response.ok || responseText.includes("duplicate") || responseText.includes("already exists")) {
-                        console.log("[AppSheet Sync] Add failed, trying Edit:", responseText);
+                    // Check if Add was successful
+                    let success = response.ok;
+                    
+                    // Parse response to check for errors in body
+                    try {
+                        const jsonResponse = JSON.parse(responseText);
+                        // AppSheet returns Rows array on success, or Errors on failure
+                        if (jsonResponse.Errors) {
+                            success = false;
+                        }
+                    } catch (e) {
+                        // Not JSON, check if response is OK
+                    }
+                    
+                    // If Add failed, try Edit (record might already exist in AppSheet)
+                    if (!success) {
+                        console.log("[AppSheet Sync] Add failed, trying Edit...");
                         
                         response = await fetch(APPSHEET_URL, {
                             method: "POST",
@@ -688,9 +705,19 @@ export async function POST(request: NextRequest) {
                         });
                         
                         responseText = await response.text();
+                        console.log("[AppSheet Sync] Edit response:", response.status, responseText);
                         
-                        if (!response.ok) {
-                            console.error("[AppSheet Sync] Edit also failed:", responseText);
+                        // Check Edit result
+                        let editSuccess = response.ok;
+                        try {
+                            const jsonResponse = JSON.parse(responseText);
+                            if (jsonResponse.Errors) {
+                                editSuccess = false;
+                            }
+                        } catch (e) {}
+                        
+                        if (!editSuccess) {
+                            console.error("[AppSheet Sync] Both Add and Edit failed:", responseText);
                             return NextResponse.json({ success: false, error: `AppSheet sync failed: ${responseText}` });
                         }
                     }
