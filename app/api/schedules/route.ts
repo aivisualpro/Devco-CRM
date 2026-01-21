@@ -174,14 +174,20 @@ export async function POST(request: NextRequest) {
                 if (!Array.isArray(timesheets)) return NextResponse.json({ success: false, error: 'Invalid timesheets array' });
 
                 const ops = timesheets.map((ts: any) => {
-                    if (!ts.scheduleId) return null;
+                    const schedId = ts.scheduleId || ts.schedule_id;
+                    if (!schedId) return null;
                     
+                    const normalizedSchedId = String(schedId).trim();
+
                     // Ensure _id exists for the timesheet subdocument
-                    if (!ts._id && ts.recordId) ts._id = ts.recordId;
+                    if (!ts._id) {
+                        if (ts.recordId) ts._id = ts.recordId;
+                        else ts._id = new mongoose.Types.ObjectId().toString(); // Generate if missing
+                    }
                     
                     return {
                         updateOne: {
-                            filter: { _id: ts.scheduleId },
+                            filter: { _id: normalizedSchedId },
                             update: {
                                 $push: { timesheet: ts }
                             }
@@ -191,8 +197,29 @@ export async function POST(request: NextRequest) {
 
                 if (ops.length === 0) return NextResponse.json({ success: false, error: 'No valid timesheets to import (missing scheduleId)' });
 
-                const result = await Schedule.bulkWrite(ops as any);
-                return NextResponse.json({ success: true, result });
+                // Debug: Check first ID
+                try {
+                     const testId = ops[0].updateOne.filter._id;
+                     const example = await Schedule.findById(testId).select('_id').lean();
+                     console.log(`[Import Debug] Testing First ID: "${testId}". Found: ${!!example}`);
+                     if (!example) {
+                         const random = await Schedule.findOne().select('_id').lean();
+                         console.log(`[Import Debug] Sample Existing ID from DB: "${random?._id}"`);
+                     }
+                } catch (e) { console.error("Debug check failed", e); }
+
+                try {
+                    const result = await Schedule.bulkWrite(ops as any);
+                    return NextResponse.json({ 
+                        success: true, 
+                        result,
+                        matched: result.matchedCount, 
+                        modified: result.modifiedCount 
+                    });
+                } catch (e: any) {
+                    console.error("Timesheet Import Error:", e);
+                    return NextResponse.json({ success: false, error: e.message || "Import failed during bulkWrite" });
+                }
             }
 
             case 'saveIndividualTimesheet': {
@@ -394,7 +421,7 @@ export async function POST(request: NextRequest) {
                         $facet: {
                             metadata: [{ $count: "total" }],
                             data: [
-                                { $sort: { fromDate: -1, _id: 1 } },
+                                { $sort: { fromDate: 1, _id: 1 } },
                                 { $skip: skip },
                                 { $limit: limit },
                                 // Project fields needed for UI to reduce payload
@@ -411,6 +438,10 @@ export async function POST(request: NextRequest) {
                             ],
                             counts: [
                                 { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "UTC" } }, count: { $sum: 1 } } }
+                            ],
+                            assigneeStats: [
+                                { $project: { count: { $size: { $ifNull: ["$assignees", []] } } } },
+                                { $group: { _id: null, total: { $sum: "$count" } } }
                             ]
                         }
                     }
@@ -427,6 +458,19 @@ export async function POST(request: NextRequest) {
                 const resultDocs = aggResult[0].data;
                 const totalCount = aggResult[0].metadata[0]?.total || 0;
                 const dailyCounts = aggResult[0].counts || [];
+                const totalAssignees = aggResult[0].assigneeStats[0]?.total || 0;
+                
+                const totalActiveEmployees = await Employee.countDocuments({ isScheduleActive: true });
+                
+                let days = 7;
+                if (selectedDates && selectedDates.length > 0) days = selectedDates.length;
+                else if (startDate && endDate) {
+                     const start = new Date(startDate);
+                     const end = new Date(endDate);
+                     days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+                }
+                
+                const capacity = (totalActiveEmployees > 0 && days > 0) ? Math.round((totalAssignees / (totalActiveEmployees * days)) * 100) : 0;
 
                 // Process initial data... (Same as before)
                 const [clients, employees, constants, estimates] = metadata;
@@ -441,6 +485,7 @@ export async function POST(request: NextRequest) {
                     schedules: schedulesWithMetaData,
                     total: totalCount,
                     counts: dailyCounts,
+                    capacity,
                     page,
                     totalPages: Math.ceil(totalCount / limit)
                 };

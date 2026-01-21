@@ -177,7 +177,12 @@ export default function ImportsPage() {
                 });
                 const resData = await res.json();
                 if (resData.success) {
-                    success(`Successfully imported ${data.length} timesheets`);
+                    const msg = resData.matched !== undefined 
+                        ? `Processed ${data.length}. Matched: ${resData.matched}, Updated: ${resData.modified}`
+                        : `Successfully imported ${data.length} timesheets`;
+                    
+                    if (resData.matched === 0) toastError(`0 records matched. Check Schedule IDs.`);
+                    else success(msg);
                 } else {
                     toastError(resData.error || 'Timesheet import failed');
                 }

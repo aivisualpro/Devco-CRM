@@ -10,6 +10,7 @@ interface Option {
     value: string;
     color?: string;
     profilePicture?: string;
+    badge?: string;
     icon?: React.ReactNode;
     disabled?: boolean;
 }
@@ -248,7 +249,11 @@ export function MyDropDown({
                                             {opt.icon}
                                         </div>
                                     ) : opt.color ? (
-                                        <div className="w-full h-full" style={{ backgroundColor: opt.color }} />
+                                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: opt.color }}>
+                                            {opt.badge && <span className="text-white shadow-sm">{opt.badge}</span>}
+                                        </div>
+                                    ) : opt.badge ? (
+                                        <span>{opt.badge}</span>
                                     ) : (
                                         <span>{getInitials(opt.label)}</span>
                                     )}

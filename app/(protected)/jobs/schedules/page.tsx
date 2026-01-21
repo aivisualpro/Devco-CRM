@@ -100,6 +100,8 @@ export default function SchedulePage() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
+    const [serverCapacity, setServerCapacity] = useState(0);
+    const [filterWeek, setFilterWeek] = useState('');
     
     // Scroll Spy Logic
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -303,6 +305,7 @@ export default function SchedulePage() {
                      data.result.counts.forEach((c: any) => countsMap[c._id] = c.count);
                      setServerCounts(countsMap);
                 }
+                setServerCapacity(data.result.capacity || 0);
                 setTotalCount(data.result.total || 0);
                 setTotalPages(data.result.totalPages || 1);
                 setHasMore(pageNum < (data.result.totalPages || 1));
@@ -365,6 +368,49 @@ export default function SchedulePage() {
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
+
+    const weekOptions = useMemo(() => {
+        const options = [];
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        
+        // Start Jan 1 UTC
+        let d = new Date(Date.UTC(currentYear, 0, 1));
+        const day = d.getUTCDay();
+        const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+        d.setUTCDate(diff);
+
+        for (let i = 0; i < 54; i++) { 
+            const start = new Date(d);
+            const end = new Date(d);
+            end.setUTCDate(end.getUTCDate() + 6);
+            
+            // Format: MM/DD/YY to MM/DD/YY
+            const weekNum = String(i + 1).padStart(2, '0');
+            const sM = String(start.getUTCMonth() + 1).padStart(2, '0');
+            const sD = String(start.getUTCDate()).padStart(2, '0');
+            const sY = String(start.getUTCFullYear()).slice(-2);
+            
+            const eM = String(end.getUTCMonth() + 1).padStart(2, '0');
+            const eD = String(end.getUTCDate()).padStart(2, '0');
+            const eY = String(end.getUTCFullYear()).slice(-2);
+            
+            const label = `${sM}/${sD}/${sY} to ${eM}/${eD}/${eY}`;
+            const val = `${formatLocalDate(start)}|${formatLocalDate(end)}`;
+             
+            // Check current in UTC? Or just check if today falls in range
+            const isCurrent = today >= start && today <= end;
+             
+            if (isCurrent) {
+                 // Highlighting with color and label
+                 options.push({ label: `${label} (Current)`, value: val, color: '#10B981', badge: weekNum }); 
+            } else {
+                 options.push({ label, value: val, badge: weekNum });
+            }
+            d.setUTCDate(d.getUTCDate() + 7);
+        }
+        return options;
+    }, []);
 
     const extractTimeFromDateTime = (dateInput: string | Date) => {
         if (!dateInput) return '';
@@ -548,6 +594,13 @@ export default function SchedulePage() {
                         if (selectedOption?.image || selectedOption?.profilePicture) {
                             return <img src={selectedOption.image || selectedOption.profilePicture} className="w-5 h-5 rounded-full object-cover shrink-0" alt="" />;
                         }
+                        if (selectedOption?.badge) {
+                             return (
+                                 <div className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold shadow-sm" style={{ backgroundColor: selectedOption.color || '#fff', color: selectedOption.color ? '#fff' : '#0F4C75', border: selectedOption.color ? 'none' : '1px solid #e2e8f0' }}>
+                                     {selectedOption.badge}
+                                 </div>
+                             );
+                        }
                         if (selectedOption?.color) {
                             return <div className="w-5 h-5 rounded-full shrink-0" style={{ backgroundColor: selectedOption.color }} />;
                         }
@@ -568,7 +621,8 @@ export default function SchedulePage() {
                         label: o.label, 
                         value: o.value,
                         profilePicture: o.image || o.profilePicture,
-                        color: o.color
+                        color: o.color,
+                        badge: o.badge
                     }))}
                     selectedValues={value ? [value] : []}
                     onSelect={(val) => {
@@ -2163,6 +2217,29 @@ export default function SchedulePage() {
 
                             <div className="space-y-4">
                                 <FilterItem
+                                    id="filterWeek"
+                                    label="Weeks"
+                                    placeholder="Select Week"
+                                    options={weekOptions}
+                                    value={filterWeek}
+                                    onChange={(val: string) => {
+                                        setFilterWeek(val);
+                                        if (val) {
+                                            const [startStr, endStr] = val.split('|');
+                                            const dates = [];
+                                            // Parse using UTC to avoid timezone shift
+                                            const [y1, m1, d1] = startStr.split('-').map(Number);
+                                            const currentD = new Date(Date.UTC(y1, m1 - 1, d1));
+
+                                            for (let k = 0; k < 7; k++) {
+                                                dates.push(formatLocalDate(currentD));
+                                                currentD.setUTCDate(currentD.getUTCDate() + 1);
+                                            }
+                                            setSelectedDates(dates);
+                                        }
+                                    }}
+                                />
+                                <FilterItem
                                     id="filterEstimate"
                                     label="Estimate #"
                                     placeholder="Select Estimate"
@@ -2275,8 +2352,29 @@ export default function SchedulePage() {
                                         `}
                                     >
 
-                                        {/* Action Overlay */}
-                                        <div className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 transition-all duration-300 flex gap-2">
+                                        {/* Action Overlay & Day Chip */}
+                                        <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
+                                            {/* Day Chip - Always Visible */}
+                                            {(() => {
+                                                 const chipColors: Record<string, string> = {
+                                                     'Mon': 'bg-blue-50 text-blue-600 border-blue-200 shadow-blue-100',
+                                                     'Tue': 'bg-green-50 text-green-600 border-green-200 shadow-green-100',
+                                                     'Wed': 'bg-purple-50 text-purple-600 border-purple-200 shadow-purple-100',
+                                                     'Thu': 'bg-orange-50 text-orange-600 border-orange-200 shadow-orange-100',
+                                                     'Fri': 'bg-red-50 text-red-600 border-red-200 shadow-red-100',
+                                                     'Sat': 'bg-teal-50 text-teal-600 border-teal-200 shadow-teal-100',
+                                                     'Sun': 'bg-pink-50 text-pink-600 border-pink-200 shadow-pink-100'
+                                                 };
+                                                 const colorClass = chipColors[dayName] || 'bg-slate-50 text-slate-600 border-slate-200 shadow-slate-100';
+                                                 return (
+                                                     <div className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border shadow-sm ${colorClass} bg-gradient-to-b from-white/80 to-transparent backdrop-blur-sm`}>
+                                                         {dayName}
+                                                     </div>
+                                                 );
+                                            })()}
+
+                                            {/* Actions - Hover Only */}
+                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <button
@@ -2311,6 +2409,7 @@ export default function SchedulePage() {
                                                     <p>Delete Schedule</p>
                                                 </TooltipContent>
                                             </Tooltip>
+                                            </div>
                                         </div>
 
                                         <div className="flex flex-col h-full justify-between">
@@ -3195,7 +3294,7 @@ export default function SchedulePage() {
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">TOTAL JOBS</p>
                                             </div>
                                             <div className="bg-[#0F4C75] p-4 rounded-[32px] shadow-lg shadow-blue-900/20 flex flex-col items-center justify-center text-center">
-                                                <p className="text-3xl font-black text-white">84%</p>
+                                                <p className="text-3xl font-black text-white">{serverCapacity}%</p>
                                                 <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
                                             </div>
                                         </div>
