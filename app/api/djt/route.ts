@@ -72,17 +72,28 @@ export async function POST(request: NextRequest) {
                 const { records } = payload || {};
                 if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid DJT signatures array' });
 
-                const ops = records.map((item: any) => {
-                    const { recordId, _id, ...rest } = item;
-                    const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
+                // 1. Pre-process records to ensure IDs and types are correct
+                const processedRecords = records.map((item: any) => {
+                     const { recordId, _id, ...rest } = item;
+                     // Ensure we have an ID to use
+                     const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
+                     
+                     // Ensure dates are dates
+                     if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
 
-                    if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
-                    
+                     return {
+                        _id: idToUse,
+                        ...rest
+                     };
+                });
+
+                // 2. Bulk Upsert into DJTSignature collection
+                const ops = processedRecords.map((item: any) => {
                     return {
                         updateOne: {
-                            filter: { _id: idToUse },
+                            filter: { _id: item._id },
                             update: {
-                                $set: { ...rest, _id: idToUse },
+                                $set: item,
                                 $setOnInsert: { createdAt: new Date() }
                             },
                             upsert: true
@@ -90,33 +101,43 @@ export async function POST(request: NextRequest) {
                     };
                 });
 
-                const result = await DJTSignature.bulkWrite(ops);
+                await DJTSignature.bulkWrite(ops);
 
-                // Group by schedule_id to update schedules
-                const bySchedule: Record<string, any[]> = {};
-                for (const item of records) {
-                    if (item.schedule_id) {
-                        if (!bySchedule[item.schedule_id]) bySchedule[item.schedule_id] = [];
-                        bySchedule[item.schedule_id].push(item);
-                    }
-                }
-
-                const scheduleOps = Object.entries(bySchedule).map(([schedule_id, sigs]) => {
-                    return {
+                // 3. Sync to Schedule: Embed into DJTSignatures array
+                // Strategy: Pull existing signature by ID (to remove old version if exists) then Push new version
+                
+                const schedulePullOps = processedRecords.map((item: any) => {
+                     if (!item.schedule_id) return null;
+                     
+                     return {
                         updateOne: {
-                            filter: { _id: schedule_id },
+                            filter: { _id: item.schedule_id },
                             update: {
-                                $set: { DJTSignatures: sigs }
+                                $pull: { DJTSignatures: { _id: item._id } }
                             }
                         }
-                    };
-                });
+                     };
+                }).filter(Boolean);
 
-                if (scheduleOps.length > 0) {
-                    await Schedule.bulkWrite(scheduleOps as any);
+                const schedulePushOps = processedRecords.map((item: any) => {
+                     if (!item.schedule_id) return null;
+                     
+                     return {
+                        updateOne: {
+                            filter: { _id: item.schedule_id },
+                            update: {
+                                $push: { DJTSignatures: item }
+                            }
+                        }
+                     };
+                }).filter(Boolean);
+
+                if (schedulePullOps.length > 0) {
+                     await Schedule.bulkWrite(schedulePullOps as any);
+                     await Schedule.bulkWrite(schedulePushOps as any);
                 }
 
-                return NextResponse.json({ success: true, result });
+                return NextResponse.json({ success: true, count: records.length });
             }
             
             case 'saveDJTSignature': {
