@@ -206,17 +206,16 @@ const EstimateSchema = new Schema({
     }],
     customVariables: { type: Object, default: {} }
 }, {
-    _id: false,
     timestamps: true,
     strict: false,  // Allow additional fields not in schema
     collection: 'estimatesdb'
 });
 
-// Force model recompilation in dev to apply schema changes
-if (process.env.NODE_ENV === 'development') {
+// Force model recompilation to ensure schema changes are picked up
+if (mongoose.models.Estimate) {
     delete mongoose.models.Estimate;
 }
 
-const Estimate: Model<IEstimate> = mongoose.models.Estimate || mongoose.model<IEstimate>('Estimate', EstimateSchema);
+const Estimate: Model<IEstimate> = mongoose.model<IEstimate>('Estimate', EstimateSchema);
 
 export default Estimate;

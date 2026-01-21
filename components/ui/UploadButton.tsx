@@ -10,6 +10,7 @@ interface UploadButtonProps {
     className?: string;
     label?: string;
     disabled?: boolean;
+    multiple?: boolean;
 }
 
 export function UploadButton({
@@ -17,7 +18,8 @@ export function UploadButton({
     folder = 'uploads',
     className = '',
     label,
-    disabled
+    disabled,
+    multiple = false
 }: UploadButtonProps) {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -30,28 +32,32 @@ export function UploadButton({
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
 
         try {
             setUploading(true);
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('folder', folder);
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('folder', folder);
 
-            const response = await fetch('/api/upload', {
-                method: 'POST',
-                body: formData,
-            });
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
 
-            const data = await response.json();
+                const data = await response.json();
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Upload failed');
-            }
+                if (!response.ok) {
+                    throw new Error(data.error || 'Upload failed');
+                }
 
-            if (data.success && data.url) {
-                onUpload(data.url);
+                if (data.success && data.url) {
+                    onUpload(data.url);
+                }
             }
         } catch (err: any) {
             console.error('Upload error:', err);
@@ -71,7 +77,8 @@ export function UploadButton({
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 className="hidden"
-                accept="image/*" // Default to images given context, or could be passed as prop
+                accept="image/*" 
+                multiple={multiple}
                 disabled={uploading || disabled}
             />
             <button

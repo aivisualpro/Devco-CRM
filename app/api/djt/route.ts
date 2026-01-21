@@ -333,10 +333,16 @@ export async function POST(request: NextRequest) {
                 // Note: The frontend might be sending schedule_id or we rely on the one in djtData
                 // If it's a new DJT, we need to make sure we link it to the schedule
                 if (djtData.schedule_id) {
-                    await Schedule.updateOne(
-                        { _id: djtData.schedule_id },
-                        { $set: { djt: updatedDJT } }
-                    );
+                    try {
+                        await Schedule.updateOne(
+                            { _id: String(djtData.schedule_id) },
+                            { $set: { djt: updatedDJT.toObject() } }
+                        );
+                    } catch (syncError: any) {
+                        console.error('Error syncing DJT to Schedule:', syncError);
+                        // We still return true if the main DJT was saved, 
+                        // as the sync is secondary, or we can choose to fail.
+                    }
 
                     // Log Activity
                     const activityId = new mongoose.Types.ObjectId().toString();

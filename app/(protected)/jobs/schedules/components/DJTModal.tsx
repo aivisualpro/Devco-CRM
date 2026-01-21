@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     CheckCircle2, Edit, FilePlus, Clock, Download, Loader2, 
-    Plus, Trash2, Image as ImageIcon, UserCheck, Info
+    Plus, Trash2, Image as ImageIcon, UserCheck, Info, XCircle
 } from 'lucide-react';
 import { Modal, EmptyState, Tooltip, TooltipTrigger, TooltipContent, UploadButton, SearchableSelect, Badge } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
@@ -44,6 +44,7 @@ export const DJTModal = ({
     const [lunchStart, setLunchStart] = useState('12:00');
     const [lunchEnd, setLunchEnd] = useState('12:30');
     const [activeTab, setActiveTab] = useState<'client' | 'info'>('client');
+    const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
     useEffect(() => {
         if (activeSignatureEmployee) {
@@ -59,42 +60,38 @@ export const DJTModal = ({
             onClose={onClose}
             title="Daily Job Ticket"
             maxWidth="4xl"
+            preventClose={true}
         >
             {selectedDJT ? (
                 <div className="flex flex-col h-[80vh] bg-white overflow-x-hidden -mx-4">
-                    {/* Top Tabs */}
-                    <div className="flex bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
-                        <button
-                            onClick={() => setActiveTab('client')}
-                            className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'client' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <UserCheck size={16} className={activeTab === 'client' ? 'text-black' : 'text-slate-400'} />
-                                <span className={`text-xs font-bold uppercase tracking-wider ${activeTab === 'client' ? 'text-black' : 'text-slate-500'}`}>Client</span>
-                            </div>
-                            {selectedDJT.customerSignature && (
-                                <div className="absolute top-2 right-2 text-green-500">
-                                    <CheckCircle2 size={12} />
+                    {/* Top Tabs - Only in Edit Mode */}
+                    {isEditMode && (
+                        <div className="flex bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
+                            <button
+                                onClick={() => setActiveTab('client')}
+                                className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'client' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <UserCheck size={16} className={activeTab === 'client' ? 'text-black' : 'text-slate-400'} />
+                                    <span className={`text-xs font-bold uppercase tracking-wider ${activeTab === 'client' ? 'text-black' : 'text-slate-500'}`}>Client</span>
                                 </div>
-                            )}
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('info')}
-                            className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'info' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
-                        >
-                            <div className="flex items-center gap-2">
-                                <Info size={16} className={activeTab === 'info' ? 'text-black' : 'text-slate-400'} />
-                                <span className={`text-xs font-bold uppercase tracking-wider ${activeTab === 'info' ? 'text-black' : 'text-slate-500'}`}>Devco</span>
-                            </div>
-                            {(selectedDJT.equipmentUsed?.length > 0 || selectedDJT.djtimages?.length > 0) && (
-                                <div className="absolute top-2 right-2">
-                                    <Badge variant="info" className="!rounded-full px-1.5 h-4 flex items-center justify-center text-[8px]">
-                                        {(selectedDJT.equipmentUsed?.length || 0) + (selectedDJT.djtimages?.length || 0)}
-                                    </Badge>
+                                {selectedDJT.customerSignature && (
+                                    <div className="absolute top-2 right-2 text-green-500">
+                                        <CheckCircle2 size={12} />
+                                    </div>
+                                )}
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('info')}
+                                className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'info' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Info size={16} className={activeTab === 'info' ? 'text-black' : 'text-slate-400'} />
+                                    <span className={`text-xs font-bold uppercase tracking-wider ${activeTab === 'info' ? 'text-black' : 'text-slate-500'}`}>Devco</span>
                                 </div>
-                            )}
-                        </button>
-                    </div>
+                            </button>
+                        </div>
+                    )}
 
                     {/* Content Area */}
                     <div className="flex-1 overflow-y-auto overflow-x-hidden bg-white">
@@ -212,15 +209,18 @@ export const DJTModal = ({
                                                         {(() => {
                                                             const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
                                                             const assignees = schedule?.assignees || [];
-                                                            const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
-
-                                                            if (uniqueAssignees.length === 0 && (!selectedDJT.signatures || selectedDJT.signatures.length === 0)) {
-                                                                return <p className="text-xs text-slate-400 italic">No assignees found.</p>;
+                                                            
+                                                            // Combine people from assignees and those who already signed
+                                                            const signatureEmails = (selectedDJT.signatures || []).map((s: any) => s.employee);
+                                                            const allRelevantEmails = Array.from(new Set([...assignees, ...signatureEmails])).filter(Boolean) as string[];
+                                                            
+                                                            if (allRelevantEmails.length === 0) {
+                                                                return <p className="text-xs text-slate-400 italic py-4 col-span-2 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200">No assignees or signatures found.</p>;
                                                             }
 
-                                                            return uniqueAssignees.map((email: string) => {
+                                                            return allRelevantEmails.map((email: string) => {
                                                                 const emp = initialData.employees.find((e: any) => e.value === email);
-                                                                const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
+                                                                const sig = (selectedDJT.signatures || []).find((s: any) => s.employee === email);
 
                                                                 return (
                                                                     <div key={email} className={`p-3 rounded-xl border flex items-center justify-between ${sig ? 'bg-green-50 border-green-100' : 'bg-white border-slate-100'}`}>
@@ -250,7 +250,7 @@ export const DJTModal = ({
 
                                             {/* Equipment Used Table */}
                                             <div className="space-y-4 pt-4 border-t border-slate-50">
-                                                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">3. Equipment Table</label>
+                                                <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">3. Equipment Used</label>
                                                 
                                                 <div className="overflow-x-auto border border-slate-100 rounded-xl">
                                                     <table className="w-full text-left border-collapse table-fixed">
@@ -320,13 +320,16 @@ export const DJTModal = ({
                                             {/* Job Images */}
                                             <div className="space-y-4 pt-4 border-t border-slate-50">
                                                 <div className="flex items-center justify-between">
-                                                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">4. Images portion</label>
+                                                    <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">4. Site Images</label>
                                                     <UploadButton 
+                                                        multiple={true}
                                                         onUpload={(url) => {
-                                                            const current = selectedDJT.djtimages || [];
-                                                            setSelectedDJT({ ...selectedDJT, djtimages: [...current, url] });
+                                                            setSelectedDJT((prev: any) => ({
+                                                                ...prev,
+                                                                djtimages: [...(prev?.djtimages || []), url]
+                                                            }));
                                                         }}
-                                                        label="Upload Photo"
+                                                        label="Upload Photos"
                                                         className="h-8 !px-3 !bg-slate-900 rounded-lg text-[10px] font-black uppercase"
                                                     />
                                                 </div>
@@ -396,209 +399,228 @@ export const DJTModal = ({
                                     </button>
                                 </div>
 
-                                {activeTab === 'client' ? (
-                                    <div className="space-y-10">
-                                        <div className="space-y-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Name</label>
-                                            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                                <p className="text-base font-black text-slate-900">{selectedDJT.customerPrintName || 'Not Captured'}</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Signature</label>
-                                            <div className="aspect-video max-w-md bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 flex items-center justify-center overflow-hidden p-8">
-                                                {selectedDJT.customerSignature ? (
-                                                    <img src={selectedDJT.customerSignature} alt="Signature" className="max-h-full object-contain mix-blend-multiply opacity-80" />
-                                                ) : (
-                                                    <p className="text-sm font-bold text-slate-300 uppercase tracking-widest font-black">Awaiting Signature</p>
-                                                )}
-                                            </div>
+                                <div className="space-y-12">
+                                    {/* 1. Job Details & Progress */}
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Today's Progress</label>
+                                        <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 relative overflow-hidden group">
+                                            <div className="absolute top-0 left-0 w-1.5 h-full bg-black"></div>
+                                            <p className="text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">{selectedDJT.dailyJobDescription || 'No description recorded.'}</p>
                                         </div>
                                     </div>
-                                ) : (
-                                    <div className="space-y-12">
-                                        {/* Description */}
-                                        <div className="space-y-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Today's Progress</label>
-                                            <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100 relative overflow-hidden group">
-                                                <div className="absolute top-0 left-0 w-1.5 h-full bg-black"></div>
-                                                <p className="text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">{selectedDJT.dailyJobDescription || 'No description recorded.'}</p>
-                                            </div>
-                                        </div>
 
-                                        {/* Equipment Used - Amazingly */}
-                                        <div className="space-y-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Equipment Tracked</label>
-                                            {(selectedDJT.equipmentUsed || []).length > 0 ? (
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    {(selectedDJT.equipmentUsed || []).map((item: any, idx: number) => (
-                                                        <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
-                                                            <div className="flex items-center justify-between mb-1">
-                                                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${item.type === 'rental' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                                    {item.type || 'owned'}
-                                                                </span>
-                                                                <span className="text-lg font-black text-slate-900">x{item.qty || 1}</span>
-                                                            </div>
-                                                            <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">
-                                                                {(initialData?.equipmentItems || []).find((e: any) => e.value === item.equipment)?.label || 'Unknown Gear'}
-                                                            </p>
+                                    {/* 2. Equipment Used */}
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Equipment Used</label>
+                                        {(selectedDJT.equipmentUsed || []).length > 0 ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                {(selectedDJT.equipmentUsed || []).map((item: any, idx: number) => (
+                                                    <div key={idx} className="p-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest ${item.type === 'rental' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                                {item.type || 'owned'}
+                                                            </span>
+                                                            <span className="text-lg font-black text-slate-900">x{item.qty || 1}</span>
                                                         </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="p-8 text-center bg-slate-50/50 rounded-3xl border border-slate-100">
-                                                    <p className="text-xs font-bold text-slate-300 uppercase tracking-widest italic">No gear tracked</p>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Site Photos */}
-                                        <div className="space-y-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Site Photos</label>
-                                            {(selectedDJT.djtimages || []).length > 0 ? (
-                                                <div className="grid grid-cols-4 gap-4">
-                                                    {(selectedDJT.djtimages || []).map((url: string, idx: number) => (
-                                                        <div key={idx} className="aspect-square rounded-3xl overflow-hidden border border-slate-100 group cursor-pointer relative">
-                                                            <img src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                                                            <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-black text-[10px] uppercase tracking-widest">View</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <div className="p-8 text-center bg-slate-50/50 rounded-3xl border border-slate-100">
-                                                    <p className="text-xs font-bold text-slate-300 uppercase tracking-widest italic">No photos attached</p>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Employee Signatures Section */}
-                                        <div className="space-y-6 pt-10 border-t border-slate-100">
-                                            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest text-center">Crew Sign-Off</h4>
-                                            
-                                            {activeSignatureEmployee ? (
-                                                <div className="max-w-md mx-auto">
-                                                    <div className="mb-6 grid grid-cols-2 gap-4 bg-slate-50/80 p-4 rounded-3xl border border-slate-100 shadow-sm">
-                                                        <div>
-                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                <Clock size={12} className="text-blue-600" />
-                                                                Lunch Start
-                                                            </label>
-                                                            <input 
-                                                                type="time" 
-                                                                value={lunchStart}
-                                                                onChange={(e) => setLunchStart(e.target.value)}
-                                                                className="w-full text-xs font-black text-slate-900 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                                                <Clock size={12} className="text-blue-600" />
-                                                                Lunch End
-                                                            </label>
-                                                            <input 
-                                                                type="time" 
-                                                                value={lunchEnd}
-                                                                onChange={(e) => setLunchEnd(e.target.value)}
-                                                                className="w-full text-xs font-black text-slate-900 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                                            />
-                                                        </div>
+                                                        <p className="text-sm font-black text-slate-800 tracking-tight leading-tight">
+                                                            {(initialData?.equipmentItems || []).find((e: any) => e.value === item.equipment)?.label || 'Unknown Gear'}
+                                                        </p>
                                                     </div>
-                                                    <div className="border border-slate-200 rounded-3xl overflow-hidden shadow-2xl shadow-black/5 ring-1 ring-black/5">
-                                                         <SignaturePad 
-                                                            isLoading={isSavingSignature}
-                                                            employeeName={initialData.employees.find((e: any) => e.value === activeSignatureEmployee)?.label || activeSignatureEmployee}
-                                                            onSave={(sigUrl) => handleSaveSignature({
-                                                                signature: sigUrl,
-                                                                lunchStart,
-                                                                lunchEnd
-                                                            })} 
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center bg-slate-50/50 rounded-3xl border border-slate-100">
+                                                <p className="text-xs font-bold text-slate-300 uppercase tracking-widest italic">No equipment used</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 3. Site Photos */}
+                                    <div className="space-y-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Site Images</label>
+                                        {(selectedDJT.djtimages || []).length > 0 ? (
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                                {(selectedDJT.djtimages || []).map((url: string, idx: number) => (
+                                                    <div key={idx} className="aspect-square rounded-3xl overflow-hidden border border-slate-100 group cursor-pointer relative" onClick={() => setEnlargedImage(url)}>
+                                                        <img src={url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-black text-[10px] uppercase tracking-widest">Enlarge</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="p-8 text-center bg-slate-50/50 rounded-3xl border border-slate-100">
+                                                <p className="text-xs font-bold text-slate-300 uppercase tracking-widest italic">No photos attached</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 4. Crew Sign-Off */}
+                                    <div className="space-y-6 pt-10 border-t border-slate-100">
+                                        <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest text-center">Crew Sign-Off</h4>
+                                        
+                                        {activeSignatureEmployee ? (
+                                            <div className="max-w-md mx-auto">
+                                                <div className="mb-6 grid grid-cols-2 gap-4 bg-slate-50/80 p-4 rounded-3xl border border-slate-100 shadow-sm">
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                            <Clock size={12} className="text-blue-600" />
+                                                            Lunch Start
+                                                        </label>
+                                                        <input 
+                                                            type="time" 
+                                                            value={lunchStart}
+                                                            onChange={(e) => setLunchStart(e.target.value)}
+                                                            className="w-full text-xs font-black text-slate-900 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                                                         />
                                                     </div>
-                                                    <button 
-                                                        type="button" 
-                                                        onClick={() => setActiveSignatureEmployee(null)} 
-                                                        className="mt-6 text-[10px] font-black text-slate-400 hover:text-rose-500 w-full text-center transition-all uppercase tracking-widest hover:bg-rose-50 py-2 rounded-lg"
-                                                    >
-                                                        Dismiss
-                                                    </button>
+                                                    <div>
+                                                        <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                                            <Clock size={12} className="text-blue-600" />
+                                                            Lunch End
+                                                        </label>
+                                                        <input 
+                                                            type="time" 
+                                                            value={lunchEnd}
+                                                            onChange={(e) => setLunchEnd(e.target.value)}
+                                                            className="w-full text-xs font-black text-slate-900 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                                        />
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    {(() => {
-                                                        const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
-                                                        const assignees = schedule?.assignees || [];
-                                                        const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
+                                                <div className="border border-slate-200 rounded-3xl overflow-hidden shadow-2xl shadow-black/5 ring-1 ring-black/5">
+                                                     <SignaturePad 
+                                                        isLoading={isSavingSignature}
+                                                        employeeName={initialData.employees.find((e: any) => e.value === activeSignatureEmployee)?.label || activeSignatureEmployee}
+                                                        onSave={(sigUrl) => handleSaveSignature({
+                                                            signature: sigUrl,
+                                                            lunchStart,
+                                                            lunchEnd
+                                                        })} 
+                                                    />
+                                                </div>
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setActiveSignatureEmployee(null)} 
+                                                    className="mt-6 text-[10px] font-black text-slate-400 hover:text-rose-500 w-full text-center transition-all uppercase tracking-widest hover:bg-rose-50 py-2 rounded-lg"
+                                                >
+                                                    Dismiss
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {(() => {
+                                                    const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
+                                                    const assignees = schedule?.assignees || [];
+                                                    const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
 
-                                                        if (uniqueAssignees.length === 0 && (!selectedDJT.signatures || selectedDJT.signatures.length === 0)) {
-                                                            return <div className="col-span-2 text-center py-6 text-xs text-slate-300 font-bold uppercase tracking-widest italic bg-slate-50/50 rounded-3xl border border-dashed border-slate-100">No assignees assigned</div>;
-                                                        }
+                                                    if (uniqueAssignees.length === 0 && (!selectedDJT.signatures || selectedDJT.signatures.length === 0)) {
+                                                        return <div className="col-span-2 text-center py-6 text-xs text-slate-300 font-bold uppercase tracking-widest italic bg-slate-50/50 rounded-3xl border border-dashed border-slate-100">No assignees assigned</div>;
+                                                    }
 
-                                                        return uniqueAssignees.map((email: string) => {
-                                                            const emp = initialData.employees.find((e: any) => e.value === email);
-                                                            const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
-                                                            const timesheet = schedule?.timesheet?.find((t: any) => t.employee === email);
+                                                    return uniqueAssignees.map((email: string) => {
+                                                        const emp = initialData.employees.find((e: any) => e.value === email);
+                                                        const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
+                                                        const timesheet = schedule?.timesheet?.find((t: any) => t.employee === email);
 
-                                                            return (
-                                                                <div key={email} className={`relative p-5 rounded-3xl border-2 transition-all group ${sig ? 'bg-white border-green-50 shadow-sm' : 'bg-slate-50 border-transparent hover:border-slate-100'}`}>
-                                                                    <div className="flex items-center gap-4">
-                                                                        <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center text-xs font-black text-slate-400 shrink-0 uppercase shadow-sm">
-                                                                            {emp?.image ? <img src={emp.image} className="w-full h-full rounded-full object-cover" /> : emp?.label?.[0]}
-                                                                        </div>
-                                                                        <div className="min-w-0 flex-1">
-                                                                            <p className="text-xs font-black text-slate-900 truncate uppercase tracking-tight">{emp?.label || email}</p>
-                                                                            <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${sig ? 'text-green-500' : 'text-slate-300'}`}>
-                                                                                {sig ? 'Confirmed DJT' : 'Pending Sign'}
-                                                                            </p>
-                                                                        </div>
+                                                        return (
+                                                            <div key={email} className={`relative p-5 rounded-3xl border-2 transition-all group ${sig ? 'bg-white border-green-50 shadow-sm' : 'bg-slate-50 border-transparent hover:border-slate-100'}`}>
+                                                                <div className="flex items-center gap-4">
+                                                                    <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-100 flex items-center justify-center text-xs font-black text-slate-400 shrink-0 uppercase shadow-sm">
+                                                                        {emp?.image ? <img src={emp.image} className="w-full h-full rounded-full object-cover" /> : emp?.label?.[0]}
                                                                     </div>
-                                                                    
-                                                                    {sig ? (
-                                                                        <div className="mt-4 pt-4 border-t border-slate-50 space-y-4">
-                                                                            <div className="h-14 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
-                                                                                <img src={sig.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" />
-                                                                            </div>
-                                                                            {timesheet && (
-                                                                                <div className="grid grid-cols-2 gap-2">
-                                                                                    <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
-                                                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">In</span>
-                                                                                        <span className="text-[11px] font-black text-slate-900 font-mono">
-                                                                                            {new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                    <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
-                                                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Out</span>
-                                                                                        <span className="text-[11px] font-black text-slate-900 font-mono">
-                                                                                            {new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setActiveSignatureEmployee(email)}
-                                                                            className="w-full py-2.5 mt-4 text-[10px] font-black text-slate-600 bg-white border border-slate-200 hover:border-black hover:text-black rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"
-                                                                        >
-                                                                            <Edit size={12} /> Sign Report
-                                                                        </button>
-                                                                    )}
-                                                                    {sig && (
-                                                                            <div className="absolute top-3 right-3 text-green-500 bg-green-50 p-1 rounded-full"><CheckCircle2 size={14} /></div>
-                                                                    )}
+                                                                    <div className="min-w-0 flex-1">
+                                                                        <p className="text-xs font-black text-slate-900 truncate uppercase tracking-tight">{emp?.label || email}</p>
+                                                                        <p className={`text-[9px] font-black uppercase tracking-widest mt-0.5 ${sig ? 'text-green-500' : 'text-slate-300'}`}>
+                                                                            {sig ? 'Confirmed DJT' : 'Pending Sign'}
+                                                                        </p>
+                                                                    </div>
                                                                 </div>
-                                                            );
-                                                        });
-                                                    })()}
+                                                                
+                                                                {sig ? (
+                                                                    <div className="mt-4 pt-4 border-t border-slate-50 space-y-4">
+                                                                        <div className="h-14 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+                                                                            <img src={sig.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" />
+                                                                        </div>
+                                                                        {timesheet && (
+                                                                            <div className="grid grid-cols-2 gap-2">
+                                                                                <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
+                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">In</span>
+                                                                                    <span className="text-[11px] font-black text-slate-900 font-mono">
+                                                                                        {new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
+                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Out</span>
+                                                                                    <span className="text-[11px] font-black text-slate-900 font-mono">
+                                                                                        {new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setActiveSignatureEmployee(email)}
+                                                                        className="w-full py-2.5 mt-4 text-[10px] font-black text-slate-600 bg-white border border-slate-200 hover:border-black hover:text-black rounded-xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"
+                                                                    >
+                                                                        <Edit size={12} /> Sign Report
+                                                                    </button>
+                                                                )}
+                                                                {sig && (
+                                                                        <div className="absolute top-3 right-3 text-green-500 bg-green-50 p-1 rounded-full"><CheckCircle2 size={14} /></div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    });
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 5. Client Verification */}
+                                    <div className="space-y-6 pt-10 border-t border-slate-100">
+                                        <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest text-center">Client Verification</h4>
+                                        <div className="space-y-8">
+                                            <div className="space-y-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Customer Name</label>
+                                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                                    <p className="text-base font-black text-slate-900">{selectedDJT.customerPrintName || 'Not Captured'}</p>
                                                 </div>
-                                            )}
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Signature</label>
+                                                <div className="aspect-video max-w-md bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100 flex items-center justify-center overflow-hidden p-8">
+                                                    {selectedDJT.customerSignature ? (
+                                                        <img src={selectedDJT.customerSignature} alt="Signature" className="max-h-full object-contain mix-blend-multiply opacity-80" />
+                                                    ) : (
+                                                        <p className="text-sm font-bold text-slate-300 uppercase tracking-widest font-black">Awaiting Signature</p>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         )}
                     </div>
+                    
+                    {/* Lightbox Overlay */}
+                    {enlargedImage && (
+                        <div 
+                            className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+                            onClick={() => setEnlargedImage(null)}
+                        >
+                            <button className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors">
+                                <XCircle size={32} />
+                            </button>
+                            <img 
+                                src={enlargedImage} 
+                                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in-95 duration-300" 
+                                alt="Enlarged Site Photo" 
+                            />
+                        </div>
+                    )}
                 </div>
             ) : (
                 <EmptyState title="Missing Ticket Data" message="We couldn't retrieve the details for this ticket." />

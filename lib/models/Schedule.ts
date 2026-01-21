@@ -143,6 +143,7 @@ const ScheduleSchema = new Schema({
     jha: { type: Object, default: null },
     djt: { 
         type: {
+            _id: { type: String },
             dailyJobDescription: { type: String },
             customerPrintName: { type: String },
             customerSignature: { type: String },
@@ -183,10 +184,10 @@ ScheduleSchema.index({ foremanName: 1 });
 ScheduleSchema.index({ assignees: 1 });
 ScheduleSchema.index({ customerId: 1 });
 
-if (process.env.NODE_ENV === 'development') {
+if (mongoose.models.Schedule) {
     delete mongoose.models.Schedule;
 }
 
-const Schedule: Model<ISchedule> = mongoose.models.Schedule || mongoose.model<ISchedule>('Schedule', ScheduleSchema);
+const Schedule: Model<ISchedule> = mongoose.model<ISchedule>('Schedule', ScheduleSchema);
 
 export default Schedule;
