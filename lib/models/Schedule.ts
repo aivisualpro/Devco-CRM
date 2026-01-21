@@ -28,6 +28,7 @@ export interface ISchedule extends Document {
     JHASignatures?: any[];
     DJTSignatures?: any[];
     todayObjectives?: IObjective[];
+    syncedToAppSheet?: boolean;
 }
 
 export interface IObjective {
@@ -124,7 +125,8 @@ const ScheduleSchema = new Schema({
         completed: { type: Boolean, default: false },
         completedBy: { type: String },
         completedAt: { type: Date }
-    }], default: [] }
+    }], default: [] },
+    syncedToAppSheet: { type: Boolean, default: false }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

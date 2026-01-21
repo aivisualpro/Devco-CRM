@@ -64,6 +64,7 @@ interface ScheduleItem {
     djt?: any;
     DJTSignatures?: any[];
     todayObjectives?: Objective[];
+    syncedToAppSheet?: boolean;
 }
 
 export default function SchedulePage() {
@@ -145,6 +146,9 @@ export default function SchedulePage() {
     // Calendar & Activity State
     const [currentDate, setCurrentDate] = useState(new Date());
     const [monthlyActivityDates, setMonthlyActivityDates] = useState<Set<string>>(new Set());
+    
+    // AppSheet Sync State
+    const [isSyncingToAppSheet, setIsSyncingToAppSheet] = useState(false);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -777,6 +781,40 @@ export default function SchedulePage() {
             toastError('Error deleting schedule');
             setSchedules(prevSchedules);
         });
+    };
+
+    // AppSheet sync handler - only for adeel@devco-inc.com
+    const handleSyncToAppSheet = async () => {
+        if (!selectedSchedule) return;
+        
+        setIsSyncingToAppSheet(true);
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'syncToAppSheet',
+                    payload: { id: selectedSchedule._id }
+                })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                success('Schedule synced to AppSheet!');
+                // Update local state to hide the button
+                setSchedules(prev => prev.map(s => 
+                    s._id === selectedSchedule._id ? { ...s, syncedToAppSheet: true } : s
+                ));
+                setSelectedSchedule(prev => prev ? { ...prev, syncedToAppSheet: true } : null);
+            } else {
+                toastError(data.error || 'Failed to sync to AppSheet');
+            }
+        } catch (err: any) {
+            console.error('[AppSheet Sync] Error:', err);
+            toastError('Error syncing to AppSheet');
+        } finally {
+            setIsSyncingToAppSheet(false);
+        }
     };
 
 
@@ -2617,6 +2655,31 @@ export default function SchedulePage() {
                                 <div className="animate-in slide-in-from-right duration-300">
                                     <div className="animate-in slide-in-from-right duration-300">
                                         <div className="bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
+                                            
+                                            {/* Sync to AppSheet Button - Only visible to adeel@devco-inc.com and only if not synced yet */}
+                                            {currentUser?.email === 'adeel@devco-inc.com' && !selectedSchedule.syncedToAppSheet && (
+                                                <div className="flex justify-end">
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <button
+                                                                onClick={handleSyncToAppSheet}
+                                                                disabled={isSyncingToAppSheet}
+                                                                className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            >
+                                                                {isSyncingToAppSheet ? (
+                                                                    <Loader2 size={14} className="animate-spin" />
+                                                                ) : (
+                                                                    <Upload size={14} />
+                                                                )}
+                                                                Sync to AppSheet
+                                                            </button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>Sync this schedule to AppSheet</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </div>
+                                            )}
 
                                             {/* Row 1: Tag Icon & Client Name */}
                                             <div className="flex items-center gap-4">

@@ -403,7 +403,7 @@ export async function POST(request: NextRequest) {
                                     certifiedPayroll: 1, notifyAssignees: 1, description: 1, 
                                     jobLocation: 1, aerialImage: 1, siteLayout: 1, 
                                     jha: 1, djt: 1, timesheet: 1, JHASignatures: 1, DJTSignatures: 1,
-                                    todayObjectives: 1,
+                                    todayObjectives: 1, syncedToAppSheet: 1,
                                     createdAt: 1, updatedAt: 1
                                 }}
                             ]
@@ -596,6 +596,91 @@ export async function POST(request: NextRequest) {
                         estimates: Array.from(uniqueEstimates.values())
                     }
                 });
+            }
+
+            case 'syncToAppSheet': {
+                const { id } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Schedule ID is required' });
+                
+                const schedule = await Schedule.findById(id).lean();
+                if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
+
+                // Force sync to AppSheet (bypassing NODE_ENV check)
+                const { appId, accessKey, tableName } = getAppSheetConfig();
+                if (!appId || !accessKey) {
+                    return NextResponse.json({ success: false, error: 'AppSheet configuration missing' });
+                }
+
+                const fmtDate = (d: any) => {
+                    if (!d) return "";
+                    try {
+                        const date = new Date(d);
+                        if (isNaN(date.getTime())) return "";
+                        return date.toISOString().split('T')[0]; 
+                    } catch { return ""; }
+                };
+
+                let assigneesList = "";
+                if (schedule.assignees && Array.isArray(schedule.assignees) && schedule.assignees.length > 0) {
+                    assigneesList = schedule.assignees.join(' , ');
+                } else if (typeof schedule.assignees === 'string') {
+                    assigneesList = schedule.assignees;
+                }
+
+                const row = {
+                    "Record_ID": String(schedule._id || ""),
+                    "Title": String(schedule.title || ""),
+                    "From": fmtDate(schedule.fromDate),
+                    "To": fmtDate(schedule.toDate),
+                    "Customer": String(schedule.customerId || ""),
+                    "Proposal Number": String(schedule.estimate || ""),
+                    "Project Manager Name": String(schedule.projectManager || ""),
+                    "Foreman Name": String(schedule.foremanName || ""),
+                    "Assignees": assigneesList, 
+                    "Description": String(schedule.description || ""),
+                    "Service Item": String(schedule.service || ""),
+                    "Color": String(schedule.item || ""),
+                    "Labor Agreement": String(schedule.fringe || ""),
+                    "Certified Payroll": String(schedule.certifiedPayroll || ""),
+                    "Notify Assignees": String(schedule.notifyAssignees || ""),
+                    "Per Diem": String(schedule.perDiem || ""),
+                    "Aerial Image": String(schedule.aerialImage || ""),
+                    "Site Layout": String(schedule.siteLayout || ""),
+                    "todayObjectives": Array.isArray(schedule.todayObjectives) 
+                        ? schedule.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ') 
+                        : String(schedule.todayObjectives || "") 
+                };
+
+                const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
+
+                try {
+                    const response = await fetch(APPSHEET_URL, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "ApplicationAccessKey": accessKey
+                        },
+                        body: JSON.stringify({
+                            Action: "Edit",
+                            Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
+                            Rows: [row]
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        console.error("[AppSheet Sync] Error:", errorText);
+                        return NextResponse.json({ success: false, error: `AppSheet sync failed: ${response.status}` });
+                    }
+
+                    // Mark the schedule as synced to AppSheet
+                    await Schedule.findByIdAndUpdate(id, { syncedToAppSheet: true });
+
+                    return NextResponse.json({ success: true, message: 'Schedule synced to AppSheet successfully' });
+                } catch (error: any) {
+                    console.error("[AppSheet Sync] Error:", error);
+                    return NextResponse.json({ success: false, error: error.message });
+                }
             }
 
             default:
