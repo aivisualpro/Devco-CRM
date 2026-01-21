@@ -694,9 +694,11 @@ export async function POST(request: NextRequest) {
                         // Not JSON, check if response is OK
                     }
                     
+
                     // If Add failed, try Edit (record might already exist in AppSheet)
                     if (!success) {
-                        console.log("[AppSheet Sync] Add failed, trying Edit...");
+                        const addErrorText = responseText; // Save the Add error
+                        console.log("[AppSheet Sync] Add failed, trying Edit...", addErrorText);
                         
                         response = await fetch(APPSHEET_URL, {
                             method: "POST",
@@ -724,8 +726,12 @@ export async function POST(request: NextRequest) {
                         } catch (e) {}
                         
                         if (!editSuccess) {
-                            console.error("[AppSheet Sync] Both Add and Edit failed:", responseText);
-                            return NextResponse.json({ success: false, error: `AppSheet sync failed: ${responseText}` });
+                            console.error("[AppSheet Sync] Both Add and Edit failed.");
+                            // Return BOTH errors to help debug
+                            return NextResponse.json({ 
+                                success: false, 
+                                error: `Sync Failed. ADD Error: ${addErrorText}. EDIT Error: ${responseText}` 
+                            });
                         }
                     }
 
