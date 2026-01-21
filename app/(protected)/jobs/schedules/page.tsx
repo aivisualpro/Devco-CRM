@@ -3084,10 +3084,97 @@ export default function SchedulePage() {
                 onClose={() => setIsModalOpen(false)}
                 title={editingItem?._id ? "Edit Schedule" : "New Schedule"}
                 maxWidth="4xl"
+                preventClose={true}
             >
                 <form onSubmit={handleSave} className="py-2">
                     <div className="space-y-6">
-                        {/* Row 1: Client, Proposal, Title */}
+                        {/* Row 1: Tag, From Date, To Date - Always visible */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                                <SearchableSelect
+                                    id="schedTag"
+                                    label="Tag"
+                                    placeholder="Select Tag"
+                                    options={initialData.constants.filter(c => c.type === 'Schedule Items').map(c => ({
+                                        label: c.description,
+                                        value: c.description,
+                                        image: c.image,
+                                        color: c.color
+                                    }))}
+                                    value={editingItem?.item || ''}
+                                    onChange={(val) => setEditingItem({ ...editingItem, item: val })}
+                                    onNext={() => document.getElementById('schedFromDate')?.focus()}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-slate-900">From Date & Time</label>
+                                <input
+                                    id="schedFromDate"
+                                    type="datetime-local"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                    value={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : ''}
+                                    onChange={(e) => {
+                                        const newFrom = e.target.value;
+                                        setEditingItem(prev => {
+                                            if (!prev?.toDate) return { ...prev, fromDate: newFrom, toDate: newFrom };
+                                            
+                                            // Calculate new To Date: New From DATE + Old To TIME
+                                            const newFromDate = new Date(newFrom);
+                                            const oldToDate = new Date(prev.toDate);
+                                            
+                                            const newToDate = new Date(newFromDate);
+                                            newToDate.setHours(oldToDate.getHours(), oldToDate.getMinutes(), 0, 0);
+
+                                            const year = newToDate.getFullYear();
+                                            const month = String(newToDate.getMonth() + 1).padStart(2, '0');
+                                            const day = String(newToDate.getDate()).padStart(2, '0');
+                                            const hours = String(newToDate.getHours()).padStart(2, '0');
+                                            const minutes = String(newToDate.getMinutes()).padStart(2, '0');
+                                            const newToDateString = `${year}-${month}-${day}T${hours}:${minutes}`;
+
+                                            return {
+                                                ...prev,
+                                                fromDate: newFrom,
+                                                toDate: newToDateString
+                                            };
+                                        });
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            document.getElementById('schedToDate')?.focus();
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-bold text-slate-900">To Date & Time</label>
+                                <input
+                                    id="schedToDate"
+                                    type="datetime-local"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                    min={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : undefined}
+                                    value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
+                                    onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            // If Day Off, submit. Otherwise, go to next field
+                                            if (editingItem?.item === 'Day Off') {
+                                                // Form will handle submit
+                                            } else {
+                                                document.getElementById('schedClient')?.focus();
+                                            }
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Rest of the form - Hidden when Tag is "Day Off" */}
+                        {editingItem?.item !== 'Day Off' && (
+                        <>
+                        {/* Row 2: Client, Proposal, Title */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-2">
                                 <SearchableSelect
@@ -3129,7 +3216,6 @@ export default function SchedulePage() {
                                             // Auto-select client if not set or mismatch
                                             customerId: est?.customerId || prev?.customerId, 
                                             customerName: client?.name || prev?.customerName,
-                                            // Auto-fill title if empty
                                             // Auto-fill title if empty or user wants override (we prioritize estimate data if selected explicitly)
                                             title: est?.projectTitle || est?.projectName || prev?.title || '', 
                                             // Auto-fill description from Scope of Work/Proposal
@@ -3155,75 +3241,8 @@ export default function SchedulePage() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
-                                            const next = document.getElementById('schedFromDate');
+                                            const next = document.getElementById('schedPM');
                                             if (next) (next as HTMLElement).focus();
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Row 2: Dates (From/To) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">From Date & Time</label>
-                                <input
-                                    id="schedFromDate"
-                                    type="datetime-local"
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                    value={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : ''}
-                                    onChange={(e) => {
-                                        const newFrom = e.target.value;
-                                        setEditingItem(prev => {
-                                            if (!prev?.toDate) return { ...prev, fromDate: newFrom, toDate: newFrom };
-                                            
-                                            // Calculate new To Date: New From DATE + Old To TIME
-                                            const newFromDate = new Date(newFrom);
-                                            const oldToDate = new Date(prev.toDate);
-                                            
-                                            const newToDate = new Date(newFromDate);
-                                            newToDate.setHours(oldToDate.getHours(), oldToDate.getMinutes(), 0, 0);
-
-                                            // If the new end time is before the start time (e.g. crossing midnight logic or just invalid), 
-                                            // checking if it's strictly same day but earlier time:
-                                            // The user mainly wants to change DATE. 
-                                            // We will return the constructed date formatted.
-                                            // formatting back to string for input
-                                            const year = newToDate.getFullYear();
-                                            const month = String(newToDate.getMonth() + 1).padStart(2, '0');
-                                            const day = String(newToDate.getDate()).padStart(2, '0');
-                                            const hours = String(newToDate.getHours()).padStart(2, '0');
-                                            const minutes = String(newToDate.getMinutes()).padStart(2, '0');
-                                            const newToDateString = `${year}-${month}-${day}T${hours}:${minutes}`;
-
-                                            return {
-                                                ...prev,
-                                                fromDate: newFrom,
-                                                toDate: newToDateString
-                                            };
-                                        });
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            document.getElementById('schedToDate')?.focus();
-                                        }
-                                    }}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">To Date & Time</label>
-                                <input
-                                    id="schedToDate"
-                                    type="datetime-local"
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                    min={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : undefined}
-                                    value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            e.preventDefault();
-                                            document.getElementById('schedPM')?.focus();
                                         }
                                     }}
                                 />
@@ -3274,6 +3293,7 @@ export default function SchedulePage() {
                                     multiple
                                     options={initialData.employees
                                         .filter(emp => emp.isScheduleActive)
+                                        .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
                                         .map(emp => ({
                                         label: emp.label,
                                         value: emp.value,
@@ -3310,22 +3330,6 @@ export default function SchedulePage() {
                                          const strVal = Array.isArray(val) ? val.join(', ') : val;
                                          setEditingItem({ ...editingItem, service: strVal });
                                     }}
-                                    onNext={() => document.getElementById('schedTag')?.focus()}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedTag"
-                                    label="Tag"
-                                    placeholder="Select Tag"
-                                    options={initialData.constants.filter(c => c.type === 'Schedule Items').map(c => ({
-                                        label: c.description,
-                                        value: c.description,
-                                        image: c.image,
-                                        color: c.color
-                                    }))}
-                                    value={editingItem?.item || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, item: val })}
                                     onNext={() => document.getElementById('schedNotify')?.focus()}
                                 />
                             </div>
@@ -3610,6 +3614,7 @@ export default function SchedulePage() {
                                 </div>
                             </div>
                         </div>
+                        </>)}
 
                         <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
                             <button

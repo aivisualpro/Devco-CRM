@@ -339,7 +339,10 @@ export default function TimeCardPage() {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getSchedulesPage' }) 
+                body: JSON.stringify({ 
+                    action: 'getSchedulesPage',
+                    payload: { limit: 10000 } // Fetch all schedules (no pagination for time-cards)
+                }) 
             });
             const data = await res.json();
             

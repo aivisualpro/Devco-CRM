@@ -285,14 +285,8 @@ function PayrollReportContent() {
     const router = useRouter();
     const pathname = usePathname();
 
-    const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-        const weekParam = searchParams.get('week');
-        if (weekParam) {
-            const d = new Date(weekParam + 'T00:00:00');
-            if (!isNaN(d.getTime())) return startOfWeek(d);
-        }
-        return startOfWeek(new Date());
-    });
+    // Initialize to current week (client-side state only, no URL dependency for week)
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()));
 
     const [filterEmployee, setFilterEmployee] = useState<string>(() => {
         return searchParams.get('employee') || 'all';
@@ -306,16 +300,15 @@ function PayrollReportContent() {
         type: 'Regular' | 'Overtime' | 'Double Time' | 'Travel' | 'Per Diem' | 'General' 
     } | null>(null);
 
-    // Sync state with URL
+    // Sync only employee filter with URL (removed week to avoid date parsing issues)
     useEffect(() => {
-        const params = new URLSearchParams(searchParams);
-        params.set('week', currentWeekStart.toISOString().split('T')[0]);
+        const params = new URLSearchParams();
         params.set('employee', filterEmployee);
         const newUrl = `${pathname}?${params.toString()}`;
         if (window.location.search !== `?${params.toString()}`) {
             router.replace(newUrl);
         }
-    }, [currentWeekStart, filterEmployee, pathname, router, searchParams]);
+    }, [filterEmployee, pathname, router]);
 
     const [editingRecord, setEditingRecord] = useState<any | null>(null);
     const [editForm, setEditForm] = useState<any>({});
@@ -339,10 +332,14 @@ function PayrollReportContent() {
         );
     }, [employeeOptions, employeeSearch]);
 
-    const fetchData = async (dateOverride?: Date) => {
+    const fetchData = async (weekStart: Date) => {
         setLoading(true);
-        const targetDate = dateOverride || currentWeekStart;
-        const weekEnd = endOfWeek(targetDate);
+        const weekEnd = endOfWeek(weekStart);
+        
+        // Extend date range by 1 week in each direction to capture timesheets
+        // whose schedule fromDate might be in adjacent weeks but clockIn is in selected week
+        const extendedStartDate = subWeeks(weekStart, 1);
+        const extendedEndDate = addWeeks(weekEnd, 1);
 
         try {
             const res = await fetch('/api/schedules', {
@@ -351,8 +348,9 @@ function PayrollReportContent() {
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: {
-                        startDate: targetDate.toISOString(),
-                        endDate: weekEnd.toISOString()
+                        startDate: extendedStartDate.toISOString(),
+                        endDate: extendedEndDate.toISOString(),
+                        limit: 10000 // Fetch all schedules for payroll report (no pagination)
                     }
                 })
             });
@@ -434,7 +432,7 @@ function PayrollReportContent() {
                 toastSuccess("Timesheet updated");
                 setEditingRecord(null);
                 setEditForm({});
-                fetchData(); 
+                fetchData(currentWeekStart); 
             } else {
                 throw new Error("Failed to save");
             }
@@ -448,7 +446,7 @@ function PayrollReportContent() {
     };
 
     useEffect(() => {
-        fetchData();
+        fetchData(currentWeekStart);
     }, [currentWeekStart]);
 
     const reportData = useMemo(() => {
@@ -458,7 +456,8 @@ function PayrollReportContent() {
 
         rawSchedules.forEach(sched => {
             if (!sched.timesheet) return;
-            const schedCertified = sched.certifiedPayroll === 'Yes';
+            // Get certified payroll from estimate (source of truth), fallback to schedule
+            const estCertified = estimatesMap[sched.estimate]?.certifiedPayroll === 'Yes';
             
             sched.timesheet.forEach((ts: any) => {
                 const clockInDate = new Date(ts.clockIn);
@@ -496,7 +495,7 @@ function PayrollReportContent() {
                     
                     const pName = estimatesMap[sched.estimate]?.projectTitle || sched.title;
                     if (pName) employeesWork[empEmail].days[dayIdx].projectNames.add(pName);
-                    if (schedCertified) employeesWork[empEmail].days[dayIdx].certified = true;
+                    if (estCertified) employeesWork[empEmail].days[dayIdx].certified = true;
 
                     if (ts.type?.toLowerCase().includes('site')) {
                         employeesWork[empEmail].days[dayIdx].siteHrs += hours;
@@ -622,7 +621,7 @@ function PayrollReportContent() {
                 }
             } as EmployeeReport;
         });
-    }, [rawSchedules, currentWeekStart, employeesMap, filterEmployee]);
+    }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(currentWeekStart);
