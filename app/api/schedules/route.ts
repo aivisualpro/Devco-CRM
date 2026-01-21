@@ -654,23 +654,45 @@ export async function POST(request: NextRequest) {
                 const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
 
                 try {
-                    const response = await fetch(APPSHEET_URL, {
+                    // First try to Add the record (for new records)
+                    let response = await fetch(APPSHEET_URL, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
                             "ApplicationAccessKey": accessKey
                         },
                         body: JSON.stringify({
-                            Action: "Edit",
+                            Action: "Add",
                             Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
                             Rows: [row]
                         })
                     });
 
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error("[AppSheet Sync] Error:", errorText);
-                        return NextResponse.json({ success: false, error: `AppSheet sync failed: ${response.status}` });
+                    let responseText = await response.text();
+                    
+                    // If Add fails because record already exists, try Edit
+                    if (!response.ok || responseText.includes("duplicate") || responseText.includes("already exists")) {
+                        console.log("[AppSheet Sync] Add failed, trying Edit:", responseText);
+                        
+                        response = await fetch(APPSHEET_URL, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                "ApplicationAccessKey": accessKey
+                            },
+                            body: JSON.stringify({
+                                Action: "Edit",
+                                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
+                                Rows: [row]
+                            })
+                        });
+                        
+                        responseText = await response.text();
+                        
+                        if (!response.ok) {
+                            console.error("[AppSheet Sync] Edit also failed:", responseText);
+                            return NextResponse.json({ success: false, error: `AppSheet sync failed: ${responseText}` });
+                        }
                     }
 
                     // Mark the schedule as synced to AppSheet
