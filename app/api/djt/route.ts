@@ -16,18 +16,28 @@ export async function POST(request: NextRequest) {
                 const { records } = payload || {};
                 if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid DJT records array' });
 
-                const ops = records.map((item: any) => {
-                    const { recordId, _id, ...rest } = item;
-                    const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
+                // 1. Pre-process records to ensure IDs and types are correct
+                const processedRecords = records.map((item: any) => {
+                     const { recordId, _id, ...rest } = item;
+                     // Ensure we have an ID to use: use provided or generate new
+                     const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
+                     
+                     // Ensure dates are dates
+                     if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
 
-                    // Ensure date is valid for createdAt if it comes from CSV
-                    if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
-                    
-                    return {
+                     return {
+                        _id: idToUse,
+                        ...rest
+                     };
+                });
+
+                // 2. Bulk Upsert into DailyJobTicket collection
+                const djtOps = processedRecords.map((item: any) => {
+                     return {
                         updateOne: {
-                            filter: { _id: idToUse },
+                            filter: { _id: item._id },
                             update: {
-                                $set: { ...rest, _id: idToUse },
+                                $set: item,
                                 $setOnInsert: { createdAt: new Date() }
                             },
                             upsert: true
@@ -35,21 +45,17 @@ export async function POST(request: NextRequest) {
                     };
                 });
 
-                const result = await DailyJobTicket.bulkWrite(ops);
+                await DailyJobTicket.bulkWrite(djtOps);
 
-                // SYNC TO SCHEDULES: Embed DJT record as a single object into the linked Schedule document
-                const scheduleOps = records.map((item: any) => {
-                     const { recordId, _id, ...rest } = item;
-                     const idToUse = recordId || _id;
-                     if (!rest.schedule_id) return null;
+                // 3. SYNC TO SCHEDULES: Embed DJT record as a single object into the linked Schedule document
+                const scheduleOps = processedRecords.map((item: any) => {
+                     if (!item.schedule_id) return null;
                      
-                     if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
-
                      return {
                         updateOne: {
-                            filter: { _id: rest.schedule_id },
+                            filter: { _id: item.schedule_id },
                             update: {
-                                $set: { djt: { ...rest, _id: idToUse } }
+                                $set: { djt: item }
                             }
                         }
                      };
@@ -59,7 +65,7 @@ export async function POST(request: NextRequest) {
                     await Schedule.bulkWrite(scheduleOps as any);
                 }
 
-                return NextResponse.json({ success: true, result });
+                return NextResponse.json({ success: true, count: records.length });
             }
 
             case 'importDJTSignatures': {

@@ -56,10 +56,11 @@ export default function JHAPage() {
     
     // Data State
     const [jhas, setJhas] = useState<JHA[]>([]);
+    const [totalJHAs, setTotalJHAs] = useState(0);
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [estimates, setEstimates] = useState<any[]>([]); // Added estimates
-    const [clients, setClients] = useState<any[]>([]); // Added clients
+    const [estimates, setEstimates] = useState<any[]>([]); 
+    const [clients, setClients] = useState<any[]>([]); 
     const [loading, setLoading] = useState(true);
 
     // UI State
@@ -73,8 +74,6 @@ export default function JHAPage() {
     const [isEditMode, setIsEditMode] = useState(false);
     const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
-    // Stub for email modal since we might not implement full email flow yet or reuse another component
-    // For now we'll minimally support what JHAModal needs
     const [emailModalOpen, setEmailModalOpen] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
 
     // Create New JHA Flow State
@@ -83,46 +82,66 @@ export default function JHAPage() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage]);
+
+    // Search Debounce
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (currentPage !== 1) {
+                setCurrentPage(1); // Reset to page 1 on search
+            } else {
+                fetchData();
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            // 1. Fetch All JHAs
+            // 1. Fetch JHAs (Paginated)
             const jhaRes = await fetch('/api/jha', {
                 method: 'POST',
-                body: JSON.stringify({ action: 'getJHAs' })
+                body: JSON.stringify({ 
+                    action: 'getJHAs',
+                    payload: { 
+                        page: currentPage, 
+                        limit: itemsPerPage,
+                        search 
+                    }
+                })
             });
             const jhaData = await jhaRes.json();
             
             if (jhaData.success) {
-                 setJhas(jhaData.result);
+                 setJhas(jhaData.result.jhas);
+                 setTotalJHAs(jhaData.result.total);
             }
 
-            // 2. Fetch Schedules (For dropdown & Initial Data)
-            // Use getSchedulesPage for optimized single-request loading
-            const res = await fetch('/api/schedules', {
-                method: 'POST',
-                body: JSON.stringify({ 
-                    action: 'getSchedulesPage',
-                    payload: {
-                        // Optional: Extend range if needed
-                        startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
-                    }
-                }) 
-            });
+            // 2. Fetch Schedules (For dropdown & Initial Data) - Only if not already loaded or cache logic preferred?
+            // Actually, we need employees for signatures. We can just load "initialData" once or aggressively cache.
+            // For now, let's keep loading but maybe lighter payload if possible.
+            if (schedules.length === 0) {
+                 const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        action: 'getSchedulesPage',
+                        payload: {
+                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
+                        }
+                    }) 
+                });
 
-            const data = await res.json();
+                const data = await res.json();
 
-            if (data.success) {
-                setSchedules(data.result.schedules || []);
-                
-                // Employees are already formatted by getSchedulesPage
-                setEmployees(data.result.initialData.employees || []);
-                setEstimates(data.result.initialData.estimates || []);
-                setClients(data.result.initialData.clients || []);
-            } else {
-                error('Failed to load data');
+                if (data.success) {
+                    setSchedules(data.result.schedules || []);
+                    setEmployees(data.result.initialData.employees || []);
+                    setEstimates(data.result.initialData.estimates || []);
+                    setClients(data.result.initialData.clients || []);
+                }
             }
 
         } catch (err) {
@@ -156,13 +175,6 @@ export default function JHAPage() {
         return '-';
     };
 
-
-
-    // Filtered JHA List 
-    const existingJHAs = useMemo(() => {
-        return jhas; 
-    }, [jhas]);
-
     // Available Schedules for New JHA
     const availableSchedules = useMemo(() => {
         return schedules
@@ -174,24 +186,9 @@ export default function JHAPage() {
             }));
     }, [schedules]);
 
-    // Search & Pagination for Table
-    const filteredJHAs = useMemo(() => {
-        if (!search) return existingJHAs;
-        const lowerSearch = search.toLowerCase();
-        return existingJHAs.filter((jha: any) => {
-            const dateStr = jha.date ? new Date(jha.date).toLocaleDateString() : '';
-            const schedule = jha.scheduleRef;
-            return (
-                dateStr.includes(lowerSearch) ||
-                (schedule?.estimate || '').toLowerCase().includes(lowerSearch) ||
-                (schedule?.title || '').toLowerCase().includes(lowerSearch) ||
-                (jha.usaNo || '').toLowerCase().includes(lowerSearch)
-            );
-        });
-    }, [existingJHAs, search]);
+    const totalPages = Math.ceil(totalJHAs / itemsPerPage);
+    const paginatedJHAs = jhas; // Server side pagination means 'jhas' IS the current page
 
-    const paginatedJHAs = filteredJHAs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalPages = Math.ceil(filteredJHAs.length / itemsPerPage);
 
     // Handlers
     const handleCreateOpen = () => {
