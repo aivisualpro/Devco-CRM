@@ -122,12 +122,13 @@ export async function POST(request: NextRequest) {
                     // Generate new ID if not provided
                     const newId = recordId || Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
                     
-                    const doc = await Schedule.create({
+                    const doc = new Schedule({
                         _id: newId,
                         ...scheduleData,
                         createdAt: new Date(),
                         updatedAt: new Date()
                     });
+                    await doc.save();
                     
                     results.push({ 
                         success: true, 
