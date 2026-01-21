@@ -63,6 +63,7 @@ export interface IEstimate extends Document {
     billingTerms?: string;
     otherBillingTerms?: string;
     usaNumber?: string;
+    syncedToAppSheet?: boolean;
 
     // Totals & Meta
     subTotal?: number;
@@ -162,6 +163,7 @@ const EstimateSchema = new Schema({
     billingTerms: { type: String },
     otherBillingTerms: { type: String },
     usaNumber: { type: String },
+    syncedToAppSheet: { type: Boolean, default: false },
     
     // Line Items
     labor: { type: [Object], default: [] },

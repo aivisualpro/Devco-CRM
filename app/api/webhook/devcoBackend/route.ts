@@ -643,6 +643,47 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: est });
             }
 
+            case 'syncToAppSheet': {
+                // Only sync to AppSheet on production (Vercel)
+                if (process.env.NODE_ENV !== 'production') {
+                    return NextResponse.json({ success: false, error: 'AppSheet sync only works on production' });
+                }
+
+                const { id } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Estimate ID is required' });
+
+                const est = await Estimate.findById(id).lean();
+                if (!est) return NextResponse.json({ success: false, error: 'Estimate not found' });
+
+                console.log(`[AppSheet Manual Sync] Syncing Estimate: ${id}`);
+
+                // Try Add first
+                const addResult = await updateAppSheet(est, null, "Add");
+
+                if (!addResult.success && !addResult.skipped) {
+                    const errorStr = String(addResult.error || "").toLowerCase();
+                    // If add failed due to duplicate/existing record, try Edit
+                    if (errorStr.includes("duplicate") || errorStr.includes("already exists") || errorStr.includes("row having key")) {
+                        console.log(`[AppSheet Manual Sync] Add failed (duplicate), retrying with Edit...`);
+                        const editResult = await updateAppSheet(est, null, "Edit");
+                        
+                        if (!editResult.success) {
+                            return NextResponse.json({ 
+                                success: false, 
+                                error: `Sync Failed. ADD Error: ${addResult.error}. EDIT Error: ${editResult.error}` 
+                            });
+                        }
+                    } else {
+                        // Some other error (e.g. validation, column missing)
+                        return NextResponse.json({ success: false, error: addResult.error });
+                    }
+                }
+
+                // Success
+                await Estimate.findByIdAndUpdate(id, { syncedToAppSheet: true });
+                return NextResponse.json({ success: true, message: 'Estimate synced to AppSheet successfully' });
+            }
+
             case 'cloneEstimate': {
                 const { id: sourceId } = payload || {};
                 if (!sourceId) return NextResponse.json({ success: false, error: 'Missing source id' }, { status: 400 });

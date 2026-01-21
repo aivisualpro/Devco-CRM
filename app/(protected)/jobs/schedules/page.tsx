@@ -702,28 +702,35 @@ export default function SchedulePage() {
         }
 
         // For new schedules, create one per day in the range
-        const fromDate = new Date(editingItem?.fromDate || new Date());
-        const toDate = new Date(editingItem?.toDate || new Date());
+        const originalFrom = new Date(editingItem?.fromDate || new Date());
+        const originalTo = new Date(editingItem?.toDate || new Date());
 
-        // Normalize to start of day to avoid timezone issues
-        fromDate.setHours(0, 0, 0, 0);
-        toDate.setHours(0, 0, 0, 0);
+        // Use midnight-normalized dates for the loop counter to ensure correct number of days
+        const loopStart = new Date(originalFrom);
+        loopStart.setHours(0, 0, 0, 0);
+        const loopEnd = new Date(originalTo);
+        loopEnd.setHours(0, 0, 0, 0);
 
         const schedulesToCreate: any[] = [];
-        const currentDate = new Date(fromDate);
+        const currentDate = new Date(loopStart);
 
-        while (currentDate <= toDate) {
-            const year = currentDate.getFullYear();
-            const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-            const day = String(currentDate.getDate()).padStart(2, '0');
-            const dateStr = `${year}-${month}-${day}`;
+        while (currentDate <= loopEnd) {
+            // Reconstruct the specific date-time for this day
+            // We use the year/month/date from the loop, but keep the original user-selected time
+            const thisDayFrom = new Date(currentDate);
+            thisDayFrom.setHours(originalFrom.getHours(), originalFrom.getMinutes(), 0, 0);
+
+            const thisDayTo = new Date(currentDate);
+            thisDayTo.setHours(originalTo.getHours(), originalTo.getMinutes(), 0, 0);
+
             // Generate MongoDB-compatible ObjectId (24 hex characters)
             const objectIdHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+            
             schedulesToCreate.push({
                 ...editingItem,
                 _id: objectIdHex,
-                fromDate: dateStr,
-                toDate: dateStr
+                fromDate: thisDayFrom, // Send full Date object (or ISO string via JSON stringify)
+                toDate: thisDayTo
             });
             currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -2287,18 +2294,22 @@ export default function SchedulePage() {
                                                         }
                                                     })()}
                                                     <div className="flex flex-col">
-                                                        <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{getCustomerName(item)}</span>
-                                                        {(() => {
-                                                            const est = initialData.estimates.find(e => e.value === item.estimate);
-                                                            if (est?.jobAddress) {
-                                                                return (
-                                                                    <span className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                                                        {est.jobAddress}
-                                                                    </span>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        })()}
+                                                        {item.item !== 'Day Off' && (
+                                                            <>
+                                                                <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{getCustomerName(item)}</span>
+                                                                {(() => {
+                                                                    const est = initialData.estimates.find(e => e.value === item.estimate);
+                                                                    if (est?.jobAddress) {
+                                                                        return (
+                                                                            <span className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                                                                {est.jobAddress}
+                                                                            </span>
+                                                                        );
+                                                                    }
+                                                                    return null;
+                                                                })()}
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -2314,7 +2325,7 @@ export default function SchedulePage() {
                                             {/* Row 3: Estimate #, Date/Time & Assignees */}
                                             <div className="flex items-center justify-between mb-3">
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    {item.estimate && (
+                                                    {item.item !== 'Day Off' && item.estimate && (
                                                         <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
                                                             {item.estimate.replace(/-[vV]\d+$/, '')}
                                                         </span>
@@ -2358,7 +2369,7 @@ export default function SchedulePage() {
                                             </div>
 
                                             {/* Bottom: Actions & Personnel */}
-                                            <div className="flex items-center justify-between mt-auto pt-2 border-t border-slate-100">
+                                            <div className={`flex items-center justify-between mt-auto pt-2 border-t border-slate-100 ${item.item === 'Day Off' ? 'hidden' : ''}`}>
                                                 {/* Actions: JHA, DJT, Timesheet */}
                                                 <div className="flex items-center gap-1">
                                                     {/* JHA */}
@@ -2720,18 +2731,20 @@ export default function SchedulePage() {
                                                         );
                                                     }
                                                 })()}
-                                                <div>
-                                                    <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
-                                                    {(() => {
-                                                        const est = initialData.estimates.find(e => e.value === selectedSchedule.estimate);
-                                                        const displayAddress = est?.jobAddress;
+                                                {selectedSchedule.item !== 'Day Off' && (
+                                                    <div>
+                                                        <p className="text-xl font-black text-[#0F4C75] leading-none mb-1">{getCustomerName(selectedSchedule)}</p>
+                                                        {(() => {
+                                                            const est = initialData.estimates.find(e => e.value === selectedSchedule.estimate);
+                                                            const displayAddress = est?.jobAddress;
 
-                                                        if (displayAddress && displayAddress !== 'N/A') {
-                                                            return <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>;
-                                                        }
-                                                        return null;
-                                                    })()}
-                                                </div>
+                                                            if (displayAddress && displayAddress !== 'N/A') {
+                                                                return <p className="text-xs font-bold text-slate-400 mb-1">{displayAddress}</p>;
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             {/* Row 3: Title & Date */}
@@ -2756,7 +2769,7 @@ export default function SchedulePage() {
                                                             </div>
                                                         )}
                                                     </div>
-                                                    {selectedSchedule.estimate && (
+                                                    {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
                                                         <Badge variant="info" className="py-0 h-5">{selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}</Badge>
                                                     )}
                                                 </div>
@@ -2765,26 +2778,28 @@ export default function SchedulePage() {
                                             <div className="h-px bg-slate-100 my-2" />
 
                                             {/* Rows 5, 6, 7: PM, Foreman, SD */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {[
-                                                    { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
-                                                    { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
-                                                ].map((role, idx) => {
-                                                    if (!role.val) return null;
-                                                    const emp = initialData.employees.find(e => e.value === role.val);
-                                                    return (
-                                                        <div key={idx} className="flex items-center gap-2 p-2 rounded-xl transition-colors border border-transparent hover:border-slate-100">
-                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
-                                                                {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || role.val[0])}
+                                            {selectedSchedule.item !== 'Day Off' && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {[
+                                                        { label: 'Project Manager', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
+                                                        { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
+                                                    ].map((role, idx) => {
+                                                        if (!role.val) return null;
+                                                        const emp = initialData.employees.find(e => e.value === role.val);
+                                                        return (
+                                                            <div key={idx} className="flex items-center gap-2 p-2 rounded-xl transition-colors border border-transparent hover:border-slate-100">
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
+                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || role.val[0])}
+                                                                </div>
+                                                                <div className="min-w-0 flex-1">
+                                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
+                                                                    <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
+                                                                </div>
                                                             </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
-                                                                <p className="text-xs font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
 
                                             <div className="h-px bg-slate-100 my-2" />
 
@@ -2810,37 +2825,39 @@ export default function SchedulePage() {
                                             </div>
 
                                             {/* Row 8: Service, Tag, Notify, Per Diem (Inline) */}
-                                            <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
-                                                    <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
+                                            {selectedSchedule.item !== 'Day Off' && (
+                                                <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
+                                                        <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
+                                                        <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
+                                                        <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                            {selectedSchedule.notifyAssignees || 'No'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
+                                                        <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                            {selectedSchedule.perDiem || 'No'}
+                                                        </Badge>
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Certified Payroll</p>
+                                                        <Badge variant={selectedSchedule.certifiedPayroll ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${selectedSchedule.certifiedPayroll ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                            {selectedSchedule.certifiedPayroll || 'No'}
+                                                        </Badge>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
-                                                    <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
-                                                    <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                        <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                        {selectedSchedule.notifyAssignees || 'No'}
-                                                    </Badge>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
-                                                    <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                        <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                        {selectedSchedule.perDiem || 'No'}
-                                                    </Badge>
-                                                </div>
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Certified Payroll</p>
-                                                    <Badge variant={selectedSchedule.certifiedPayroll ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                        <div className={`w-2 h-2 rounded-full ${selectedSchedule.certifiedPayroll ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                        {selectedSchedule.certifiedPayroll || 'No'}
-                                                    </Badge>
-                                                </div>
-                                            </div>
+                                            )}
 
                                             {/* Today's Objectives */}
                                             {selectedSchedule.todayObjectives && selectedSchedule.todayObjectives.length > 0 && (
@@ -3186,7 +3203,13 @@ export default function SchedulePage() {
                                         color: c.color
                                     }))}
                                     value={editingItem?.item || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, item: val })}
+                                    onChange={(val) => {
+                                        const updates: any = { item: val };
+                                        if (val === 'Day Off') {
+                                            updates.title = 'Day Off';
+                                        }
+                                        setEditingItem(prev => ({ ...prev, ...updates }));
+                                    }}
                                     onNext={() => document.getElementById('schedFromDate')?.focus()}
                                 />
                             </div>

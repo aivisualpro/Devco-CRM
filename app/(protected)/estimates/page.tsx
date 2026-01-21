@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload } from 'lucide-react';
+import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, Loader2 } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
 import Papa from 'papaparse';
 import { z } from 'zod';
@@ -33,6 +33,7 @@ interface Estimate {
     parentVersionId?: string;
     createdAt?: string;
     updatedAt?: string;
+    syncedToAppSheet?: boolean;
 }
 
 const searchSchema = z.string().max(100, "Search query too long");
@@ -46,6 +47,12 @@ export default function EstimatesPage() {
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const [showFinals, setShowFinals] = useState(true);
+    const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+
+    useEffect(() => {
+        const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
+        setCurrentUserEmail(user?.email || null);
+    }, []);
     const [currentPage, setCurrentPage] = useState(1);
 
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
@@ -443,6 +450,33 @@ export default function EstimatesPage() {
 
 
 
+    const [syncingId, setSyncingId] = useState<string | null>(null);
+
+    const handleSyncToAppSheet = async (e: React.MouseEvent, id: string) => {
+        e.stopPropagation(); // Prevent row click
+        setSyncingId(id);
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'syncToAppSheet', payload: { id } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                success('Estimate synced to AppSheet!');
+                // Update local state to hide button
+                setEstimates(prev => prev.map(est => est._id === id ? { ...est, syncedToAppSheet: true } : est));
+            } else {
+                toastError(data.error || 'Sync failed');
+            }
+        } catch (err) {
+            console.error(err);
+            toastError('Sync failed');
+        } finally {
+            setSyncingId(null);
+        }
+    };
+
     const formatCurrency = (val: number | undefined) => {
 
         if (val === undefined || val === null) return '-';
@@ -594,14 +628,18 @@ export default function EstimatesPage() {
                                     <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
-
+                                    {currentUserEmail === 'adeel@devco-inc.com' && (
+                                        <TableHeader className="w-10">
+                                            <span className="sr-only">Sync</span>
+                                        </TableHeader>
+                                    )}
 
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {paginatedEstimates.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={13}>
+                                        <TableCell className="text-center py-8 text-gray-500" colSpan={14}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No estimates found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Create your first estimate to get started.</p>
@@ -756,7 +794,24 @@ export default function EstimatesPage() {
                                                         {est.status || 'draft'}
                                                     </Badge>
                                                 </TableCell>
-
+                                                {currentUserEmail === 'adeel@devco-inc.com' && (
+                                                    <TableCell>
+                                                        {!est.syncedToAppSheet && (
+                                                           <button 
+                                                               onClick={(e) => handleSyncToAppSheet(e, est._id)}
+                                                               disabled={syncingId === est._id}
+                                                               className="p-1 px-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
+                                                               title="Sync to AppSheet"
+                                                           >
+                                                               {syncingId === est._id ? (
+                                                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                               ) : (
+                                                                   <Upload className="w-3.5 h-3.5" />
+                                                               )}
+                                                           </button>
+                                                        )}
+                                                    </TableCell>
+                                                )}
 
                                             </TableRow>
                                         );
