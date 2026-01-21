@@ -3087,7 +3087,7 @@ export default function SchedulePage() {
                 preventClose={true}
             >
                 <form onSubmit={handleSave} className="py-2">
-                    <div className="space-y-6">
+                    <div className="space-y-6 min-h-[400px]">
                         {/* Row 1: Tag, From Date, To Date - Always visible */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div className="space-y-2">
@@ -3171,6 +3171,29 @@ export default function SchedulePage() {
                             </div>
                         </div>
 
+                        {/* Assignees - Always visible (including Day Off) */}
+                        <div className="space-y-2">
+                            <SearchableSelect
+                                id="schedTeam"
+                                label="Assignees"
+                                placeholder="Select Team"
+                                multiple
+                                options={initialData.employees
+                                    .filter(emp => emp.isScheduleActive)
+                                    .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
+                                    .map(emp => ({
+                                    label: emp.label,
+                                    value: emp.value,
+                                    image: emp.image
+                                }))}
+                                value={editingItem?.assignees || []}
+                                onChange={(val) => {
+                                    setEditingItem(prev => ({ ...prev, assignees: val }));
+                                }}
+                                onNext={() => editingItem?.item === 'Day Off' ? null : document.getElementById('schedClient')?.focus()}
+                            />
+                        </div>
+
                         {/* Rest of the form - Hidden when Tag is "Day Off" */}
                         {editingItem?.item !== 'Day Off' && (
                         <>
@@ -3249,8 +3272,8 @@ export default function SchedulePage() {
                             </div>
                         </div>
 
-                        {/* Row 3: Staffing (PM, Foreman, Assignees) */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                        {/* Row 3: Staffing (PM, Foreman) */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
                              <div className="space-y-2">
                                 <SearchableSelect
                                     id="schedPM"
@@ -3282,28 +3305,7 @@ export default function SchedulePage() {
                                         }))}
                                     value={editingItem?.foremanName || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
-                                    onNext={() => document.getElementById('schedTeam')?.focus()}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedTeam"
-                                    label="Assignees"
-                                    placeholder="Select Team"
-                                    multiple
-                                    options={initialData.employees
-                                        .filter(emp => emp.isScheduleActive)
-                                        .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
-                                        .map(emp => ({
-                                        label: emp.label,
-                                        value: emp.value,
-                                        image: emp.image
-                                    }))}
-                                    value={editingItem?.assignees || []}
-                                    onChange={(val) => {
-                                        setEditingItem(prev => ({ ...prev, assignees: val }));
-                                    }}
-                                    onNext={() => document.getElementById('schedDesc')?.focus()}
+                                    onNext={() => document.getElementById('schedService')?.focus()}
                                 />
                             </div>
                         </div>

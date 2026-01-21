@@ -60,7 +60,7 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
                 className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
                 onClick={preventClose ? undefined : onClose}
             />
-            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[96vh] flex flex-col overflow-hidden transition-all duration-300 transform ${shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4'}`}>
+            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[96vh] flex flex-col transition-all duration-300 transform ${shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4'}`}>
                 <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                     <h3 className="text-lg font-bold text-gray-900">{title}</h3>
                     <button
