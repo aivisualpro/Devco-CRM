@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
 
                 // Debug: Check first ID
                 try {
-                     const testId = ops[0].updateOne.filter._id;
+                     const testId = ops[0]!.updateOne.filter._id;
                      const example = await Schedule.findById(testId).select('_id').lean();
                      console.log(`[Import Debug] Testing First ID: "${testId}". Found: ${!!example}`);
                      if (!example) {
