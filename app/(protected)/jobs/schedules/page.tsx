@@ -223,7 +223,8 @@ export default function SchedulePage() {
         employees: any[];
         constants: any[];
         estimates: any[];
-    }>({ clients: [], employees: [], constants: [], estimates: [] });
+        equipmentItems: any[];
+    }>({ clients: [], employees: [], constants: [], estimates: [], equipmentItems: [] });
 
     const searchInputRef = useRef<HTMLInputElement>(null);
     const INCREMENT = 20;

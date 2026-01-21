@@ -1,5 +1,5 @@
-
 import mongoose, { Schema, Document } from 'mongoose';
+import { IEquipmentUsed } from './Schedule';
 
 export interface IDailyJobTicket extends Document {
     schedule_id: string;
@@ -9,6 +9,8 @@ export interface IDailyJobTicket extends Document {
     createdBy: string;
     clientEmail?: string;
     emailCounter?: number;
+    equipmentUsed?: IEquipmentUsed[];
+    djtimages?: string[];
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -21,7 +23,14 @@ const DailyJobTicketSchema: Schema = new Schema({
     customerSignature: { type: String, default: '' },
     createdBy: { type: String, required: true },
     clientEmail: { type: String, default: '' },
-    emailCounter: { type: Number, default: 0 }
+    emailCounter: { type: Number, default: 0 },
+    equipmentUsed: [{
+        equipment: { type: String },
+        type: { type: String, enum: ['owned', 'rental'] },
+        qty: { type: Number },
+        cost: { type: Number }
+    }],
+    djtimages: { type: [String], default: [] }
 }, {
     timestamps: true
 });

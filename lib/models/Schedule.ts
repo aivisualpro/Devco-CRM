@@ -24,11 +24,35 @@ export interface ISchedule extends Document {
     createdAt?: Date;
     updatedAt?: Date;
     timesheet?: ITimesheet[];
-    djt?: any;
+    djt?: IDJT;
     JHASignatures?: any[];
     DJTSignatures?: any[];
     todayObjectives?: IObjective[];
     syncedToAppSheet?: boolean;
+}
+
+export interface IDJT {
+    _id?: string;
+    dailyJobDescription?: string;
+    customerPrintName?: string;
+    customerSignature?: string;
+    djtTime?: string;
+    equipmentUsed?: IEquipmentUsed[];
+    djtimages?: string[];
+    createdBy?: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+    clientEmail?: string;
+    emailCounter?: number;
+    signatures?: any[]; // For frontend convenience
+    schedule_id?: string;
+}
+
+export interface IEquipmentUsed {
+    equipment: string; // Equipment Item ID
+    type: 'owned' | 'rental';
+    qty: number;
+    cost: number;
 }
 
 export interface IObjective {
@@ -117,7 +141,27 @@ const ScheduleSchema = new Schema({
     siteLayout: { type: String },
     timesheet: { type: [TimesheetSchema], default: [] },
     jha: { type: Object, default: null },
-    djt: { type: Object, default: null },
+    djt: { 
+        type: {
+            dailyJobDescription: { type: String },
+            customerPrintName: { type: String },
+            customerSignature: { type: String },
+            djtTime: { type: String },
+            equipmentUsed: [{
+                equipment: { type: String },
+                type: { type: String, enum: ['owned', 'rental'] },
+                qty: { type: Number },
+                cost: { type: Number }
+            }],
+            djtimages: { type: [String] },
+            createdBy: { type: String },
+            createdAt: { type: Date },
+            updatedAt: { type: Date },
+            clientEmail: { type: String },
+            emailCounter: { type: Number }
+        }, 
+        default: null 
+    },
     JHASignatures: { type: [], default: [] },
     DJTSignatures: { type: [], default: [] },
     todayObjectives: { type: [{

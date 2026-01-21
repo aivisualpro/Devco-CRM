@@ -264,6 +264,8 @@ export async function POST(request: NextRequest) {
                                         djtTime: "$djt.djtTime",
                                         clientEmail: "$djt.clientEmail",
                                         emailCounter: "$djt.emailCounter",
+                                        equipmentUsed: { $ifNull: ["$djt.equipmentUsed", []] },
+                                        djtimages: { $ifNull: ["$djt.djtimages", []] },
                                         
                                         // Merge signatures from schedule array
                                         signatures: { $ifNull: ['$DJTSignatures', []] },

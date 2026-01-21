@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, Client, Employee, Constant, Estimate, JHA } from '@/lib/models';
+import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem } from '@/lib/models';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -452,7 +452,8 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color image').lean() : Promise.resolve([]),
-                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([])
+                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([]),
+                    !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([])
                 ]);
 
                 const resultDocs = aggResult[0].data;
@@ -473,7 +474,7 @@ export async function POST(request: NextRequest) {
                 const capacity = (totalActiveEmployees > 0 && days > 0) ? Math.round((totalAssignees / (totalActiveEmployees * days)) * 100) : 0;
 
                 // Process initial data... (Same as before)
-                const [clients, employees, constants, estimates] = metadata;
+                const [clients, employees, constants, estimates, equipmentItems] = metadata;
 
                 const schedulesWithMetaData = resultDocs.map((s: any) => ({
                     ...s,
@@ -596,7 +597,13 @@ export async function POST(request: NextRequest) {
                             isScheduleActive: (e as any).isScheduleActive
                         }]) || []).values()),
                         constants: Array.from(new Map(constants?.filter((c: any) => c?.type && c?.description).map((c: any) => [`${c.type}-${c.description}`, c]) || []).values()),
-                        estimates: Array.from(uniqueEstimates.values())
+                        estimates: Array.from(uniqueEstimates.values()),
+                        equipmentItems: equipmentItems.map((e: any) => ({
+                            value: e._id.toString(),
+                            label: e.equipmentMachine,
+                            dailyCost: e.dailyCost,
+                            uom: e.uom
+                        }))
                     };
                 }
 
@@ -604,11 +611,12 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getInitialData': {
-                const [clients, employees, constants, estimates] = await Promise.all([
+                const [clients, employees, constants, estimates, equipmentItems] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean()
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean(),
+                    EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean()
                 ]);
 
                 // Process estimates to keep unique estimate numbers but preserve customerId (from latest version)
@@ -645,7 +653,13 @@ export async function POST(request: NextRequest) {
                             isScheduleActive: (e as any).isScheduleActive
                         }])).values()),
                         constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
-                        estimates: Array.from(uniqueEstimates.values())
+                        estimates: Array.from(uniqueEstimates.values()),
+                        equipmentItems: equipmentItems.map((e: any) => ({
+                            value: e._id.toString(),
+                            label: e.equipmentMachine,
+                            dailyCost: e.dailyCost,
+                            uom: e.uom
+                        }))
                     }
                 });
             }

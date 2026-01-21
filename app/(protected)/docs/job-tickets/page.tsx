@@ -19,6 +19,7 @@ interface Signature {
 }
 
 interface DJT {
+    _id?: string;
     schedule_id?: string;
     scheduleRef?: Schedule;
     date?: string; // Often inherent in schedule date, but DJT might have its own
@@ -64,6 +65,7 @@ export default function JobTicketPage() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [estimates, setEstimates] = useState<any[]>([]); 
     const [clients, setClients] = useState<any[]>([]); 
+    const [equipmentItems, setEquipmentItems] = useState<any[]>([]); 
     const [loading, setLoading] = useState(true);
 
     // UI State
@@ -143,6 +145,7 @@ export default function JobTicketPage() {
                     setEmployees(data.result.initialData.employees || []);
                     setEstimates(data.result.initialData.estimates || []);
                     setClients(data.result.initialData.clients || []);
+                    setEquipmentItems(data.result.initialData.equipmentItems || []);
                 }
             }
         } catch (err) {
@@ -261,16 +264,6 @@ export default function JobTicketPage() {
         if (!selectedDJT) return;
         
         try {
-            const payload = {
-                id: selectedDJT.schedule_id,
-                djt: {
-                    ...selectedDJT,
-                    // Ensure we don't save scheduleRef to DB if it was attached for UI
-                    scheduleRef: undefined,
-                    schedule_id: undefined
-                }
-            };
-
             // Optimistic Update
             const updatedDJT = { ...selectedDJT };
             
@@ -295,10 +288,18 @@ export default function JobTicketPage() {
             success('Job Ticket saved'); // Show success immediately
 
             // Background Save
-            fetch('/api/schedules', {
+            fetch('/api/djt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateSchedule', payload })
+                body: JSON.stringify({ 
+                    action: 'saveDJT', 
+                    payload: {
+                        ...selectedDJT,
+                        schedule_id: selectedDJT.schedule_id || selectedDJT._id,
+                        createdBy: selectedDJT.createdBy || 'system',
+                        scheduleRef: undefined
+                    }
+                })
             }).then(async (res) => {
                 const data = await res.json();
                 if (!data.success) {
@@ -349,22 +350,19 @@ export default function JobTicketPage() {
             success('Signature saved'); // Feedback
             setActiveSignatureEmployee(null);
 
-            // 2. Prepare Payload
-            const payload = {
-                id: selectedDJT.schedule_id,
-                djt: {
-                    ...updatedDJT,
-                    scheduleRef: undefined,
-                    schedule_id: undefined,
-                    schedule: undefined // Just in case
-                }
-            };
-
-            // Background Save
-            await fetch('/api/schedules', {
+            // 2. Background Save
+            await fetch('/api/djt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateSchedule', payload })
+                body: JSON.stringify({ 
+                    action: 'saveDJT', 
+                    payload: {
+                        ...updatedDJT,
+                        schedule_id: updatedDJT.schedule_id || updatedDJT._id,
+                        createdBy: updatedDJT.createdBy || 'system',
+                        scheduleRef: undefined
+                    }
+                })
             });
             
         } catch (err) {
@@ -643,7 +641,7 @@ export default function JobTicketPage() {
                     setIsEditMode={setIsEditMode}
                     handleSave={handleSaveDJT}
                     handleSaveSignature={handleSaveSignature}
-                    initialData={{ employees, estimates, clients }}
+                    initialData={{ employees, estimates, clients, equipmentItems }}
                     schedules={schedules}
                     activeSignatureEmployee={activeSignatureEmployee}
                     setActiveSignatureEmployee={setActiveSignatureEmployee}
