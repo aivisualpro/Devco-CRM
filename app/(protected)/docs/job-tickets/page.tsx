@@ -57,10 +57,13 @@ export default function JobTicketPage() {
     const { success, error } = useToast();
     
     // Data State
+    const [djts, setDjts] = useState<DJT[]>([]); // Separated state for DJT list
+    const [totalDJTs, setTotalDJTs] = useState(0);
+
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
-    const [estimates, setEstimates] = useState<any[]>([]); // Added estimates
-    const [clients, setClients] = useState<any[]>([]); // Added clients
+    const [estimates, setEstimates] = useState<any[]>([]); 
+    const [clients, setClients] = useState<any[]>([]); 
     const [loading, setLoading] = useState(true);
 
     // UI State
@@ -81,33 +84,66 @@ export default function JobTicketPage() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPage]);
+
+    // Search Debounce
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (currentPage !== 1) {
+                setCurrentPage(1); // Reset to page 1 on search
+            } else {
+                fetchData();
+            }
+        }, 500);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Use getSchedulesPage for optimized single-request loading
-            const res = await fetch('/api/schedules', {
+            // 1. Fetch DJTs (Paginated)
+            const djtRes = await fetch('/api/djt', {
                 method: 'POST',
                 body: JSON.stringify({ 
-                    action: 'getSchedulesPage',
-                    payload: {
-                        startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
+                    action: 'getDJTs',
+                    payload: { 
+                        page: currentPage, 
+                        limit: itemsPerPage,
+                        search 
                     }
-                }) 
+                })
             });
-
-            const data = await res.json();
-
-            if (data.success) {
-                setSchedules(data.result.schedules || []);
-                setEmployees(data.result.initialData.employees || []);
-                setEstimates(data.result.initialData.estimates || []);
-                setClients(data.result.initialData.clients || []);
-            } else {
-                error('Failed to load data');
+            const djtData = await djtRes.json();
+            
+            if (djtData.success) {
+                 setDjts(djtData.result.djts);
+                 setTotalDJTs(djtData.result.total);
             }
 
+            // 2. Fetch Schedules (For dropdown & Initial Data)
+            // Load once if empty
+            if (schedules.length === 0) {
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    body: JSON.stringify({ 
+                        action: 'getSchedulesPage',
+                        payload: {
+                            startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
+                        }
+                    }) 
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    setSchedules(data.result.schedules || []);
+                    setEmployees(data.result.initialData.employees || []);
+                    setEstimates(data.result.initialData.estimates || []);
+                    setClients(data.result.initialData.clients || []);
+                }
+            }
         } catch (err) {
             console.error('Error fetching data:', err);
             error('Failed to load data');
@@ -115,29 +151,27 @@ export default function JobTicketPage() {
         setLoading(false);
     };
 
-    // Helper to get client name
-    const getClientName = (schedule: Schedule) => {
-        if (!schedule?.estimate) return '-';
-        // Try to find estimate by 'estimate' field (e.g. "1001")
-        const est = estimates.find(e => e.estimate === schedule.estimate);
-        if (!est) return '-';
-
-        if (est.customerName) return est.customerName;
-        if (est.customerId) {
-            const client = clients.find(c => c._id === est.customerId);
-            return client ? client.name : '-';
+    // Helper to get client name (Updated to use robust helper similar to JHA)
+    const getClientName = (schedule: Schedule | undefined) => {
+        if (!schedule) return '-';
+        if (schedule.customerName) return schedule.customerName; 
+        
+        if (schedule.estimate) {
+            const est = estimates.find(e => e.estimate === schedule.estimate);
+            if (est?.customerName) return est.customerName;
+            if (est?.customerId) {
+                const client = clients.find(c => c._id === est.customerId);
+                if (client) return client.name;
+            }
         }
+        
+        if (schedule.customerId) {
+             const client = clients.find(c => c._id === schedule.customerId);
+             if (client) return client.name;
+        }
+
         return '-';
     };
-
-
-
-    // Filtered DJT List (Schedules usually have djt object if created)
-    const existingDJTs = useMemo(() => {
-        return schedules
-            .filter(s => s.djt && Object.keys(s.djt).length > 0)
-            .map(s => ({ ...s.djt, schedule_id: s._id, scheduleRef: s })); 
-    }, [schedules]);
 
     // Available Schedules for New DJT
     const availableSchedules = useMemo(() => {
@@ -150,24 +184,8 @@ export default function JobTicketPage() {
             }));
     }, [schedules]);
 
-    // Search & Pagination for Table
-    const filteredDJTs = useMemo(() => {
-        if (!search) return existingDJTs;
-        const lowerSearch = search.toLowerCase();
-        return existingDJTs.filter((djt: any) => {
-            const dateStr = djt.date ? new Date(djt.date).toLocaleDateString() : '';
-            const schedule = djt.scheduleRef;
-            return (
-                dateStr.includes(lowerSearch) ||
-                (schedule?.estimate || '').toLowerCase().includes(lowerSearch) ||
-                (schedule?.title || '').toLowerCase().includes(lowerSearch) ||
-                (djt.dailyJobDescription || '').toLowerCase().includes(lowerSearch)
-            );
-        });
-    }, [existingDJTs, search]);
-
-    const paginatedDJTs = filteredDJTs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const totalPages = Math.ceil(filteredDJTs.length / itemsPerPage);
+    const paginatedDJTs = djts; // Server paginated
+    const totalPages = Math.ceil(totalDJTs / itemsPerPage);
 
     // Handlers
     const handleCreateOpen = () => {
@@ -187,11 +205,10 @@ export default function JobTicketPage() {
         const newDJT: DJT = {
             schedule_id: schedule._id,
             scheduleRef: schedule,
-            date: new Date().toISOString(), // Default to today
+            date: new Date().toISOString(), 
             djtTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             signatures: [],
             dailyJobDescription: '',
-            // Defaults
             active: true
         };
 
@@ -217,16 +234,13 @@ export default function JobTicketPage() {
         if (!confirm('Are you sure you want to delete this Job Ticket?')) return;
 
         try {
-            // We update the schedule to remove the DJT object (set to null/empty)
-            const payload = {
-                id: djt.schedule_id,
-                djt: null // or {}
-            };
-
-            const res = await fetch('/api/schedules', {
+            const res = await fetch('/api/djt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateSchedule', payload })
+                body: JSON.stringify({ 
+                    action: 'deleteDJT', 
+                    payload: { id: djt._id } 
+                })
             });
             const data = await res.json();
             if (data.success) {

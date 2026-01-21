@@ -140,6 +140,147 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, count: records.length });
             }
             
+            case 'deleteDJT': {
+                const { id, userId } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Missing ID' });
+                
+                const djt = await DailyJobTicket.findById(id);
+                if (!djt) return NextResponse.json({ success: false, error: 'DJT not found' });
+                
+                await DailyJobTicket.findByIdAndDelete(id);
+                
+                if (djt.schedule_id) {
+                    await Schedule.findByIdAndUpdate(djt.schedule_id, { 
+                        $unset: { djt: 1 } 
+                    });
+                }
+                
+                 const activityId = new mongoose.Types.ObjectId().toString();
+                 await Activity.create({
+                    _id: activityId,
+                    user: userId || 'system',
+                    action: 'deleted_djt',
+                    type: 'djt',
+                    title: `Deleted DJT`,
+                    entityId: id,
+                    createdAt: new Date()
+                });
+
+                return NextResponse.json({ success: true });
+            }
+
+            case 'getDJTs': {
+                const { page = 1, limit = 20, search = '' } = payload || {};
+                const skip = (page - 1) * limit;
+
+                const pipeline: any[] = [
+                    {
+                        $lookup: {
+                            from: 'devcoschedules',
+                            let: { schedId: "$schedule_id" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$schedId" }] } } }
+                            ],
+                            as: 'scheduleDocs'
+                        }
+                    },
+                    { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
+                    {
+                        $lookup: {
+                            from: 'clients',
+                            let: { cid: "$scheduleDocs.customerId" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$cid" }] } } }
+                            ],
+                            as: 'clientDocs'
+                        }
+                    },
+                    { $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true } },
+                    {
+                        $lookup: {
+                            from: 'estimatesdb',
+                            localField: 'scheduleDocs.estimate',
+                            foreignField: 'estimate',
+                            as: 'estimateDocs'
+                        }
+                    },
+                    { $unwind: { path: '$estimateDocs', preserveNullAndEmptyArrays: true } },
+                    {
+                        $addFields: {
+                            computedCustomerName: { 
+                                $ifNull: [
+                                    '$scheduleDocs.customerName', 
+                                    '$clientDocs.name',
+                                    '$estimateDocs.customerName',
+                                    '-'
+                                ] 
+                            },
+                             computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
+                             computedTitle: { $ifNull: ['$scheduleDocs.title', '$scheduleDocs.projectName', '-'] },
+                             dateStr: { $dateToString: { format: "%m/%d/%Y", date: "$createdAt" } } // DJT usually relies on createdAt or explicit date? Assuming createdAt if no date field
+                        }
+                    }
+                ];
+
+                if (search) {
+                    const searchRegex = { $regex: search, $options: 'i' };
+                    pipeline.push({
+                        $match: {
+                            $or: [
+                                { dailyJobDescription: searchRegex },
+                                { computedCustomerName: searchRegex },
+                                { computedEstimate: searchRegex },
+                                { computedTitle: searchRegex },
+                                { dateStr: searchRegex }
+                            ]
+                        }
+                    });
+                }
+
+                pipeline.push(
+                    { $sort: { createdAt: -1 } },
+                    {
+                        $facet: {
+                            metadata: [{ $count: "total" }],
+                            data: [
+                                { $skip: skip },
+                                { $limit: limit },
+                                {
+                                    $project: {
+                                        _id: 1, 
+                                        schedule_id: 1,
+                                        dailyJobDescription: 1,
+                                        customerPrintName: 1,
+                                        customerSignature: 1,
+                                        createdBy: 1,
+                                        createdAt: 1,
+                                        clientEmail: 1,
+                                        emailCounter: 1,
+                                        // Add other DJT fields here as needed
+                                        
+                                        // Merge signatures from schedule if available
+                                        DJTSignatures: { $ifNull: ['$scheduleDocs.DJTSignatures', '$DJTSignatures', []] },
+
+                                        scheduleRef: {
+                                            $mergeObjects: [
+                                                '$scheduleDocs',
+                                                { customerName: '$computedCustomerName' }
+                                            ]
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                );
+                
+                const result = await DailyJobTicket.aggregate(pipeline as any[]).allowDiskUse(true);
+                const data = result[0].data;
+                const total = result[0].metadata[0]?.total || 0;
+
+                return NextResponse.json({ success: true, result: { djts: data, total } });
+            }
+
             case 'saveDJTSignature': {
                 const sigData = payload;
                 if (!sigData.schedule_id) return NextResponse.json({ success: false, error: 'Missing schedule_id' });

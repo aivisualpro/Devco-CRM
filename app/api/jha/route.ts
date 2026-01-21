@@ -471,7 +471,7 @@ export async function POST(request: NextRequest) {
                     }
                 );
                 
-                const result = await JHA.aggregate(pipeline as any[]);
+                const result = await JHA.aggregate(pipeline as any[]).allowDiskUse(true);
                 const data = result[0].data;
                 const total = result[0].metadata[0]?.total || 0;
 

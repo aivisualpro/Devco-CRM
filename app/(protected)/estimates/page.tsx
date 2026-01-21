@@ -796,12 +796,11 @@ export default function EstimatesPage() {
                                                 </TableCell>
                                                 {currentUserEmail === 'adeel@devco-inc.com' && (
                                                     <TableCell>
-                                                        {!est.syncedToAppSheet && (
-                                                           <button 
+                                                        <button 
                                                                onClick={(e) => handleSyncToAppSheet(e, est._id)}
                                                                disabled={syncingId === est._id}
-                                                               className="p-1 px-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors disabled:opacity-50"
-                                                               title="Sync to AppSheet"
+                                                               className={`p-1 px-2 rounded transition-colors disabled:opacity-50 ${est.syncedToAppSheet ? 'text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                                                               title={est.syncedToAppSheet ? "Update AppSheet" : "Sync to AppSheet"}
                                                            >
                                                                {syncingId === est._id ? (
                                                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -809,7 +808,6 @@ export default function EstimatesPage() {
                                                                    <Upload className="w-3.5 h-3.5" />
                                                                )}
                                                            </button>
-                                                        )}
                                                     </TableCell>
                                                 )}
 
