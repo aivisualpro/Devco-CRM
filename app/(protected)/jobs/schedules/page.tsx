@@ -2656,28 +2656,39 @@ export default function SchedulePage() {
                                     <div className="animate-in slide-in-from-right duration-300">
                                         <div className="bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
                                             
-                                            {/* Sync to AppSheet Button - Only visible to adeel@devco-inc.com and only if not synced yet */}
-                                            {currentUser?.email === 'adeel@devco-inc.com' && !selectedSchedule.syncedToAppSheet && (
-                                                <div className="flex justify-end">
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <button
-                                                                onClick={handleSyncToAppSheet}
-                                                                disabled={isSyncingToAppSheet}
-                                                                className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                            >
-                                                                {isSyncingToAppSheet ? (
-                                                                    <Loader2 size={14} className="animate-spin" />
-                                                                ) : (
-                                                                    <Upload size={14} />
-                                                                )}
-                                                                Sync to AppSheet
-                                                            </button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Sync this schedule to AppSheet</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
+                                            {/* Sync to AppSheet Button & ID - Only visible to adeel@devco-inc.com */}
+                                            {currentUser?.email === 'adeel@devco-inc.com' && (
+                                                <div className="flex items-center justify-between gap-2">
+                                                    {/* Schedule ID */}
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">ID:</span>
+                                                        <code className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded select-all cursor-pointer hover:bg-slate-200 transition-colors" title="Click to select">
+                                                            {selectedSchedule._id}
+                                                        </code>
+                                                    </div>
+                                                    
+                                                    {/* Sync Button - only if not synced yet */}
+                                                    {!selectedSchedule.syncedToAppSheet && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <button
+                                                                    onClick={handleSyncToAppSheet}
+                                                                    disabled={isSyncingToAppSheet}
+                                                                    className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                >
+                                                                    {isSyncingToAppSheet ? (
+                                                                        <Loader2 size={14} className="animate-spin" />
+                                                                    ) : (
+                                                                        <Upload size={14} />
+                                                                    )}
+                                                                    Sync to AppSheet
+                                                                </button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>Sync this schedule to AppSheet</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    )}
                                                 </div>
                                             )}
 
