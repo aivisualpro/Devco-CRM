@@ -627,22 +627,32 @@ export default function SchedulePage() {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Validate all mandatory fields
-        const requiredFields = [
-            { key: 'customerId', label: 'Client' },
-            { key: 'title', label: 'Title' },
+        // Validate all mandatory fields - conditional based on tag
+        const isDayOff = editingItem?.item === 'Day Off';
+        
+        // Base required fields (always required)
+        const baseRequiredFields = [
+            { key: 'item', label: 'Tag' },
             { key: 'fromDate', label: 'From Date' },
             { key: 'toDate', label: 'To Date' },
+        ];
+        
+        // Additional fields required for non-Day Off schedules
+        const additionalRequiredFields = [
+            { key: 'customerId', label: 'Client' },
+            { key: 'title', label: 'Title' },
             { key: 'projectManager', label: 'Project Manager' },
             { key: 'foremanName', label: 'Foreman' },
             { key: 'description', label: 'Scope of Work' },
             { key: 'service', label: 'Service' },
-            { key: 'item', label: 'Tag' },
             { key: 'notifyAssignees', label: 'Notify Assignees' },
             { key: 'perDiem', label: 'Per Diem' },
             { key: 'fringe', label: 'Fringe' },
             { key: 'certifiedPayroll', label: 'Certified Payroll' }
         ];
+        
+        // Combine fields based on whether it's a Day Off
+        const requiredFields = isDayOff ? baseRequiredFields : [...baseRequiredFields, ...additionalRequiredFields];
 
         for (const field of requiredFields) {
             if (!(editingItem as any)?.[field.key]) {
