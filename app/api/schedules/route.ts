@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
         switch (action) {
             case 'getSchedules': {
-                const results = await Schedule.find().sort({ fromDate: -1 }).lean();
+                const results = await Schedule.find().sort({ fromDate: -1, _id: 1 }).lean();
                 return NextResponse.json({ success: true, result: results });
             }
 
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
                 const ops = schedules.map((item: any) => {
                     // Extract recordId to use as _id, delete from item payload so it doesn't fail schema validation
                     const { recordId, ...rest } = item;
-                    const idToUse = recordId || item._id;
+                    const idToUse = recordId || item._id || new mongoose.Types.ObjectId();
 
                     return {
                         updateOne: {
@@ -394,7 +394,7 @@ export async function POST(request: NextRequest) {
                         $facet: {
                             metadata: [{ $count: "total" }],
                             data: [
-                                { $sort: { fromDate: -1 } },
+                                { $sort: { fromDate: -1, _id: 1 } },
                                 { $skip: skip },
                                 { $limit: limit },
                                 // Project fields needed for UI to reduce payload
@@ -408,6 +408,9 @@ export async function POST(request: NextRequest) {
                                     todayObjectives: 1, syncedToAppSheet: 1,
                                     createdAt: 1, updatedAt: 1
                                 }}
+                            ],
+                            counts: [
+                                { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "UTC" } }, count: { $sum: 1 } } }
                             ]
                         }
                     }
@@ -423,6 +426,7 @@ export async function POST(request: NextRequest) {
 
                 const resultDocs = aggResult[0].data;
                 const totalCount = aggResult[0].metadata[0]?.total || 0;
+                const dailyCounts = aggResult[0].counts || [];
 
                 // Process initial data... (Same as before)
                 const [clients, employees, constants, estimates] = metadata;
@@ -436,6 +440,7 @@ export async function POST(request: NextRequest) {
                 const finalResult: any = { 
                     schedules: schedulesWithMetaData,
                     total: totalCount,
+                    counts: dailyCounts,
                     page,
                     totalPages: Math.ceil(totalCount / limit)
                 };

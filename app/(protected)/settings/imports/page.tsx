@@ -63,30 +63,43 @@ export default function ImportsPage() {
         reader.onload = async (event) => {
             try {
                 const text = event.target?.result as string;
-                const parsedRows = parseCSV(text);
+                // Use PapaParse
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
 
-                if (parsedRows.length < 2) throw new Error("File must contain at least a header and one data row.");
+                const processedData = data.map((row: any) => {
+                    const obj: any = { ...row };
 
-                const headers = parsedRows[0].map(h => h.replace(/^"|"$/g, '').trim());
+                    // Handle Array fields
+                    if (obj.assignees && typeof obj.assignees === 'string') {
+                        obj.assignees = obj.assignees.split(/[,;]/).map((v: string) => v.trim()).filter(Boolean);
+                    }
 
-                const data = parsedRows.slice(1).map(values => {
-                    const obj: any = {};
-                    headers.forEach((h, i) => {
-                        if (values[i] !== undefined) {
-                            let val = values[i].replace(/^"|"$/g, '').trim();
-
-                            // Handle Array fields
-                            if (h === 'assignees') {
-                                obj[h] = val ? val.split(/[,;]/).map(v => v.trim()).filter(Boolean) : [];
-                            }
-                            else {
-                                obj[h] = val;
-                            }
-                        }
+                    // Handle Dates
+                    ['fromDate', 'toDate'].forEach(h => {
+                        const val = obj[h];
+                         if (val && typeof val === 'string') {
+                                let finalDate = val;
+                                // Regex matches M/D/YYYY
+                                const mdYMatch = val.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+                                if (mdYMatch) {
+                                    const [_, m, d, y, h_time, min, s] = mdYMatch;
+                                    const pad = (n: string) => n.padStart(2, '0');
+                                    const hh = h_time ? pad(h_time) : '00';
+                                    const mm = min ? pad(min) : '00';
+                                    const ss = s ? pad(s) : '00';
+                                    finalDate = `${y}-${pad(m)}-${pad(d)}T${hh}:${mm}:${ss}.000Z`;
+                                } else if (/^\d{4}-\d{2}-\d{2}$/.test(val)) {
+                                    finalDate = `${val}T00:00:00.000Z`;
+                                }
+                                obj[h] = finalDate;
+                         }
                     });
-                    if ((obj as any).recordId) {
-                        (obj as any)._id = (obj as any).recordId;
-                        delete (obj as any).recordId;
+
+                    // Handle ID
+                    if (obj.recordId) {
+                        obj._id = obj.recordId;
+                        delete obj.recordId;
                     }
                     return obj;
                 });
@@ -94,11 +107,11 @@ export default function ImportsPage() {
                 const res = await fetch('/api/schedules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importSchedules', payload: { schedules: data } })
+                    body: JSON.stringify({ action: 'importSchedules', payload: { schedules: processedData } })
                 });
                 const resData = await res.json();
                 if (resData.success) {
-                    success(`Successfully imported ${data.length} schedules`);
+                    success(`Successfully imported ${processedData.length} schedules`);
                 } else {
                     toastError(resData.error || 'Import failed');
                 }

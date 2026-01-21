@@ -82,7 +82,8 @@ export default function SchedulePage() {
         const today = new Date();
         const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
         const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - dayOfWeek); // Go back to Sunday
+        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0=Mon, 6=Sun
+        startOfWeek.setDate(today.getDate() - diff); // Go back to Monday
 
         const dates: string[] = [];
         for (let i = 0; i < 7; i++) {
@@ -98,6 +99,33 @@ export default function SchedulePage() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
+    const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
+    
+    // Scroll Spy Logic
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const [visibleScrollDay, setVisibleScrollDay] = useState<string>('all');
+
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+        
+        const handleScroll = () => {
+             const stickyHeaderHeight = 60; 
+             const containerRect = container.getBoundingClientRect();
+             const cards = Array.from(container.querySelectorAll('[data-day]'));
+             
+             for (const card of cards) {
+                 const rect = card.getBoundingClientRect();
+                 if (rect.bottom > containerRect.top + stickyHeaderHeight + 10) {
+                     const day = card.getAttribute('data-day');
+                     if (day) setVisibleScrollDay(day);
+                     break;
+                 }
+             }
+        };
+        container.addEventListener('scroll', handleScroll, { passive: true });
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [schedules]);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     
@@ -263,9 +291,18 @@ export default function SchedulePage() {
                     setSchedules(newSchedules);
                     if (data.result.initialData) setInitialData(data.result.initialData);
                 } else {
-                    setSchedules(prev => [...prev, ...newSchedules]);
+                    setSchedules(prev => {
+                        const existingIds = new Set(prev.map(s => s._id));
+                        const uniqueNew = newSchedules.filter((s: any) => !existingIds.has(s._id));
+                        return [...prev, ...uniqueNew];
+                    });
                 }
                 
+                if (data.result.counts) {
+                     const countsMap: Record<string, number> = {};
+                     data.result.counts.forEach((c: any) => countsMap[c._id] = c.count);
+                     setServerCounts(countsMap);
+                }
                 setTotalCount(data.result.total || 0);
                 setTotalPages(data.result.totalPages || 1);
                 setHasMore(pageNum < (data.result.totalPages || 1));
@@ -428,21 +465,27 @@ export default function SchedulePage() {
         const scheduleCounts: Record<string, number> = { all: totalCount };
         dayOrder.forEach(d => scheduleCounts[d] = 0);
 
-        schedules.forEach(s => {
-            const scheduleDate = formatLocalDate(s.fromDate);
-            if (selectedDates.length === 0 || selectedDates.includes(scheduleDate)) {
-                const matchesSearch =
-                    s.title?.toLowerCase().includes(search.toLowerCase()) ||
-                    getCustomerName(s).toLowerCase().includes(search.toLowerCase()) ||
-                    s.estimate?.toLowerCase().includes(search.toLowerCase()) ||
-                    s.jobLocation?.toLowerCase().includes(search.toLowerCase());
-                if (matchesSearch) {
-
-                    const dayName = getDayName(scheduleDate);
-                    scheduleCounts[dayName]++;
+        if (Object.keys(serverCounts).length > 0) {
+             Object.entries(serverCounts).forEach(([dateStr, count]) => {
+                 const dayName = getDayName(dateStr);
+                 if (scheduleCounts[dayName] !== undefined) scheduleCounts[dayName] += count;
+             });
+        } else {
+            schedules.forEach(s => {
+                const scheduleDate = formatLocalDate(s.fromDate);
+                if (selectedDates.length === 0 || selectedDates.includes(scheduleDate)) {
+                    const matchesSearch =
+                        s.title?.toLowerCase().includes(search.toLowerCase()) ||
+                        getCustomerName(s).toLowerCase().includes(search.toLowerCase()) ||
+                        s.estimate?.toLowerCase().includes(search.toLowerCase()) ||
+                        s.jobLocation?.toLowerCase().includes(search.toLowerCase());
+                    if (matchesSearch) {
+                        const dayName = getDayName(scheduleDate);
+                        scheduleCounts[dayName]++;
+                    }
                 }
-            }
-        });
+            });
+        }
 
         const tabs = [{ id: 'all', label: 'All', count: scheduleCounts.all }];
         dayOrder.forEach(day => {
@@ -478,14 +521,15 @@ export default function SchedulePage() {
             // Strict Filter: Verify the item visually falls on one of the selected dates
             // This catches timezone drifts where server returns an item it thinks is on Day X (UTC)
             // but client renders it on Day Y (Local).
-            if (selectedDates.length > 0 && !selectedDates.includes(scheduleDate)) {
-                return false;
-            }
+            // REMOVED: Trusting server response to allow all returned items to show (fixes potential 23 vs 24 mismatch if one is slightly off)
+            // if (selectedDates.length > 0 && !selectedDates.includes(scheduleDate)) {
+            //     return false;
+            // }
 
             if (activeDayTab === 'all') return true;
              
              return getDayName(scheduleDate) === activeDayTab;
-        });
+        }).sort((a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime());
     }, [schedules, activeDayTab, selectedDates]);
 
 
@@ -879,10 +923,11 @@ export default function SchedulePage() {
         const year = date.getFullYear();
         const month = date.getMonth();
         const firstDay = new Date(year, month, 1).getDay();
+        const offset = firstDay === 0 ? 6 : firstDay - 1;
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
         const days = [];
-        for (let i = 0; i < firstDay; i++) days.push(null);
+        for (let i = 0; i < offset; i++) days.push(null);
         for (let i = 1; i <= daysInMonth; i++) days.push(i);
         return days;
     };
@@ -2030,7 +2075,7 @@ export default function SchedulePage() {
                             <div className="hidden lg:block">
                                 {/* Days Mapping */}
                                 <div className="grid grid-cols-7 mb-2 px-2">
-                                    {['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'].map(day => (
+                                    {['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'].map(day => (
                                         <div key={day} className="text-center text-[10px] font-black text-slate-400 tracking-widest">{day}</div>
                                     ))}
                                 </div>
@@ -2182,15 +2227,15 @@ export default function SchedulePage() {
 
                     {/* MIDDLE COLUMN - SCHEDULE FEED - Full width on mobile */}
                     <div
+                        ref={scrollContainerRef}
                         className={`w-full lg:w-[75%] ${selectedSchedule ? 'xl:w-[35%]' : 'xl:w-[60%]'} lg:h-full lg:overflow-y-auto p-4 custom-scrollbar bg-[#F0F5FA] rounded-[24px] lg:rounded-[32px] transition-all duration-500 ease-in-out`}
-
                     >
 
                         {/* Day Filter Tabs */}
-                        <div className="pt-0 pb-4 overflow-x-auto">
+                        <div className="pt-0 mb-4 overflow-x-auto sticky top-0 z-50 bg-[#F0F5FA] transition-all">
                             <BadgeTabs
                                 tabs={dayTabs}
-                                activeTab={activeDayTab}
+                                activeTab={activeDayTab === 'all' ? (visibleScrollDay || 'all') : activeDayTab}
                                 onChange={setActiveDayTab}
                                 size="sm"
                             />
@@ -2205,14 +2250,27 @@ export default function SchedulePage() {
                             </div>
                         ) : filteredSchedules.length > 0 ? (
                             <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 pt-0 transition-all duration-500`}>
-                                {displayedSchedules.map((item) => (
+                                {displayedSchedules.map((item) => {
+                                    const dayName = getDayName(formatLocalDate(item.fromDate));
+                                    const dayBorderColor = {
+                                        'Mon': 'border-t-blue-500',
+                                        'Tue': 'border-t-green-500',
+                                        'Wed': 'border-t-purple-500',
+                                        'Thu': 'border-t-orange-500',
+                                        'Fri': 'border-t-red-500',
+                                        'Sat': 'border-t-teal-500',
+                                        'Sun': 'border-t-pink-500'
+                                    }[dayName] || 'border-t-slate-200';
+
+                                    return (
                                     <div
                                         key={item._id}
+                                        data-day={dayName}
                                         onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
-                                        className={`group relative bg-white rounded-[32px] p-5 cursor-pointer transition-all duration-500 ease-out border shadow-sm
+                                        className={`group relative bg-white rounded-[32px] p-5 cursor-pointer transition-all duration-500 ease-out border shadow-sm border-t-[6px] ${dayBorderColor}
                                             ${selectedSchedule?._id === item._id
-                                                ? 'border-[#0F4C75] ring-2 ring-[#0F4C75]/10 shadow-lg scale-[1.02] bg-blue-50/30'
-                                                : 'border-slate-100 hover:border-[#0F4C75]/20 hover:shadow-md hover:-translate-y-1'
+                                                ? 'border-x-[#0F4C75] border-b-[#0F4C75] ring-2 ring-[#0F4C75]/10 shadow-lg scale-[1.02] bg-blue-50/30'
+                                                : 'border-x-slate-100 border-b-slate-100 hover:border-x-[#0F4C75]/20 hover:border-b-[#0F4C75]/20 hover:shadow-md hover:-translate-y-1'
                                             }
                                         `}
                                     >
@@ -2331,7 +2389,7 @@ export default function SchedulePage() {
                                                         </span>
                                                     )}
                                                     <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
-                                                        <span>{new Date(item.fromDate).toLocaleDateString()}</span>
+                                                        <span>{new Date(item.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
                                                         <span className="text-slate-300">|</span>
                                                         <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                                                         <span>-</span>
@@ -2619,7 +2677,8 @@ export default function SchedulePage() {
 
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <EmptyState
