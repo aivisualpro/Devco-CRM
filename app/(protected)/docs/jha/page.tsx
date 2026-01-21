@@ -55,6 +55,7 @@ export default function JHAPage() {
     const { success, error } = useToast();
     
     // Data State
+    const [jhas, setJhas] = useState<JHA[]>([]);
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [estimates, setEstimates] = useState<any[]>([]); // Added estimates
@@ -87,15 +88,25 @@ export default function JHAPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
+            // 1. Fetch All JHAs
+            const jhaRes = await fetch('/api/jha', {
+                method: 'POST',
+                body: JSON.stringify({ action: 'getJHAs' })
+            });
+            const jhaData = await jhaRes.json();
+            
+            if (jhaData.success) {
+                 setJhas(jhaData.result);
+            }
+
+            // 2. Fetch Schedules (For dropdown & Initial Data)
             // Use getSchedulesPage for optimized single-request loading
-            // This returns schedules (last 60 days by default) AND initial data (employees, clients, estimates)
-            // It uses field selection to reduce payload size significantly
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: {
-                        // Optional: Extend range if needed, e.g., 6 months back
+                        // Optional: Extend range if needed
                         startDate: new Date(new Date().setMonth(new Date().getMonth() - 6)).toISOString()
                     }
                 }) 
@@ -122,28 +133,35 @@ export default function JHAPage() {
     };
 
     // Helper to get client name
-    const getClientName = (schedule: Schedule) => {
-        if (!schedule?.estimate) return '-';
-        // Try to find estimate by 'estimate' field (e.g. "1001")
-        const est = estimates.find(e => e.estimate === schedule.estimate);
-        if (!est) return '-';
-
-        if (est.customerName) return est.customerName;
-        if (est.customerId) {
-            const client = clients.find(c => c._id === est.customerId);
-            return client ? client.name : '-';
+    const getClientName = (schedule: Schedule | undefined) => {
+        if (!schedule) return '-';
+        if (schedule.customerName) return schedule.customerName; 
+        
+        // Fallback to lookup via estimates/clients list
+        if (schedule.estimate) {
+            const est = estimates.find(e => e.estimate === schedule.estimate);
+            if (est?.customerName) return est.customerName;
+            if (est?.customerId) {
+                const client = clients.find(c => c._id === est.customerId);
+                if (client) return client.name;
+            }
         }
+        
+        // Fallback to customerId on schedule
+        if (schedule.customerId) {
+             const client = clients.find(c => c._id === schedule.customerId);
+             if (client) return client.name;
+        }
+
         return '-';
     };
 
 
 
-    // Filtered JHA List (Schedules usually have jha object if created)
+    // Filtered JHA List 
     const existingJHAs = useMemo(() => {
-        return schedules
-            .filter(s => s.jha && Object.keys(s.jha).length > 0)
-            .map(s => ({ ...s.jha, schedule_id: s._id, scheduleRef: s })); 
-    }, [schedules]);
+        return jhas; 
+    }, [jhas]);
 
     // Available Schedules for New JHA
     const availableSchedules = useMemo(() => {
@@ -223,18 +241,12 @@ export default function JHAPage() {
         if (!confirm('Are you sure you want to delete this JHA?')) return;
 
         try {
-            // We update the schedule to remove the JHA object (set to null/empty)
-            // Or maybe just empty object {} based on "hasJHA" logic
-            const payload = {
-                id: jha.schedule_id,
-                jha: null // or {}
-            };
-
-            const res = await fetch('/api/schedules', {
+            const res = await fetch('/api/jha', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateSchedule', payload })
-            });
+                body: JSON.stringify({ action: 'deleteJHA', payload: { id: jha._id } })
+            }); // Use JHA API to delete from collection and schedule
+
             const data = await res.json();
             if (data.success) {
                 success('JHA deleted successfully');
@@ -253,20 +265,20 @@ export default function JHAPage() {
         if (!selectedJHA) return;
         
         try {
+            // Prepare payload for JHA API
+            // Ensure schedule_id is set
             const payload = {
-                id: selectedJHA.schedule_id,
-                jha: {
-                    ...selectedJHA,
-                    // Ensure we don't save scheduleRef to DB if it was attached for UI
-                    scheduleRef: undefined,
-                    schedule_id: undefined
-                }
+                ...selectedJHA,
+                schedule_id: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id
             };
+            
+            // Remove UI-only references before sending
+            delete payload.scheduleRef;
 
-            const res = await fetch('/api/schedules', {
+            const res = await fetch('/api/jha', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateSchedule', payload })
+                body: JSON.stringify({ action: 'saveJHA', payload })
             });
 
             const data = await res.json();
@@ -302,19 +314,17 @@ export default function JHAPage() {
 
         // Also save to DB immediately for signatures usually
         try {
-             const payload = {
-                id: selectedJHA.schedule_id,
-                jha: {
-                    ...updatedJHA,
-                    scheduleRef: undefined,
-                    schedule_id: undefined
-                }
+             // Prepare payload for JHA API
+            const payload = {
+                ...updatedJHA,
+                schedule_id: selectedJHA.schedule_id || selectedJHA.scheduleRef?._id
             };
+            delete payload.scheduleRef;
 
-            await fetch('/api/schedules', {
+            await fetch('/api/jha', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'updateSchedule', payload })
+                body: JSON.stringify({ action: 'saveJHA', payload })
             });
             success('Signature saved');
             setActiveSignatureEmployee(null);
@@ -372,7 +382,6 @@ export default function JHAPage() {
                                     <TableHeader className="pl-6 py-4">Date</TableHeader>
                                     <TableHeader>Client</TableHeader>
                                     <TableHeader>Estimate</TableHeader>
-                                    <TableHeader>Title</TableHeader>
                                     <TableHeader>USA No.</TableHeader>
                                     <TableHeader>Signatures</TableHeader>
                                     <TableHeader className="text-right pr-6">Actions</TableHeader>
@@ -416,11 +425,6 @@ export default function JHAPage() {
                                                 <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200">
                                                     {jha.scheduleRef?.estimate || 'No Est'}
                                                 </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="text-sm text-slate-600 font-medium line-clamp-1 max-w-[200px]" title={jha.scheduleRef?.title || jha.scheduleRef?.projectName}>
-                                                    {jha.scheduleRef?.title || jha.scheduleRef?.projectName || '-'}
-                                                </span>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-col">

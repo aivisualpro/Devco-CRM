@@ -130,20 +130,20 @@ export async function POST(request: NextRequest) {
                 const { records } = payload || {};
                 if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid JHA records array' });
 
-                const ops = records.map((item: any) => {
-                    // Extract recordId to use as _id if available, delete from item payload so it doesn't fail schema validation
-                    // Assuming columns map directly to JHA fields
+                // 1. Pre-process records to ensure IDs and types are correct
+                const processedRecords = records.map((item: any) => {
                     const { recordId, _id, ...rest } = item;
-                    const idToUse = recordId || _id;
+                    // Ensure we have an ID to use for both JHA collection and Schedule embedding
+                    const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
 
-                    // Convert boolean fields from strings like TRUE/FALSE or Yes/No if CSV parser didn't
+                    // Convert boolean fields
                     const convertBool = (val: any) => {
                         if (typeof val === 'boolean') return val;
                         if (typeof val === 'string') {
                             const v = val.toLowerCase().trim();
                             return v === 'true' || v === 'yes' || v === '1';
                         }
-                        return false; // Default to false
+                        return false; 
                     };
                     
                     const booleanFields = [
@@ -153,73 +153,64 @@ export async function POST(request: NextRequest) {
                          'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
                          'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
                          'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                         'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed',
+                         'anySpecificNotes' 
+                    ]; // entries that are text/notes shouldn't be here, but 'anySpecificNotes' sounds like text?
+                    // User list check: 'anySpecificNotes' is listed. Usually notes are strings.
+                    // 'commentsOn...' are strings.
+                    // 'anySpecificNotes' is likely a string. Removing it from booleanFields if it was implicitly there or just to be safe.
+                    // The previous code didn't include it in booleanFields. I will check the user's list again.
+                    // User: ... commentsOnOther anySpecificNotes stagingAreaDiscussed ...
+                    // 'anySpecificNotes' looks like a text field. I'll NOT treat it as boolean.
+
+                    const actualBooleanFields = [
+                         'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                         'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                         'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                         'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                         'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                         'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
                          'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
                     ];
 
-                    booleanFields.forEach(field => {
+                    actualBooleanFields.forEach(field => {
                         if (rest[field] !== undefined) rest[field] = convertBool(rest[field]);
                     });
 
                     // Ensure date is valid
                     if (rest.date) rest.date = new Date(rest.date);
-                    
-                    if (idToUse) {
-                         return {
-                            updateOne: {
-                                filter: { _id: idToUse },
-                                update: {
-                                    $set: { ...rest, _id: idToUse },
-                                    $setOnInsert: { createdAt: new Date() }
-                                },
-                                upsert: true
-                            }
-                        };
-                    } else {
-                         // Insert if no ID
-                         return {
-                             insertOne: {
-                                 document: { ...rest, createdAt: new Date() }
-                             }
-                         }
-                    }
+
+                    return {
+                        _id: idToUse,
+                        ...rest
+                    };
+                });
+
+                // 2. Prepare JHA Collection Upserts
+                const ops = processedRecords.map((item: any) => {
+                     return {
+                        updateOne: {
+                            filter: { _id: item._id },
+                            update: {
+                                $set: item,
+                                $setOnInsert: { createdAt: new Date() }
+                            },
+                            upsert: true
+                        }
+                    };
                 });
 
                 const result = await JHA.bulkWrite(ops);
 
-                // SYNC TO SCHEDULES: Embed JHA record as a single object into the linked Schedule document
-                const scheduleOps = records.map((item: any) => {
-                     const { recordId, _id, ...rest } = item;
-                     const idToUse = recordId || _id;
-                     if (!rest.schedule_id) return null;
+                // 3. Prepare Schedule Updates (Embedding JHA)
+                const scheduleOps = processedRecords.map((item: any) => {
+                     if (!item.schedule_id) return null;
                      
-                     // Re-convert for consistency
-                     const convertBool = (val: any) => {
-                         if (typeof val === 'boolean') return val;
-                         if (typeof val === 'string') {
-                             const v = val.toLowerCase().trim();
-                             return v === 'true' || v === 'yes' || v === '1';
-                         }
-                         return false; 
-                    };
-                    const booleanFields = [
-                          'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
-                          'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
-                          'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
-                          'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
-                          'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
-                          'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
-                          'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
-                     ];
-                     booleanFields.forEach(field => {
-                         if (rest[field] !== undefined) rest[field] = convertBool(rest[field]);
-                     });
-                     if (rest.date) rest.date = new Date(rest.date);
-
                      return {
                         updateOne: {
-                            filter: { _id: rest.schedule_id },
+                            filter: { _id: item.schedule_id },
                             update: {
-                                $set: { jha: { ...rest, _id: idToUse } }
+                                $set: { jha: item }
                             }
                         }
                      };
@@ -246,16 +237,28 @@ export async function POST(request: NextRequest) {
                 const { records } = payload || {};
                 if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid JHA Signature records array' });
 
-                // 1. Bulk Upsert into JHASignature collection (optional but good for backup/audit)
-                const signatureOps = records.map((item: any) => {
+                // 1. Pre-process records to ensure IDs and types are correct
+                const processedRecords = records.map((item: any) => {
                      const { recordId, _id, ...rest } = item;
-                     const idToUse = recordId || _id;
+                     // Ensure we have an ID to use
+                     const idToUse = recordId || _id || new mongoose.Types.ObjectId().toString();
+                     
+                     // Ensure dates are dates
+                     if (rest.createdAt) rest.createdAt = new Date(rest.createdAt);
 
                      return {
+                        _id: idToUse,
+                        ...rest
+                     };
+                });
+
+                // 2. Bulk Upsert into JHASignature collection
+                const signatureOps = processedRecords.map((item: any) => {
+                     return {
                         updateOne: {
-                            filter: { _id: idToUse },
+                            filter: { _id: item._id },
                             update: {
-                                $set: { ...rest, _id: idToUse },
+                                $set: item,
                                 $setOnInsert: { createdAt: new Date() }
                             },
                             upsert: true
@@ -265,35 +268,30 @@ export async function POST(request: NextRequest) {
                 
                 await JHASignature.bulkWrite(signatureOps);
 
-                // 2. Sync to Schedule: Embed into JHASignatures array
-                // Strategy: Pull existing signature by ID (to update) then Push new version
-                const schedulePullOps = records.map((item: any) => {
+                // 3. Sync to Schedule: Embed into JHASignatures array
+                // Strategy: Pull existing signature by ID (to remove old version if exists) then Push new version
+                
+                const schedulePullOps = processedRecords.map((item: any) => {
                      if (!item.schedule_id) return null;
-                     const { recordId, _id } = item;
-                     const idToUse = recordId || _id;
                      
                      return {
                         updateOne: {
                             filter: { _id: item.schedule_id },
                             update: {
-                                $pull: { JHASignatures: { _id: idToUse } }
+                                $pull: { JHASignatures: { _id: item._id } }
                             }
                         }
                      };
                 }).filter(Boolean);
 
-                const schedulePushOps = records.map((item: any) => {
-                     const { recordId, _id, ...rest } = item;
-                     const idToUse = recordId || _id;
-                     if (!rest.schedule_id) return null;
-                     
-                     const sigPayload = { ...rest, _id: idToUse };
+                const schedulePushOps = processedRecords.map((item: any) => {
+                     if (!item.schedule_id) return null;
                      
                      return {
                         updateOne: {
-                            filter: { _id: rest.schedule_id },
+                            filter: { _id: item.schedule_id },
                             update: {
-                                $push: { JHASignatures: sigPayload }
+                                $push: { JHASignatures: item }
                             }
                         }
                      };
@@ -307,6 +305,130 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, count: records.length });
             }
             
+            case 'deleteJHA': {
+                const { id, userId } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Missing ID' });
+                
+                // 1. Get JHA to find schedule_id
+                const jha = await JHA.findById(id);
+                if (!jha) return NextResponse.json({ success: false, error: 'JHA not found' });
+                
+                // 2. Delete JHA
+                await JHA.findByIdAndDelete(id);
+                
+                // 3. Remove from Schedule
+                if (jha.schedule_id) {
+                    await Schedule.findByIdAndUpdate(jha.schedule_id, { 
+                        $unset: { jha: 1 } 
+                    });
+                }
+                
+                // 4. Log Activity
+                 const activityId = new mongoose.Types.ObjectId().toString();
+                 await Activity.create({
+                    _id: activityId,
+                    user: userId || 'system',
+                    action: 'deleted_jha',
+                    type: 'jha',
+                    title: `Deleted JHA`,
+                    entityId: id,
+                    createdAt: new Date()
+                });
+
+                return NextResponse.json({ success: true });
+            }
+
+            case 'getJHAs': {
+                const pipeline = [
+                    {
+                        $lookup: {
+                            from: 'schedules',
+                            let: { schedId: "$schedule_id" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$schedId" }] } } }
+                            ],
+                            as: 'scheduleDocs'
+                        }
+                    },
+                    {
+                        $unwind: {
+                            path: '$scheduleDocs',
+                            preserveNullAndEmptyArrays: true
+                        }
+                    },
+                    // Lookup Client to populate customerName if missing
+                    {
+                        $lookup: {
+                            from: 'clients',
+                            let: { cid: "$scheduleDocs.customerId" },
+                            pipeline: [
+                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$cid" }] } } }
+                            ],
+                            as: 'clientDocs'
+                        }
+                    },
+                    {
+                        $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true }
+                    },
+                    // Lookup Estimate for extra metadata
+                    {
+                        $lookup: {
+                            from: 'estimates',
+                            localField: 'scheduleDocs.estimate',
+                            foreignField: 'estimate',
+                            as: 'estimateDocs'
+                        }
+                    },
+                    {
+                        $unwind: { path: '$estimateDocs', preserveNullAndEmptyArrays: true }
+                    },
+                    {
+                        $project: {
+                            _id: 1, 
+                            date: 1, 
+                            jhaTime: 1, 
+                            usaNo: 1, 
+                            subcontractorUSANo: 1,
+                            signatures: 1, 
+                            createdBy: 1, 
+                            schedule_id: 1,
+                            
+                            // Include all fields
+                            operatingMiniEx: 1, operatingAVacuumTruck: 1, excavatingTrenching: 1, acConcWork: 1,
+                            operatingBackhoe: 1, workingInATrench: 1, trafficControl: 1, roadWork: 1, operatingHdd: 1,
+                            confinedSpace: 1, settingUgBoxes: 1, otherDailyWork: 1, sidewalks: 1, heatAwareness: 1,
+                            ladderWork: 1, overheadLifting: 1, materialHandling: 1, roadHazards: 1, heavyLifting: 1,
+                            highNoise: 1, pinchPoints: 1, sharpObjects: 1, trippingHazards: 1, otherJobsiteHazards: 1,
+                            stagingAreaDiscussed: 1, rescueProceduresDiscussed: 1, evacuationRoutesDiscussed: 1,
+                            emergencyContactNumberWillBe911: 1, firstAidAndCPREquipmentOnsite: 1, closestHospitalDiscussed: 1,
+                            commentsOnOtherDailyWork: 1, commentsOnSidewalks: 1, commentsOnHeatAwareness: 1,
+                            commentsOnLadderWork: 1, commentsOnOverheadLifting: 1, commentsOnMaterialHandling: 1,
+                            commentsOnRoadHazards: 1, commentsOnHeavyLifting: 1, commentsOnHighNoise: 1,
+                            commentsOnPinchPoints: 1, commentsOnSharpObjects: 1, commentsOnTrippingHazards: 1,
+                            commentsOnOther: 1, anySpecificNotes: 1, nameOfHospital: 1, addressOfHospital: 1,
+                            clientEmail: 1, emailCounter: 1,
+
+                            scheduleRef: {
+                                $mergeObjects: [
+                                    '$scheduleDocs',
+                                    { 
+                                        customerName: { $ifNull: [
+                                            '$scheduleDocs.customerName', 
+                                            '$clientDocs.name',
+                                            '$estimateDocs.customerName'
+                                        ] } 
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    { $sort: { date: -1 } }
+                ];
+                
+                const results = await JHA.aggregate(pipeline as any[]);
+                return NextResponse.json({ success: true, result: results });
+            }
+
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
         }
