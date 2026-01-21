@@ -82,6 +82,91 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
         console.error("[AppSheet Schedule Doc] Error:", error);
     }
 }
+
+async function updateAppSheetTimesheet(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
+    // Only sync to AppSheet on production (Vercel)
+    if (process.env.NODE_ENV !== 'production') return;
+
+    const { appId, accessKey } = getAppSheetConfig();
+    const tableName = "TimeSheet"; // Explicitly set as requested
+    if (!appId || !accessKey) return;
+
+    const items = Array.isArray(data) ? data : [data];
+    if (items.length === 0) return;
+
+    // Helper to format timestamps for AppSheet
+    const fmtDateTime = (d: any) => {
+        if (!d) return "";
+        try {
+            // If d is a string like "9/8/2024 5:06:07 PM", Date constructor might struggle in some envs
+            // but usually works. However, AppSheet needs "YYYY-MM-DD HH:MM:SS"
+            const date = new Date(d);
+            if (isNaN(date.getTime())) return String(d); // Fallback to original string if invalid
+            
+            // Format to YYYY-MM-DD HH:MM:SS
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const mins = String(date.getMinutes()).padStart(2, '0');
+            const secs = String(date.getSeconds()).padStart(2, '0');
+            
+            return `${year}-${month}-${day} ${hours}:${mins}:${secs}`;
+        } catch { return String(d || ""); }
+    };
+
+    const parseNum = (val: any) => {
+        if (!val) return 0;
+        if (typeof val === 'number') return val;
+        // Remove $ and commas, then parse
+        const clean = String(val).replace(/[$,]/g, '');
+        const n = parseFloat(clean);
+        return isNaN(n) ? 0 : n;
+    };
+
+    const rows = items.map((item: any) => {
+        return {
+            "Record_ID": String(item._id || item.recordId || ""),
+            "Employee_ID": String(item.employee || ""),
+            "Schedule_ID": String(item.scheduleId || item.schedule_id || ""),
+            "Type": String(item.type || ""),
+            "ClockIn": fmtDateTime(item.clockIn),
+            "Lunch Start": fmtDateTime(item.lunchStart),
+            "Lunch End": fmtDateTime(item.lunchEnd),
+            "LocationIn": String(item.locationIn || ""),
+            "ClockOut": fmtDateTime(item.clockOut),
+            "LocationOut": String(item.locationOut || ""),
+            "Duration in Decimal": Number(item.hours || item.hoursVal || 0),
+            "Distance": Number(item.distance || item.distanceVal || 0),
+            "Hourly Rate (SITE)": parseNum(item.hourlyRateSITE),
+            "Hourly Rate (Drive)": parseNum(item.hourlyRateDrive),
+            "Create By": String(item.createdBy || ""),
+            "TimeStamp": fmtDateTime(item.createdAt || new Date()),
+            "Comments": String(item.comments || ""),
+            "dumpWashout": String(item.dumpWashout || ""),
+            "shopTime": String(item.shopTime || "")
+        };
+    });
+
+    const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
+
+    try {
+        await fetch(APPSHEET_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "ApplicationAccessKey": accessKey
+            },
+            body: JSON.stringify({
+                Action: action,
+                Properties: { Locale: "en-US", Timezone: "Pacific Standard Time" },
+                Rows: rows
+            })
+        });
+    } catch (error) {
+        console.error("[AppSheet Timesheet Sync] Error:", error);
+    }
+}
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
@@ -116,14 +201,36 @@ export async function POST(request: NextRequest) {
 
             case 'updateSchedule': {
                 const { id, ...data } = payload || {};
-                console.log('UPDATING SCHEDULE:', id, JSON.stringify(data.timesheet?.[0], null, 2));
+                const oldDoc = await Schedule.findById(id).lean();
                 const result = await Schedule.findByIdAndUpdate(
                     id,
                     { ...data, updatedAt: new Date() },
                     { new: true }
                 );
-                // Sync to AppSheet
-                if (result) await updateAppSheetSchedule(result, "Edit");
+                // Sync to AppSheet (Background)
+                if (result) {
+                    updateAppSheetSchedule(result, "Edit");
+                    // Also sync individual timesheets if modified
+                    if (data.timesheet && Array.isArray(data.timesheet)) {
+                        const oldTs = oldDoc?.timesheet || [];
+                        const newTs = result.timesheet || [];
+                        
+                        const oldIds = oldTs.map((t: any) => String(t._id || t.recordId));
+                        const newIds = newTs.map((t: any) => String(t._id || t.recordId));
+                        
+                        // Deletions: In old but not in new
+                        const deleted = oldTs.filter((t: any) => !newIds.includes(String(t._id || t.recordId)));
+                        if (deleted.length > 0) updateAppSheetTimesheet(deleted, "Delete");
+                        
+                        // Additions: In new but not in old
+                        const added = newTs.filter((t: any) => !oldIds.includes(String(t._id || t.recordId)));
+                        if (added.length > 0) updateAppSheetTimesheet(added, "Add");
+                        
+                        // Updates: In both (we'll just send all as Edit for simplicity, or we could diff)
+                        const updated = newTs.filter((t: any) => oldIds.includes(String(t._id || t.recordId)));
+                        if (updated.length > 0) updateAppSheetTimesheet(updated, "Edit");
+                    }
+                }
                 return NextResponse.json({ success: true, result });
             }
 
@@ -210,6 +317,10 @@ export async function POST(request: NextRequest) {
 
                 try {
                     const result = await Schedule.bulkWrite(ops as any);
+                    
+                    // Sync imported timesheets to AppSheet
+                    await updateAppSheetTimesheet(timesheets, "Add");
+                    
                     return NextResponse.json({ 
                         success: true, 
                         result,
@@ -280,6 +391,10 @@ export async function POST(request: NextRequest) {
                 }
 
                 const updatedSchedule = await Schedule.findById(timesheet.scheduleId).lean();
+                
+                // Sync the specific timesheet to AppSheet (Background)
+                updateAppSheetTimesheet(timesheet, existingIndex > -1 ? "Edit" : "Add");
+
                 return NextResponse.json({ success: true, result: updatedSchedule });
             }
 
@@ -452,7 +567,7 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color image').lean() : Promise.resolve([]),
-                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([]),
+                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([]),
                     !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([])
                 ]);
 
@@ -503,7 +618,9 @@ export async function POST(request: NextRequest) {
                                     value: e.estimate, 
                                     label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                     customerId: e.customerId,
+                                    customerName: e.customerName || e.customer || '',
                                     projectTitle: pName,
+                                    projectName: pName,
                                     jobAddress: e.jobAddress,
                                     contactName: e.contactName || e.contact,
                                     contactPhone: e.contactPhone || e.phone,
@@ -615,7 +732,7 @@ export async function POST(request: NextRequest) {
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean(),
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean(),
                     EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean()
                 ]);
 
@@ -630,7 +747,9 @@ export async function POST(request: NextRequest) {
                                 value: e.estimate, 
                                 label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                 customerId: e.customerId,
+                                customerName: e.customerName || e.customer || '',
                                 projectTitle: pName,
+                                projectName: pName,
                                 jobAddress: e.jobAddress,
                                 contactName: e.contactName || e.contact,
                                 contactPhone: e.contactPhone || e.phone,
@@ -807,6 +926,46 @@ export async function POST(request: NextRequest) {
                     console.error("[AppSheet Sync] Error:", error);
                     return NextResponse.json({ success: false, error: error.message });
                 }
+            }
+
+            case 'syncAllTimesheets': {
+                // Only sync to AppSheet on production (Vercel)
+                if (process.env.NODE_ENV !== 'production') {
+                    return NextResponse.json({ success: false, error: 'AppSheet sync only works on production' });
+                }
+
+                const schedules = await Schedule.find({ 'timesheet.0': { $exists: true } }).lean();
+                let allTimesheets: any[] = [];
+                schedules.forEach(s => {
+                    if (s.timesheet && Array.isArray(s.timesheet)) {
+                        allTimesheets = allTimesheets.concat(s.timesheet.map(ts => ({
+                            ...ts,
+                            scheduleId: String(s._id)
+                        })));
+                    }
+                });
+
+                if (allTimesheets.length === 0) {
+                    return NextResponse.json({ success: true, message: 'No timesheets found to sync' });
+                }
+
+                console.log(`[SyncAllTimesheets] Attempting to sync ${allTimesheets.length} records...`);
+
+                // Batch sync in chunks
+                const CHUNK_SIZE = 100;
+                let processedCount = 0;
+                
+                for (let i = 0; i < allTimesheets.length; i += CHUNK_SIZE) {
+                    const chunk = allTimesheets.slice(i, i + CHUNK_SIZE);
+                    // Try "Add" first
+                    await updateAppSheetTimesheet(chunk, "Add");
+                    processedCount += chunk.length;
+                }
+
+                return NextResponse.json({ 
+                    success: true, 
+                    message: `Sync initiated for ${processedCount} records. Check AppSheet for results.` 
+                });
             }
 
             default:

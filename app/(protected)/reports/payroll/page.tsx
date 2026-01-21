@@ -71,7 +71,7 @@ const getWeekNumber = (d: Date) => {
 const SPEED_MPH = 55;
 const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
 const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
-const DRIVING_FACTOR = 1.19;
+const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
 
 // --- Helpers ---
 

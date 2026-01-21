@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle, Droplets, Warehouse
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle, Droplets, Warehouse, RefreshCcw
 } from 'lucide-react';
 
 import SignaturePad from './SignaturePad';
@@ -1036,8 +1036,17 @@ export default function SchedulePage() {
             const data = await res.json();
             if (data.success) {
                 success('Daily Job Ticket Saved Successfully');
-                fetchPageData();
+                const updatedDJT = data.result;
+                // Update local state immediately
+                setSchedules((prev: any[]) => prev.map((s: any) => 
+                    s._id === payload.schedule_id 
+                    ? { ...s, djt: updatedDJT, hasDJT: true } 
+                    : s
+                ));
                 setIsDjtEditMode(false);
+                // Also update selectedDJT to reflect newest data in modal
+                setSelectedDJT((prev: any) => ({ ...prev, ...updatedDJT }));
+                fetchPageData(); // Still fetch to be safe/sync other data
             } else {
                 toastError(data.error || 'Failed to save DJT');
             }
@@ -1182,18 +1191,18 @@ export default function SchedulePage() {
                 dailyJobDescription: selectedDJT.dailyJobDescription || '',
                 customerPrintName: selectedDJT.customerPrintName || '',
                 
-                // Customer name from clients collection or schedule
-                customerId: client?.name || schedule?.customerName || '',
+                // Customer name/info from matched estimate or client or schedule
+                customerId: estimate?.customerName || estimate?.customer || client?.name || schedule?.customerName || '',
                 // Contact info from estimate
                 contactName: estimate?.contactName || estimate?.contact || '',
                 contactPhone: estimate?.contactPhone || estimate?.phone || '',
-                jobAddress: estimate?.jobAddress || estimate?.address || schedule?.jobLocation || '',
+                jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
                 // Other schedule info
-                customerName: schedule?.customerName || '',
+                customerName: estimate?.customerName || client?.name || schedule?.customerName || '',
                 jobLocation: schedule?.jobLocation || '',
                 estimate: schedule?.estimate || '',
                 estimateNum: schedule?.estimate || '',
-                projectName: estimate?.projectTitle || estimate?.projectName || '',
+                projectName: estimate?.projectName || estimate?.projectTitle || '',
                 foremanName: schedule?.foremanName || '',
                 date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString(),
                 day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
@@ -1625,7 +1634,7 @@ export default function SchedulePage() {
         const DISTANCE_CUTOFF = new Date('2026-01-12T00:00:00');
         const tsDateStr = ts.clockIn || scheduleDate;
         const tsDate = new Date(tsDateStr);
-        const DRIVING_FACTOR = 1.19;
+        const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
 
         // Calculate Hours & Distance
         if (!type.includes('SITE')) {
@@ -2582,8 +2591,8 @@ export default function SchedulePage() {
                                                         </Tooltip>
                                                     )}
 
-                                                    {/* DJT */}
-                                                    {item.hasDJT ? (
+                                                     {/* DJT Status Check */}
+                                                     {(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? (
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <div 
@@ -2592,6 +2601,7 @@ export default function SchedulePage() {
                                                                         e.stopPropagation();
                                                                         const djtWithSigs = { 
                                                                             ...item.djt, 
+                                                                            schedule_id: item._id, // Ensure schedule_id is explicitly set
                                                                             signatures: item.DJTSignatures || [] 
                                                                         };
                                                                         setSelectedDJT(djtWithSigs);
@@ -2837,38 +2847,44 @@ export default function SchedulePage() {
                                                         </code>
                                                     </div>
                                                     
-                                                    {/* Sync Button - only if not synced yet */}
-                                                    {!selectedSchedule.syncedToAppSheet && (
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <button
-                                                                    onClick={handleSyncToAppSheet}
-                                                                    disabled={isSyncingToAppSheet}
-                                                                    className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                >
-                                                                    {isSyncingToAppSheet ? (
-                                                                        <Loader2 size={14} className="animate-spin" />
-                                                                    ) : (
-                                                                        <Upload size={14} />
-                                                                    )}
-                                                                    Sync to AppSheet
-                                                                </button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Sync this schedule to AppSheet</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    )}
+                                                    {/* Sync Button - Show for deweloper or if not synced yet? User said "Dont hide"... */}
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <button
+                                                                onClick={handleSyncToAppSheet}
+                                                                disabled={isSyncingToAppSheet}
+                                                                className={`flex items-center gap-2 px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                                                                    selectedSchedule.syncedToAppSheet 
+                                                                        ? 'bg-slate-400 hover:bg-slate-500' 
+                                                                        : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
+                                                                }`}
+                                                            >
+                                                                {isSyncingToAppSheet ? (
+                                                                    <Loader2 size={14} className="animate-spin" />
+                                                                ) : selectedSchedule.syncedToAppSheet ? (
+                                                                    <RefreshCcw size={14} />
+                                                                ) : (
+                                                                    <Upload size={14} />
+                                                                )}
+                                                                {selectedSchedule.syncedToAppSheet ? 'Re-Sync AppSheet' : 'Sync to AppSheet'}
+                                                            </button>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{selectedSchedule.syncedToAppSheet ? 'Re-sync this schedule to AppSheet' : 'Sync this schedule to AppSheet'}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </div>
                                             )}
 
                                             {/* Row 1: Tag Icon & Client Name */}
                                             <div className="flex items-center gap-4">
-                                                {(() => {
-                                                    const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item);
+                                                 {(() => {
+                                                    const scheduleId = selectedSchedule._id; // Use selectedSchedule._id directly
+                                                    const schedule = schedules.find(s => String(s._id) === String(scheduleId)); // Find the full schedule object
+                                                    const tagConstant = initialData.constants.find(c => c.description === schedule?.item);
                                                     const tagImage = tagConstant?.image;
                                                     const tagColor = tagConstant?.color;
-                                                    const tagLabel = selectedSchedule.item || selectedSchedule.service || 'S';
+                                                    const tagLabel = schedule?.item || schedule?.service || 'S';
 
                                                     if (tagImage) {
                                                         return (

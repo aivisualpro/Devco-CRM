@@ -508,17 +508,27 @@ export const DJTModal = ({
                                         ) : (
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 {(() => {
-                                                    const schedule = selectedDJT.scheduleRef || schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
+                                                    const scheduleId = selectedDJT.schedule_id || selectedDJT._id || selectedDJT.scheduleRef?._id;
+                                                    const schedule = selectedDJT.scheduleRef || schedules.find(s => String(s._id) === String(scheduleId));
                                                     const assignees = schedule?.assignees || [];
-                                                    const uniqueAssignees = Array.from(new Set(assignees)).filter(Boolean) as string[];
+                                                    
+                                                    // Combine people from assignees and those who already signed
+                                                    const sigs = selectedDJT.signatures || [];
+                                                    const signatureEmails = sigs.map((s: any) => s.employee);
+                                                    const allRelevantEmails = Array.from(new Set([...assignees, ...signatureEmails])).filter(Boolean) as string[];
 
-                                                    if (uniqueAssignees.length === 0 && (!selectedDJT.signatures || selectedDJT.signatures.length === 0)) {
-                                                        return <div className="col-span-2 text-center py-6 text-xs text-slate-300 font-bold uppercase tracking-widest italic bg-slate-50/50 rounded-3xl border border-dashed border-slate-100">No assignees assigned</div>;
+                                                    if (allRelevantEmails.length === 0) {
+                                                        return (
+                                                            <div className="col-span-1 md:col-span-2 flex flex-col items-center justify-center py-10 bg-slate-50/50 rounded-[40px] border-2 border-dashed border-slate-100 mx-auto w-full max-w-lg">
+                                                                <UserCheck className="w-10 h-10 text-slate-200 mb-3" />
+                                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">No Crew Members or Signatures</p>
+                                                            </div>
+                                                        );
                                                     }
 
-                                                    return uniqueAssignees.map((email: string) => {
+                                                    return allRelevantEmails.map((email: string) => {
                                                         const emp = initialData.employees.find((e: any) => e.value === email);
-                                                        const sig = selectedDJT.signatures?.find((s: any) => s.employee === email);
+                                                        const sig = (selectedDJT.signatures || []).find((s: any) => s.employee === email);
                                                         const timesheet = schedule?.timesheet?.find((t: any) => t.employee === email);
 
                                                         return (
@@ -545,13 +555,13 @@ export const DJTModal = ({
                                                                                 <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
                                                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">In</span>
                                                                                     <span className="text-[11px] font-black text-slate-900 font-mono">
-                                                                                        {new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
+                                                                                        {timesheet.clockIn ? new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true}) : 'N/A'}
                                                                                     </span>
                                                                                 </div>
                                                                                 <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
                                                                                     <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Out</span>
                                                                                     <span className="text-[11px] font-black text-slate-900 font-mono">
-                                                                                        {new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true})}
+                                                                                        {timesheet.clockOut ? new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true}) : 'N/A'}
                                                                                     </span>
                                                                                 </div>
                                                                             </div>

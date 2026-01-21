@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
-    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock
+    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus
 } from 'lucide-react';
 import Link from 'next/link';
 import {
@@ -41,6 +41,7 @@ interface TimesheetEntry {
     // Computed locally
     hoursVal?: number;
     distanceVal?: number;
+    rawDistanceVal?: number;
     projectName?: string;
 }
 
@@ -57,7 +58,7 @@ const SPEED_MPH = 55;
 const ROAD_ADJUSTMENT_FACTOR = 1.0; // No longer needed as we're following spreadsheet logic
 const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
 const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
-const DRIVING_FACTOR = 1.19;
+const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
 
 // --- Helpers ---
 
@@ -130,11 +131,9 @@ const toLocalISO = (iso?: string) => {
 
 const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
     const typeLower = (ts.type || '').toLowerCase();
-    
-    // Prioritize persisted numerical values from the app/database
-    let distance = typeof ts.distance === 'number' ? ts.distance : (parseFloat(String(ts.distance)) || 0);
-    let hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(String(ts.hours)) || 0);
+    const isDrive = typeLower.includes('drive');
 
+    // Parse location coordinates for distance calculation
     const parseLoc = (val: any) => {
         const str = String(val || '').trim();
         if (str.includes(',')) {
@@ -143,83 +142,103 @@ const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
                 return { lat: parts[0], lon: parts[1] };
             }
         }
-        const num = parseFloat(str.replace(/,/g, ''));
-        return isNaN(num) ? 0 : num;
+        return null;
     };
 
     const locIn = parseLoc(ts.locationIn);
     const locOut = parseLoc(ts.locationOut);
-    const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
-    const tsDate = new Date(tsDateStr);
-
-    const calcTimeHours = () => {
-        if (!ts.clockIn || !ts.clockOut) return hours;
-        const start = new Date(ts.clockIn).getTime();
-        const end = new Date(ts.clockOut).getTime();
-        let durationMs = end - start;
-
-        if (ts.lunchStart && ts.lunchEnd) {
-            const lStart = new Date(ts.lunchStart).getTime();
-            const lEnd = new Date(ts.lunchEnd).getTime();
-            if (lEnd > lStart) durationMs -= (lEnd - lStart);
-        }
-        if (durationMs <= 0) return hours;
-        
-        const totalHoursRaw = durationMs / (1000 * 60 * 60);
-
-        // Pre-2025 cutoff (existing logic)
-        const cutoff2025 = new Date('2025-10-26T00:00:00');
-        if (tsDate < cutoff2025) return totalHoursRaw;
-        if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
-
-        const h = Math.floor(totalHoursRaw);
-        const m = Math.round((totalHoursRaw - h) * 60);
-        let roundedM = 0;
-        if (m > 1 && m <= 14) roundedM = 0;
-        else if (m > 14 && m <= 29) roundedM = 15;
-        else if (m > 29 && m <= 44) roundedM = 30;
-        else if (m > 44 && m <= 59) roundedM = 45;
-        return h + (roundedM / 60);
-    };
-
-    // Distance & Hours Calculation Logic
-    if (typeLower.includes('drive')) {
-        if (tsDate < FORMULA_CUTOFF_DATE) {
-            // Before Cutoff: Distance derived from hours
-            hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(String(ts.hours)) || 0);
-            distance = hours * SPEED_MPH;
-        } else {
-            // After Cutoff: Calculate Driving distance
-            if (distance === 0) {
-                if (typeof locIn === 'object' && typeof locOut === 'object') {
-                    // Applied Driving Factor 1.19 for Road Miles Approximation
-                    distance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
-                } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
-                    distance = locOut - locIn;
-                }
-            }
-
-            // Derive Hours from distance
-            if (distance > 0) {
-                hours = distance / SPEED_MPH;
-            } else {
-                const dw = String(ts.dumpWashout).toLowerCase();
-                const st = String(ts.shopTime).toLowerCase();
-                if (dw === 'yes' || dw === 'true' || ts.dumpWashout === true) {
-                    hours = 0.5;
-                } else if (st === 'yes' || st === 'true' || ts.shopTime === true) {
-                    hours = 0.25;
-                } else {
-                    hours = calcTimeHours();
-                }
-            }
-        }
-    } else {
-        // Site time always uses clock time
-        hours = calcTimeHours();
+    let calculatedDistance = 0;
+    if (locIn && locOut) {
+        // Haversine gives straight-line distance; multiply by DRIVING_FACTOR (1.19) for approximate driving distance
+        calculatedDistance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
     }
 
-    return { hours, distance };
+    let distance = 0;
+    let hours = 0;
+
+    if (isDrive) {
+        // ========== DRIVE TIME CALCULATION ==========
+        // Ignores clock in/out completely
+        // Uses: Manual Distance (priority) OR Calculated Distance + Washout + Shop
+
+        // Helper to extract qty from "0.50 hrs (2 qty)" format
+        const getQty = (val: any) => {
+            const str = String(val || '');
+            const match = str.match(/\((\d+)\s+qty\)/);
+            if (match) return parseFloat(match[1]);
+            if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
+            return 0;
+        };
+
+        const washoutQty = getQty(ts.dumpWashout);
+        const shopQty = getQty(ts.shopTime);
+        const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
+
+        // Priority 1: Manual Distance (ignores calculated if set)
+        const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+        if (manualDist > 0) {
+            distance = manualDist;
+        } else {
+            // Priority 2: Calculated Distance from Location In/Out
+            distance = calculatedDistance;
+        }
+
+        // Manual Hours override
+        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+        if (manualHrs > 0) {
+            hours = manualHrs;
+        } else {
+            // Formula: (Distance / Speed) + Washout Hours + Shop Hours
+            hours = (distance / SPEED_MPH) + specialHrs;
+        }
+    } else {
+        // ========== SITE TIME CALCULATION ==========
+        // Ignores: distance, washout qty, shop qty
+        // Uses: Clock In/Out with optional Manual Duration Override
+
+        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+        if (manualHrs > 0) {
+            hours = manualHrs;
+        } else {
+            const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
+            const tsDate = new Date(tsDateStr);
+
+            const calcTimeHours = () => {
+                if (!ts.clockIn || !ts.clockOut) return 0;
+                const start = new Date(ts.clockIn).getTime();
+                const end = new Date(ts.clockOut).getTime();
+                let durationMs = end - start;
+
+                if (ts.lunchStart && ts.lunchEnd) {
+                    const lStart = new Date(ts.lunchStart).getTime();
+                    const lEnd = new Date(ts.lunchEnd).getTime();
+                    if (lEnd > lStart) durationMs -= (lEnd - lStart);
+                }
+                if (durationMs <= 0) return 0;
+                
+                const totalHoursRaw = durationMs / (1000 * 60 * 60);
+
+                // Cutoff rounding logic
+                const cutoff2025 = new Date('2025-10-26T00:00:00');
+                if (tsDate < cutoff2025) return totalHoursRaw;
+                if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
+
+                const h = Math.floor(totalHoursRaw);
+                const m = Math.round((totalHoursRaw - h) * 60);
+                let roundedM = 0;
+                if (m > 1 && m <= 14) roundedM = 0;
+                else if (m > 14 && m <= 29) roundedM = 15;
+                else if (m > 29 && m <= 44) roundedM = 30;
+                else if (m > 44 && m <= 59) roundedM = 45;
+                return h + (roundedM / 60);
+            };
+            hours = calcTimeHours();
+        }
+        // Site time ignores distance
+        distance = 0;
+    }
+
+    return { hours, distance, calculatedDistance };
 };
 
 const normalizeEst = (val: string | undefined) => {
@@ -235,6 +254,7 @@ export default function TimeCardPage() {
     const [rawSchedules, setRawSchedules] = useState<ScheduleDoc[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [estimatesOptions, setEstimatesOptions] = useState<any[]>([]);
+    const [employeesOptions, setEmployeesOptions] = useState<any[]>([]);
     
     // Filters
     const [filEmployee, setFilEmployee] = useState('');
@@ -279,6 +299,18 @@ export default function TimeCardPage() {
     // Edit State
     const [editingRecord, setEditingRecord] = useState<TimesheetEntry | null>(null);
     const [editForm, setEditForm] = useState<Partial<TimesheetEntry>>({});
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [addForm, setAddForm] = useState<Partial<TimesheetEntry>>({
+        type: 'Drive Time',
+        clockIn: new Date().toISOString()
+    });
+    const [quickEditingId, setQuickEditingId] = useState<string | null>(null);
+    const [quickEditForm, setQuickEditForm] = useState<Partial<TimesheetEntry>>({});
+
+    // Special Field Modal (Washout/Shop)
+    const [specialFieldModal, setSpecialFieldModal] = useState<{ ts: TimesheetEntry | null, field: 'dumpWashout' | 'shopTime' | null }>({ ts: null, field: null });
+    const [specialQty, setSpecialQty] = useState("1");
+    const [isSpecialLoading, setIsSpecialLoading] = useState(false);
 
     const clearFilters = () => {
         setFilEmployee('');
@@ -300,7 +332,7 @@ export default function TimeCardPage() {
         rawSchedules.forEach(sched => {
             if (sched.timesheet && Array.isArray(sched.timesheet)) {
                 sched.timesheet.forEach(ts => {
-                    const { hours, distance } = calculateTimesheetData(ts as any, sched.fromDate);
+                    const { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, sched.fromDate);
                     const scheduleBase = normalizeEst(sched.estimate);
                     const pName = (sched as any).projectName || (sched as any).project || estMap.get(scheduleBase) || '';
                     
@@ -310,7 +342,8 @@ export default function TimeCardPage() {
                         estimate: sched.estimate,
                         projectName: pName,
                         hoursVal: hours,
-                        distanceVal: distance
+                        distanceVal: distance,
+                        rawDistanceVal: calculatedDistance
                     });
                 });
             }
@@ -354,6 +387,7 @@ export default function TimeCardPage() {
                 const eMap: Record<string, any> = {};
                 emps.forEach((e: any) => eMap[e.value] = e);
                 setEmployeesMap(eMap);
+                setEmployeesOptions(emps);
                 setEstimatesOptions(data.result.initialData?.estimates || []);
             }
         } catch (err) {
@@ -470,6 +504,110 @@ export default function TimeCardPage() {
     const totalPages = Math.ceil(tableData.length / ITEMS_PER_PAGE);
 
 
+    const triggerSpecialFieldModal = (ts: TimesheetEntry, field: 'dumpWashout' | 'shopTime') => {
+        setSpecialFieldModal({ ts, field });
+        // Try to pre-fill qty if it exists
+        const existing = String(field === 'dumpWashout' ? ts.dumpWashout : ts.shopTime);
+        const match = existing.match(/\((\d+)\s+qty\)/);
+        setSpecialQty(match ? match[1] : "1");
+    };
+
+    const handleSpecialQtyChange = (val: string) => {
+        setSpecialQty(val);
+        const { ts, field } = specialFieldModal;
+        if (!ts || !field) return;
+
+        const qty = parseFloat(val);
+        if (isNaN(qty)) return;
+
+        const multiplier = field === 'dumpWashout' ? 0.5 : 0.25;
+        const calculatedValue = `${(qty * multiplier).toFixed(2)} hrs (${qty} qty)`;
+        const recordId = ts._id || ts.recordId;
+
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== ts.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: (s.timesheet || []).map((t: any) => {
+                    if ((t._id || t.recordId) === recordId) {
+                        return { ...t, [field]: calculatedValue };
+                    }
+                    return t;
+                })
+            };
+        }));
+    };
+
+    const confirmSpecialField = async () => {
+        const { ts, field } = specialFieldModal;
+        if (!ts || !field) return;
+
+        const qty = parseFloat(specialQty);
+        if (isNaN(qty)) return toastError("Please enter a valid numeric quantity");
+
+        setIsSpecialLoading(true);
+        const multiplier = field === 'dumpWashout' ? 0.5 : 0.25;
+        const calculatedValue = `${(qty * multiplier).toFixed(2)} hrs (${qty} qty)`;
+
+        const originalSchedules = [...rawSchedules];
+        const recordId = ts._id || ts.recordId;
+
+        // Optimistic UI
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== ts.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: (s.timesheet || []).map((t: any) => {
+                    if ((t._id || t.recordId) === recordId) {
+                        return { ...t, [field]: calculatedValue };
+                    }
+                    return t;
+                })
+            };
+        }));
+
+        try {
+            const resGet = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
+            });
+            const dataGet = await resGet.json();
+            if (!dataGet.success) throw new Error("Schedule not found");
+            
+            const schedule = dataGet.result;
+            const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
+                if ((t._id || t.recordId) === recordId) {
+                    return { ...t, [field]: calculatedValue };
+                }
+                return t;
+            });
+            
+            const resSave = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    action: 'updateSchedule', 
+                    payload: { id: ts.scheduleId, timesheet: updatedTimesheets }
+                })
+            });
+            
+            const saveResult = await resSave.json();
+            if (saveResult.success) {
+                success(`${field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'} updated`);
+                setSpecialFieldModal({ ts: null, field: null });
+            } else {
+                throw new Error("Failed to save");
+            }
+        } catch (e) {
+            console.error(e);
+            toastError("Failed to update record");
+            setRawSchedules(originalSchedules);
+        } finally {
+            setIsSpecialLoading(false);
+        }
+    };
+
     // --- Actions ---
     
     const handleDeleteClick = (ts: TimesheetEntry) => {
@@ -532,30 +670,45 @@ export default function TimeCardPage() {
         }
     };
 
+    const editingCalculated = useMemo(() => {
+        if (!editingRecord) return { hours: 0, distance: 0 };
+        return calculateTimesheetData(editForm as any, editingRecord.clockIn);
+    }, [editForm, editingRecord]);
+
+    const addCalculated = useMemo(() => {
+        if (!isAddModalOpen) return { hours: 0, distance: 0 };
+        return calculateTimesheetData(addForm as any, addForm.clockIn);
+    }, [addForm, isAddModalOpen]);
+
     const handleEditClick = (ts: TimesheetEntry) => {
         setEditingRecord(ts);
         setEditForm({ ...ts });
     };
 
-    const handleSaveEdit = async () => {
-        if (!editingRecord || !editForm.scheduleId) return;
+    // Live update for Full Edit in background
+    useEffect(() => {
+        if (!editingRecord) return;
         
-        const originalSchedules = [...rawSchedules];
-        
-        // Optimistic UI Update
         setRawSchedules(prev => prev.map(s => {
             if (s._id !== editForm.scheduleId) return s;
             return {
                 ...s,
                 timesheet: (s.timesheet || []).map((t: any) => {
                     if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
-                        return { ...t, ...editForm };
+                        const { hoursVal, distanceVal, rawDistanceVal, projectName, ...rest } = editForm;
+                        return { ...t, ...rest };
                     }
                     return t;
                 })
             };
         }));
+    }, [editForm, editingRecord]);
 
+    const handleSaveEdit = async () => {
+        if (!editingRecord || !editForm.scheduleId) return;
+        
+        const originalSchedules = [...rawSchedules];
+        
         try {
             // Close modal immediately
             setEditingRecord(null);
@@ -570,13 +723,13 @@ export default function TimeCardPage() {
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
             
-            const schedule = dataGet.result;
+            const schedule = dataGet.result as ScheduleDoc;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
-                    const { hoursVal, distanceVal, ...rest } = editForm;
-                    return { ...t, ...rest };
+                    const { hoursVal, distanceVal, rawDistanceVal, projectName, ...rest } = editForm;
+                    return { ...t, ...rest } as TimesheetEntry;
                 }
-                return t;
+                return t as TimesheetEntry;
             });
             
             const resSave = await fetch('/api/schedules', {
@@ -598,10 +751,147 @@ export default function TimeCardPage() {
         } catch (e) {
             console.error(e);
             toastError("Failed to update timesheet");
-            // Rollback on error
             setRawSchedules(originalSchedules);
         }
     };
+
+    const handleSaveAdd = async () => {
+        if (!addForm.employee || !addForm.scheduleId || !addForm.clockIn) {
+            return toastError("Employee, Schedule/Estimate, and Clock In are required");
+        }
+        
+        const originalSchedules = [...rawSchedules];
+        const newRecord: TimesheetEntry = { 
+            ...addForm, 
+            _id: 'ts_' + Math.random().toString(36).substr(2, 9),
+            employee: addForm.employee as string, // Cast since we checked it above
+            scheduleId: addForm.scheduleId as string,
+            clockIn: addForm.clockIn as string,
+            createdAt: new Date().toISOString()
+        } as TimesheetEntry;
+
+        // Optimistic UI
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== addForm.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: [...(s.timesheet || []), newRecord]
+            } as ScheduleDoc;
+        }));
+
+        try {
+            setIsAddModalOpen(false);
+            setAddForm({ type: 'Drive Time', clockIn: new Date().toISOString() });
+
+            const resGet = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'getScheduleById', payload: { id: addForm.scheduleId } })
+            });
+            const dataGet = await resGet.json();
+            if (!dataGet.success) throw new Error("Schedule not found");
+            
+            const schedule = dataGet.result;
+            const updatedTimesheets = [...(schedule.timesheet || []), newRecord];
+            
+            const resSave = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    action: 'updateSchedule', 
+                    payload: { id: addForm.scheduleId, timesheet: updatedTimesheets }
+                })
+            });
+            
+            const saveResult = await resSave.json();
+            if (saveResult.success) {
+                success("Timesheet created");
+            } else {
+                throw new Error("Failed to save");
+            }
+        } catch (e) {
+            console.error(e);
+            toastError("Failed to create timesheet");
+            setRawSchedules(originalSchedules);
+        }
+    };
+    
+    const handleQuickEditClick = (ts: TimesheetEntry) => {
+        const id = ts._id || ts.recordId || '';
+        setQuickEditingId(id);
+        setQuickEditForm({ ...ts });
+    };
+
+    const handleQuickSave = async () => {
+        if (!quickEditForm.scheduleId || !quickEditingId) return;
+        
+        const originalSchedules = [...rawSchedules];
+        const recordId = quickEditingId;
+        
+        // Optimistic UI Update
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== quickEditForm.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: (s.timesheet || []).map((t: any) => {
+                    const tid = t._id || t.recordId;
+                    if (tid === recordId) {
+                        return { ...t, ...quickEditForm };
+                    }
+                    return t;
+                })
+            };
+        }));
+
+        try {
+            setQuickEditingId(null);
+
+            const resGet = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'getScheduleById', payload: { id: quickEditForm.scheduleId } })
+            });
+            const dataGet = await resGet.json();
+            if (!dataGet.success) throw new Error("Schedule not found");
+            
+            const schedule = dataGet.result;
+            const stats = calculateTimesheetData(quickEditForm as any);
+
+            const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
+                const tid = t._id || t.recordId;
+                if (tid === recordId) {
+                    const { hoursVal, distanceVal, ...rest } = quickEditForm;
+                    return { ...t, ...rest, hours: stats.hours, distance: stats.distance };
+                }
+                return t;
+            });
+            
+            const resSave = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    action: 'updateSchedule', 
+                    payload: { id: quickEditForm.scheduleId, timesheet: updatedTimesheets }
+                })
+            });
+            
+            const saveResult = await resSave.json();
+            if (saveResult.success) {
+                success("Timesheet updated");
+            } else {
+                throw new Error("Failed to save");
+            }
+        } catch (e) {
+            console.error(e);
+            toastError("Failed to update timesheet");
+            setRawSchedules(originalSchedules);
+        }
+    };
+
+    const quickEditLiveStats = useMemo(() => {
+        if (!quickEditingId) return null;
+        return calculateTimesheetData(quickEditForm as any);
+    }, [quickEditForm, quickEditingId]);
 
     const toggleNode = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -631,6 +921,13 @@ export default function TimeCardPage() {
                     <Header 
                         rightContent={
                             <div className="flex items-center gap-3">
+                                <button 
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-[#0F4C75] text-white rounded-xl text-xs font-bold hover:bg-[#0b3c5d] shadow-sm transition-all active:scale-95"
+                                >
+                                    <Plus size={16} />
+                                    Add Record
+                                </button>
                                 <Link 
                                     href="/reports/payroll"
                                     className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
@@ -736,16 +1033,39 @@ export default function TimeCardPage() {
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
-                                            <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock In</span>
-                                                <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockIn)}</span>
+                                        {ts.type?.toLowerCase().includes('drive') ? (
+                                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Washout</span>
+                                                    <button 
+                                                        onClick={() => triggerSpecialFieldModal(ts, 'dumpWashout')}
+                                                        className={`text-left px-2 py-1 rounded text-[10px] font-black ${ts.dumpWashout ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}
+                                                    >
+                                                        {ts.dumpWashout ? String(ts.dumpWashout) : 'Set Washout'}
+                                                    </button>
+                                                </div>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Shop</span>
+                                                    <button 
+                                                        onClick={() => triggerSpecialFieldModal(ts, 'shopTime')}
+                                                        className={`text-left px-2 py-1 rounded text-[10px] font-black ${ts.shopTime ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}
+                                                    >
+                                                        {ts.shopTime ? String(ts.shopTime) : 'Set Shop'}
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div>
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock Out</span>
-                                                <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockOut)}</span>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock In</span>
+                                                    <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockIn)}</span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock Out</span>
+                                                    <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockOut)}</span>
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
 
                                         {(ts.distanceVal || 0) > 0 && (
                                             <div className="mt-4 flex items-center gap-2 px-3 py-1.5 bg-white/60 rounded-xl w-fit border border-white">
@@ -770,7 +1090,7 @@ export default function TimeCardPage() {
                     <div className="flex-1 flex gap-4 min-h-0">
                     
                     {/* Left Sidebar - Tree View */}
-                    <div className="w-[300px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
+                    <div className="w-[230px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Grouping</h3>
                         </div>
@@ -827,16 +1147,16 @@ export default function TimeCardPage() {
                                                                 `}
                                                                 onClick={() => selectNode('WEEK', week.id)}
                                                             >
-                                                                <div className="flex items-center gap-2">
+                                                                <div className="flex items-center gap-1.5 min-w-0">
                                                                      <button 
                                                                         onClick={(e) => toggleNode(week.id, e)}
-                                                                        className="p-1 hover:bg-black/5 rounded text-slate-400"
-                                                                    >
-                                                                        {isWeekExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                                                                        className="p-1 hover:bg-black/5 rounded text-slate-400 shrink-0"
+                                                                     >
+                                                                        {isWeekExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                                                                     </button>
-                                                                    <span className="text-xs font-bold whitespace-nowrap">{week.label}</span>
+                                                                    <span className="text-[10px] font-bold whitespace-nowrap truncate">{week.label}</span>
                                                                 </div>
-                                                                <span className="text-[10px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">
+                                                                <span className="text-[9px] font-bold bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 shrink-0 ml-1">
                                                                     {week.totalHours.toFixed(2)}
                                                                 </span>
                                                             </div>
@@ -895,7 +1215,7 @@ export default function TimeCardPage() {
                                          value={filEmployee} 
                                          onChange={setFilEmployee} 
                                          options={uniqueEmployees.map(e => ({label: employeesMap[e]?.label || e || '', value: e}))}
-                                         className="w-[170px]"
+                                         className="w-[140px]"
                                     />
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -906,7 +1226,7 @@ export default function TimeCardPage() {
                                          value={filEstimate} 
                                          onChange={setFilEstimate} 
                                          options={uniqueEstimates}
-                                         className="w-[280px]"
+                                         className="w-[200px]"
                                     />
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -917,7 +1237,7 @@ export default function TimeCardPage() {
                                          value={filType} 
                                          onChange={setFilType} 
                                          options={uniqueTypes.map(e => ({label: e, value: e}))}
-                                         className="w-[130px]"
+                                         className="w-[110px]"
                                          align="right"
                                     />
                                 </div>
@@ -944,105 +1264,215 @@ export default function TimeCardPage() {
                             <Table containerClassName="flex-1">
                                 <TableHead className="bg-white/80 backdrop-blur-md shadow-sm">
                                     <TableRow>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 w-[20%]">Employee</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center">Date</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 w-[140px]">Employee</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[90px]">Date</TableHeader>
                                         <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[60px]">Type</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500">Estimate #</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center">In</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center">Out</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right">Dist (Mi)</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 w-[100px]">Estimate #</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[110px]">In</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[110px]">Out</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right w-[80px]">Dist (Mi)</TableHeader>
                                         <TableHeader className="text-xs uppercase font-black text-slate-500 text-right w-16">Hrs</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right">Actions</TableHeader>
+                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right w-[100px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {paginatedData.length > 0 ? paginatedData.map((ts, idx) => (
-                                        <TableRow key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`} className="group hover:bg-[#F1F5F9] transition-all cursor-default">
-                                            <TableCell className="relative overflow-hidden">
-                                                <div className="absolute left-0 top-0 bottom-0 w-0 group-hover:w-1 bg-[#0F4C75] transition-all" />
-                                                <div className="flex items-center gap-2.5">
-                                                     <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
-                                                        {employeesMap[ts.employee]?.image ? (
-                                                            <img src={employeesMap[ts.employee].image} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            (employeesMap[ts.employee]?.initials || ts.employee.substring(0, 2)).toUpperCase()
-                                                        )}
-                                                     </div>
-                                                     <span className="text-xs font-semibold text-slate-700">{employeesMap[ts.employee]?.label || ts.employee}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <div className="flex justify-center">
-                                                            {ts.type?.toLowerCase().includes('drive') ? (
-                                                                <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
-                                                                    <Truck size={14} />
-                                                                </div>
-                                                            ) : ts.type?.toLowerCase().includes('site') ? (
-                                                                <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-                                                                    <MapPin size={14} />
-                                                                </div>
+                                    {paginatedData.length > 0 ? paginatedData.map((ts, idx) => {
+                                        const recordId = ts._id || ts.recordId;
+                                        const isQuickEditing = quickEditingId === recordId;
+
+                                        return (
+                                            <TableRow key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`} className={`group hover:bg-[#F1F5F9] transition-all cursor-default ${isQuickEditing ? 'bg-orange-50/50' : ''}`}>
+                                                <TableCell className="relative overflow-hidden">
+                                                    <div className="absolute left-0 top-0 bottom-0 w-0 group-hover:w-1 bg-[#0F4C75] transition-all" />
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold text-slate-500 overflow-hidden shrink-0 border border-white shadow-sm">
+                                                            {employeesMap[ts.employee]?.image ? (
+                                                                <img src={employeesMap[ts.employee].image} alt="" className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <div className="w-4 h-4 rounded-full bg-slate-100" />
+                                                                (employeesMap[ts.employee]?.initials || ts.employee.substring(0, 2)).toUpperCase()
                                                             )}
                                                         </div>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>{ts.type}</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TableCell>
-                                            <TableCell className="font-bold text-[#0F4C75] text-xs">
-                                                {ts.estimate || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-center text-xs text-slate-500">
-                                                {formatTimeOnly(ts.clockIn)}
-                                            </TableCell>
-                                            <TableCell className="text-center text-xs text-slate-500">
-                                                {formatTimeOnly(ts.clockOut)}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs font-medium text-slate-500">
-                                                {(ts.distanceVal || 0) > 0 ? (ts.distanceVal || 0).toFixed(1) : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-right text-xs font-black text-slate-700">
-                                                {(ts.hoursVal || 0).toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
+                                                        <span className="text-xs font-semibold text-slate-700">{employeesMap[ts.employee]?.label || ts.employee}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className="text-xs font-medium text-slate-500">{formatDateOnly(ts.clockIn)}</span>
+                                                </TableCell>
+                                                <TableCell className="text-center">
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <button 
-                                                                onClick={() => handleEditClick(ts)}
-                                                                className="p-1.5 hover:bg-white text-slate-400 hover:text-[#0F4C75] rounded-lg shadow-sm hover:shadow transition-all"
-                                                            >
-                                                                <Edit size={12} />
-                                                            </button>
+                                                            <div className="flex justify-center">
+                                                                {ts.type?.toLowerCase().includes('drive') ? (
+                                                                    <div className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                                                                        <Truck size={14} />
+                                                                    </div>
+                                                                ) : ts.type?.toLowerCase().includes('site') ? (
+                                                                    <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+                                                                        <MapPin size={14} />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="w-4 h-4 rounded-full bg-slate-100" />
+                                                                )}
+                                                            </div>
                                                         </TooltipTrigger>
                                                         <TooltipContent>
-                                                            <p>Edit</p>
+                                                            <p>{ts.type}</p>
                                                         </TooltipContent>
                                                     </Tooltip>
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
+                                                </TableCell>
+                                                <TableCell className="font-bold text-[#0F4C75] text-xs">
+                                                    {ts.estimate || '-'}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-500">
+                                                    {ts.type?.toLowerCase().includes('drive') ? (
+                                                        <div className="flex flex-col items-center">
                                                             <button 
-                                                                onClick={() => handleDeleteClick(ts)}
-                                                                className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
+                                                                onClick={() => triggerSpecialFieldModal(ts, 'dumpWashout')}
+                                                                className={`px-2 py-1 rounded text-[9px] font-black uppercase transition-all shadow-sm flex flex-col items-center min-w-[70px] ${
+                                                                    ts.dumpWashout ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                                }`}
                                                             >
-                                                                <Trash2 size={12} />
+                                                                <span>{ts.dumpWashout ? 'Washout ✓' : 'Washout'}</span>
+                                                                {ts.dumpWashout && (
+                                                                    <span className="text-[7px] leading-tight opacity-90">
+                                                                        {String(ts.dumpWashout).match(/\((\d+)\s+qty\)/)?.[1] || ''} Qty
+                                                                    </span>
+                                                                )}
                                                             </button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>Delete</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )) : (
+                                                        </div>
+                                                    ) : isQuickEditing ? (
+                                                        <input 
+                                                            type="time"
+                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-20"
+                                                            value={quickEditForm.clockIn ? new Date(quickEditForm.clockIn).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : ''}
+                                                            onChange={e => {
+                                                                const [h, m] = e.target.value.split(':').map(Number);
+                                                                const d = new Date(quickEditForm.clockIn || '');
+                                                                d.setHours(h, m);
+                                                                setQuickEditForm(prev => ({...prev, clockIn: d.toISOString()}));
+                                                            }}
+                                                        />
+                                                    ) : formatTimeOnly(ts.clockIn)}
+                                                </TableCell>
+                                                <TableCell className="text-center text-xs text-slate-500">
+                                                    {ts.type?.toLowerCase().includes('drive') ? (
+                                                        <div className="flex flex-col items-center">
+                                                            <button 
+                                                                onClick={() => triggerSpecialFieldModal(ts, 'shopTime')}
+                                                                className={`px-2 py-1 rounded text-[9px] font-black uppercase transition-all shadow-sm flex flex-col items-center min-w-[70px] ${
+                                                                    ts.shopTime ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                                }`}
+                                                            >
+                                                                <span>{ts.shopTime ? 'Shop ✓' : 'Shop'}</span>
+                                                                {ts.shopTime && (
+                                                                    <span className="text-[7px] leading-tight opacity-90">
+                                                                        {String(ts.shopTime).match(/\((\d+)\s+qty\)/)?.[1] || ''} Qty
+                                                                    </span>
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    ) : isQuickEditing ? (
+                                                        <input 
+                                                            type="time"
+                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-20"
+                                                            value={quickEditForm.clockOut ? new Date(quickEditForm.clockOut).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : ''}
+                                                            onChange={e => {
+                                                                const [h, m] = e.target.value.split(':').map(Number);
+                                                                const d = new Date(quickEditForm.clockOut || quickEditForm.clockIn || '');
+                                                                d.setHours(h, m);
+                                                                setQuickEditForm(prev => ({...prev, clockOut: d.toISOString()}));
+                                                            }}
+                                                        />
+                                                    ) : formatTimeOnly(ts.clockOut)}
+                                                </TableCell>
+                                                <TableCell className="text-right text-xs font-medium text-slate-500">
+                                                    {isQuickEditing && ts.type?.toLowerCase().includes('drive') ? (
+                                                        <input 
+                                                            type="number"
+                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-16 text-right"
+                                                            value={quickEditForm.manualDistance || ''}
+                                                            onChange={e => setQuickEditForm(prev => ({...prev, manualDistance: e.target.value}))}
+                                                        />
+                                                    ) : (
+                                                        <div className="flex flex-col items-end">
+                                                            <span className={ts.manualDistance ? "text-orange-600 font-bold" : ""}>
+                                                                {((ts.distanceVal || 0) > 0 ? (ts.distanceVal || 0).toFixed(1) : '-')}
+                                                            </span>
+                                                            {ts.manualDistance && (
+                                                                <span className="text-[9px] text-slate-300 font-medium leading-none">
+                                                                    {((ts as any).rawDistanceVal || 0).toFixed(1)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className={`text-right text-xs font-black ${isQuickEditing ? 'text-orange-600 underline decoration-orange-300' : 'text-slate-700'}`}>
+                                                    {isQuickEditing ? (quickEditLiveStats?.hours || 0).toFixed(2) : (ts.hoursVal || 0).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {isQuickEditing ? (
+                                                        <div className="flex justify-end gap-1">
+                                                            <button 
+                                                                onClick={handleQuickSave}
+                                                                className="px-2 py-1 bg-green-500 text-white rounded text-[10px] font-bold hover:bg-green-600 shadow-sm transition-all"
+                                                            >
+                                                                Save
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => setQuickEditingId(null)}
+                                                                className="px-2 py-1 bg-slate-200 text-slate-600 rounded text-[10px] font-bold hover:bg-slate-300 transition-all font-black"
+                                                            >
+                                                                X
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button 
+                                                                        onClick={() => handleQuickEditClick(ts)}
+                                                                        className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg shadow-sm transition-all flex items-center gap-1"
+                                                                    >
+                                                                        <Edit size={12} />
+                                                                        <span className="text-[10px] font-black uppercase">Quick</span>
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Quick Adjust Times & Miles</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button 
+                                                                        onClick={() => handleEditClick(ts)}
+                                                                        className="p-1.5 hover:bg-white text-slate-400 hover:text-[#0F4C75] rounded-lg shadow-sm hover:shadow transition-all"
+                                                                    >
+                                                                        <FileText size={12} />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Full Edit</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button 
+                                                                        onClick={() => handleDeleteClick(ts)}
+                                                                        className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
+                                                                    >
+                                                                        <Trash2 size={12} />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Delete</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    }) : (
                                         <TableRow>
                                             <TableCell colSpan={9} className="p-12 text-center text-slate-400">
                                                 <div className="flex flex-col items-center gap-3">
@@ -1074,6 +1504,8 @@ export default function TimeCardPage() {
                 isOpen={!!editingRecord}
                 onClose={() => setEditingRecord(null)}
                 title="Edit Timesheet Record"
+                maxWidth="2xl"
+                noBlur={true}
                 footer={
                     <>
                         <button 
@@ -1091,7 +1523,7 @@ export default function TimeCardPage() {
                     </>
                 }
             >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
                     <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Employee</label>
                         <input 
@@ -1103,156 +1535,543 @@ export default function TimeCardPage() {
 
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estimate #</label>
-                        <input 
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                            value={editForm.estimate || ''}
-                            onChange={e => setEditForm(prev => ({...prev, estimate: e.target.value}))}
+                        <SearchableSelect 
+                            options={estimatesOptions}
+                            value={editForm.scheduleId || ''}
+                            onChange={(val) => {
+                                const opt = estimatesOptions.find(o => o.value === val);
+                                setEditForm(prev => ({
+                                    ...prev, 
+                                    scheduleId: val,
+                                    estimate: opt?.estimate || val
+                                }));
+                            }}
+                            placeholder="Select Estimate"
                         />
                     </div>
 
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Type</label>
-                        <select 
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 appearance-none"
-                            value={editForm.type || ''}
-                            onChange={e => setEditForm(prev => ({...prev, type: e.target.value}))}
-                        >
-                            <option value="Drive Time">Drive Time</option>
-                            <option value="Site Time">Site Time</option>
-                        </select>
+                        <div className="flex gap-2">
+                            {['Drive Time', 'Site Time'].map(t => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setEditForm(prev => ({...prev, type: t}))}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
+                                        editForm.type === t 
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-md' 
+                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                                    }`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock In</label>
-                        <input 
-                            type="datetime-local"
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                            value={toLocalISO(editForm.clockIn)}
-                            onChange={e => {
-                                const date = new Date(e.target.value);
-                                if (!isNaN(date.getTime())) {
-                                    setEditForm(prev => ({...prev, clockIn: date.toISOString()}));
-                                }
-                            }}
-                        />
-                    </div>
+                    {editForm.type === 'Drive Time' ? (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Record Date</label>
+                            <input 
+                                type="date"
+                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                value={editForm.clockIn ? editForm.clockIn.split('T')[0] : ''}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                        const existing = new Date(editForm.clockIn || new Date());
+                                        const [y, m, d] = val.split('-').map(Number);
+                                        existing.setFullYear(y);
+                                        existing.setMonth(m - 1);
+                                        existing.setDate(d);
+                                        setEditForm(prev => ({...prev, clockIn: existing.toISOString()}));
+                                    }
+                                }}
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock In</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editForm.clockIn)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditForm(prev => ({...prev, clockIn: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock Out</label>
-                        <input 
-                            type="datetime-local"
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                            value={toLocalISO(editForm.clockOut)}
-                            onChange={e => {
-                                const date = new Date(e.target.value);
-                                if (!isNaN(date.getTime())) {
-                                    setEditForm(prev => ({...prev, clockOut: date.toISOString()}));
-                                }
-                            }}
-                        />
-                    </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock Out</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editForm.clockOut)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditForm(prev => ({...prev, clockOut: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch Start</label>
-                        <input 
-                            type="datetime-local"
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                            value={toLocalISO(editForm.lunchStart)}
-                            onChange={e => {
-                                const date = new Date(e.target.value);
-                                if (!isNaN(date.getTime())) {
-                                    setEditForm(prev => ({...prev, lunchStart: date.toISOString()}));
-                                }
-                            }}
-                        />
-                    </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch Start</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editForm.lunchStart)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditForm(prev => ({...prev, lunchStart: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch End</label>
-                        <input 
-                            type="datetime-local"
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                            value={toLocalISO(editForm.lunchEnd)}
-                            onChange={e => {
-                                const date = new Date(e.target.value);
-                                if (!isNaN(date.getTime())) {
-                                    setEditForm(prev => ({...prev, lunchEnd: date.toISOString()}));
-                                }
-                            }}
-                        />
-                    </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch End</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editForm.lunchEnd)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditForm(prev => ({...prev, lunchEnd: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </>
+                    )}
 
-                        {editForm.type?.toLowerCase().includes('drive') && (
-                            <>
+                    {editForm.type === 'Drive Time' && (
+                        <>
+                            <div className="col-span-2 grid grid-cols-3 gap-3">
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Manual Distance (Mi)</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
                                     <input 
                                         type="number"
-                                        placeholder="Bypass calc with manual miles"
-                                        className="w-full px-4 py-2 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-black text-slate-700"
+                                        placeholder="Manual"
+                                        className="w-full px-4 py-2 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-black text-slate-700"
                                         value={editForm.manualDistance || ''}
                                         onChange={e => setEditForm(prev => ({...prev, manualDistance: e.target.value}))}
                                     />
                                 </div>
-                                
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
                                     <input 
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                        disabled={!!editForm.manualDistance}
+                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                            editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                        }`}
                                         value={editForm.locationIn || ''}
                                         onChange={e => setEditForm(prev => ({...prev, locationIn: e.target.value}))}
                                     />
                                 </div>
-
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
                                     <input 
                                         type="text"
-                                        className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                        disabled={!!editForm.manualDistance}
+                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                            editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                        }`}
                                         value={editForm.locationOut || ''}
                                         onChange={e => setEditForm(prev => ({...prev, locationOut: e.target.value}))}
                                     />
                                 </div>
-                            </>
-                        )}
-                        
-                        {editForm.type?.toLowerCase().includes('site') && (
-                            <div className="col-span-2">
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Manual Duration (Hrs)</label>
+                            </div>
+                        </>
+                    )}
+
+                    {editForm.type === 'Drive Time' && (
+                        <div className="col-span-2 grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                                <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
                                 <input 
                                     type="number"
-                                    step="0.01"
-                                    placeholder="Bypass calc with manual hours"
-                                    className="w-full px-4 py-2 rounded-xl bg-emerald-50/50 border border-emerald-100 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-black text-slate-700"
-                                    value={editForm.manualDuration || ''}
-                                    onChange={e => setEditForm(prev => ({...prev, manualDuration: e.target.value}))}
+                                    className="w-full px-3 py-2 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
+                                    placeholder="0"
+                                    value={(() => {
+                                        const match = String(editForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
+                                        return match ? match[1] : (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
+                                    })()}
+                                    onChange={e => {
+                                        const qty = parseFloat(e.target.value);
+                                        if (isNaN(qty) || qty <= 0) {
+                                            setEditForm(prev => ({...prev, dumpWashout: ""}));
+                                        } else {
+                                            const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
+                                            setEditForm(prev => ({...prev, dumpWashout: val}));
+                                        }
+                                    }}
                                 />
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                                <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
+                                <input 
+                                    type="number"
+                                    className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
+                                    placeholder="0"
+                                    value={(() => {
+                                        const match = String(editForm.shopTime || '').match(/\((\d+)\s+qty\)/);
+                                        return match ? match[1] : (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
+                                    })()}
+                                    onChange={e => {
+                                        const qty = parseFloat(e.target.value);
+                                        if (isNaN(qty) || qty <= 0) {
+                                            setEditForm(prev => ({...prev, shopTime: ""}));
+                                        } else {
+                                            const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
+                                            setEditForm(prev => ({...prev, shopTime: val}));
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
+                        <div className="relative z-10">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Calculated Result</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{editingCalculated.hours.toFixed(2)}</span>
+                                <span className="text-xl font-bold text-slate-600">HRS</span>
+                            </div>
+                        </div>
+                        {editForm.type === 'Drive Time' && (
+                            <div className="relative z-10 text-right">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Distance</p>
+                                <div className="flex items-baseline gap-1 justify-end">
+                                    <span className="text-3xl font-black text-blue-400 tabular-nums tracking-tighter">{editingCalculated.distance.toFixed(1)}</span>
+                                    <span className="text-sm font-bold text-slate-600">MI</span>
+                                </div>
                             </div>
                         )}
-
-                             <div className="col-span-2 flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                                <input 
-                                    type="checkbox"
-                                    id="dumpWashout"
-                                    className="w-5 h-5 rounded border-slate-300 text-[#0F4C75] focus:ring-[#0F4C75]"
-                                    checked={editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes'}
-                                    onChange={e => setEditForm(prev => ({...prev, dumpWashout: e.target.checked}))}
-                                />
-                                <label htmlFor="dumpWashout" className="text-sm font-bold text-slate-700">Dump / Washout</label>
-                            </div>
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#0F4C75]/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+                    </div>
 
                     <div className="col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Comments</label>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Comments</label>
                         <textarea 
-                            rows={3}
-                            className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none"
+                            rows={2}
+                            placeholder="Add any notes here..."
+                            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none transition-all"
                             value={editForm.comments || ''}
                             onChange={e => setEditForm(prev => ({...prev, comments: e.target.value}))}
                         />
                     </div>
                 </div>
             </Modal>
+
+            <Modal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                title="Add Manual Timesheet"
+                maxWidth="2xl"
+                noBlur={true}
+                footer={
+                    <>
+                        <button 
+                            onClick={() => setIsAddModalOpen(false)}
+                            className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleSaveAdd}
+                            className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all"
+                        >
+                            Create Record
+                        </button>
+                    </>
+                }
+            >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Select Employee</label>
+                        <SearchableSelect 
+                            options={employeesOptions}
+                            value={addForm.employee || ''}
+                            onChange={(val) => setAddForm(prev => ({...prev, employee: val}))}
+                            placeholder="Search & Select Employee"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
+                        <SearchableSelect 
+                            options={estimatesOptions}
+                            value={addForm.estimate || ''}
+                            onChange={(val) => {
+                                const opt = estimatesOptions.find(o => o.value === val);
+                                setAddForm(prev => ({
+                                    ...prev, 
+                                    estimate: val,
+                                    scheduleId: '' // Reset schedule when estimate changes
+                                }));
+                            }}
+                            placeholder="Select Estimate"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
+                        <SearchableSelect 
+                            options={(() => {
+                                if (!addForm.estimate) return [];
+                                const estNorm = normalizeEst(addForm.estimate);
+                                return rawSchedules
+                                    .filter(s => normalizeEst(s.estimate) === estNorm)
+                                    .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
+                                    .map(s => ({
+                                        value: s._id,
+                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                        estimate: s.estimate
+                                    }));
+                            })()}
+                            value={addForm.scheduleId || ''}
+                            onChange={(val) => setAddForm(prev => ({...prev, scheduleId: val}))}
+                            placeholder={addForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Entry Type</label>
+                        <div className="flex gap-2">
+                            {['Drive Time', 'Site Time'].map(t => (
+                                <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => setAddForm(prev => ({...prev, type: t}))}
+                                    className={`flex-1 py-1.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
+                                        addForm.type === t 
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-md' 
+                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                                    }`}
+                                >
+                                    {t}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {addForm.type === 'Drive Time' ? (
+                        <div>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Record Date</label>
+                            <input 
+                                type="date"
+                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                value={addForm.clockIn ? addForm.clockIn.split('T')[0] : ''}
+                                onChange={e => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                        const d = new Date(val + 'T12:00:00');
+                                        setAddForm(prev => ({...prev, clockIn: d.toISOString()}));
+                                    }
+                                }}
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(addForm.clockIn)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setAddForm(prev => ({...prev, clockIn: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(addForm.clockOut)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setAddForm(prev => ({...prev, clockOut: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {addForm.type === 'Drive Time' && (
+                        <>
+                            <div className="col-span-2 grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
+                                    <input 
+                                        type="number"
+                                        placeholder="Manual"
+                                        className="w-full px-4 py-2 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-black text-slate-700"
+                                        value={addForm.manualDistance || ''}
+                                        onChange={e => setAddForm(prev => ({...prev, manualDistance: e.target.value}))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="Start loc"
+                                        disabled={!!addForm.manualDistance}
+                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                            addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                        }`}
+                                        value={addForm.locationIn || ''}
+                                        onChange={e => setAddForm(prev => ({...prev, locationIn: e.target.value}))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="End loc"
+                                        disabled={!!addForm.manualDistance}
+                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                            addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                        }`}
+                                        value={addForm.locationOut || ''}
+                                        onChange={e => setAddForm(prev => ({...prev, locationOut: e.target.value}))}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    {addForm.type === 'Drive Time' && (
+                        <div className="col-span-2 grid grid-cols-2 gap-3">
+                            <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                                <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
+                                <input 
+                                    type="number"
+                                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
+                                    placeholder="0"
+                                    onChange={e => {
+                                        const qty = parseFloat(e.target.value);
+                                        if (isNaN(qty) || qty <= 0) {
+                                            setAddForm(prev => ({...prev, dumpWashout: ""}));
+                                        } else {
+                                            const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
+                                            setAddForm(prev => ({...prev, dumpWashout: val}));
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                                <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
+                                <input 
+                                    type="number"
+                                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
+                                    placeholder="0"
+                                    onChange={e => {
+                                        const qty = parseFloat(e.target.value);
+                                        if (isNaN(qty) || qty <= 0) {
+                                            setAddForm(prev => ({...prev, shopTime: ""}));
+                                        } else {
+                                            const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
+                                            setAddForm(prev => ({...prev, shopTime: val}));
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+
+                    <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
+                        <div className="relative z-10">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Est. Result</p>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{addCalculated.hours.toFixed(2)}</span>
+                                <span className="text-xl font-bold text-slate-600">HRS</span>
+                            </div>
+                        </div>
+                        {addForm.type === 'Drive Time' && (
+                            <div className="relative z-10 text-right">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Distance</p>
+                                <div className="flex items-baseline gap-1 justify-end">
+                                    <span className="text-3xl font-black text-blue-400 tabular-nums tracking-tighter">{addCalculated.distance.toFixed(1)}</span>
+                                    <span className="text-sm font-bold text-slate-600">MI</span>
+                                </div>
+                            </div>
+                        )}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#0F4C75]/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={!!specialFieldModal.ts && !!specialFieldModal.field}
+                onClose={() => setSpecialFieldModal({ ts: null, field: null })}
+                title={`Enter Quantity: ${specialFieldModal.field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'}`}
+                maxWidth="sm"
+                noBlur={true}
+                footer={
+                    <>
+                        <button 
+                            onClick={() => setSpecialFieldModal({ ts: null, field: null })}
+                            className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={confirmSpecialField}
+                            disabled={isSpecialLoading}
+                            className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all disabled:opacity-50"
+                        >
+                            {isSpecialLoading ? 'Saving...' : 'Save Quantity'}
+                        </button>
+                    </>
+                }
+            >
+                <div className="space-y-3 py-2">
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                        <p className="text-[10px] text-slate-600 leading-tight font-bold">
+                            {specialFieldModal.field === 'dumpWashout' 
+                                ? "Washout adds 0.50 hrs."
+                                : "Shop adds 0.25 hrs."
+                            }
+                        </p>
+                    </div>
+                    
+                    <div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest px-1">Quantity</label>
+                        <input 
+                            type="number"
+                            autoFocus
+                            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-4 focus:ring-[#0F4C75]/10 focus:border-[#0F4C75] text-lg font-black text-slate-800 transition-all shadow-inner"
+                            placeholder="0"
+                            value={specialQty}
+                            onChange={e => handleSpecialQtyChange(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') confirmSpecialField(); }}
+                        />
+                    </div>
+                </div>
+            </Modal>
+
             <ConfirmModal 
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}

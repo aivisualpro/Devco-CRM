@@ -10,10 +10,11 @@ interface ModalProps {
     children: React.ReactNode;
     footer?: React.ReactNode;
     maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | '6xl' | '7xl' | 'full';
-    preventClose?: boolean; // If true, modal only closes via close button or cancel, not ESC/backdrop click
+    preventClose?: boolean; 
+    noBlur?: boolean;
 }
 
-export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4xl', preventClose = false }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4xl', preventClose = false, noBlur = false }: ModalProps) {
     const [shouldRender, setShouldRender] = React.useState(false);
 
     useEffect(() => {
@@ -57,10 +58,14 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
         <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-[calc(env(safe-area-inset-top,0px)+2rem)] md:pt-0">
             {/* Reduced blur from xl to md for better performance */}
             <div 
-                className={`absolute inset-0 bg-black/40 backdrop-blur-md transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
+                className={`absolute inset-0 ${noBlur ? 'bg-black/5' : 'bg-black/40 backdrop-blur-md'} transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
                 onClick={preventClose ? undefined : onClose}
             />
-            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[96vh] flex flex-col transition-all duration-300 transform ${shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4'}`}>
+            <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[96vh] flex flex-col transition-all duration-300 transform ${
+                noBlur 
+                    ? (shouldRender ? 'opacity-100' : 'opacity-0') 
+                    : (shouldRender ? 'scale-100 opacity-100' : 'scale-95 opacity-0 -translate-y-4')
+            }`}>
                 <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
                     <h3 className="text-lg font-bold text-gray-900">{title}</h3>
                     <button
