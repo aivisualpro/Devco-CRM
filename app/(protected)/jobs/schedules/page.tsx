@@ -2984,26 +2984,17 @@ export default function SchedulePage() {
                                                 <div>
                                                     <p className="text-base font-black text-slate-800 leading-tight">{selectedSchedule.title}</p>
                                                 </div>
-                                                <div className="mt-2 flex items-center gap-3">
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className="flex items-center gap-2">
-                                                            <CalendarIcon size={14} className="text-slate-400" />
-                                                            <span className="text-xs font-bold text-slate-700">
-                                                                From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                                            </span>
-                                                        </div>
-                                                        {selectedSchedule.toDate && (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-3.5" />
-                                                                <span className="text-xs font-bold text-slate-700">
-                                                                    To: {new Date(selectedSchedule.toDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                                <div className="mt-2 flex items-center gap-2 text-xs font-bold text-slate-500">
                                                     {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
-                                                        <Badge variant="info" className="py-0 h-5">{selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}</Badge>
+                                                        <span className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
+                                                            {selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}
+                                                        </span>
                                                     )}
+                                                    <span>{new Date(selectedSchedule.fromDate).toLocaleDateString('en-US')}</span>
+                                                    <span className="text-slate-300">|</span>
+                                                    <span>{new Date(selectedSchedule.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                    <span>-</span>
+                                                    <span>{selectedSchedule.toDate ? new Date(selectedSchedule.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
                                                 </div>
                                             </div>
 
@@ -3367,26 +3358,16 @@ export default function SchedulePage() {
                                                 <p className="text-3xl font-black text-slate-800">{activeDayTab === 'all' ? totalCount : filteredSchedules.length}</p>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">TOTAL JOBS</p>
                                             </div>
-                                            <div className="bg-[#0F4C75] p-4 rounded-[32px] shadow-lg shadow-blue-900/20 flex flex-col items-center justify-center text-center">
-                                                <p className="text-3xl font-black text-white">{serverCapacity}%</p>
-                                                <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
-                                            </div>
+                                            {selectedDates.length > 0 && (
+                                                <div className="bg-[#0F4C75] p-4 rounded-[32px] shadow-lg shadow-blue-900/20 flex flex-col items-center justify-center text-center">
+                                                    <p className="text-3xl font-black text-white">{serverCapacity}%</p>
+                                                    <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
-                                    <div className="w-full text-center">
-                                        <h4 className="text-[12px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center w-full">NOTIFICATIONS</h4>
-                                        <div className="space-y-4 w-full">
-                                            <div className="flex flex-col items-center gap-2 p-4 bg-slate-50 rounded-2xl border border-white text-center">
-                                                <div className="w-2 h-2 bg-rose-500 rounded-full shadow-[0_0_8px_rgba(244,63,94,0.4)]"></div>
-                                                <p className="text-xs font-bold text-slate-600 leading-snug">New import completed successfully.</p>
-                                            </div>
-                                            <div className="flex flex-col items-center gap-2 p-4 bg-slate-50 rounded-2xl border border-white opacity-60 text-center">
-                                                <div className="w-2 h-2 bg-slate-300 rounded-full"></div>
-                                                <p className="text-xs font-bold text-slate-600 leading-snug">System backup finished.</p>
-                                            </div>
-                                        </div>
-                                    </div>
+
                                 </>
                             )}
                         </div>

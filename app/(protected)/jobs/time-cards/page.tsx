@@ -429,7 +429,7 @@ export default function TimeCardPage() {
             } else {
                 // Desktop filters
                 if (filEmployee && r.employee !== filEmployee) return false;
-                if (filType && r.type !== filType) return false;
+                if (filType && r.type?.trim().toLowerCase() !== filType.trim().toLowerCase()) return false;
             }
 
             if (filEstimate) {
@@ -1281,7 +1281,7 @@ export default function TimeCardPage() {
 
                     {/* Right Content - Table */}
                     <div className="flex-1 bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col relative z-20">
-                        <div className="px-5 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl relative z-30">
+                        <div className="px-4 py-1 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-t-3xl relative z-30">
                             <div className="flex items-baseline gap-3">
                                 <h2 className="text-xs font-black text-slate-700 uppercase tracking-widest">
                                     Records
@@ -1322,7 +1322,7 @@ export default function TimeCardPage() {
                                          value={filType} 
                                          onChange={setFilType} 
                                          options={uniqueTypes.map(e => ({label: e, value: e}))}
-                                         className="w-[110px]"
+                                         className="w-[140px]"
                                          align="right"
                                     />
                                 </div>
@@ -1610,25 +1610,25 @@ export default function TimeCardPage() {
             >
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
                     <div className="col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Employee</label>
-                        <input 
-                            disabled
-                            className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 font-medium"
-                            value={employeesMap[editForm.employee || '']?.label || editForm.employee}
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Select Employee</label>
+                        <SearchableSelect 
+                            options={employeesOptions}
+                            value={editForm.employee || ''}
+                            onChange={(val) => setEditForm(prev => ({...prev, employee: val}))}
+                            placeholder="Search & Select Employee"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estimate #</label>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
                         <SearchableSelect 
                             options={estimatesOptions}
-                            value={editForm.scheduleId || ''}
+                            value={editForm.estimate || ''}
                             onChange={(val) => {
-                                const opt = estimatesOptions.find(o => o.value === val);
                                 setEditForm(prev => ({
                                     ...prev, 
-                                    scheduleId: val,
-                                    estimate: opt?.estimate || val
+                                    estimate: val,
+                                    scheduleId: '' 
                                 }));
                             }}
                             placeholder="Select Estimate"
@@ -1636,17 +1636,38 @@ export default function TimeCardPage() {
                     </div>
 
                     <div>
-                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Type</label>
-                        <div className="flex gap-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
+                        <SearchableSelect 
+                            options={(() => {
+                                if (!editForm.estimate) return [];
+                                const estNorm = normalizeEst(editForm.estimate);
+                                return rawSchedules
+                                    .filter(s => normalizeEst(s.estimate) === estNorm)
+                                    .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
+                                    .map(s => ({
+                                        value: s._id,
+                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                        estimate: s.estimate
+                                    }));
+                            })()}
+                            value={editForm.scheduleId || ''}
+                            onChange={(val) => setEditForm(prev => ({...prev, scheduleId: val}))}
+                            placeholder={editForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
+                        />
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Entry Type</label>
+                        <div className="flex gap-3">
                             {['Drive Time', 'Site Time'].map(t => (
                                 <button
                                     key={t}
                                     type="button"
                                     onClick={() => setEditForm(prev => ({...prev, type: t}))}
-                                    className={`flex-1 py-1.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
-                                        editForm.type === t 
-                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-md' 
-                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
+                                        editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
                                 >
                                     {t}
@@ -1655,33 +1676,13 @@ export default function TimeCardPage() {
                         </div>
                     </div>
 
-                    {editForm.type === 'Drive Time' ? (
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Record Date</label>
-                            <input 
-                                type="date"
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                value={editForm.clockIn ? editForm.clockIn.split('T')[0] : ''}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    if (val) {
-                                        const existing = new Date(editForm.clockIn || new Date());
-                                        const [y, m, d] = val.split('-').map(Number);
-                                        existing.setFullYear(y);
-                                        existing.setMonth(m - 1);
-                                        existing.setDate(d);
-                                        setEditForm(prev => ({...prev, clockIn: existing.toISOString()}));
-                                    }
-                                }}
-                            />
-                        </div>
-                    ) : (
+                    {editForm.type?.trim().toLowerCase() !== 'drive time' && (
                         <>
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock In</label>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
                                 <input 
                                     type="datetime-local"
-                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.clockIn)}
                                     onChange={e => {
                                         const date = new Date(e.target.value);
@@ -1693,25 +1694,10 @@ export default function TimeCardPage() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock Out</label>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
                                 <input 
                                     type="datetime-local"
-                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                    value={toLocalISO(editForm.clockOut)}
-                                    onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditForm(prev => ({...prev, clockOut: date.toISOString()}));
-                                        }
-                                    }}
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch Start</label>
-                                <input 
-                                    type="datetime-local"
-                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.lunchStart)}
                                     onChange={e => {
                                         const date = new Date(e.target.value);
@@ -1723,10 +1709,10 @@ export default function TimeCardPage() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch End</label>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
                                 <input 
                                     type="datetime-local"
-                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.lunchEnd)}
                                     onChange={e => {
                                         const date = new Date(e.target.value);
@@ -1736,10 +1722,25 @@ export default function TimeCardPage() {
                                     }}
                                 />
                             </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editForm.clockOut)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditForm(prev => ({...prev, clockOut: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
                         </>
                     )}
 
-                    {editForm.type === 'Drive Time' && (
+                    {editForm.type?.trim().toLowerCase() === 'drive time' && (
                         <>
                             <div className="col-span-2 grid grid-cols-3 gap-3">
                                 <div>
@@ -1747,7 +1748,7 @@ export default function TimeCardPage() {
                                     <input 
                                         type="number"
                                         placeholder="Manual"
-                                        className="w-full px-4 py-2 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-black text-slate-700"
+                                        className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                                         value={editForm.manualDistance || ''}
                                         onChange={e => setEditForm(prev => ({...prev, manualDistance: e.target.value}))}
                                     />
@@ -1756,8 +1757,9 @@ export default function TimeCardPage() {
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
                                     <input 
                                         type="text"
+                                        placeholder="Start loc"
                                         disabled={!!editForm.manualDistance}
-                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
                                             editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
                                         }`}
                                         value={editForm.locationIn || ''}
@@ -1768,8 +1770,9 @@ export default function TimeCardPage() {
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
                                     <input 
                                         type="text"
+                                        placeholder="End loc"
                                         disabled={!!editForm.manualDistance}
-                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
                                             editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
                                         }`}
                                         value={editForm.locationOut || ''}
@@ -1777,66 +1780,63 @@ export default function TimeCardPage() {
                                     />
                                 </div>
                             </div>
+
+                            <div className="col-span-2 grid grid-cols-2 gap-3">
+                                <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                                    <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
+                                    <input 
+                                        type="number"
+                                        className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
+                                        placeholder="0"
+                                        value={(() => {
+                                            const match = String(editForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
+                                            return match ? match[1] : (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
+                                        })()}
+                                        onChange={e => {
+                                            const qty = parseFloat(e.target.value);
+                                            if (isNaN(qty) || qty <= 0) {
+                                                setEditForm(prev => ({...prev, dumpWashout: ""}));
+                                            } else {
+                                                const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
+                                                setEditForm(prev => ({...prev, dumpWashout: val}));
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                                    <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
+                                    <input 
+                                        type="number"
+                                        className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
+                                        placeholder="0"
+                                        value={(() => {
+                                            const match = String(editForm.shopTime || '').match(/\((\d+)\s+qty\)/);
+                                            return match ? match[1] : (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
+                                        })()}
+                                        onChange={e => {
+                                            const qty = parseFloat(e.target.value);
+                                            if (isNaN(qty) || qty <= 0) {
+                                                setEditForm(prev => ({...prev, shopTime: ""}));
+                                            } else {
+                                                const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
+                                                setEditForm(prev => ({...prev, shopTime: val}));
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            </div>
                         </>
-                    )}
-
-                    {editForm.type === 'Drive Time' && (
-                        <div className="col-span-2 grid grid-cols-2 gap-3">
-                            <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
-                                <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
-                                <input 
-                                    type="number"
-                                    className="w-full px-3 py-2 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
-                                    placeholder="0"
-                                    value={(() => {
-                                        const match = String(editForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
-                                        return match ? match[1] : (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
-                                    })()}
-                                    onChange={e => {
-                                        const qty = parseFloat(e.target.value);
-                                        if (isNaN(qty) || qty <= 0) {
-                                            setEditForm(prev => ({...prev, dumpWashout: ""}));
-                                        } else {
-                                            const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
-                                            setEditForm(prev => ({...prev, dumpWashout: val}));
-                                        }
-                                    }}
-                                />
-                            </div>
-
-                            <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
-                                <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
-                                <input 
-                                    type="number"
-                                    className="w-full px-3 py-2 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
-                                    placeholder="0"
-                                    value={(() => {
-                                        const match = String(editForm.shopTime || '').match(/\((\d+)\s+qty\)/);
-                                        return match ? match[1] : (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
-                                    })()}
-                                    onChange={e => {
-                                        const qty = parseFloat(e.target.value);
-                                        if (isNaN(qty) || qty <= 0) {
-                                            setEditForm(prev => ({...prev, shopTime: ""}));
-                                        } else {
-                                            const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
-                                            setEditForm(prev => ({...prev, shopTime: val}));
-                                        }
-                                    }}
-                                />
-                            </div>
-                        </div>
                     )}
 
                     <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
                         <div className="relative z-10">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Calculated Result</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Est. Result</p>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{editingCalculated.hours.toFixed(2)}</span>
                                 <span className="text-xl font-bold text-slate-600">HRS</span>
                             </div>
                         </div>
-                        {editForm.type === 'Drive Time' && (
+                        {editForm.type?.trim().toLowerCase() === 'drive time' && (
                             <div className="relative z-10 text-right">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Distance</p>
                                 <div className="flex items-baseline gap-1 justify-end">
@@ -1942,7 +1942,7 @@ export default function TimeCardPage() {
                                     type="button"
                                     onClick={() => setAddForm(prev => ({...prev, type: t}))}
                                     className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
-                                        addForm.type === t 
+                                        addForm.type?.trim().toLowerCase() === t.trim().toLowerCase() 
                                         ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
                                         : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
@@ -1954,7 +1954,7 @@ export default function TimeCardPage() {
                     </div>
 
 
-                    {addForm.type !== 'Drive Time' && (
+                    {addForm.type?.trim().toLowerCase() !== 'drive time' && (
                         <>
                             {/* Row 4: Clock In and Lunch Start */}
                             <div>
@@ -2033,7 +2033,7 @@ export default function TimeCardPage() {
                         </>
                     )}
 
-                    {addForm.type === 'Drive Time' && (
+                    {addForm.type?.trim().toLowerCase() === 'drive time' && (
                         <>
                             <div className="col-span-2 grid grid-cols-3 gap-3">
                                 <div>
@@ -2076,7 +2076,7 @@ export default function TimeCardPage() {
                         </>
                     )}
 
-                    {addForm.type === 'Drive Time' && (
+                    {addForm.type?.trim().toLowerCase() === 'drive time' && (
                         <div className="col-span-2 grid grid-cols-2 gap-3">
                             <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                 <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>

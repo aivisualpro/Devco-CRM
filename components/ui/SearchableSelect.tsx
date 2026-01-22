@@ -318,7 +318,7 @@ export function SearchableSelect({
                             onKeyDown(e);
                         }
                     }}
-                    className="w-full min-h-[46px] h-auto p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                    className="w-full min-h-[36px] h-auto py-1 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
                 >
                     <div className="flex items-center gap-3 overflow-hidden flex-1">
                         {(!multiple && (selectedOption?.image || selectedOption?.color || selectedOption?.initials || (displayLabel && displayLabel !== placeholder))) ? (

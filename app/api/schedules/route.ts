@@ -497,8 +497,12 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                // 4. Specific Dropdown Filters
-                if (filters.estimate) matchStage.estimate = filters.estimate;
+                if (filters.estimate) {
+                    // MRelaxed Match: Match any estimate STARTING with the filter value
+                    // This handles 25-0358 matching 25-0358-V1, 25-0358-Rev1, etc.
+                    const esc = filters.estimate.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    matchStage.estimate = { $regex: `^${esc}`, $options: 'i' };
+                }
                 if (filters.client) matchStage.customerId = filters.client; // Assuming client ID passed
                 if (filters.service) matchStage.service = filters.service;
                 if (filters.tag) matchStage.item = filters.tag;
