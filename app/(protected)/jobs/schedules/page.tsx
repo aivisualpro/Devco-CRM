@@ -3518,8 +3518,8 @@ export default function SchedulePage() {
                         {editingItem?.item !== 'Day Off' && (
                         <>
                         {/* Row 2: Client, Proposal, Title */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="space-y-2">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                            <div>
                                 <SearchableSelect
                                     id="schedClient"
                                     label="Client"
@@ -3539,7 +3539,7 @@ export default function SchedulePage() {
                                     onNext={() => document.getElementById('schedProposal')?.focus()}
                                 />
                             </div>
-                            <div className="space-y-2">
+                            <div>
                                  <SearchableSelect
                                     id="schedProposal"
                                     label="Proposal #"
@@ -3567,7 +3567,9 @@ export default function SchedulePage() {
                                             service: Array.isArray(est?.services) ? est.services.join(', ') : (est?.services || prev?.service || ''),
                                             // Auto-fill Fringe & CP
                                             fringe: est?.fringe || prev?.fringe || 'No',
-                                            certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No'
+                                            certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
+                                            // Store jobLocation for display
+                                            jobLocation: est?.jobAddress || prev?.jobLocation || ''
                                         }));
                                     }}
                                     onNext={() => document.getElementById('schedTitle')?.focus()}
@@ -3577,7 +3579,7 @@ export default function SchedulePage() {
                                 <label className="block text-sm font-bold text-slate-900">Title</label>
                                 <input
                                     id="schedTitle"
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
                                     placeholder="Project Main Phase"
                                     value={editingItem?.title || ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
@@ -3591,6 +3593,21 @@ export default function SchedulePage() {
                                 />
                             </div>
                         </div>
+
+                        {/* Job Location - Read Only (shown when estimate is selected) */}
+                        {editingItem?.estimate && (() => {
+                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                            const jobAddr = est?.jobAddress || editingItem?.jobLocation;
+                            if (!jobAddr) return null;
+                            return (
+                                <div className="space-y-2">
+                                    <label className="block text-sm font-bold text-slate-500">Job Location</label>
+                                    <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700">
+                                        {jobAddr}
+                                    </div>
+                                </div>
+                            );
+                        })()}
 
                         {/* Row 3: Staffing (PM, Foreman) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
