@@ -616,6 +616,70 @@ export default function TimeCardPage() {
         }
     };
 
+    const removeSpecialField = async () => {
+        const { ts, field } = specialFieldModal;
+        if (!ts || !field) return;
+
+        setIsSpecialLoading(true);
+        const originalSchedules = [...rawSchedules];
+        const recordId = ts._id || ts.recordId;
+
+        // Optimistic UI - clear the field
+        setRawSchedules(prev => prev.map(s => {
+            if (s._id !== ts.scheduleId) return s;
+            return {
+                ...s,
+                timesheet: (s.timesheet || []).map((t: any) => {
+                    if ((t._id || t.recordId) === recordId) {
+                        return { ...t, [field]: '' };
+                    }
+                    return t;
+                })
+            };
+        }));
+
+        try {
+            const resGet = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
+            });
+            const dataGet = await resGet.json();
+            if (!dataGet.success) throw new Error("Schedule not found");
+            
+            const schedule = dataGet.result;
+            const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
+                if ((t._id || t.recordId) === recordId) {
+                    return { ...t, [field]: '' };
+                }
+                return t;
+            });
+            
+            const resSave = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    action: 'updateSchedule', 
+                    payload: { id: ts.scheduleId, timesheet: updatedTimesheets }
+                })
+            });
+            
+            const saveResult = await resSave.json();
+            if (saveResult.success) {
+                success(`${field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'} removed`);
+                setSpecialFieldModal({ ts: null, field: null });
+            } else {
+                throw new Error("Failed to save");
+            }
+        } catch (e) {
+            console.error(e);
+            toastError("Failed to remove");
+            setRawSchedules(originalSchedules);
+        } finally {
+            setIsSpecialLoading(false);
+        }
+    };
+
     // --- Actions ---
     
     const handleDeleteClick = (ts: TimesheetEntry) => {
@@ -2081,21 +2145,30 @@ export default function TimeCardPage() {
                 maxWidth="sm"
                 noBlur={true}
                 footer={
-                    <>
+                    <div className="flex items-center justify-between w-full">
                         <button 
-                            onClick={() => setSpecialFieldModal({ ts: null, field: null })}
-                            className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
-                        >
-                            Cancel
-                        </button>
-                        <button 
-                            onClick={confirmSpecialField}
+                            onClick={removeSpecialField}
                             disabled={isSpecialLoading}
-                            className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all disabled:opacity-50"
+                            className="px-4 py-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 font-bold text-sm transition-all disabled:opacity-50"
                         >
-                            {isSpecialLoading ? 'Saving...' : 'Save Quantity'}
+                            {isSpecialLoading ? 'Removing...' : 'Remove'}
                         </button>
-                    </>
+                        <div className="flex gap-2">
+                            <button 
+                                onClick={() => setSpecialFieldModal({ ts: null, field: null })}
+                                className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={confirmSpecialField}
+                                disabled={isSpecialLoading}
+                                className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all disabled:opacity-50"
+                            >
+                                {isSpecialLoading ? 'Saving...' : 'Save Quantity'}
+                            </button>
+                        </div>
+                    </div>
                 }
             >
                 <div className="space-y-3 py-2">

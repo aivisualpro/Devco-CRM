@@ -90,30 +90,87 @@ export async function POST(request: NextRequest) {
             const scheduleData: any = {};
             
             // Only set fields that are provided (allows partial updates)
-            if (record.Title !== undefined) scheduleData.title = record.Title;
-            if (record.From !== undefined) {
-                const fromDate = parseDate(record.From);
+            // Support both AppSheet keys (Capitalized/Spaced) and direct Schema keys (camelCase)
+            
+            const getVal = (keys: string[]) => {
+                for (const k of keys) {
+                    if (record[k] !== undefined) return record[k];
+                }
+                return undefined;
+            };
+
+            const title = getVal(['Title', 'title']);
+            if (title !== undefined) scheduleData.title = title;
+
+            const fromVal = getVal(['From', 'fromDate']);
+            if (fromVal !== undefined) {
+                const fromDate = parseDate(fromVal);
                 if (fromDate) scheduleData.fromDate = fromDate;
             }
-            if (record.To !== undefined) {
-                const toDate = parseDate(record.To);
+
+            const toVal = getVal(['To', 'toDate']);
+            if (toVal !== undefined) {
+                const toDate = parseDate(toVal);
                 if (toDate) scheduleData.toDate = toDate;
             }
-            if (record.Customer !== undefined) scheduleData.customerId = record.Customer;
-            if (record['Proposal Number'] !== undefined) scheduleData.estimate = record['Proposal Number'];
-            if (record['Project Manager Name'] !== undefined) scheduleData.projectManager = record['Project Manager Name'];
-            if (record['Foreman Name'] !== undefined) scheduleData.foremanName = record['Foreman Name'];
-            if (record.Assignees !== undefined) scheduleData.assignees = parseAssignees(record.Assignees);
-            if (record.Description !== undefined) scheduleData.description = record.Description;
-            if (record['Service Item'] !== undefined) scheduleData.service = record['Service Item'];
-            if (record.Color !== undefined) scheduleData.item = record.Color;
-            if (record['Labor Agreement'] !== undefined) scheduleData.fringe = record['Labor Agreement'];
-            if (record['Certified Payroll'] !== undefined) scheduleData.certifiedPayroll = record['Certified Payroll'];
-            if (record['Notify Assignees'] !== undefined) scheduleData.notifyAssignees = record['Notify Assignees'];
-            if (record['Per Diem'] !== undefined) scheduleData.perDiem = record['Per Diem'];
-            if (record['Aerial Image'] !== undefined) scheduleData.aerialImage = record['Aerial Image'];
-            if (record['Site Layout'] !== undefined) scheduleData.siteLayout = record['Site Layout'];
-            if (record.todayObjectives !== undefined) scheduleData.todayObjectives = parseObjectives(record.todayObjectives);
+
+            const customerId = getVal(['Customer', 'customerId']);
+            if (customerId !== undefined) scheduleData.customerId = customerId;
+
+            const estimate = getVal(['Proposal Number', 'estimate']);
+            if (estimate !== undefined) scheduleData.estimate = estimate;
+
+            const pmName = getVal(['Project Manager Name', 'projectManager']);
+            if (pmName !== undefined) scheduleData.projectManager = pmName;
+
+            const foreman = getVal(['Foreman Name', 'foremanName']);
+            if (foreman !== undefined) scheduleData.foremanName = foreman;
+
+            const assigneesVal = getVal(['Assignees', 'assignees']);
+            if (assigneesVal !== undefined) {
+                // If it's already an array, use it. If string, parse it.
+                if (Array.isArray(assigneesVal)) {
+                    scheduleData.assignees = assigneesVal;
+                } else {
+                    scheduleData.assignees = parseAssignees(String(assigneesVal));
+                }
+            }
+
+            const description = getVal(['Description', 'description']);
+            if (description !== undefined) scheduleData.description = description;
+
+            const service = getVal(['Service Item', 'service']);
+            if (service !== undefined) scheduleData.service = service;
+
+            const item = getVal(['Color', 'item']);
+            if (item !== undefined) scheduleData.item = item;
+
+            const fringe = getVal(['Labor Agreement', 'fringe']);
+            if (fringe !== undefined) scheduleData.fringe = fringe;
+
+            const certPayroll = getVal(['Certified Payroll', 'certifiedPayroll']);
+            if (certPayroll !== undefined) scheduleData.certifiedPayroll = certPayroll;
+
+            const notify = getVal(['Notify Assignees', 'notifyAssignees']);
+            if (notify !== undefined) scheduleData.notifyAssignees = notify;
+
+            const perDiem = getVal(['Per Diem', 'perDiem']);
+            if (perDiem !== undefined) scheduleData.perDiem = perDiem;
+
+            const aerial = getVal(['Aerial Image', 'aerialImage']);
+            if (aerial !== undefined) scheduleData.aerialImage = aerial;
+
+            const site = getVal(['Site Layout', 'siteLayout']);
+            if (site !== undefined) scheduleData.siteLayout = site;
+
+            const objectives = getVal(['todayObjectives']);
+            if (objectives !== undefined) {
+                if (Array.isArray(objectives)) {
+                    scheduleData.todayObjectives = objectives; // Assuming already in correct format if array
+                } else {
+                    scheduleData.todayObjectives = parseObjectives(String(objectives));
+                }
+            }
             
             // Handle different actions
             switch (action) {
