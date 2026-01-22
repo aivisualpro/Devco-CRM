@@ -1588,7 +1588,7 @@ export default function TimeCardPage() {
             <Modal
                 isOpen={!!editingRecord}
                 onClose={() => setEditingRecord(null)}
-                title="Edit Timesheet Record"
+                title="Edit Timecard Record"
                 maxWidth="2xl"
                 noBlur={true}
                 footer={
@@ -1830,7 +1830,6 @@ export default function TimeCardPage() {
 
                     <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
                         <div className="relative z-10">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Est. Result</p>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{editingCalculated.hours.toFixed(2)}</span>
                                 <span className="text-xl font-bold text-slate-600">HRS</span>
@@ -1864,7 +1863,7 @@ export default function TimeCardPage() {
             <Modal
                 isOpen={isAddModalOpen}
                 onClose={() => setIsAddModalOpen(false)}
-                title="Add Manual Timesheet"
+                title="Add Timecard Record"
                 maxWidth="2xl"
                 noBlur={true}
                 footer={
@@ -2118,7 +2117,6 @@ export default function TimeCardPage() {
 
                     <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
                         <div className="relative z-10">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Est. Result</p>
                             <div className="flex items-baseline gap-2">
                                 <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{addCalculated.hours.toFixed(2)}</span>
                                 <span className="text-xl font-bold text-slate-600">HRS</span>
