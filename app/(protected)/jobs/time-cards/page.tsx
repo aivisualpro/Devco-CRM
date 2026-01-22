@@ -66,7 +66,7 @@ const getWeekNumber = (d: Date) => {
     // Copy date so don't modify original
     d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
     // Set to nearest Thursday: current date + 4 - current day number
-    // Make Sunday's day number 7
+    // Make Sunday's day number 7 (ISO week starts on Monday)
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
     // Get first day of year
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -77,14 +77,22 @@ const getWeekNumber = (d: Date) => {
 
 const getWeekRangeString = (dateObj: Date) => {
     const curr = new Date(dateObj);
-    const first = curr.getDate() - curr.getDay(); // First day is the day of the month - the day of the week
-    const last = first + 6; // last day is the first day + 6
+    // Get the day of week where Monday = 0, Sunday = 6
+    const dayOfWeek = curr.getDay();
+    // Convert Sunday (0) to 7 for ISO week, then subtract 1 to get days since Monday
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
+    // Calculate Monday (first day of week)
+    const monday = new Date(curr);
+    monday.setDate(curr.getDate() - daysSinceMonday);
+    
+    // Calculate Sunday (last day of week)
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
 
-    const firstday = new Date(curr.setDate(first));
-    const lastday = new Date(curr.setDate(last));
-
-    const fmt = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${String(d.getFullYear()).slice(-2)}`;
-    return `${fmt(firstday)} to ${fmt(lastday)}`;
+    // Format as MM/DD ~ MM/DD
+    const fmt = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    return `${fmt(monday)} ~ ${fmt(sunday)}`;
 };
 
 const formatTimeOnly = (dateStr?: string) => {
