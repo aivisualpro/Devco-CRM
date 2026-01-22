@@ -897,7 +897,7 @@ function PayrollReportContent() {
                 />
             </div>
 
-            <main className="flex-1 overflow-y-auto w-full max-w-[2400px] mx-auto p-2 bg-[#F4F7FA]">
+            <main className="flex-1 overflow-y-auto w-full max-w-[2400px] mx-auto p-2 pb-28 bg-[#F4F7FA]">
                 {loading ? (
                     <div className="h-[70vh] flex flex-col items-center justify-center gap-4">
                         <Loading />
@@ -1098,28 +1098,34 @@ function PayrollReportContent() {
                         </div>
                     )}
                 </div>
+            </>
+        )}
+    </main>
 
-                {/* Neumorphic Footer Summary */}
-                <div className="mt-8 p-4 bg-[#F4F7FA] neu-outset rounded-[40px] flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-12">
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.4em] opacity-40">Global Expense</span>
-                            <div className="text-4xl font-black text-slate-900 tracking-tighter italic">
-                                ${reportData.reduce((acc, curr) => acc + curr.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </div>
-                        </div>
-                        <div className="w-[1px] h-12 bg-slate-200/50 hidden md:block"></div>
-                        <div className="flex flex-col gap-1">
-                            <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.4em] opacity-40">Operating Hours</span>
-                            <div className="text-4xl font-black text-[#0F4C75] tracking-tighter italic">
-                                {reportData.reduce((acc, curr) => acc + curr.totalHrs, 0).toFixed(2)}
+            {/* Fixed Footer Summary */}
+            {!loading && reportData.length > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 z-50 p-3 bg-[#F4F7FA]/95 backdrop-blur-sm border-t border-slate-200/50">
+                    <div className="max-w-[2400px] mx-auto px-4">
+                        <div className="p-4 bg-white/80 neu-outset rounded-2xl flex flex-col md:flex-row items-center justify-start gap-8">
+                            <div className="flex items-center gap-8">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.3em] opacity-50">Global Expense</span>
+                                    <div className="text-3xl font-black text-slate-900 tracking-tighter">
+                                        ${reportData.reduce((acc, curr) => acc + curr.totalAmount, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                </div>
+                                <div className="w-[1px] h-10 bg-slate-200 hidden md:block"></div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.3em] opacity-50">Operating Hours</span>
+                                    <div className="text-3xl font-black text-[#0F4C75] tracking-tighter">
+                                        {reportData.reduce((acc, curr) => acc + curr.totalHrs, 0).toFixed(2)}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </>
-        )}
-    </main>
+            )}
 
             {/* Detail Modal */}
             <Modal
