@@ -437,7 +437,8 @@ export default function SchedulePage() {
             year: 'numeric',
             hour: '2-digit',
             minute: '2-digit',
-            hour12: true
+            hour12: true,
+            timeZone: 'UTC'
         });
     };
 
@@ -1629,7 +1630,7 @@ export default function SchedulePage() {
         if (!dateStr) return '-';
         try {
             const date = new Date(dateStr);
-            const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+            const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
             return time === 'Invalid Date' ? dateStr : time;
         } catch (e) {
             return dateStr;
@@ -2557,9 +2558,9 @@ export default function SchedulePage() {
                                                     <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
                                                         <span>{new Date(item.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
                                                         <span className="text-slate-300">|</span>
-                                                        <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                        <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
                                                         <span>-</span>
-                                                        <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                        <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
                                                     </div>
                                                 </div>
 
@@ -2990,11 +2991,11 @@ export default function SchedulePage() {
                                                             {selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}
                                                         </span>
                                                     )}
-                                                    <span>{new Date(selectedSchedule.fromDate).toLocaleDateString('en-US')}</span>
+                                                    <span>{new Date(selectedSchedule.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
                                                     <span className="text-slate-300">|</span>
-                                                    <span>{new Date(selectedSchedule.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                    <span>{new Date(selectedSchedule.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
                                                     <span>-</span>
-                                                    <span>{selectedSchedule.toDate ? new Date(selectedSchedule.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : ''}</span>
+                                                    <span>{selectedSchedule.toDate ? new Date(selectedSchedule.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' }) : ''}</span>
                                                 </div>
                                             </div>
 
