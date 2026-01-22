@@ -18,14 +18,25 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
     const items = Array.isArray(data) ? data : [data];
     if (items.length === 0) return;
 
-    // Helper to format dates YYYY-MM-DD
+    // Helper to format dates for AppSheet - preserves local time without timezone conversion
+    // Input is expected to be a local ISO string like "2026-01-22T07:00:00"
     const fmtDate = (d: any) => {
         if (!d) return "";
         try {
+            const str = String(d);
+            // If it's already in ISO-like format (YYYY-MM-DDTHH:mm), extract and reformat
+            const match = str.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+            if (match) {
+                const [, year, month, day, hour, minute] = match;
+                // Format: MM/DD/YYYY HH:mm:ss (AppSheet expects this format)
+                return `${month}/${day}/${year} ${hour}:${minute}:00`;
+            }
+            // Fallback: try parsing as Date (may still cause timezone issues for old data)
             const date = new Date(d);
-            // Check if valid
             if (isNaN(date.getTime())) return "";
-            return date.toISOString().split('T')[0]; 
+            // Use local time components to avoid UTC conversion
+            const pad = (n: number) => n < 10 ? '0' + n : n;
+            return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
         } catch { return ""; }
     };
 

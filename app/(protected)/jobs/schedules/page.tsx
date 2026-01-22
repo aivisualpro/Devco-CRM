@@ -772,8 +772,21 @@ export default function SchedulePage() {
             setIsModalOpen(false);
             setEditingItem(null);
             
+            // Helper to format date as local ISO string (no timezone conversion)
+            const toLocalISOString = (d: Date | string | undefined): string => {
+                if (!d) return '';
+                const date = typeof d === 'string' ? new Date(d) : d;
+                if (isNaN(date.getTime())) return typeof d === 'string' ? d : '';
+                const pad = (n: number) => n < 10 ? '0' + n : n;
+                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+            };
+            
             const prevSchedules = [...schedules];
-            const updatedSchedule = { ...editingItem };
+            const updatedSchedule = { 
+                ...editingItem,
+                fromDate: toLocalISOString(editingItem.fromDate),
+                toDate: toLocalISOString(editingItem.toDate)
+            };
             
             setSchedules(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
             
@@ -822,14 +835,20 @@ export default function SchedulePage() {
             const thisDayTo = new Date(currentDate);
             thisDayTo.setHours(originalTo.getHours(), originalTo.getMinutes(), 0, 0);
 
+            // Helper to format date as local ISO string (no timezone conversion)
+            const toLocalISOString = (d: Date) => {
+                const pad = (n: number) => n < 10 ? '0' + n : n;
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+            };
+
             // Generate MongoDB-compatible ObjectId (24 hex characters)
             const objectIdHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
             
             schedulesToCreate.push({
                 ...editingItem,
                 _id: objectIdHex,
-                fromDate: thisDayFrom, // Send full Date object (or ISO string via JSON stringify)
-                toDate: thisDayTo
+                fromDate: toLocalISOString(thisDayFrom), // Store as local time string
+                toDate: toLocalISOString(thisDayTo) // Store as local time string
             });
             currentDate.setDate(currentDate.getDate() + 1);
         }

@@ -756,17 +756,30 @@ export default function TimeCardPage() {
     };
 
     const handleSaveAdd = async () => {
-        if (!addForm.employee || !addForm.scheduleId || !addForm.clockIn) {
-            return toastError("Employee, Schedule/Estimate, and Clock In are required");
+        const isDriveTime = addForm.type === 'Drive Time';
+        
+        // For Site Time, clockIn is required. For Drive Time, we get date from schedule.
+        if (!addForm.employee || !addForm.scheduleId) {
+            return toastError("Employee and Schedule are required");
         }
+        if (!isDriveTime && !addForm.clockIn) {
+            return toastError("Clock In is required for Site Time");
+        }
+        
+        // Find the selected schedule to get its fromDate
+        const selectedSchedule = rawSchedules.find(s => s._id === addForm.scheduleId);
+        const scheduleFromDate = selectedSchedule?.fromDate;
+        
+        // For Drive Time, use schedule's fromDate; for Site Time, use provided clockIn
+        const recordClockIn = isDriveTime ? (scheduleFromDate || new Date().toISOString()) : (addForm.clockIn as string);
         
         const originalSchedules = [...rawSchedules];
         const newRecord: TimesheetEntry = { 
             ...addForm, 
             _id: 'ts_' + Math.random().toString(36).substr(2, 9),
-            employee: addForm.employee as string, // Cast since we checked it above
+            employee: addForm.employee as string,
             scheduleId: addForm.scheduleId as string,
-            clockIn: addForm.clockIn as string,
+            clockIn: recordClockIn,
             createdAt: new Date().toISOString()
         } as TimesheetEntry;
 
@@ -1868,23 +1881,8 @@ export default function TimeCardPage() {
                         </div>
                     </div>
 
-                    {addForm.type === 'Drive Time' ? (
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Record Date</label>
-                            <input 
-                                type="date"
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                value={addForm.clockIn ? addForm.clockIn.split('T')[0] : ''}
-                                onChange={e => {
-                                    const val = e.target.value;
-                                    if (val) {
-                                        const d = new Date(val + 'T12:00:00');
-                                        setAddForm(prev => ({...prev, clockIn: d.toISOString()}));
-                                    }
-                                }}
-                            />
-                        </div>
-                    ) : (
+
+                    {addForm.type !== 'Drive Time' && (
                         <>
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
