@@ -14,29 +14,38 @@ interface ModalProps {
     noBlur?: boolean;
 }
 
+// Global tracking of open modals to handle Escape key properly in nested scenarios
+let modalStack: string[] = [];
+
 export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4xl', preventClose = false, noBlur = false }: ModalProps) {
     const [shouldRender, setShouldRender] = React.useState(false);
+    const instanceId = React.useRef(Math.random().toString(36).substr(2, 9)).current;
 
     useEffect(() => {
         if (isOpen) {
+            modalStack.push(instanceId);
             // Tiny delay to ensure the browser has a frame to start the transition
             const timer = setTimeout(() => setShouldRender(true), 10);
-            return () => clearTimeout(timer);
-        } else {
-            setShouldRender(false);
+            return () => {
+                modalStack = modalStack.filter(id => id !== instanceId);
+                clearTimeout(timer);
+                setShouldRender(false);
+            };
         }
-    }, [isOpen]);
+    }, [isOpen, instanceId]);
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
-            // Only close on ESC if preventClose is false
+            // Only close on ESC if preventClose is false AND this is the topmost modal
             if (e.key === 'Escape' && isOpen && !preventClose) {
-                onClose();
+                if (modalStack[modalStack.length - 1] === instanceId) {
+                    onClose();
+                }
             }
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [isOpen, onClose, preventClose]);
+    }, [isOpen, onClose, preventClose, instanceId]);
 
     if (!isOpen) return null;
 

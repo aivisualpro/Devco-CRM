@@ -9,7 +9,8 @@ import {
     Clock, Truck, BadgeDollarSign
 } from 'lucide-react';
 import { 
-    Header, Loading, Modal, Tooltip, TooltipTrigger, TooltipContent
+    Header, Loading, Modal, Tooltip, TooltipTrigger, TooltipContent,
+    SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -87,11 +88,9 @@ const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
 };
 
 const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
-    const typeLower = (ts.type || '').toLowerCase();
-    
-    // Prioritize persisted numerical values from the app/database
-    let distance = typeof ts.distance === 'number' ? ts.distance : (parseFloat(ts.distance) || 0);
-    let hours = typeof ts.hours === 'number' ? ts.hours : (parseFloat(ts.hours) || 0);
+    const isDrive = (ts.type || '').toLowerCase().includes('drive');
+    const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
+    const tsDate = new Date(tsDateStr);
 
     const parseLoc = (val: any) => {
         const str = String(val || '').trim();
@@ -101,105 +100,99 @@ const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
                 return { lat: parts[0], lon: parts[1] };
             }
         }
-        const num = parseFloat(str.replace(/,/g, ''));
-        return isNaN(num) ? 0 : num;
+        return null;
     };
 
     const locIn = parseLoc(ts.locationIn);
     const locOut = parseLoc(ts.locationOut);
-    const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
-    const tsDate = new Date(tsDateStr);
+    let calculatedDistance = 0;
+    if (locIn && locOut) {
+        calculatedDistance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
+    }
 
-    const calcTimeHours = () => {
-        if (!ts.clockIn || !ts.clockOut) return hours;
-        const start = new Date(ts.clockIn).getTime();
-        const end = new Date(ts.clockOut).getTime();
-        let durationMs = end - start;
+    let distance = 0;
+    let hours = 0;
 
-        if (ts.lunchStart && ts.lunchEnd) {
-            const lStart = new Date(ts.lunchStart).getTime();
-            const lEnd = new Date(ts.lunchEnd).getTime();
-            if (lEnd > lStart) durationMs -= (lEnd - lStart);
-        }
-        if (durationMs <= 0) return hours;
-        
-        const totalHoursRaw = durationMs / (1000 * 60 * 60);
+    if (isDrive) {
+        const getQty = (val: any) => {
+            const str = String(val || '');
+            const match = str.match(/\((\d+)\s+qty\)/);
+            if (match) return parseFloat(match[1]);
+            if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
+            return 0;
+        };
 
-        // Pre-2025 cutoff (existing logic)
-        const cutoff2025 = new Date('2025-10-26T00:00:00');
-        if (tsDate < cutoff2025) return totalHoursRaw;
-        if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
+        const washoutQty = getQty(ts.dumpWashout);
+        const shopQty = getQty(ts.shopTime);
+        const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
 
-        const h = Math.floor(totalHoursRaw);
-        const m = Math.round((totalHoursRaw - h) * 60);
-        let roundedM = 0;
-        if (m > 1 && m <= 14) roundedM = 0;
-        else if (m > 14 && m <= 29) roundedM = 15;
-        else if (m > 29 && m <= 44) roundedM = 30;
-        else if (m > 44 && m <= 59) roundedM = 45;
-        return h + (roundedM / 60);
-    };
-
-    // --- Distance Calculation Logic ---
-    const isDumpWashout = String(ts.dumpWashout).toLowerCase() === 'yes' || String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true;
-    const isShopTime = String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true;
-    const manualDist = parseFloat(ts.manualDistance);
-
-    if (typeLower.includes('drive')) {
-        // Respect manual override if present
-        if (!isNaN(manualDist) && manualDist > 0) {
+        const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+        if (manualDist > 0) {
             distance = manualDist;
-        } else if (tsDate < FORMULA_CUTOFF_DATE) {
-            // Before Cutoff: Distance is derived from hours
-            distance = hours * 55;
         } else {
-            // After Cutoff: Calculate Driving distance
-            if (isDumpWashout) {
-                distance = 30; // 0.5hr * 60 or specific rule? Keeping 30 as per previous
-            } else if (isShopTime) {
-                distance = 13.75; // 0.25hr * 55
+            distance = calculatedDistance;
+        }
+
+        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+        if (manualHrs > 0) {
+            hours = manualHrs;
+        } else {
+            // Apply payroll cutoff rule for drive time if it exists
+            if (tsDate < FORMULA_CUTOFF_DATE) {
+                // Legacy drive time logic often used a fixed speed or was manual
+                // Here we'll try to keep the original logic if it was "hours = distance / 55"
+                // But time-cards page uses the same formula for both.
+                // Let's stick to time-cards logic for consistency as requested.
+                hours = (distance / SPEED_MPH) + specialHrs;
             } else {
-                // Must have both locations to calculate
-                if (!ts.locationIn || !ts.locationOut) {
-                    distance = 0;
-                } else {
-                    const locIn = parseLoc(ts.locationIn);
-                    const locOut = parseLoc(ts.locationOut);
-
-                    // Check for valid object coordinates (and filter out 0,0 defaults)
-                    const isValidCoord = (loc: any) => typeof loc === 'object' && (Math.abs(loc.lat) > 0.1 || Math.abs(loc.lon) > 0.1);
-
-                    if (isValidCoord(locIn) && isValidCoord(locOut)) {
-                        // Apply Driving Factor to Haversine
-                        distance = haversine((locIn as any).lat, (locIn as any).lon, (locOut as any).lat, (locOut as any).lon) * DRIVING_FACTOR;
-                    } else if (typeof locIn === 'number' && typeof locOut === 'number' && locOut > locIn) {
-                        distance = locOut - locIn;
-                    } else {
-                        distance = 0;
-                    }
-                }
+                hours = (distance / SPEED_MPH) + specialHrs;
             }
         }
-    }
-
-    // --- Hours Calculation Logic ---
-    const manualHrs = parseFloat(ts.manualDuration);
-    if (!isNaN(manualHrs) && manualHrs > 0) {
-        hours = manualHrs;
-    } else if (typeLower.includes('drive')) {
-        // Enforce formula only for records ON OR AFTER Jan 12, 2026
-        if (tsDate >= FORMULA_CUTOFF_DATE) {
-             hours = (distance > 0) ? (distance / SPEED_MPH) : 0;
-        } else {
-            // Keep imported/old data
-            hours = hours || calcTimeHours();
-        }
     } else {
-        // Site time always uses clock time
-        hours = calcTimeHours();
+        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+        if (manualHrs > 0) {
+            hours = manualHrs;
+        } else {
+            const calcTimeHours = () => {
+                if (!ts.clockIn || !ts.clockOut) return 0;
+                const start = new Date(ts.clockIn).getTime();
+                const end = new Date(ts.clockOut).getTime();
+                let durationMs = end - start;
+
+                if (ts.lunchStart && ts.lunchEnd) {
+                    const lStart = new Date(ts.lunchStart).getTime();
+                    const lEnd = new Date(ts.lunchEnd).getTime();
+                    if (lEnd > lStart) durationMs -= (lEnd - lStart);
+                }
+                if (durationMs <= 0) return 0;
+                
+                const totalHoursRaw = durationMs / (1000 * 60 * 60);
+
+                const cutoff2025 = new Date('2025-10-26T00:00:00');
+                if (tsDate < cutoff2025) return totalHoursRaw;
+                if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
+
+                const h = Math.floor(totalHoursRaw);
+                const m = Math.round((totalHoursRaw - h) * 60);
+                let roundedM = 0;
+                if (m > 1 && m <= 14) roundedM = 0;
+                else if (m > 14 && m <= 29) roundedM = 15;
+                else if (m > 29 && m <= 44) roundedM = 30;
+                else if (m > 44 && m <= 59) roundedM = 45;
+                return h + (roundedM / 60);
+            };
+            hours = calcTimeHours();
+        }
+        distance = 0;
     }
 
-    return { hours, distance };
+    return { hours, distance, calculatedDistance };
+};
+
+const normalizeEst = (val: any) => {
+    const s = String(val || '').toLowerCase().trim();
+    if (s.startsWith('job #')) return s.replace('job #', '').trim();
+    return s;
 };
 
 const parseRate = (val: any) => {
@@ -314,6 +307,19 @@ function PayrollReportContent() {
     const [editForm, setEditForm] = useState<any>({});
 
     const weekOptions = useMemo(() => generateWeeks(currentWeekStart.getFullYear()), [currentWeekStart]);
+    
+    const estimatesOptions = useMemo(() => {
+        return Object.entries(estimatesMap).map(([id, e]: [string, any]) => ({
+            value: id,
+            label: `${e.value}${e.projectTitle ? ' - ' + e.projectTitle : ''}`,
+            estimate: e.value
+        }));
+    }, [estimatesMap]);
+
+    const editingCalculated = useMemo(() => {
+        if (!editingRecord) return { hours: 0, distance: 0 };
+        return calculateTimesheetData(editForm, editingRecord.clockIn);
+    }, [editForm, editingRecord]);
     
     const employeeOptions = useMemo(() => {
         const emps = Object.values(employeesMap).map(e => ({
@@ -1301,11 +1307,13 @@ function PayrollReportContent() {
                 )}
             </Modal>
 
-            {/* Edit Timesheet Modal */}
+            {/* Edit Timecard Modal */}
             <Modal
                 isOpen={!!editingRecord}
                 onClose={() => setEditingRecord(null)}
-                title="Edit Timesheet Record"
+                title="Edit Timecard Record"
+                maxWidth="2xl"
+                noBlur={true}
                 footer={
                     <>
                         <button 
@@ -1324,169 +1332,251 @@ function PayrollReportContent() {
                 }
             >
                 {editingRecord && (
-                    <div className="grid grid-cols-2 gap-4 p-4">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
                         <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Employee</label>
-                            <input 
-                                disabled
-                                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 font-medium"
-                                value={employeesMap[editForm.employee || '']?.label || editForm.employee}
-                            />
-                        </div>
-
-                        <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 text-[10px] opacity-70">Object ID</label>
-                            <input 
-                                disabled
-                                className="w-full px-4 py-2 rounded-xl bg-slate-50/50 border border-slate-100 text-slate-400 font-mono text-[10px]"
-                                value={editForm._id || editForm.recordId || 'N/A'}
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Select Employee</label>
+                            <SearchableSelect 
+                                options={employeeOptions}
+                                value={editForm.employee || ''}
+                                onChange={(val) => setEditForm((prev:any) => ({...prev, employee: val}))}
+                                placeholder="Search & Select Employee"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Estimate # (Read Only)</label>
-                            <input 
-                                disabled
-                                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 font-medium"
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
+                            <SearchableSelect 
+                                options={estimatesOptions}
                                 value={editForm.estimate || ''}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Type (Read Only)</label>
-                            <input 
-                                disabled
-                                className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 font-medium"
-                                value={editForm.type || ''}
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock In</label>
-                            <input 
-                                type="datetime-local"
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                value={toLocalISO(editForm.clockIn)}
-                                onChange={e => {
-                                    const date = new Date(e.target.value);
-                                    if (!isNaN(date.getTime())) {
-                                        setEditForm((prev:any) => ({...prev, clockIn: date.toISOString()}));
-                                    }
+                                onChange={(val) => {
+                                    setEditForm((prev:any) => ({
+                                        ...prev, 
+                                        estimate: val,
+                                        scheduleId: '' 
+                                    }));
                                 }}
+                                placeholder="Select Estimate"
                             />
                         </div>
 
                         <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Clock Out</label>
-                            <input 
-                                type="datetime-local"
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                value={toLocalISO(editForm.clockOut)}
-                                onChange={e => {
-                                    const date = new Date(e.target.value);
-                                    if (!isNaN(date.getTime())) {
-                                        setEditForm((prev:any) => ({...prev, clockOut: date.toISOString()}));
-                                    }
-                                }}
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
+                            <SearchableSelect 
+                                options={(() => {
+                                    if (!editForm.estimate) return [];
+                                    const estNorm = normalizeEst(editForm.estimate);
+                                    return rawSchedules
+                                        .filter(s => normalizeEst(s.estimate) === estNorm)
+                                        .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
+                                        .map(s => ({
+                                            value: s._id,
+                                            label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                            estimate: s.estimate
+                                        }));
+                                })()}
+                                value={editForm.scheduleId || ''}
+                                onChange={(val) => setEditForm((prev:any) => ({...prev, scheduleId: val}))}
+                                placeholder={editForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
                             />
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch Start</label>
-                            <input 
-                                type="datetime-local"
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                value={toLocalISO(editForm.lunchStart)}
-                                onChange={e => {
-                                    const date = new Date(e.target.value);
-                                    if (!isNaN(date.getTime())) {
-                                        setEditForm((prev:any) => ({...prev, lunchStart: date.toISOString()}));
-                                    }
-                                }}
-                            />
+                        <div className="col-span-2">
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Entry Type</label>
+                            <div className="flex gap-3">
+                                {['Drive Time', 'Site Time'].map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => setEditForm((prev:any) => ({...prev, type: t}))}
+                                        className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
+                                            editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
+                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Lunch End</label>
-                            <input 
-                                type="datetime-local"
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
-                                value={toLocalISO(editForm.lunchEnd)}
-                                onChange={e => {
-                                    const date = new Date(e.target.value);
-                                    if (!isNaN(date.getTime())) {
-                                        setEditForm((prev:any) => ({...prev, lunchEnd: date.toISOString()}));
-                                    }
-                                }}
-                            />
-                        </div>
-
-                        {editForm.type?.toLowerCase().includes('drive') && (
+                        {editForm.type?.trim().toLowerCase() !== 'drive time' && (
                             <>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Manual Distance (Mi)</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
                                     <input 
-                                        type="number"
-                                        placeholder="Bypass calc with manual miles"
-                                        className="w-full px-4 py-2 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-black text-slate-700"
-                                        value={editForm.manualDistance || ''}
-                                        onChange={e => setEditForm((prev:any) => ({...prev, manualDistance: e.target.value}))}
+                                        type="datetime-local"
+                                        className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                        value={toLocalISO(editForm.clockIn)}
+                                        onChange={e => {
+                                            const date = new Date(e.target.value);
+                                            if (!isNaN(date.getTime())) {
+                                                setEditForm((prev:any) => ({...prev, clockIn: date.toISOString()}));
+                                            }
+                                        }}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In (Read Only)</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
                                     <input 
-                                        disabled
-                                        type="text"
-                                        className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-medium"
-                                        value={editForm.locationIn || ''}
+                                        type="datetime-local"
+                                        className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                        value={toLocalISO(editForm.lunchStart)}
+                                        onChange={e => {
+                                            const date = new Date(e.target.value);
+                                            if (!isNaN(date.getTime())) {
+                                                setEditForm((prev:any) => ({...prev, lunchStart: date.toISOString()}));
+                                            }
+                                        }}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out (Read Only)</label>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
                                     <input 
-                                        disabled
-                                        type="text"
-                                        className="w-full px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-400 font-medium"
-                                        value={editForm.locationOut || ''}
+                                        type="datetime-local"
+                                        className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                        value={toLocalISO(editForm.lunchEnd)}
+                                        onChange={e => {
+                                            const date = new Date(e.target.value);
+                                            if (!isNaN(date.getTime())) {
+                                                setEditForm((prev:any) => ({...prev, lunchEnd: date.toISOString()}));
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
+                                    <input 
+                                        type="datetime-local"
+                                        className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                        value={toLocalISO(editForm.clockOut)}
+                                        onChange={e => {
+                                            const date = new Date(e.target.value);
+                                            if (!isNaN(date.getTime())) {
+                                                setEditForm((prev:any) => ({...prev, clockOut: date.toISOString()}));
+                                            }
+                                        }}
                                     />
                                 </div>
                             </>
                         )}
 
-                        {editForm.type?.toLowerCase().includes('site') && (
-                            <div className="col-span-2">
-                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Manual Duration (Hrs)</label>
-                                <input 
-                                    type="number"
-                                    step="0.01"
-                                    placeholder="Bypass calc with manual hours"
-                                    className="w-full px-4 py-2 rounded-xl bg-emerald-50/50 border border-emerald-100 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-black text-slate-700"
-                                    value={editForm.manualDuration || ''}
-                                    onChange={e => setEditForm((prev:any) => ({...prev, manualDuration: e.target.value}))}
-                                />
-                            </div>
+                        {editForm.type?.trim().toLowerCase() === 'drive time' && (
+                            <>
+                                <div className="col-span-2 grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
+                                        <input 
+                                            type="number"
+                                            placeholder="Manual"
+                                            className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
+                                            value={editForm.manualDistance || ''}
+                                            onChange={e => setEditForm((prev:any) => ({...prev, manualDistance: e.target.value}))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="Start loc"
+                                            disabled={!!editForm.manualDistance}
+                                            className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                                editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
+                                            value={editForm.locationIn || ''}
+                                            onChange={e => setEditForm((prev:any) => ({...prev, locationIn: e.target.value}))}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
+                                        <input 
+                                            type="text"
+                                            placeholder="End loc"
+                                            disabled={!!editForm.manualDistance}
+                                            className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                                editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
+                                            value={editForm.locationOut || ''}
+                                            onChange={e => setEditForm((prev:any) => ({...prev, locationOut: e.target.value}))}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2 grid grid-cols-2 gap-3">
+                                    <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                                        <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
+                                        <input 
+                                            type="number"
+                                            className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
+                                            placeholder="0"
+                                            value={(() => {
+                                                const match = String(editForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
+                                                return match ? match[1] : (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
+                                            })()}
+                                            onChange={e => {
+                                                const qty = parseFloat(e.target.value);
+                                                if (isNaN(qty) || qty <= 0) {
+                                                    setEditForm((prev:any) => ({...prev, dumpWashout: ""}));
+                                                } else {
+                                                    const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
+                                                    setEditForm((prev:any) => ({...prev, dumpWashout: val}));
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                                        <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
+                                        <input 
+                                            type="number"
+                                            className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
+                                            placeholder="0"
+                                            value={(() => {
+                                                const match = String(editForm.shopTime || '').match(/\((\d+)\s+qty\)/);
+                                                return match ? match[1] : (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
+                                            })()}
+                                            onChange={e => {
+                                                const qty = parseFloat(e.target.value);
+                                                if (isNaN(qty) || qty <= 0) {
+                                                    setEditForm((prev:any) => ({...prev, shopTime: ""}));
+                                                } else {
+                                                    const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
+                                                    setEditForm((prev:any) => ({...prev, shopTime: val}));
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            </>
                         )}
 
-                        <div className="col-span-2 flex items-center gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
-                            <input 
-                                type="checkbox"
-                                id="dumpWashoutEdit"
-                                className="w-5 h-5 rounded border-slate-300 text-[#0F4C75] focus:ring-[#0F4C75] cursor-not-allowed opacity-50"
-                                checked={editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes'}
-                                readOnly
-                                disabled
-                            />
-                            <label htmlFor="dumpWashoutEdit" className="text-sm font-bold text-slate-700">Dump / Washout</label>
+                        <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
+                            <div className="relative z-10">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{editingCalculated.hours.toFixed(2)}</span>
+                                    <span className="text-xl font-bold text-slate-600">HRS</span>
+                                </div>
+                            </div>
+                            {editForm.type?.trim().toLowerCase() === 'drive time' && (
+                                <div className="relative z-10 text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Distance</p>
+                                    <div className="flex items-baseline gap-1 justify-end">
+                                        <span className="text-3xl font-black text-blue-400 tabular-nums tracking-tighter">{editingCalculated.distance.toFixed(1)}</span>
+                                        <span className="text-sm font-bold text-slate-600">MI</span>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#0F4C75]/10 rounded-full -mr-16 -mt-16 blur-3xl" />
                         </div>
 
                         <div className="col-span-2">
-                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Comments</label>
+                            <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Comments</label>
                             <textarea 
-                                rows={3}
-                                className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none"
+                                rows={2}
+                                placeholder="Add any notes here..."
+                                className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none transition-all"
                                 value={editForm.comments || ''}
                                 onChange={e => setEditForm((prev:any) => ({...prev, comments: e.target.value}))}
                             />
