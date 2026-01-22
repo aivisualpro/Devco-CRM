@@ -99,7 +99,7 @@ const formatTimeOnly = (dateStr?: string) => {
     if (!dateStr) return '-';
     try {
         const date = new Date(dateStr);
-        const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
+        const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
         return time === 'Invalid Date' ? dateStr : time;
     } catch (e) {
         return dateStr;
@@ -110,7 +110,7 @@ const formatDateOnly = (dateStr?: string) => {
     if (!dateStr) return '-';
     try {
         const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
+        return date.toLocaleDateString();
     } catch (e) {
         return dateStr;
     }

@@ -339,7 +339,7 @@ export const JHAModal = ({
                             </div>
                         </h4>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date).toLocaleDateString('en-US', { timeZone: 'UTC' })}</p></div>
+                            <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date).toLocaleDateString()}</p></div>
                             <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.jhaTime}</p></div>
                             <div>
                                 <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
@@ -549,8 +549,7 @@ export const JHAModal = ({
                                                     day: 'numeric', 
                                                     hour: 'numeric', 
                                                     minute: 'numeric', 
-                                                    hour12: true,
-                                                    timeZone: 'UTC'
+                                                    hour12: true 
                                                 })}
                                             </p>
                                         </div>

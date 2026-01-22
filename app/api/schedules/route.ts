@@ -34,9 +34,9 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
             // Fallback: try parsing as Date (may still cause timezone issues for old data)
             const date = new Date(d);
             if (isNaN(date.getTime())) return "";
-            // Use UTC components to preserve naive time from DB
+            // Use local time components to avoid UTC conversion
             const pad = (n: number) => n < 10 ? '0' + n : n;
-            return `${pad(date.getUTCMonth() + 1)}/${pad(date.getUTCDate())}/${date.getUTCFullYear()} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:00`;
+            return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}/${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
         } catch { return ""; }
     };
 
@@ -114,13 +114,13 @@ async function updateAppSheetTimesheet(data: any | any[], action: "Add" | "Edit"
             const date = new Date(d);
             if (isNaN(date.getTime())) return String(d); // Fallback to original string if invalid
             
-            // Format to YYYY-MM-DD HH:MM:SS using UTC components
-            const year = date.getUTCFullYear();
-            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-            const day = String(date.getUTCDate()).padStart(2, '0');
-            const hours = String(date.getUTCHours()).padStart(2, '0');
-            const mins = String(date.getUTCMinutes()).padStart(2, '0');
-            const secs = String(date.getUTCSeconds()).padStart(2, '0');
+            // Format to YYYY-MM-DD HH:MM:SS
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const mins = String(date.getMinutes()).padStart(2, '0');
+            const secs = String(date.getSeconds()).padStart(2, '0');
             
             return `${year}-${month}-${day} ${hours}:${mins}:${secs}`;
         } catch { return String(d || ""); }

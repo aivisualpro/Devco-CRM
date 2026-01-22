@@ -43,21 +43,21 @@ const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
 
 const formatDate = (date: Date, pattern: string) => {
     if (pattern === 'MMM d') {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     }
     if (pattern === 'MMM d, yyyy') {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
     if (pattern === 'EEEE') {
-        return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+        return date.toLocaleDateString('en-US', { weekday: 'long' });
     }
     if (pattern === 'MM-dd-yy') {
-        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-        const d = String(date.getUTCDate()).padStart(2, '0');
-        const y = String(date.getUTCFullYear()).slice(-2);
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        const y = String(date.getFullYear()).slice(-2);
         return `${m}/${d}/${y}`;
     }
-    return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
+    return date.toLocaleDateString();
 };
 
 const getWeekNumber = (d: Date) => {

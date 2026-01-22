@@ -551,20 +551,20 @@ export const DJTModal = ({
                                                                             <img src={sig.signature} className="max-h-full max-w-full object-contain mix-blend-multiply" />
                                                                         </div>
                                                                         {timesheet && (
-                                                                                <div className="grid grid-cols-2 gap-2">
-                                                                                    <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
-                                                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">In</span>
-                                                                                        <span className="text-[11px] font-black text-slate-900 font-mono">
-                                                                                            {timesheet.clockIn ? new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true, timeZone: 'UTC'}) : 'N/A'}
-                                                                                        </span>
-                                                                                    </div>
-                                                                                    <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
-                                                                                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Out</span>
-                                                                                        <span className="text-[11px] font-black text-slate-900 font-mono">
-                                                                                            {timesheet.clockOut ? new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true, timeZone: 'UTC'}) : 'N/A'}
-                                                                                        </span>
-                                                                                    </div>
+                                                                            <div className="grid grid-cols-2 gap-2">
+                                                                                <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
+                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">In</span>
+                                                                                    <span className="text-[11px] font-black text-slate-900 font-mono">
+                                                                                        {timesheet.clockIn ? new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true}) : 'N/A'}
+                                                                                    </span>
                                                                                 </div>
+                                                                                <div className="bg-slate-50 p-2.5 rounded-2xl flex flex-col items-center">
+                                                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Out</span>
+                                                                                    <span className="text-[11px] font-black text-slate-900 font-mono">
+                                                                                        {timesheet.clockOut ? new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12: true}) : 'N/A'}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
                                                                         )}
                                                                     </div>
                                                                 ) : (
