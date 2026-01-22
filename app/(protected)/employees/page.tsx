@@ -565,12 +565,14 @@ export default function EmployeesPage() {
 
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <button
+                                <Button
                                     onClick={openAddModal}
-                                    className="w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 hover:bg-[#0b3c5d] transition-all"
+                                    variant="default"
+                                    size="icon"
+                                    className="rounded-full shadow-lg active:scale-95 transition-transform"
                                 >
                                     <Plus size={24} />
-                                </button>
+                                </Button>
                             </TooltipTrigger>
                             <TooltipContent>
                                 <p>Add New</p>

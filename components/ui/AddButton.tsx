@@ -2,23 +2,19 @@
 
 import React from 'react';
 import { Plus } from 'lucide-react';
+import { Button } from './Button';
 
 interface AddButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
     label?: string;
-    variant?: 'primary' | 'outline';
+    variant?: 'primary' | 'outline' | 'default';
     size?: 'sm' | 'md' | 'lg';
     className?: string;
 }
 
-const variants = {
-    primary: 'text-white shadow-md hover:shadow-lg transition-all duration-300',
-    outline: 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-gray-300 shadow-sm'
-};
-
 const sizes = {
-    sm: 'px-3 py-1.5 text-xs gap-1.5',
-    md: 'px-4 py-2 text-sm gap-2',
-    lg: 'px-6 py-3 text-base gap-2.5'
+    sm: 'h-8 px-3 text-xs gap-1.5',
+    md: 'h-9 px-4 text-sm gap-2',
+    lg: 'h-10 px-6 text-base gap-2.5'
 };
 
 const iconSizes = {
@@ -29,7 +25,7 @@ const iconSizes = {
 
 export function AddButton({
     label = "Add New",
-    variant = 'primary',
+    variant = 'default',
     size = 'md',
     onClick,
     className = '',
@@ -38,17 +34,9 @@ export function AddButton({
 }: AddButtonProps) {
     React.useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Check for Cmd+Shift+A (Mac) or Ctrl+Shift+A (Windows)
             if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key.toLowerCase() === 'a' || e.code === 'KeyA')) {
                 e.preventDefault();
                 if (!disabled && onClick) {
-                    // Start of workaround: Create a synthetic event if onClick expects one, 
-                    // though usually onClick handlers in React for buttons accept React.MouseEvent.
-                    // Most handlers defined as `() => void` or similar won't care.
-                    // If they use `e.preventDefault()` inside, it might fail if we pass null or a keyboard event.
-                    // Safest is to just call it potentially without args if the signature allows,
-                    // but TypeScript might complain if we pass nothing.
-                    // Casting to any to bypass strict React.MouseEvent requirement for now as we are stimulating it.
                     (onClick as any)();
                 }
             }
@@ -59,27 +47,16 @@ export function AddButton({
     }, [onClick, disabled]);
 
     return (
-        <button
+        <Button
             onClick={onClick}
             disabled={disabled}
-            className={`
-                inline-flex items-center justify-center font-bold rounded-xl
-                transition-all duration-300
-                hover:scale-[1.02] active:scale-[0.98]
-                disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
-                ${variants[variant]}
-                ${sizes[size]}
-                ${className}
-            `}
-            style={variant === 'primary' ? {
-                background: 'linear-gradient(to right, #0F4C75, #3282B8)',
-                boxShadow: '0 8px 12px -3px rgba(15, 76, 117, 0.25)'
-            } : {}}
+            variant={variant === 'primary' ? 'default' : variant}
+            className={`font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] ${sizes[size]} ${className}`}
             {...props}
         >
-            <Plus className={`${iconSizes[size]} ${variant === 'primary' ? 'stroke-[2.5px]' : 'stroke-2'}`} />
+            <Plus className={`${iconSizes[size]} stroke-[2.5px]`} />
             {label}
-        </button>
+        </Button>
     );
 }
 

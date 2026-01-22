@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase, Search, ChevronRight, X, MessageSquare } from 'lucide-react';
-import { Header, Button, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { Header, Button, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect, Tooltip, TooltipTrigger, TooltipContent, Switch, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface ClientContact {
@@ -348,20 +348,24 @@ export default function ClientsPage() {
                             </TooltipContent>
                         </Tooltip>
 
-                        <button
+                        <Button
                             onClick={openAddModal}
-                            className="md:hidden w-10 h-10 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+                            variant="default"
+                            size="icon"
+                            className="md:hidden rounded-full shadow-lg active:scale-95 transition-transform"
                         >
                             <Plus size={24} />
-                        </button>
+                        </Button>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <button
+                                <Button
                                     onClick={openAddModal}
-                                    className="hidden md:flex p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                                    variant="default"
+                                    size="icon"
+                                    className="hidden md:flex rounded-full shadow-lg hover:shadow-slate-900/30 group"
                                 >
                                     <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                                </button>
+                                </Button>
                             </TooltipTrigger>
                             <TooltipContent>
                                 <p>New Client</p>
@@ -674,14 +678,15 @@ export default function ClientsPage() {
 
                         <div className="md:col-span-1">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Status</label>
-                            <select
-                                value={currentClient.status || 'Active'}
-                                onChange={(e) => setCurrentClient({ ...currentClient, status: e.target.value })}
-                                className="w-full h-11 px-4 rounded-xl bg-slate-50 border border-slate-200 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-[#3282B8]/20 focus:border-[#3282B8] transition-all cursor-pointer"
-                            >
-                                <option value="Active">Active</option>
-                                <option value="Inactive">Inactive</option>
-                            </select>
+                            <div className="flex items-center gap-3 h-11 px-4 rounded-xl bg-slate-50 border border-slate-200">
+                                <Switch
+                                    checked={currentClient.status === 'Active'}
+                                    onCheckedChange={(checked) => setCurrentClient({ ...currentClient, status: checked ? 'Active' : 'Inactive' })}
+                                />
+                                <span className={`text-sm font-bold ${currentClient.status === 'Active' ? 'text-slate-900' : 'text-slate-400'}`}>
+                                    {currentClient.status || 'Active'}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -692,122 +697,131 @@ export default function ClientsPage() {
                                 <User className="w-5 h-5 text-[#0F4C75]" />
                                 <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Contacts</h4>
                             </div>
-                            <Button
+                             <Button
                                 size="sm"
+                                variant="default"
                                 onClick={() => {
                                     const contacts = [...(currentClient.contacts || [])];
                                     contacts.push({ name: '', email: '', phone: '', type: contacts.length === 0 ? 'Main Contact' : 'Secondary Contact', active: contacts.length === 0, primary: contacts.length === 0 });
                                     setCurrentClient({ ...currentClient, contacts });
                                 }}
-                                className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider !bg-[#0F4C75]"
+                                className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider"
                             >
                                 <Plus className="w-3.5 h-3.5 mr-1.5" /> ADD CONTACT
                             </Button>
                         </div>
 
-                        <div className="max-h-[350px] overflow-y-auto pr-2 flex flex-col gap-3 thin-scrollbar">
+                        {/* Table Header */}
+                        {(currentClient.contacts || []).length > 0 && (
+                            <div className="grid grid-cols-12 gap-1 px-2 py-1.5 bg-slate-100 rounded-lg text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+                                <div className="col-span-2">Name</div>
+                                <div className="col-span-3">Email</div>
+                                <div className="col-span-2">Phone</div>
+                                <div className="col-span-1">Ext</div>
+                                <div className="col-span-2">Type</div>
+                                <div className="col-span-1 text-center">Primary</div>
+                                <div className="col-span-1"></div>
+                            </div>
+                        )}
+
+                        <div className="max-h-[280px] overflow-y-auto flex flex-col gap-1 thin-scrollbar">
                             {(currentClient.contacts || []).map((contact, idx) => (
-                                <div key={idx} className={`p-4 rounded-2xl border transition-all ${contact.active ? 'bg-[#3282B8]/5 border-[#3282B8]/20' : 'bg-slate-50 border-slate-100'} relative group shadow-sm`}>
-                                    <button
-                                        onClick={() => {
-                                            const contacts = currentClient.contacts?.filter((_, i) => i !== idx);
-                                            setCurrentClient({ ...currentClient, contacts });
-                                        }}
-                                        className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-colors"
-                                    >
-                                        <Trash2 className="w-4.5 h-4.5" />
-                                    </button>
-                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                                        <div className="md:col-span-3">
-                                            <Input
-                                                label="Full Name"
-                                                value={contact.name}
-                                                onChange={(e) => {
-                                                    const contacts = [...(currentClient.contacts || [])];
-                                                    contacts[idx].name = e.target.value;
-                                                    setCurrentClient({ ...currentClient, contacts });
-                                                }}
-                                                placeholder="e.g. John Smith"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-3">
-                                            <Input
-                                                label="Email"
-                                                value={contact.email}
-                                                onChange={(e) => {
-                                                    const contacts = [...(currentClient.contacts || [])];
-                                                    contacts[idx].email = e.target.value;
-                                                    setCurrentClient({ ...currentClient, contacts });
-                                                }}
-                                                placeholder="john@example.com"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-2">
-                                            <Input
-                                                label="Phone"
-                                                value={contact.phone}
-                                                onChange={(e) => {
-                                                    const formattedValue = formatPhoneNumber(e.target.value);
-                                                    const contacts = [...(currentClient.contacts || [])];
-                                                    contacts[idx].phone = formattedValue;
-                                                    setCurrentClient({ ...currentClient, contacts });
-                                                }}
-                                                placeholder="(555) 000-0000"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-1">
-                                            <Input
-                                                label="Ext"
-                                                value={contact.extension}
-                                                onChange={(e) => {
-                                                    const contacts = [...(currentClient.contacts || [])];
-                                                    contacts[idx].extension = e.target.value;
-                                                    setCurrentClient({ ...currentClient, contacts });
-                                                }}
-                                                placeholder="123"
-                                            />
-                                        </div>
-                                        <div className="md:col-span-3">
-                                            <div className="flex flex-col gap-2">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type & Status</label>
-                                                <div className="flex items-center gap-3">
-                                                    <select
-                                                        value={contact.type}
-                                                        onChange={(e) => {
-                                                            const contacts = [...(currentClient.contacts || [])];
-                                                            contacts[idx].type = e.target.value;
-                                                            setCurrentClient({ ...currentClient, contacts });
-                                                        }}
-                                                        className="flex-1 h-9 px-3 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-[#3282B8]/20 transition-all cursor-pointer"
-                                                    >
-                                                        <option value="Main Contact">Main</option>
-                                                        <option value="Accounting">Accounting</option>
-                                                        <option value="Secondary Contact">Secondary</option>
-                                                        <option value="Other">Other</option>
-                                                    </select>
-                                                    <button
-                                                        onClick={() => {
-                                                            const contacts = (currentClient.contacts || []).map((c, i) => ({
-                                                                ...c,
-                                                                active: i === idx,
-                                                                primary: i === idx ? true : c.primary
-                                                            }));
-                                                            setCurrentClient({ ...currentClient, contacts });
-                                                        }}
-                                                        className={`h-9 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${contact.active ? 'bg-[#0F4C75] text-white border-[#0F4C75]' : 'bg-white text-slate-400 border-slate-200 hover:border-[#3282B8] hover:text-[#3282B8]'}`}
-                                                    >
-                                                        {contact.active ? 'PRIMARY ACTIVE' : 'SET PRIMARY'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
+                                <div key={idx} className={`grid grid-cols-12 gap-1 px-2 py-2 rounded-lg border transition-all ${contact.active ? 'bg-slate-50 border-slate-200' : 'bg-white border-slate-100'} items-center`}>
+                                    <div className="col-span-2">
+                                        <input
+                                            value={contact.name}
+                                            onChange={(e) => {
+                                                const contacts = [...(currentClient.contacts || [])];
+                                                contacts[idx].name = e.target.value;
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                            placeholder="Name"
+                                            className="w-full px-2 py-1.5 text-[11px] font-medium text-slate-700 bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-slate-200 rounded"
+                                        />
+                                    </div>
+                                    <div className="col-span-3">
+                                        <input
+                                            value={contact.email}
+                                            onChange={(e) => {
+                                                const contacts = [...(currentClient.contacts || [])];
+                                                contacts[idx].email = e.target.value;
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                            placeholder="email@example.com"
+                                            className="w-full px-2 py-1.5 text-[11px] font-medium text-slate-700 bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-slate-200 rounded"
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <input
+                                            value={contact.phone}
+                                            onChange={(e) => {
+                                                const formattedValue = formatPhoneNumber(e.target.value);
+                                                const contacts = [...(currentClient.contacts || [])];
+                                                contacts[idx].phone = formattedValue;
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                            placeholder="(555) 000-0000"
+                                            className="w-full px-2 py-1.5 text-[11px] font-medium text-slate-700 bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-slate-200 rounded"
+                                        />
+                                    </div>
+                                    <div className="col-span-1">
+                                        <input
+                                            value={contact.extension}
+                                            onChange={(e) => {
+                                                const contacts = [...(currentClient.contacts || [])];
+                                                contacts[idx].extension = e.target.value;
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                            placeholder="Ext"
+                                            className="w-full px-2 py-1.5 text-[11px] font-medium text-slate-700 bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-slate-200 rounded"
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <select
+                                            value={contact.type}
+                                            onChange={(e) => {
+                                                const contacts = [...(currentClient.contacts || [])];
+                                                contacts[idx].type = e.target.value;
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                            className="w-full px-1 py-1.5 text-[10px] font-bold text-slate-600 bg-transparent border-0 outline-none focus:bg-white focus:ring-1 focus:ring-slate-200 rounded cursor-pointer"
+                                        >
+                                            <option value="Main Contact">Main</option>
+                                            <option value="Accounting">Acct</option>
+                                            <option value="Secondary Contact">2nd</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div className="col-span-1 flex justify-center">
+                                        <Switch
+                                            checked={contact.active}
+                                            onCheckedChange={() => {
+                                                const contacts = (currentClient.contacts || []).map((c, i) => ({
+                                                    ...c,
+                                                    active: i === idx,
+                                                    primary: i === idx ? true : c.primary
+                                                }));
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="col-span-1 flex justify-end">
+                                        <button
+                                            onClick={() => {
+                                                const contacts = currentClient.contacts?.filter((_, i) => i !== idx);
+                                                setCurrentClient({ ...currentClient, contacts });
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                     </div>
                                 </div>
                             ))}
 
                             {(!currentClient.contacts || currentClient.contacts.length === 0) && (
-                                <div className="text-center py-12 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
-                                    <div className="text-slate-300 text-sm italic font-medium">No contacts added yet.</div>
+                                <div className="text-center py-8 border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50">
+                                    <div className="text-slate-300 text-xs italic font-medium">No contacts added yet.</div>
                                 </div>
                             )}
                         </div>
@@ -822,12 +836,13 @@ export default function ClientsPage() {
                             </div>
                             <Button
                                 size="sm"
+                                variant="default"
                                 onClick={() => {
                                     const addresses = [...(currentClient.addresses || [])];
                                     addresses.push({ address: '', primary: addresses.length === 0 });
                                     setCurrentClient({ ...currentClient, addresses });
                                 }}
-                                className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider !bg-[#0F4C75]"
+                                className="h-8 px-4 rounded-lg text-[10px] font-bold uppercase tracking-wider"
                             >
                                 <Plus className="w-3.5 h-3.5 mr-1.5" /> ADD ADDRESS
                             </Button>
@@ -842,12 +857,9 @@ export default function ClientsPage() {
                                 return (
                                     <div key={idx} className={`p-4 rounded-2xl border transition-all ${isPrimary ? 'bg-emerald-50/30 border-emerald-100' : 'bg-slate-50 border-slate-100'} relative group flex flex-col md:flex-row gap-4 md:items-end`}>
                                         <div className="flex-1">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                    {isPrimary ? 'Primary Address' : `Additional Address ${idx + 1}`}
-                                                </label>
-                                                {isPrimary && <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-widest">MAIN TABLE ADDRESS</span>}
-                                            </div>
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
+                                                {isPrimary ? 'Primary Address' : `Address ${idx + 1}`}
+                                            </label>
                                             <Input
                                                 value={addr}
                                                 onChange={(e) => {
@@ -867,23 +879,24 @@ export default function ClientsPage() {
                                             />
                                         </div>
                                         <div className="flex items-center gap-2 pb-1">
-                                            <button
-                                                onClick={() => {
-                                                    const addresses = (currentClient.addresses || []).map((a, i) => {
-                                                        const curAddr = typeof a === 'string' ? a : a.address;
-                                                        return { address: curAddr, primary: i === idx };
-                                                    });
-                                                    const primaryAddr = addresses.find(a => a.primary);
-                                                    setCurrentClient({ 
-                                                        ...currentClient, 
-                                                        addresses,
-                                                        businessAddress: primaryAddr?.address || currentClient.businessAddress
-                                                    });
-                                                }}
-                                                className={`h-9 px-3 rounded-lg text-[10px] font-black uppercase tracking-tight transition-all border ${isPrimary ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-slate-400 border-slate-200 hover:border-emerald-500 hover:text-emerald-500'}`}
-                                            >
-                                                {isPrimary ? 'PRIMARY' : 'SET PRIMARY'}
-                                            </button>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <Switch
+                                                    checked={isPrimary}
+                                                    onCheckedChange={() => {
+                                                        const addresses = (currentClient.addresses || []).map((a, i) => {
+                                                            const curAddr = typeof a === 'string' ? a : a.address;
+                                                            return { address: curAddr, primary: i === idx };
+                                                        });
+                                                        const primaryAddr = addresses.find(a => a.primary);
+                                                        setCurrentClient({ 
+                                                            ...currentClient, 
+                                                            addresses,
+                                                            businessAddress: primaryAddr?.address || currentClient.businessAddress
+                                                        });
+                                                    }}
+                                                />
+                                                <span className="text-[10px] font-bold text-slate-500">Primary</span>
+                                            </label>
                                             <button
                                                 onClick={() => {
                                                     const addresses = currentClient.addresses?.filter((_, i) => i !== idx);

@@ -453,9 +453,9 @@ export function SegmentedControl({ tabs, activeTab, onChange, fullWidth = false 
             ref={containerRef}
             className={`relative flex items-center bg-slate-100 p-1 rounded-xl ${fullWidth ? 'w-full' : 'inline-flex'}`}
         >
-            {/* Sliding White Pill */}
+            {/* Sliding Black Pill */}
             <div
-                className="absolute top-1 bottom-1 bg-white rounded-lg shadow-sm ring-1 ring-slate-200 ring-inset"
+                className="absolute top-1 bottom-1 bg-slate-950 rounded-lg shadow-sm"
                 style={{
                     left: indicatorStyle.left,
                     width: indicatorStyle.width,
@@ -470,8 +470,8 @@ export function SegmentedControl({ tabs, activeTab, onChange, fullWidth = false 
                     key={tab.id}
                     data-tab-id={tab.id}
                     onClick={() => onChange(tab.id)}
-                    className={`relative z-10 flex-1 px-4 py-2 text-sm font-medium whitespace-nowrap rounded-lg text-center transition-colors duration-200 ${activeTab === tab.id
-                        ? 'text-slate-900'
+                    className={`relative z-10 flex-1 px-4 py-2 text-sm font-bold whitespace-nowrap rounded-lg text-center transition-colors duration-200 ${activeTab === tab.id
+                        ? 'text-white'
                         : 'text-slate-500 hover:text-slate-700'
                         }`}
                 >
