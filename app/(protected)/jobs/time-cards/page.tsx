@@ -1861,18 +1861,18 @@ export default function TimeCardPage() {
                         />
                     </div>
 
-                    <div>
+                    <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Entry Type</label>
-                        <div className="flex gap-2">
+                        <div className="flex gap-3">
                             {['Drive Time', 'Site Time'].map(t => (
                                 <button
                                     key={t}
                                     type="button"
                                     onClick={() => setAddForm(prev => ({...prev, type: t}))}
-                                    className={`flex-1 py-1.5 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
+                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
                                         addForm.type === t 
-                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-md' 
-                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                     }`}
                                 >
                                     {t}
@@ -1884,16 +1884,61 @@ export default function TimeCardPage() {
 
                     {addForm.type !== 'Drive Time' && (
                         <>
+                            {/* Row 4: Clock In and Lunch Start */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
                                 <input 
                                     type="datetime-local"
-                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(addForm.clockIn)}
                                     onChange={e => {
                                         const date = new Date(e.target.value);
                                         if (!isNaN(date.getTime())) {
-                                            setAddForm(prev => ({...prev, clockIn: date.toISOString()}));
+                                            // Auto-fill: Clock Out = Clock In + 7 hours
+                                            const clockOut = new Date(date.getTime() + (7 * 60 * 60 * 1000));
+                                            // Default lunch: 12:00 PM to 12:30 PM on same day
+                                            const lunchStart = new Date(date);
+                                            lunchStart.setHours(12, 0, 0, 0);
+                                            const lunchEnd = new Date(date);
+                                            lunchEnd.setHours(12, 30, 0, 0);
+                                            setAddForm(prev => ({
+                                                ...prev, 
+                                                clockIn: date.toISOString(),
+                                                clockOut: clockOut.toISOString(),
+                                                lunchStart: lunchStart.toISOString(),
+                                                lunchEnd: lunchEnd.toISOString()
+                                            }));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(addForm.lunchStart)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setAddForm(prev => ({...prev, lunchStart: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            {/* Row 5: Lunch End and Clock Out */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(addForm.lunchEnd)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setAddForm(prev => ({...prev, lunchEnd: date.toISOString()}));
                                         }
                                     }}
                                 />
@@ -1903,7 +1948,7 @@ export default function TimeCardPage() {
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
                                 <input 
                                     type="datetime-local"
-                                    className="w-full px-4 py-2 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(addForm.clockOut)}
                                     onChange={e => {
                                         const date = new Date(e.target.value);
@@ -1924,7 +1969,7 @@ export default function TimeCardPage() {
                                     <input 
                                         type="number"
                                         placeholder="Manual"
-                                        className="w-full px-4 py-2 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-black text-slate-700"
+                                        className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                                         value={addForm.manualDistance || ''}
                                         onChange={e => setAddForm(prev => ({...prev, manualDistance: e.target.value}))}
                                     />
@@ -1935,7 +1980,7 @@ export default function TimeCardPage() {
                                         type="text"
                                         placeholder="Start loc"
                                         disabled={!!addForm.manualDistance}
-                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
                                             addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
                                         }`}
                                         value={addForm.locationIn || ''}
@@ -1948,7 +1993,7 @@ export default function TimeCardPage() {
                                         type="text"
                                         placeholder="End loc"
                                         disabled={!!addForm.manualDistance}
-                                        className={`w-full px-4 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
                                             addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
                                         }`}
                                         value={addForm.locationOut || ''}

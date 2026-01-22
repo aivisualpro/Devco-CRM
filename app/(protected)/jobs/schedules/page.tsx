@@ -5,7 +5,7 @@ import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
     ChevronRight, Clock, MapPin, Briefcase, Phone,
-    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle, Droplets, Warehouse, RefreshCcw
+    CheckCircle2, XCircle, AlertCircle, ChevronLeft, ChevronDown, ChevronUp, Bell, ArrowLeft, Users, Import, ClipboardList, FilePlus, Loader2, X, FileSpreadsheet, FileText, PlusSquare, Shield, ShieldCheck, FileCheck, Timer, ClockCheck, Mail, Car, StopCircle, Circle, Droplets, Warehouse, RefreshCcw, Copy
 } from 'lucide-react';
 
 import SignaturePad from './SignaturePad';
@@ -2419,6 +2419,44 @@ export default function SchedulePage() {
                                                 </TooltipTrigger>
                                                 <TooltipContent>
                                                     <p>Edit Schedule</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            // Clone the schedule and add 1 day to dates
+                                                            const addOneDay = (dateStr: string) => {
+                                                                const date = new Date(dateStr);
+                                                                date.setDate(date.getDate() + 1);
+                                                                const pad = (n: number) => n < 10 ? '0' + n : n;
+                                                                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+                                                            };
+                                                            const clonedItem = {
+                                                                ...item,
+                                                                _id: undefined, // Remove ID so it creates a new schedule
+                                                                fromDate: addOneDay(item.fromDate),
+                                                                toDate: addOneDay(item.toDate),
+                                                                timesheet: [], // Don't copy timesheets
+                                                                hasJHA: false,
+                                                                jha: undefined,
+                                                                JHASignatures: [],
+                                                                hasDJT: false,
+                                                                djt: undefined,
+                                                                DJTSignatures: [],
+                                                                syncedToAppSheet: false
+                                                            };
+                                                            setEditingItem(clonedItem as any);
+                                                            setIsModalOpen(true);
+                                                        }}
+                                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-emerald-500 hover:bg-emerald-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                                    >
+                                                        <Copy size={14} />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Copy Schedule (+1 Day)</p>
                                                 </TooltipContent>
                                             </Tooltip>
                                             <Tooltip>
