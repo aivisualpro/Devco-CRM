@@ -158,9 +158,9 @@ export const TimesheetModal = ({
                             <div className="space-y-1">
                                 <label className="block text-xs font-bold text-slate-500 uppercase">Lunch Break</label>
                                 <p className="text-sm font-bold text-slate-900">
-                                    {selectedTimesheet.lunchStart ? new Date(selectedTimesheet.lunchStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--'} 
+                                    {selectedTimesheet.lunchStart ? new Date(selectedTimesheet.lunchStart).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--'} 
                                     {' - '} 
-                                    {selectedTimesheet.lunchEnd ? new Date(selectedTimesheet.lunchEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--'}
+                                    {selectedTimesheet.lunchEnd ? new Date(selectedTimesheet.lunchEnd).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--'}
                                 </p>
                             </div>
                             <div className="space-y-1">
