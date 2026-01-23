@@ -172,6 +172,10 @@ export default function SchedulePage() {
         isOpen: false,
         tsId: null
     });
+    
+    // Timesheet Edit Modal State (same as time-cards page)
+    const [editingTimesheet, setEditingTimesheet] = useState<any>(null);
+    const [editTimesheetForm, setEditTimesheetForm] = useState<any>({});
 
     // Calendar & Activity State
     const [currentDate, setCurrentDate] = useState(new Date());
@@ -1768,6 +1772,94 @@ export default function SchedulePage() {
         return d;
     }
 
+    // Helper to convert ISO date string to datetime-local format
+    const toLocalISO = (dateStr: string | undefined): string => {
+        if (!dateStr) return '';
+        try {
+            const d = new Date(dateStr);
+            if (isNaN(d.getTime())) return '';
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        } catch (e) {
+            return '';
+        }
+    };
+
+    // Calculate hours and distance for the editing timesheet form
+    const editingTimesheetCalculated = useMemo(() => {
+        if (!editingTimesheet) return { hours: 0, distance: 0 };
+        return calculateTimesheetData(editTimesheetForm, editingTimesheet.clockIn);
+    }, [editTimesheetForm, editingTimesheet]);
+
+    // Open the edit timesheet modal
+    const handleEditTimesheetClick = (ts: any, scheduleId: string) => {
+        // Find the schedule to get the estimate
+        const schedule = schedules.find(s => s._id === scheduleId);
+        const estimate = schedule?.estimate || ts.estimate || '';
+        
+        setEditingTimesheet({ ...ts, scheduleId, estimate });
+        setEditTimesheetForm({ ...ts, scheduleId, estimate });
+    };
+
+    // Save timesheet edits to database
+    const handleSaveTimesheetEdit = async () => {
+        if (!editingTimesheet || !editTimesheetForm.scheduleId) return;
+        
+        try {
+            // Close modal immediately for better UX
+            const scheduleId = editTimesheetForm.scheduleId;
+            const tsId = editingTimesheet._id || editingTimesheet.recordId;
+            
+            setEditingTimesheet(null);
+            setEditTimesheetForm({});
+
+            // Fetch current schedule
+            const resGet = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ action: 'getScheduleById', payload: { id: scheduleId } })
+            });
+            const dataGet = await resGet.json();
+            if (!dataGet.success) throw new Error("Schedule not found");
+            
+            const schedule = dataGet.result;
+            const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
+                if ((t._id || t.recordId) === tsId) {
+                    const { scheduleId: _, ...rest } = editTimesheetForm;
+                    return { ...t, ...rest };
+                }
+                return t;
+            });
+            
+            // Save updated timesheets
+            const resSave = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    action: 'updateSchedule', 
+                    payload: { id: scheduleId, timesheet: updatedTimesheets }
+                })
+            });
+            
+            const saveResult = await resSave.json();
+            if (saveResult.success) {
+                success("Timesheet updated");
+                // Refresh schedules to reflect changes
+                fetchPageData(1, true);
+            } else {
+                throw new Error("Failed to save");
+            }
+            
+        } catch (e) {
+            console.error(e);
+            toastError("Failed to update timesheet");
+        }
+    };
+
 
 
     const handleDriveTimeToggle = async (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {
@@ -2319,7 +2411,7 @@ export default function SchedulePage() {
 
                                 <FilterItem
                                     id="filterCertifiedPayroll"
-                                    label="Certified Payroll"
+                                    label="Payroll"
                                     placeholder="Any"
                                     options={initialData.constants
                                         .filter(c => c.type === 'Certified Payroll')
@@ -2375,11 +2467,17 @@ export default function SchedulePage() {
                                         onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
                                         className={`group relative bg-white rounded-[32px] p-5 cursor-pointer transition-all duration-500 ease-out border shadow-sm border-t-[6px] ${dayBorderColor}
                                             ${selectedSchedule?._id === item._id
-                                                ? 'border-x-[#0F4C75] border-b-[#0F4C75] ring-2 ring-[#0F4C75]/10 shadow-lg scale-[1.02] bg-blue-50/30'
+                                                ? 'border-x-[#0F4C75] border-b-[#0F4C75] ring-2 ring-[#0F4C75]/20 shadow-xl scale-[1.02] bg-blue-50/50'
                                                 : 'border-x-slate-100 border-b-slate-100 hover:border-x-[#0F4C75]/20 hover:border-b-[#0F4C75]/20 hover:shadow-md hover:-translate-y-1'
                                             }
                                         `}
                                     >
+                                        {selectedSchedule?._id === item._id && (
+                                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0F4C75] text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-20 flex items-center gap-1.5 animate-in fade-in zoom-in duration-300">
+                                                <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                                                VIEWING
+                                            </div>
+                                        )}
 
                                         {/* Action Overlay & Day Chip */}
                                         <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
@@ -3047,36 +3145,65 @@ export default function SchedulePage() {
                                                 </div>
                                             </div>
 
-                                            {/* Row 8: Service, Tag, Notify, Per Diem (Inline) */}
-                                            {selectedSchedule.item !== 'Day Off' && (
-                                                <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mt-4">
-                                                    <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Service</p>
-                                                        <Badge variant="default" className="text-slate-600 bg-slate-50 border-slate-200">{selectedSchedule.service || 'N/A'}</Badge>
+                                            {/* Row 8a: Services - Dedicated Row with Color Chips */}
+                                            {selectedSchedule.item !== 'Day Off' && selectedSchedule.service && (
+                                                <div className="mt-4">
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Services</p>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {selectedSchedule.service.split(',').map((svc: string, idx: number) => {
+                                                            const serviceName = svc.trim();
+                                                            const serviceConstant = initialData.constants.find(c => c.type === 'Services' && c.description === serviceName);
+                                                            const bgColor = serviceConstant?.color || '#E2E8F0';
+                                                            const isLight = (color: string) => {
+                                                                const hex = color.replace('#', '');
+                                                                const r = parseInt(hex.substr(0, 2), 16);
+                                                                const g = parseInt(hex.substr(2, 2), 16);
+                                                                const b = parseInt(hex.substr(4, 2), 16);
+                                                                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                                                                return brightness > 155;
+                                                            };
+                                                            const textColor = isLight(bgColor) ? '#1E293B' : '#FFFFFF';
+                                                            
+                                                            return (
+                                                                <span 
+                                                                    key={idx}
+                                                                    className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold shadow-sm"
+                                                                    style={{ backgroundColor: bgColor, color: textColor }}
+                                                                >
+                                                                    {serviceName}
+                                                                </span>
+                                                            );
+                                                        })}
                                                     </div>
+                                                </div>
+                                            )}
+
+                                            {/* Row 8b: Tag, Notify, Per Diem, Payroll - 4 Columns */}
+                                            {selectedSchedule.item !== 'Day Off' && (
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                                                     <div>
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tag</p>
                                                         <Badge className="bg-[#E6EEF8] text-[#0F4C75] hover:bg-[#dbe6f5] border-none">{selectedSchedule.item || 'N/A'}</Badge>
                                                     </div>
                                                     <div>
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Notify</p>
-                                                        <Badge variant={selectedSchedule.notifyAssignees === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                            <div className={`w-2 h-2 rounded-full ${selectedSchedule.notifyAssignees === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                            {selectedSchedule.notifyAssignees || 'No'}
+                                                        <Badge variant={(selectedSchedule.notifyAssignees === 'Yes' || selectedSchedule.notifyAssignees === 'TRUE' || selectedSchedule.notifyAssignees === true) ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${(selectedSchedule.notifyAssignees === 'Yes' || selectedSchedule.notifyAssignees === 'TRUE' || selectedSchedule.notifyAssignees === true) ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                            {(selectedSchedule.notifyAssignees === 'Yes' || selectedSchedule.notifyAssignees === 'TRUE' || selectedSchedule.notifyAssignees === true) ? 'Yes' : 'No'}
                                                         </Badge>
                                                     </div>
                                                     <div>
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Per Diem</p>
-                                                        <Badge variant={selectedSchedule.perDiem === 'Yes' ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                            <div className={`w-2 h-2 rounded-full ${selectedSchedule.perDiem === 'Yes' ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                            {selectedSchedule.perDiem || 'No'}
+                                                        <Badge variant={(selectedSchedule.perDiem === 'Yes' || selectedSchedule.perDiem === 'TRUE' || selectedSchedule.perDiem === true) ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${(selectedSchedule.perDiem === 'Yes' || selectedSchedule.perDiem === 'TRUE' || selectedSchedule.perDiem === true) ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                            {(selectedSchedule.perDiem === 'Yes' || selectedSchedule.perDiem === 'TRUE' || selectedSchedule.perDiem === true) ? 'Yes' : 'No'}
                                                         </Badge>
                                                     </div>
                                                     <div>
-                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Certified Payroll</p>
-                                                        <Badge variant={selectedSchedule.certifiedPayroll ? 'success' : 'default'} className="gap-1.5 pl-1.5">
-                                                            <div className={`w-2 h-2 rounded-full ${selectedSchedule.certifiedPayroll ? 'bg-green-500' : 'bg-slate-400'}`} />
-                                                            {selectedSchedule.certifiedPayroll || 'No'}
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Payroll</p>
+                                                        <Badge variant={(selectedSchedule.certifiedPayroll === 'Yes' || selectedSchedule.certifiedPayroll === 'TRUE' || selectedSchedule.certifiedPayroll === true) ? 'success' : 'default'} className="gap-1.5 pl-1.5">
+                                                            <div className={`w-2 h-2 rounded-full ${(selectedSchedule.certifiedPayroll === 'Yes' || selectedSchedule.certifiedPayroll === 'TRUE' || selectedSchedule.certifiedPayroll === true) ? 'bg-green-500' : 'bg-slate-400'}`} />
+                                                            {(selectedSchedule.certifiedPayroll === 'Yes' || selectedSchedule.certifiedPayroll === 'TRUE' || selectedSchedule.certifiedPayroll === true) ? 'Yes' : 'No'}
                                                         </Badge>
                                                     </div>
                                                 </div>
@@ -3123,7 +3250,7 @@ export default function SchedulePage() {
                                             {selectedSchedule.description && (
                                                 <div className="pt-4 border-t border-slate-100">
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Scope of Work</p>
-                                                    <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                    <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100 whitespace-pre-wrap">
                                                         {selectedSchedule.description}
                                                     </p>
                                                 </div>
@@ -3307,7 +3434,7 @@ export default function SchedulePage() {
                                                                                                 <Tooltip>
                                                                                                     <TooltipTrigger asChild>
                                                                                                         <button 
-                                                                                                            onClick={(e) => { e.stopPropagation(); /* TODO: Edit logic */ }}
+                                                                                                            onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
                                                                                                             className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
                                                                                                         >
                                                                                                             <Edit size={12} />
@@ -4164,6 +4291,285 @@ export default function SchedulePage() {
                         >
                             Delete Entry
                         </button>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Edit Timesheet Modal - Same as time-cards page */}
+            <Modal
+                isOpen={!!editingTimesheet}
+                onClose={() => setEditingTimesheet(null)}
+                title="Edit Timecard Record"
+                maxWidth="2xl"
+                noBlur={true}
+                footer={
+                    <>
+                        <button 
+                            onClick={() => setEditingTimesheet(null)}
+                            className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={handleSaveTimesheetEdit}
+                            className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all"
+                        >
+                            Save Changes
+                        </button>
+                    </>
+                }
+            >
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
+                    {/* Employee - Read Only when editing */}
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Employee</label>
+                        <div className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 font-medium text-slate-700 cursor-not-allowed">
+                            {(() => {
+                                const emp = initialData.employees.find((e: any) => e.value === editTimesheetForm.employee);
+                                return (
+                                    <div className="flex items-center gap-2">
+                                        {emp?.image && (
+                                            <div className="w-6 h-6 rounded-full overflow-hidden shrink-0">
+                                                <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                            </div>
+                                        )}
+                                        <span>{emp?.label || editTimesheetForm.employee || 'Unknown'}</span>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Estimate - Read Only when editing */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
+                        <div className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 font-medium text-slate-700 cursor-not-allowed truncate">
+                            {(() => {
+                                const est = initialData.estimates.find((e: any) => e.value === editTimesheetForm.estimate);
+                                return est?.label || editTimesheetForm.estimate || '-';
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Schedule Date - Read Only when editing */}
+                    <div>
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
+                        <div className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 font-medium text-slate-700 cursor-not-allowed">
+                            {(() => {
+                                const schedule = schedules.find(s => s._id === editTimesheetForm.scheduleId);
+                                if (schedule?.fromDate) {
+                                    return new Date(schedule.fromDate).toLocaleDateString('en-US', { 
+                                        weekday: 'short', 
+                                        month: 'short', 
+                                        day: 'numeric', 
+                                        year: 'numeric', 
+                                        timeZone: 'UTC' 
+                                    });
+                                }
+                                return '-';
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* Entry Type - Read Only when editing */}
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Entry Type</label>
+                        <div className="flex gap-3">
+                            {['Drive Time', 'Site Time'].map(t => (
+                                <div
+                                    key={t}
+                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-center border-2 cursor-not-allowed ${
+                                        (editTimesheetForm.type || '').trim().toLowerCase() === t.trim().toLowerCase()
+                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white' 
+                                        : 'bg-slate-100 border-slate-200 text-slate-400'
+                                    }`}
+                                >
+                                    {t}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {(editTimesheetForm.type || '').trim().toLowerCase() !== 'drive time' && (
+                        <>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editTimesheetForm.clockIn)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, clockIn: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editTimesheetForm.lunchStart)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, lunchStart: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editTimesheetForm.lunchEnd)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, lunchEnd: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
+                                <input 
+                                    type="datetime-local"
+                                    className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
+                                    value={toLocalISO(editTimesheetForm.clockOut)}
+                                    onChange={e => {
+                                        const date = new Date(e.target.value);
+                                        if (!isNaN(date.getTime())) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, clockOut: date.toISOString()}));
+                                        }
+                                    }}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {(editTimesheetForm.type || '').trim().toLowerCase() === 'drive time' && (
+                        <>
+                            <div className="col-span-2 grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
+                                    <input 
+                                        type="number"
+                                        placeholder="Manual"
+                                        className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
+                                        value={editTimesheetForm.manualDistance || ''}
+                                        onChange={e => setEditTimesheetForm((prev: any) => ({...prev, manualDistance: e.target.value}))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="Start loc"
+                                        disabled={!!editTimesheetForm.manualDistance}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                            editTimesheetForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                        }`}
+                                        value={editTimesheetForm.locationIn || ''}
+                                        onChange={e => setEditTimesheetForm((prev: any) => ({...prev, locationIn: e.target.value}))}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
+                                    <input 
+                                        type="text"
+                                        placeholder="End loc"
+                                        disabled={!!editTimesheetForm.manualDistance}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
+                                            editTimesheetForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                        }`}
+                                        value={editTimesheetForm.locationOut || ''}
+                                        onChange={e => setEditTimesheetForm((prev: any) => ({...prev, locationOut: e.target.value}))}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="col-span-2 grid grid-cols-2 gap-3">
+                                <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
+                                    <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
+                                    <input 
+                                        type="number"
+                                        className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
+                                        placeholder="0"
+                                        value={(() => {
+                                            const match = String(editTimesheetForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
+                                            return match ? match[1] : (editTimesheetForm.dumpWashout === true || String(editTimesheetForm.dumpWashout).toLowerCase() === 'true' || String(editTimesheetForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
+                                        })()}
+                                        onChange={e => {
+                                            const qty = parseFloat(e.target.value);
+                                            if (isNaN(qty) || qty <= 0) {
+                                                setEditTimesheetForm((prev: any) => ({...prev, dumpWashout: ""}));
+                                            } else {
+                                                const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
+                                                setEditTimesheetForm((prev: any) => ({...prev, dumpWashout: val}));
+                                            }
+                                        }}
+                                    />
+                                </div>
+                                <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
+                                    <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
+                                    <input 
+                                        type="number"
+                                        className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
+                                        placeholder="0"
+                                        value={(() => {
+                                            const match = String(editTimesheetForm.shopTime || '').match(/\((\d+)\s+qty\)/);
+                                            return match ? match[1] : (editTimesheetForm.shopTime === true || String(editTimesheetForm.shopTime).toLowerCase() === 'true' || String(editTimesheetForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
+                                        })()}
+                                        onChange={e => {
+                                            const qty = parseFloat(e.target.value);
+                                            if (isNaN(qty) || qty <= 0) {
+                                                setEditTimesheetForm((prev: any) => ({...prev, shopTime: ""}));
+                                            } else {
+                                                const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
+                                                setEditTimesheetForm((prev: any) => ({...prev, shopTime: val}));
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </>
+                    )}
+
+                    <div className="col-span-2 flex items-center justify-between p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl mt-4 relative overflow-hidden">
+                        <div className="relative z-10">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-5xl font-black text-white tabular-nums tracking-tighter">{editingTimesheetCalculated.hours.toFixed(2)}</span>
+                                <span className="text-xl font-bold text-slate-600">HRS</span>
+                            </div>
+                        </div>
+                        {(editTimesheetForm.type || '').trim().toLowerCase() === 'drive time' && (
+                            <div className="relative z-10 text-right">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Distance</p>
+                                <div className="flex items-baseline gap-1 justify-end">
+                                    <span className="text-3xl font-black text-blue-400 tabular-nums tracking-tighter">{editingTimesheetCalculated.distance.toFixed(1)}</span>
+                                    <span className="text-sm font-bold text-slate-600">MI</span>
+                                </div>
+                            </div>
+                        )}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[#0F4C75]/10 rounded-full -mr-16 -mt-16 blur-3xl" />
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Comments</label>
+                        <textarea 
+                            rows={2}
+                            placeholder="Add any notes here..."
+                            className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none transition-all"
+                            value={editTimesheetForm.comments || ''}
+                            onChange={e => setEditTimesheetForm((prev: any) => ({...prev, comments: e.target.value}))}
+                        />
                     </div>
                 </div>
             </Modal>
