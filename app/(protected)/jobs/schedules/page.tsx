@@ -49,9 +49,9 @@ interface ScheduleItem {
     service: string;
     item: string;
     fringe: string;
-    certifiedPayroll: string;
-    notifyAssignees: string;
-    perDiem: string;
+    certifiedPayroll: string | boolean;
+    notifyAssignees: string | boolean;
+    perDiem: string | boolean;
     aerialImage?: string;
     siteLayout?: string;
     createdAt?: string;
@@ -3809,7 +3809,7 @@ export default function SchedulePage() {
                                         { label: 'No', value: 'No', color: '#ef4444' },
                                         { label: 'Yes', value: 'Yes', color: '#22c55e' }
                                     ]}
-                                    value={editingItem?.notifyAssignees || 'No'}
+                                    value={editingItem?.notifyAssignees === true ? 'Yes' : (editingItem?.notifyAssignees === false ? 'No' : (editingItem?.notifyAssignees || 'No'))}
                                     onChange={(val) => {
                                         setEditingItem({
                                             ...editingItem,
@@ -3831,7 +3831,7 @@ export default function SchedulePage() {
                                         { label: 'No', value: 'No', color: '#ef4444' },
                                         { label: 'Yes', value: 'Yes', color: '#22c55e' }
                                     ]}
-                                    value={editingItem?.perDiem || 'No'}
+                                    value={editingItem?.perDiem === true ? 'Yes' : (editingItem?.perDiem === false ? 'No' : (editingItem?.perDiem || 'No'))}
                                     onChange={(val) => {
                                         setEditingItem({ ...editingItem, perDiem: val });
                                     }}
@@ -3865,7 +3865,7 @@ export default function SchedulePage() {
                                         image: c.image,
                                         color: c.color
                                     }))}
-                                    value={editingItem?.certifiedPayroll || ''}
+                                    value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
                                     onChange={(val) => setEditingItem({ ...editingItem, certifiedPayroll: val })}
                                     onNext={() => document.getElementById('schedAerial')?.focus()}
                                 />
