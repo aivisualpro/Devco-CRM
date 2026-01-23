@@ -18,9 +18,9 @@ export async function GET() {
         
         const allRelatedEstimates = await Estimate.find({
             estimate: { $in: proposalNumbers }
-        } as any, { estimate: 1, grandTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1 });
+        } as any, { _id: 1, estimate: 1, grandTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1, status: 1 });
 
-        // Map proposalNumber -> { originalContract, changeOrders, writers }
+        // Map proposalNumber -> { originalContract, changeOrders, writers, slug }
         const estimateDataMap = new Map();
         
         allRelatedEstimates.forEach(e => {
@@ -31,19 +31,24 @@ export async function GET() {
                     originalContract: 0,
                     changeOrdersTotal: 0,
                     proposalWriters: [] as string[],
-                    latestVersion: -1
+                    latestVersion: -1,
+                    estimateId: e._id
                 });
             }
             
             const data = estimateDataMap.get(e.estimate);
             
             if (e.isChangeOrder) {
-                data.changeOrdersTotal += (e.grandTotal || 0);
+                const status = (e.status || '').toLowerCase();
+                if (status === 'completed' || status === 'confirmed' || status === 'won') {
+                    data.changeOrdersTotal += (e.grandTotal || 0);
+                }
             } else {
                 // If it's a normal estimate, we want the latest version for original contract amount and writers
                 if ((e.versionNumber || 0) > data.latestVersion) {
                     data.originalContract = e.grandTotal || 0;
                     data.latestVersion = e.versionNumber || 0;
+                    data.estimateId = e._id;
                     
                     const writers = Array.isArray(e.proposalWriter) 
                         ? e.proposalWriter 
@@ -69,6 +74,7 @@ export async function GET() {
             });
 
             const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;
+            const proposalSlug = p.proposalNumber ? (estData?.latestVersion > 0 ? `${p.proposalNumber}-V${estData.latestVersion}` : estData?.estimateId) : null;
 
             return {
                 Id: p.projectId,
@@ -81,6 +87,7 @@ export async function GET() {
                 profitMargin: income > 0 ? Math.round(((income - cost) / income) * 100) : 0,
                 status: p.status,
                 proposalNumber: p.proposalNumber,
+                proposalSlug,
                 proposalWriters: estData?.proposalWriters || [],
                 originalContract: estData?.originalContract || 0,
                 changeOrders: estData?.changeOrdersTotal || 0,

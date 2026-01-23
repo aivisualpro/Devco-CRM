@@ -39,6 +39,7 @@ const menuStructure = [
         items: [
             { label: 'Payroll', href: '/reports/payroll', icon: DollarSign, colorClass: 'text-green-600' },
             { label: 'Work Comp', href: '/reports/work-comp', icon: FileCheck, colorClass: 'text-blue-700' },
+            { label: 'WIP Report', href: '/reports/wip', icon: DollarSign, colorClass: 'text-emerald-500' },
             { label: 'Sales', href: '/reports/sales', icon: BarChart3, colorClass: 'text-emerald-500' },
         ]
     }

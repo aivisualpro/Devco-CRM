@@ -26,7 +26,7 @@ export const MODULES = {
     ESTIMATES: 'estimates',
     SCHEDULES: 'schedules',
     TIME_CARDS: 'time_cards',
-    QUICKBOOKS: 'quickbooks',
+    REPORTS_WIP: 'reports_wip',
     
     // DOCS
     JHA: 'jha',
@@ -258,7 +258,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     ],
     [MODULES.SCHEDULES]: ['title', 'date', 'assignedTo', 'status', 'location', 'notes'],
     [MODULES.TIME_CARDS]: ['employee', 'date', 'hoursWorked', 'project', 'status', 'notes'],
-    [MODULES.QUICKBOOKS]: ['syncStatus', 'lastSync', 'items'],
+    [MODULES.REPORTS_WIP]: ['syncStatus', 'lastSync', 'items'],
     [MODULES.JHA]: ['title', 'date', 'hazards', 'controls', 'status', 'assignedTo'],
     [MODULES.JOB_TICKETS]: ['title', 'date', 'description', 'status', 'assignedTo'],
     [MODULES.BILLING_TICKETS]: ['title', 'amount', 'status', 'client', 'date'],
@@ -289,7 +289,7 @@ export const PERMISSION_GROUPS = {
     },
     JOBS: {
         label: 'Jobs & Projects',
-        modules: [MODULES.CATALOGUE, MODULES.TEMPLATES, MODULES.ESTIMATES, MODULES.SCHEDULES, MODULES.TIME_CARDS, MODULES.QUICKBOOKS],
+        modules: [MODULES.CATALOGUE, MODULES.TEMPLATES, MODULES.ESTIMATES, MODULES.SCHEDULES, MODULES.TIME_CARDS],
         color: '#ea580c',
     },
     DOCS: {
@@ -308,7 +308,7 @@ export const PERMISSION_GROUPS = {
     },
     REPORTS: {
         label: 'Reports & Analytics',
-        modules: [MODULES.REPORTS_PAYROLL, MODULES.REPORTS_WORK_COMP, MODULES.REPORTS_FRINGE, MODULES.REPORTS_SALES],
+        modules: [MODULES.REPORTS_PAYROLL, MODULES.REPORTS_WIP, MODULES.REPORTS_WORK_COMP, MODULES.REPORTS_FRINGE, MODULES.REPORTS_SALES],
         color: '#059669',
     },
 };
@@ -327,7 +327,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.ESTIMATES]: 'Estimates & Proposals',
     [MODULES.SCHEDULES]: 'Schedules',
     [MODULES.TIME_CARDS]: 'Time Cards',
-    [MODULES.QUICKBOOKS]: 'QuickBooks',
+    [MODULES.REPORTS_WIP]: 'Work in Progress Report',
     [MODULES.JHA]: 'JHA',
     [MODULES.JOB_TICKETS]: 'Job Tickets',
     [MODULES.BILLING_TICKETS]: 'Billing Tickets',
@@ -376,7 +376,7 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/estimates': MODULES.ESTIMATES,
     '/jobs/schedules': MODULES.SCHEDULES,
     '/jobs/time-cards': MODULES.TIME_CARDS,
-    '/quickbooks': MODULES.QUICKBOOKS,
+    '/reports/wip': MODULES.REPORTS_WIP,
     '/docs/jha': MODULES.JHA,
     '/docs/job-tickets': MODULES.JOB_TICKETS,
     '/docs/billing-tickets': MODULES.BILLING_TICKETS,

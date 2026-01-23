@@ -36,9 +36,10 @@ interface Project {
     originalContract?: number;
     changeOrders?: number;
     status?: string;
+    proposalSlug?: string;
 }
 
-export default function QuickBooksPage() {
+export default function WIPReportPage() {
     const [activeTab, setActiveTab] = useState('projects');
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [activeDetailTab, setActiveDetailTab] = useState('Summary');
@@ -1006,49 +1007,49 @@ export default function QuickBooksPage() {
                                                     <thead className="sticky top-0 z-10 bg-white">
                                                         <tr className="bg-slate-50/50">
                                                             <th className="p-1.5 w-6 border border-slate-200"></th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('project') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('project') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Project</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('proposal-num') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('proposal-num') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Proposal #</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals estimate#</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('date') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('date') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Date</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('writers') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('writers') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Proposal Writers</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals proposal writer</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('client') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('client') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-left">Client</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-contract') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-contract') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Original Contract</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals amount (latest version)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('change-orders') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('change-orders') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Orders</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by our proposals change orders (sum of all change orders if status is completed)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('updated-contract') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('updated-contract') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1062,7 +1063,7 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="w-full text-right"
@@ -1072,13 +1073,13 @@ export default function QuickBooksPage() {
                                                                     <TooltipContent side="top">Original Contract + Change Orders</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Order Cost</TooltipTrigger>
                                                                     <TooltipContent side="top">(will update soon)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('total-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('total-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1092,19 +1093,19 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Original Contract GP</TooltipTrigger>
                                                                     <TooltipContent side="top">(will update soon)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Order GP</TooltipTrigger>
                                                                     <TooltipContent side="top">(will update soon)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('est-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('est-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1118,19 +1119,19 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-800 uppercase tracking-tight text-right border border-slate-200 bg-[#D8E983] transition-colors ${activeHighlight.includes('revenue') ? 'bg-[#c1d35a]' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-800 uppercase tracking-tight text-right border border-slate-200 bg-[#D8E983] transition-colors ${activeHighlight.includes('revenue') ? 'bg-[#c1d35a]' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Revenue Earned to Date</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('cost-revenue') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('cost-revenue') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Cost of Revenue Earned</TooltipTrigger>
                                                                     <TooltipContent side="top">Reference by QuickBooks Records sum of all invoices</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('gp-loss') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('gp-loss') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 ml-auto"
@@ -1146,7 +1147,7 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('gp-pct') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('gp-pct') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 justify-center"
@@ -1160,7 +1161,7 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('markup') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('markup') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 justify-center"
@@ -1174,7 +1175,7 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('complete') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('complete') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger 
                                                                         className="flex items-center gap-1 justify-center"
@@ -1188,7 +1189,7 @@ export default function QuickBooksPage() {
                                                                     </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
-                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                            <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? 'bg-blue-100 text-blue-800' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-center">Sync</TooltipTrigger>
                                                                     <TooltipContent side="top">Press to live update the records with QuickBooks</TooltipContent>
@@ -1228,7 +1229,7 @@ export default function QuickBooksPage() {
                                                                 const percentageComplete = updatedContract > 0 ? (revenueToDate / updatedContract) * 100 : 0;
 
                                                                 const fmt = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
-                                                                const cellBase = "p-1.5 text-[8px] whitespace-nowrap border border-slate-200 transition-colors";
+                                                                const cellBase = "p-1 text-[9px] whitespace-nowrap border border-slate-200 transition-colors";
                                                                 const cellCls = `${cellBase} text-slate-800`;
                                                                 const highlightCls = "bg-blue-100/30 font-bold text-blue-900";
 
@@ -1238,7 +1239,7 @@ export default function QuickBooksPage() {
                                                                         className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                                                                         onClick={() => setSelectedProject(project)}
                                                                     >
-                                                                        <td className="p-1.5 text-center text-[8px] border border-slate-200">
+                                                                        <td className="p-1.5 text-center text-[9px] border border-slate-200">
                                                                             <button 
                                                                                 className={`${project.isFavorite ? 'text-amber-400' : 'text-slate-300'} hover:text-amber-400 transition-colors`}
                                                                                 onClick={(e) => { e.stopPropagation(); }}
@@ -1247,39 +1248,55 @@ export default function QuickBooksPage() {
                                                                             </button>
                                                                         </td>
                                                                         <td className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''}`}>
-                                                                            <div className="truncate text-[8px]" title={project.DisplayName}>{project.DisplayName}</div>
+                                                                            <div className="truncate text-[9px]" title={project.DisplayName}>{project.DisplayName}</div>
                                                                         </td>
                                                                         <td className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`} onClick={(e) => e.stopPropagation()}>
-                                                                            {editingProposalId === project.Id ? (
-                                                                                <input 
-                                                                                    type="text"
-                                                                                    value={editingProposalValue}
-                                                                                    onChange={(e) => setEditingProposalValue(e.target.value)}
-                                                                                     className="w-16 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[7px] outline-none shadow-sm"
-                                                                                    autoFocus
-                                                                                    onKeyDown={(e) => {
-                                                                                        if (e.key === 'Enter') handleSaveProposal(project.Id);
-                                                                                        if (e.key === 'Escape') setEditingProposalId(null);
-                                                                                    }}
-                                                                                />
-                                                                            ) : (
-                                                                                <div 
-                                                                                    className="cursor-pointer hover:underline text-[8px]"
-                                                                                    onClick={() => {
-                                                                                        setEditingProposalId(project.Id);
-                                                                                        setEditingProposalValue(project.proposalNumber || '');
-                                                                                    }}
-                                                                                >
-                                                                                    {project.proposalNumber || '---'}
-                                                                                </div>
-                                                                            )}
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                {editingProposalId === project.Id ? (
+                                                                                    <input 
+                                                                                        type="text"
+                                                                                        value={editingProposalValue}
+                                                                                        onChange={(e) => setEditingProposalValue(e.target.value)}
+                                                                                        className="w-16 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[7px] outline-none shadow-sm"
+                                                                                        autoFocus
+                                                                                        onKeyDown={(e) => {
+                                                                                            if (e.key === 'Enter') handleSaveProposal(project.Id);
+                                                                                            if (e.key === 'Escape') setEditingProposalId(null);
+                                                                                        }}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <div 
+                                                                                        className="cursor-pointer hover:underline text-[9px]"
+                                                                                        onClick={() => {
+                                                                                            setEditingProposalId(project.Id);
+                                                                                            setEditingProposalValue(project.proposalNumber || '');
+                                                                                        }}
+                                                                                    >
+                                                                                        {project.proposalNumber || '---'}
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {project.proposalSlug && (
+                                                                                    <a 
+                                                                                        href={`/estimates/${project.proposalSlug}`}
+                                                                                        target="_blank"
+                                                                                        rel="noopener noreferrer"
+                                                                                        className="p-0.5 hover:bg-slate-200 rounded transition-colors text-[#0F4C75]"
+                                                                                        onClick={(e) => e.stopPropagation()}
+                                                                                    >
+                                                                                        <ExternalLink size={8} />
+                                                                                    </a>
+                                                                                )}
+                                                                            </div>
                                                                         </td>
                                                                         <td className={`${cellCls} ${activeHighlight.includes('date') ? highlightCls : ''}`}>{project.startDate}</td>
                                                                         <td className={`${cellCls} ${activeHighlight.includes('writers') ? highlightCls : ''}`}>
                                                                             <div className="flex -space-x-1">
                                                                                 {(project.proposalWriters || []).slice(0, 3).map((w, idx) => {
                                                                                     const employee = employees.find(e => 
-                                                                                        `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase()
+                                                                                        `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
+                                                                                        e.email?.toLowerCase() === w.toLowerCase() ||
+                                                                                        e._id?.toLowerCase() === w.toLowerCase()
                                                                                     );
                                                                                     const profilePic = employee?.profilePicture;
                                                                                     

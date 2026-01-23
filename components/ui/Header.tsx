@@ -20,7 +20,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/roles', '/constants', '/chat', '/quickbooks', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/wip', '/roles', '/constants', '/chat', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -39,7 +39,6 @@ const menuStructure: MenuItem[] = [
             { label: 'Estimates & Proposals', href: '/estimates', icon: <Calculator className="w-5 h-5" />, description: 'Create and manage cost estimates', colorClass: 'text-orange-500' },
             { label: 'Schedules', href: '/jobs/schedules', icon: <Calendar className="w-5 h-5" />, description: 'Project timelines and scheduling', colorClass: 'text-teal-500' },
             { label: 'Time Cards', href: '/jobs/time-cards', icon: <Clock className="w-5 h-5" />, description: 'Employee time cards', colorClass: 'text-purple-500' },
-            { label: 'QuickBooks', href: '/quickbooks', icon: <DollarSign className="w-5 h-5" />, description: 'QuickBooks integration and projects', colorClass: 'text-emerald-500' },
         ]
     },
     {
@@ -68,6 +67,7 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Payroll', href: '/reports/payroll', icon: <DollarSign className="w-5 h-5" />, description: 'Employee payroll summary', colorClass: 'text-green-600' },
             { label: 'Work Comp', href: '/reports/work-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
+            { label: 'Work in Progress Report', href: '/reports/wip', icon: <DollarSign className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
             { label: 'Fringe Benefits', href: '/reports/fringe', icon: <Settings className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },
             { label: 'Sales Performance', href: '/reports/sales', icon: <BarChart className="w-5 h-5" />, description: 'Revenue and sales metrics', colorClass: 'text-rose-600' },
         ]
