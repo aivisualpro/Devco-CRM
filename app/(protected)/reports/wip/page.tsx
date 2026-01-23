@@ -54,15 +54,9 @@ export default function WIPReportPage() {
     const [editingProposalValue, setEditingProposalValue] = useState('');
     const [savingProposal, setSavingProposal] = useState(false);
     const [transactions, setTransactions] = useState<any[]>([]);
-    const [projectStatusFilter, setProjectStatusFilter] = useState('In progress');
     const [customerFilter, setCustomerFilter] = useState('');
     const [endDateFilter, setEndDateFilter] = useState('All');
-    const [dateRangeFilter, setDateRangeFilter] = useState<string>(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('qb_date_range_filter') || 'this_year';
-        }
-        return 'this_year';
-    });
+    const [dateRangeFilter, setDateRangeFilter] = useState<string>('this_year');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(20);
     const [employees, setEmployees] = useState<any[]>([]);
@@ -262,7 +256,14 @@ export default function WIPReportPage() {
         }
     }, [selectedProject?.Id]);
 
-    // Persist date range filter to localStorage
+    // Load and Persist date range filter to localStorage
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('qb_date_range_filter');
+            if (saved) setDateRangeFilter(saved);
+        }
+    }, []);
+
     useEffect(() => {
         if (typeof window !== 'undefined') {
             localStorage.setItem('qb_date_range_filter', dateRangeFilter);
@@ -321,13 +322,11 @@ export default function WIPReportPage() {
 
     const hasActiveFilters = 
         searchQuery !== '' || 
-        projectStatusFilter !== 'All statuses' || 
         customerFilter !== '' || 
         dateRangeFilter !== 'all';
 
     const clearFilters = () => {
         setSearchQuery('');
-        setProjectStatusFilter('All statuses');
         setCustomerFilter('');
         setDateRangeFilter('all');
         setCurrentPage(1);
@@ -342,7 +341,7 @@ export default function WIPReportPage() {
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchQuery, projectStatusFilter, customerFilter, dateRangeFilter]);
+    }, [searchQuery, customerFilter, dateRangeFilter]);
 
     return (
         <div className="flex flex-col h-screen overflow-hidden">
@@ -894,22 +893,6 @@ export default function WIPReportPage() {
                                                                 </div>
                                                             </div>
 
-                                                            <div className="space-y-1.5">
-                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-                                                                <div className="relative group">
-                                                                    <select 
-                                                                        value={projectStatusFilter}
-                                                                        onChange={(e) => setProjectStatusFilter(e.target.value)}
-                                                                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
-                                                                    >
-                                                                        <option>All statuses</option>
-                                                                        <option>In progress</option>
-                                                                        <option>Completed</option>
-                                                                        <option>Cancelled</option>
-                                                                    </select>
-                                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                                                </div>
-                                                            </div>
 
                                                             <div className="space-y-1.5">
                                                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer</label>
@@ -1299,21 +1282,43 @@ export default function WIPReportPage() {
                                                                                         e._id?.toLowerCase() === w.toLowerCase()
                                                                                     );
                                                                                     const profilePic = employee?.profilePicture;
+                                                                                    const displayName = employee ? `${employee.firstName} ${employee.lastName}` : w;
                                                                                     
                                                                                     return (
-                                                                                        <div key={idx} className="w-5 h-5 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[7px] text-white font-black shadow-sm overflow-hidden" title={w}>
-                                                                                            {profilePic ? (
-                                                                                                <img src={profilePic} alt={w} className="w-full h-full object-cover" />
-                                                                                            ) : (
-                                                                                                w.substring(0, 1).toUpperCase()
-                                                                                            )}
-                                                                                        </div>
+                                                                                        <Tooltip key={idx}>
+                                                                                            <TooltipTrigger asChild>
+                                                                                                <div className="w-5 h-5 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[7px] text-white font-black shadow-sm overflow-hidden cursor-help">
+                                                                                                    {profilePic ? (
+                                                                                                        <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
+                                                                                                    ) : (
+                                                                                                        displayName.substring(0, 1).toUpperCase()
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </TooltipTrigger>
+                                                                                            <TooltipContent side="top">
+                                                                                                <p>{displayName}</p>
+                                                                                            </TooltipContent>
+                                                                                        </Tooltip>
                                                                                     );
                                                                                 })}
                                                                                 {(project.proposalWriters || []).length > 3 && (
-                                                                                     <div className="w-5 h-5 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[7px] text-slate-600 font-bold shadow-sm">
-                                                                                        +{(project.proposalWriters || []).length - 3}
-                                                                                     </div>
+                                                                                    <Tooltip>
+                                                                                        <TooltipTrigger asChild>
+                                                                                            <div className="w-5 h-5 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[7px] text-slate-600 font-bold shadow-sm cursor-help">
+                                                                                               +{(project.proposalWriters || []).length - 3}
+                                                                                            </div>
+                                                                                        </TooltipTrigger>
+                                                                                        <TooltipContent side="top">
+                                                                                            <p>{(project.proposalWriters || []).slice(3).map(w => {
+                                                                                                const employee = employees.find(e => 
+                                                                                                    `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
+                                                                                                    e.email?.toLowerCase() === w.toLowerCase() ||
+                                                                                                    e._id?.toLowerCase() === w.toLowerCase()
+                                                                                                );
+                                                                                                return employee ? `${employee.firstName} ${employee.lastName}` : w;
+                                                                                            }).join(', ')}</p>
+                                                                                        </TooltipContent>
+                                                                                    </Tooltip>
                                                                                 )}
                                                                             </div>
                                                                         </td>
