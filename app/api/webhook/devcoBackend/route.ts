@@ -1066,7 +1066,7 @@ export async function POST(request: NextRequest) {
                         const expectedId = `${parentVersionId}-CO${correctCONum}`;
 
                         if (String(doc._id) !== expectedId) {
-                            const oldId = doc._id;
+                            const oldId = String(doc._id);
                             const { _id, __v, ...data } = doc as any;
                             
                             // Re-create with new sequential ID
@@ -1094,7 +1094,7 @@ export async function POST(request: NextRequest) {
                         const expectedId = `${estimateNumber}-V${correctVerNum}`;
                         
                         if (doc.versionNumber !== correctVerNum || String(doc._id) !== expectedId) {
-                            const oldId = doc._id;
+                            const oldId = String(doc._id);
                             const { _id, __v, ...data } = doc as any;
                             
                             // 1. Move the regular version

@@ -126,6 +126,8 @@ const EstimateSchema = new Schema({
     proposalWriter: { type: Schema.Types.Mixed }, // string or string[]
     certifiedPayroll: { type: String },
     prevailingWage: { type: Boolean }, // New field displayed if certifiedPayroll is Yes
+    isChangeOrder: { type: Boolean, default: false },
+    parentVersionId: { type: String },
 
     // New fields
     createdBy: { type: String },
