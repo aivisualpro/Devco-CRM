@@ -513,7 +513,8 @@ export default function DashboardPage() {
             year: 'numeric',
             hour: 'numeric',
             minute: '2-digit',
-            hour12: true
+            hour12: true,
+            timeZone: 'UTC'
         });
     };
 
@@ -1469,11 +1470,11 @@ export default function DashboardPage() {
                                                                 </span>
                                                             )}
                                                             <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500" suppressHydrationWarning>
-                                                                <span>{new Date(item.fromDate).toLocaleDateString()}</span>
+                                                                <span>{new Date(item.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
                                                                 <span className="text-slate-300">|</span>
-                                                                <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                                <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
                                                                 <span>-</span>
-                                                                <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                                <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
                                                             </div>
                                                         </div>
 
@@ -1831,13 +1832,13 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-2">
                                 <Calendar size={14} className="text-slate-400" />
                                 <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
-                                    From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                                    From: {new Date(selectedSchedule.fromDate).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}
                                 </span>
                                 {selectedSchedule.toDate && (
                                     <>
                                         <span className="text-xs font-bold text-slate-400">-</span>
                                         <span className="text-xs font-bold text-slate-700" suppressHydrationWarning>
-                                            {new Date(selectedSchedule.toDate).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                            {new Date(selectedSchedule.toDate).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}
                                         </span>
                                     </>
                                 )}
@@ -1943,7 +1944,7 @@ export default function DashboardPage() {
                                                     {typeof obj !== 'string' && obj.completed && obj.completedBy && (
                                                         <span className="text-[10px] text-slate-400">
                                                             Completed by {obj.completedBy}
-                                                            {obj.completedAt && ` at ${new Date(obj.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`}
+                                                            {obj.completedAt && ` at ${new Date(obj.completedAt).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'})}`}
                                                         </span>
                                                     )}
                                                 </div>
@@ -2040,7 +2041,7 @@ export default function DashboardPage() {
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-xs font-black text-[#0F4C75]">{ts.hours ? ts.hours.toFixed(2) : '-'} hrs</p>
-                                                    <p className="text-[9px] font-bold text-slate-400">{new Date(ts.clockIn).toLocaleDateString([], { month: 'short', day: 'numeric' })}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400">{new Date(ts.clockIn).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })}</p>
                                                 </div>
                                             </div>
                                         );

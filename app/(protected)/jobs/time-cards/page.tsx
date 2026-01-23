@@ -99,7 +99,7 @@ const formatTimeOnly = (dateStr?: string) => {
     if (!dateStr) return '-';
     try {
         const date = new Date(dateStr);
-        const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+        const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
         return time === 'Invalid Date' ? dateStr : time;
     } catch (e) {
         return dateStr;
@@ -110,7 +110,7 @@ const formatDateOnly = (dateStr?: string) => {
     if (!dateStr) return '-';
     try {
         const date = new Date(dateStr);
-        return date.toLocaleDateString();
+        return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
     } catch (e) {
         return dateStr;
     }
@@ -1646,7 +1646,7 @@ export default function TimeCardPage() {
                                     .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                     .map(s => ({
                                         value: s._id,
-                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`,
                                         estimate: s.estimate
                                     }));
                             })()}
@@ -1922,7 +1922,7 @@ export default function TimeCardPage() {
                                     .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                     .map(s => ({
                                         value: s._id,
-                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`,
                                         estimate: s.estimate
                                     }));
                             })()}

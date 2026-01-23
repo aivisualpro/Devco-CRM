@@ -183,7 +183,7 @@ export default function JobTicketPage() {
             .filter(s => !s.djt || Object.keys(s.djt).length === 0)
             .map(s => ({
                 value: s._id,
-                label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString() : 'No Date'}`,
+                label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'No Date'}`,
                 ...s
             }));
     }, [schedules]);
@@ -411,8 +411,8 @@ export default function JobTicketPage() {
                 estimateNum: schedule?.estimate || '',
                 projectName: estimate?.projectTitle || estimate?.projectName || '',
                 foremanName: schedule?.foremanName || '',
-                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString(),
-                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { timeZone: 'UTC' }),
+                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' }),
             };
 
             // Customer Signature
@@ -439,8 +439,8 @@ export default function JobTicketPage() {
                     
                      const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
                      if (timesheet) {
-                         const inTime = new Date(timesheet.clockIn).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
-                         const outTime = new Date(timesheet.clockOut).toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+                         const inTime = new Date(timesheet.clockIn).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
+                         const outTime = new Date(timesheet.clockOut).toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
                          variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
                      }
                 });
@@ -541,7 +541,7 @@ export default function JobTicketPage() {
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-bold text-slate-700">
-                                                            {djt.date ? new Date(djt.date).toLocaleDateString() : 'N/A'}
+                                                            {djt.date ? new Date(djt.date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
                                                         </div>
                                                         <div className="text-[10px] text-slate-400">
                                                             {djt.djtTime || '--:--'}

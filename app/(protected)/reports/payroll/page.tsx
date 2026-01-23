@@ -1182,10 +1182,10 @@ function PayrollReportContent() {
                                                         onClick={() => handleEditClick(ent)}
                                                         className="text-[11px] font-bold text-slate-700 hover:bg-white/50 cursor-pointer transition-colors"
                                                     >
-                                                        <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString()}</td>
+                                                        <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString('en-US', { timeZone: 'UTC' })}</td>
                                                         <td className="px-4 py-3 font-black text-[#0F4C75]">{ent.estimate}</td>
                                                         <td className="px-4 py-3 opacity-60">
-                                                            {new Date(ent.clockIn).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {ent.clockOut ? new Date(ent.clockOut).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--'}
+                                                            {new Date(ent.clockIn).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'})} - {ent.clockOut ? new Date(ent.clockOut).toLocaleTimeString('en-US', {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'}) : '--'}
                                                         </td>
                                                         <td className="px-4 py-3 text-center opacity-40">
                                                             {ent.lunchStart ? '30m' : '--'}
@@ -1241,7 +1241,7 @@ function PayrollReportContent() {
                                                         onClick={() => handleEditClick(ent)}
                                                         className="text-[11px] font-bold text-slate-700 hover:bg-white/50 cursor-pointer transition-colors"
                                                     >
-                                                        <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString()}</td>
+                                                        <td className="px-4 py-3">{new Date(ent.clockIn).toLocaleDateString('en-US', { timeZone: 'UTC' })}</td>
                                                         <td className="px-4 py-3 opacity-60">{ent.type}</td>
                                                         <td className="px-4 py-3 font-medium">
                                                             {ent.locationIn?.includes(',') ? 'GPS Haversine' : (ent.locationIn ? 'Odometer' : 'Manual/Time')}
@@ -1376,7 +1376,7 @@ function PayrollReportContent() {
                                         .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                         .map(s => ({
                                             value: s._id,
-                                            label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+                                            label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`,
                                             estimate: s.estimate
                                         }));
                                 })()}

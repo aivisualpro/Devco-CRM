@@ -181,7 +181,7 @@ export default function JHAPage() {
             .filter(s => !s.jha || Object.keys(s.jha).length === 0)
             .map(s => ({
                 value: s._id,
-                label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString() : 'No Date'}`,
+                label: `${s.estimate || 'No Est'} - ${s.fromDate ? new Date(s.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'No Date'}`,
                 ...s
             }));
     }, [schedules]);
@@ -405,7 +405,7 @@ export default function JHAPage() {
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-bold text-slate-700">
-                                                            {jha.date ? new Date(jha.date).toLocaleDateString() : 'N/A'}
+                                                            {jha.date ? new Date(jha.date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
                                                         </div>
                                                         <div className="text-[10px] text-slate-400">
                                                             {jha.jhaTime || '--:--'}
