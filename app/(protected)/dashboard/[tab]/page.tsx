@@ -249,7 +249,7 @@ export default function DashboardPage() {
                 estimate: est?.estimate || schedule?.estimate || '',
                 foremanName: schedule?.foremanName || '',
                 addressOfHospital: selectedJHA.addressOfHospital || selectedJHA.hospitalAddress || '', 
-                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '',
             };
 
             // Convert booleans to "✔️" for checkboxes in the template
@@ -410,7 +410,7 @@ export default function DashboardPage() {
                 estimate: est?.estimate || schedule?.estimate || '',
                 foremanName: schedule?.foremanName || '',
                 addressOfHospital: selectedJHA.addressOfHospital || selectedJHA.hospitalAddress || '', 
-                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : '',
             };
 
             const booleanFields = [
@@ -2343,7 +2343,7 @@ export default function DashboardPage() {
                                 </div>
                             </h4>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date || Date.now()).toLocaleDateString()}</p></div>
+                                <div><p className="text-[10px] font-bold text-slate-400 uppercase">Date</p><p className="text-sm font-bold text-slate-700">{new Date(selectedJHA.date || Date.now()).toLocaleDateString('en-US', { timeZone: 'UTC' })}</p></div>
                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase">Time</p><p className="text-sm font-bold text-slate-700">{selectedJHA.jhaTime}</p></div>
                                 <div>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
@@ -2376,7 +2376,7 @@ export default function DashboardPage() {
                                                     {selectedJHA.jhaEmails.slice().reverse().map((email: any, idx: number) => (
                                                         <div key={idx} className="flex justify-between items-start gap-2">
                                                             <span className="truncate flex-1 text-slate-300">{email.emailto}</span>
-                                                            <span className="text-[10px] text-slate-500 shrink-0">{new Date(email.createdAt).toLocaleDateString()}</span>
+                                                            <span className="text-[10px] text-slate-500 shrink-0">{new Date(email.createdAt).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -2553,7 +2553,8 @@ export default function DashboardPage() {
                                                         day: 'numeric', 
                                                         hour: 'numeric', 
                                                         minute: 'numeric', 
-                                                        hour12: true 
+                                                        hour12: true,
+                                                        timeZone: 'UTC'
                                                     })}
                                                 </p>
                                             </div>
