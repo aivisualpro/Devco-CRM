@@ -1,7 +1,7 @@
 
-const QBO_CLIENT_ID = process.env.QBO_CLIENT_ID;
-const QBO_CLIENT_SECRET = process.env.QBO_CLIENT_SECRET;
-const QBO_REALM_ID = process.env.QBO_REALM_ID;
+export const QBO_CLIENT_ID = process.env.QBO_CLIENT_ID;
+export const QBO_CLIENT_SECRET = process.env.QBO_CLIENT_SECRET;
+export const QBO_REALM_ID = process.env.QBO_REALM_ID;
 // We'll update this in memory, so use let or access process.env directly
 let QBO_REFRESH_TOKEN = process.env.QBO_REFRESH_TOKEN;
 
@@ -10,8 +10,8 @@ import path from 'path';
 
 // Determine if we are in production or development
 const IS_PRODUCTION = process.env.QBO_IS_PRODUCTION === 'true' || process.env.NODE_ENV === 'production';
-const BASE_URL = IS_PRODUCTION 
-    ? 'https://quickbooks.api.intuit.com' 
+export const BASE_URL = IS_PRODUCTION
+    ? 'https://quickbooks.api.intuit.com'
     : 'https://sandbox-quickbooks.api.intuit.com';
 
 const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
@@ -132,113 +132,201 @@ export async function qboQuery(query: string) {
     }
 }
 
-export async function getProjects() {
-    // Sometimes 'IsProject' is not indexable/queryable directly in some QBO versions
-    // We fetch customers and filter in memory to be safe, or try the Job=true filter
-    try {
-        console.log('Attempting to fetch projects via Customer query...');
-        // Try the most broadly supported query first
-        const query = "SELECT * FROM Customer MAXRESULTS 1000";
-        const data = await qboQuery(query);
-        const customers = data?.QueryResponse?.Customer || [];
-        
-        // Filter for projects (IsProject: true) or Jobs (Job: true)
-        // Filter for projects (IsProject: true) or Jobs (Job: true)
-        const projects = customers.filter((c: any) => c.IsProject === true || c.Job === true);
-        
-        console.log(`Successfully filtered ${projects.length} projects from ${customers.length} customers. Fetching financial data...`);
-
-        // Fetch financial data: Invoices for Income, Purchases/Bills for Costs
+async function fetchAllOfType(type: string) {
+    let all: any[] = [];
+    let start = 1;
+    const limit = 1000;
+    let batchCount = 0;
+    let totalFetched = 0;
+    while (true) {
+        batchCount++;
+        const query = `SELECT * FROM ${type} STARTPOSITION ${start} MAXRESULTS ${limit}`;
+        console.log(`Fetching ${type} batch ${batchCount}: start=${start}, limit=${limit}`);
         try {
-            // Fetch all invoices (limit 1000 for performance)
-            const invoiceQuery = "SELECT * FROM Invoice MAXRESULTS 1000";
-            const invoiceData = await qboQuery(invoiceQuery);
-            const invoices = invoiceData?.QueryResponse?.Invoice || [];
-            
-            // Create a map of Customer ID -> Total Invoice Amount (Income)
-            const customerIncome = new Map<string, number>();
-            invoices.forEach((inv: any) => {
-                const customerId = inv.CustomerRef?.value;
-                if (customerId) {
-                    const current = customerIncome.get(customerId) || 0;
-                    customerIncome.set(customerId, current + (inv.TotalAmt || 0));
-                }
-            });
-            
-            console.log(`Processed ${invoices.length} invoices for ${customerIncome.size} unique customers.`);
-            
-            // Fetch all Purchases (expenses linked to customers)
-            // In QBO, "Purchase" includes Cash/Check Expenses, Credit Card Expenses
-            const purchaseQuery = "SELECT * FROM Purchase MAXRESULTS 1000";
-            const purchaseData = await qboQuery(purchaseQuery).catch(() => ({ QueryResponse: {} }));
-            const purchases = purchaseData?.QueryResponse?.Purchase || [];
-            
-            // Create a map of Customer ID -> Total Cost
-            const customerCosts = new Map<string, number>();
-            
-            // Process Purchases
-            purchases.forEach((purchase: any) => {
-                // Purchases can have CustomerRef at the header level OR in line items
-                // Check header-level customer first
-                let customerId = purchase.EntityRef?.value; // The entity (customer/vendor) involved
-                
-                // If it's a customer-linked expense, the CustomerRef might be in Line items
-                if (purchase.Line) {
-                    purchase.Line.forEach((line: any) => {
-                        const lineCustomerId = line.AccountBasedExpenseLineDetail?.CustomerRef?.value ||
-                                               line.ItemBasedExpenseLineDetail?.CustomerRef?.value;
-                        if (lineCustomerId) {
-                            const current = customerCosts.get(lineCustomerId) || 0;
-                            customerCosts.set(lineCustomerId, current + (line.Amount || 0));
-                        }
-                    });
-                }
-            });
-            
-            // Also fetch Bills (vendor bills that may have customer-linked line items)
-            const billQuery = "SELECT * FROM Bill MAXRESULTS 1000";
-            const billData = await qboQuery(billQuery).catch(() => ({ QueryResponse: {} }));
-            const bills = billData?.QueryResponse?.Bill || [];
-            
-            // Process Bills - look for customer in line items
-            bills.forEach((bill: any) => {
-                if (bill.Line) {
-                    bill.Line.forEach((line: any) => {
-                        const lineCustomerId = line.AccountBasedExpenseLineDetail?.CustomerRef?.value ||
-                                               line.ItemBasedExpenseLineDetail?.CustomerRef?.value;
-                        if (lineCustomerId) {
-                            const current = customerCosts.get(lineCustomerId) || 0;
-                            customerCosts.set(lineCustomerId, current + (line.Amount || 0));
-                        }
-                    });
-                }
-            });
-            
-            console.log(`Processed ${purchases.length} purchases and ${bills.length} bills. Found costs for ${customerCosts.size} customers.`);
-            
-            // Merge income and costs into projects
-            let matchedCount = 0;
-            projects.forEach((p: any) => {
-                const income = customerIncome.get(p.Id) || 0;
-                const cost = customerCosts.get(p.Id) || 0;
-                
-                if (income > 0 || cost > 0) {
-                    p.income = income;
-                    p.cost = cost;
-                    p.profitMargin = income > 0 ? parseFloat((((income - cost) / income) * 100).toFixed(1)) : 0;
-                    matchedCount++;
-                }
-            });
-            
-            console.log(`Matched ${matchedCount} projects with financial data out of ${projects.length} total.`);
-            
-        } catch (invoiceErr) {
-            console.warn('Failed to fetch/parse financial data:', invoiceErr);
+            const data = await qboQuery(query);
+            const results = data?.QueryResponse?.[type] || [];
+            console.log(`Batch ${batchCount} fetched ${results.length} ${type} records`);
+            all.push(...results);
+            totalFetched += results.length;
+            if (results.length < limit) {
+                console.log(`Completed fetching ${type}: total batches=${batchCount}, total records=${totalFetched}`);
+                break;
+            }
+            start += limit;
+            // Safety break to prevent infinite loops (max 50,000 items)
+            if (start > 50000) {
+                console.warn(`Safety break: stopped fetching ${type} after ${totalFetched} records to prevent infinite loop`);
+                break;
+            }
+        } catch (err) {
+            console.error(`Error fetching ${type} batch ${batchCount} (start=${start}):`, err);
+            // Continue to next batch instead of failing completely
+            start += limit;
+            if (start > 50000) break;
         }
+    }
+    return all;
+}
 
-        return projects;
+export async function getProjects() {
+    try {
+        console.log('Fetching all customers/projects...');
+        const customers = await fetchAllOfType('Customer');
+        const projects = customers.filter((c: any) => c.IsProject === true || c.Job === true);
+
+        console.log(`Found ${projects.length} projects. Returning basic project data without transactions.`);
+
+        // Return projects with basic info, transactions will be fetched separately using reports
+        const finalizedProjects = projects.map(p => {
+            // Robust status mapping
+            const jobStatus = (p.JobStatus || '').toLowerCase();
+            let status = 'In progress';
+            if (!p.Active) {
+                status = 'Closed';
+            } else if (jobStatus === 'closed' || jobStatus === 'completed') {
+                status = 'Completed';
+            }
+
+            return {
+                ...p,
+                status: status,
+                income: 0, // Will be calculated from transactions
+                cost: 0,
+                transactions: [] // Will be populated separately
+            };
+        });
+
+        console.log(`Successfully fetched ${finalizedProjects.length} projects.`);
+        return finalizedProjects;
     } catch (error) {
         console.error('Error in getProjects:', error);
+        throw error;
+    }
+}
+
+export async function getSingleProject(projectId: string) {
+    try {
+        console.log(`Fetching project details for ID: ${projectId}...`);
+        
+        // 1. Fetch the Customer/Project details
+        const customerData = await qboQuery(`SELECT * FROM Customer WHERE Id = '${projectId}'`);
+        const lp = customerData?.QueryResponse?.Customer?.[0];
+        
+        if (!lp) throw new Error('Project not found in QuickBooks');
+        
+        console.log(`Syncing project: ${lp.DisplayName} (ID: ${lp.Id}, IsProject: ${lp.IsProject}, Job: ${lp.Job})`);
+
+        // 2. Fetch profitability
+        const profitability = await getProjectProfitability(projectId);
+
+        // 3. Fetch transactions using ProfitAndLossDetail report (the proven method!)
+        let transactionsData: any[] = [];
+        try {
+            const accessToken = await getAccessToken();
+            const reportUrl = `${BASE_URL}/v3/company/${QBO_REALM_ID}/reports/ProfitAndLossDetail?customer=${projectId}&date_macro=All&minorversion=70`;
+            console.log(`Fetching ProfitAndLossDetail report for customer ${projectId}...`);
+            
+            const reportResponse = await fetch(reportUrl, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json',
+                },
+            });
+            
+            if (reportResponse.ok) {
+                const reportData = await reportResponse.json();
+                
+                const parseAmount = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
+                const transactionsMap = new Map<string, any>();
+                
+                const traverseRows = (rows: any[]) => {
+                    for (const row of rows) {
+                        if (row.type === 'Data' && row.ColData) {
+                            const getValue = (idx: number) => (row.ColData[idx]?.value) || "";
+                            const getId = (idx: number) => (row.ColData[idx]?.id) || null;
+
+                            const date = getValue(0);
+                            const type = getValue(1);
+                            const txnIdRaw = getId(1);
+                            const num = getValue(2);
+                            const name = getValue(3);
+                            const memo = getValue(4);
+                            const split = getValue(5);
+                            const amountRaw = getValue(6);
+                            const amount = parseAmount(amountRaw);
+
+                            const groupKey = txnIdRaw || `${date}_${type}_${num}_${amount}`;
+
+                            if (!transactionsMap.has(groupKey)) {
+                                transactionsMap.set(groupKey, {
+                                    id: txnIdRaw || `report-${groupKey}`,
+                                    date,
+                                    type,
+                                    no: num,
+                                    from: name,
+                                    memo: "",
+                                    split: "",
+                                    amount: 0,
+                                    status: 'Cleared',
+                                    statusColor: 'emerald'
+                                });
+                            }
+
+                            const tx = transactionsMap.get(groupKey);
+                            tx.amount += amount;
+                            if (memo && memo.length > (tx.memo?.length || 0)) tx.memo = memo;
+                            if (split && split.length > (tx.split?.length || 0)) tx.split = split;
+                            if (!tx.no && num) tx.no = num;
+                            if (!tx.from && name) tx.from = name;
+                        } else if (row.Rows?.Row) {
+                            traverseRows(row.Rows.Row);
+                        }
+                    }
+                };
+
+                if (reportData.Rows?.Row) {
+                    traverseRows(reportData.Rows.Row);
+                }
+                
+                transactionsData = Array.from(transactionsMap.values());
+                console.log(`Parsed ${transactionsData.length} transactions from ProfitAndLossDetail report`);
+            } else {
+                const errorText = await reportResponse.text();
+                console.log(`ProfitAndLossDetail report failed: ${reportResponse.status}`, errorText);
+            }
+        } catch (e) {
+            console.log('Error fetching ProfitAndLossDetail report:', e);
+        }
+
+        // 4. Robust status mapping
+        const jobStatus = (lp.JobStatus || '').toLowerCase();
+        let status = 'In progress';
+        if (!lp.Active) {
+            status = 'Closed';
+        } else if (jobStatus === 'closed' || jobStatus === 'completed') {
+            status = 'Completed';
+        }
+
+        // Return in same format as getProjects items
+        return {
+            ...lp,
+            income: profitability.income,
+            cost: profitability.cost,
+            profitMargin: profitability.profitMargin,
+            status: status,
+            transactions: transactionsData.map((t: any) => ({
+                id: t.id,
+                date: t.date,
+                type: t.type,
+                no: t.no,
+                from: t.from,
+                memo: t.memo,
+                amount: t.amount,
+                status: t.status
+            }))
+        };
+    } catch (error) {
+        console.error('Error in getSingleProject:', error);
         throw error;
     }
 }
@@ -252,19 +340,30 @@ export async function getProjectTransactions(projectId: string) {
     try {
         console.log(`Fetching transactions for project/customer ID: ${projectId}...`);
         
-        // We'll query multiple transaction types that commonly affect a project
-        // Note: In a production app, we'd probably use the 'General Ledger' or 'Transaction List' report API
-        // but for a simple list, querying Invoice and Purchase is a good start.
+        // Fetch relevant transaction types
+        // Invoices and Payments can be filtered by CustomerRef directly in the query
+        const invoiceQuery = `SELECT * FROM Invoice WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`;
+        const paymentQuery = `SELECT * FROM Payment WHERE CustomerRef = '${projectId}' MAXRESULTS 1000`;
         
-        const invoiceQuery = `SELECT * FROM Invoice WHERE CustomerRef = '${projectId}' MAXRESULTS 100`;
-        const paymentQuery = `SELECT * FROM Payment WHERE CustomerRef = '${projectId}' MAXRESULTS 100`;
-        const billQuery = `SELECT * FROM Bill MAXRESULTS 50`; // Limit to latest bills and filter in memory
-        
-        const [invoicesData, paymentsData, billsData] = await Promise.all([
+        // Fetch all potential cost-carrying transaction types
+        const [invoicesData, paymentsData, purchasesData, billsData, journalsData, vendorCreditsData, ccCreditsData] = await Promise.all([
             qboQuery(invoiceQuery).catch(() => ({ QueryResponse: {} })),
             qboQuery(paymentQuery).catch(() => ({ QueryResponse: {} })),
-            qboQuery(billQuery).catch(() => ({ QueryResponse: {} }))
+            fetchAllOfType('Purchase').catch(() => []), 
+            fetchAllOfType('Bill').catch(() => []),
+            fetchAllOfType('JournalEntry').catch(() => []),
+            fetchAllOfType('VendorCredit').catch(() => []),
+            fetchAllOfType('CreditCardCredit').catch(() => [])
         ]);
+
+        // Helper to check if a line is linked to the project
+        const isLineLinked = (line: any) => {
+            return line.AccountBasedExpenseLineDetail?.CustomerRef?.value === projectId ||
+                   line.ItemBasedExpenseLineDetail?.CustomerRef?.value === projectId ||
+                   line.DescriptionLineDetail?.CustomerRef?.value === projectId ||
+                   line.JournalEntryLineDetail?.Entity?.EntityRef?.value === projectId ||
+                   line.CustomerRef?.value === projectId; // Some types have it directly on the line
+        };
 
         const invoices = (invoicesData?.QueryResponse?.Invoice || []).map((inv: any) => ({
             id: inv.Id,
@@ -290,22 +389,101 @@ export async function getProjectTransactions(projectId: string) {
             statusColor: 'emerald'
         }));
 
-        const bills = (billsData?.QueryResponse?.Bill || [])
-            .filter((bill: any) => bill.VendorRef?.value === projectId || bill.CustomerRef?.value === projectId)
-            .map((bill: any) => ({
-                id: bill.Id,
-                date: bill.TxnDate,
-                type: 'Bill',
-                no: bill.DocNumber || '',
-                from: bill.VendorRef?.name || '---',
-                memo: bill.PrivateNote || '',
-                amount: -bill.TotalAmt,
-                status: bill.Balance === 0 ? 'Paid' : 'Open',
-                statusColor: bill.Balance === 0 ? 'emerald' : 'amber'
-            }));
+        // Process Purchases (Expenses/Checks)
+        const purchases = (purchasesData || [])
+            .map(p => {
+                // DEBUG: Log if we find the specific transactions from the screenshot
+                if (JSON.stringify(p).includes("Jose Hernandez") || JSON.stringify(p).includes("Joseph Dziuk")) {
+                    console.log(`DEBUG: Found payroll check for ${JSON.stringify(p).includes("Jose Hernandez") ? "Jose Hernandez" : "Joseph Dziuk"}. Data:`, JSON.stringify(p).substring(0, 500));
+                }
+                return p;
+            })
+            .filter((p: any) => p.Line?.some(isLineLinked))
+            .flatMap((p: any) => {
+                return p.Line.filter(isLineLinked).map((line: any) => ({
+                    id: `${p.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
+                    date: p.TxnDate,
+                    type: (p.PaymentType === 'Check' || p.DocNumber === 'DD') ? 'Payroll Check' : 'Expense',
+                    no: p.DocNumber || p.PaymentType || '',
+                    from: p.EntityRef?.name || '---',
+                    memo: p.PrivateNote || line.Description || '',
+                    amount: (line.Amount || 0), 
+                    status: 'Cleared',
+                    statusColor: 'emerald'
+                }));
+            });
+
+        // Process CC Credits
+        const ccCredits = (ccCreditsData || [])
+            .filter((p: any) => p.Line?.some(isLineLinked))
+            .flatMap((p: any) => {
+                return p.Line.filter(isLineLinked).map((line: any) => ({
+                    id: `${p.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
+                    date: p.TxnDate,
+                    type: 'CC Credit',
+                    no: p.DocNumber || '',
+                    from: p.EntityRef?.name || '---',
+                    memo: p.PrivateNote || line.Description || '',
+                    amount: -(line.Amount || 0), // Credit reduces cost, so maybe negative?
+                    status: 'Cleared',
+                    statusColor: 'emerald'
+                }));
+            });
+
+        const bills = (billsData || [])
+            .filter((bill: any) => bill.Line?.some(isLineLinked))
+            .flatMap((bill: any) => {
+                return bill.Line.filter(isLineLinked).map((line: any) => ({
+                    id: `${bill.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
+                    date: bill.TxnDate,
+                    type: 'Bill',
+                    no: bill.DocNumber || '',
+                    from: bill.VendorRef?.name || '---',
+                    memo: bill.PrivateNote || line.Description || '',
+                    amount: (line.Amount || 0),
+                    status: bill.Balance === 0 ? 'Paid' : 'Open',
+                    statusColor: bill.Balance === 0 ? 'emerald' : 'amber'
+                }));
+            });
+
+        const vendorCredits = (vendorCreditsData || [])
+            .filter((vc: any) => vc.Line?.some(isLineLinked))
+            .flatMap((vc: any) => {
+                return vc.Line.filter(isLineLinked).map((line: any) => ({
+                    id: `${vc.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
+                    date: vc.TxnDate,
+                    type: 'Vendor Credit',
+                    no: vc.DocNumber || '',
+                    from: vc.VendorRef?.name || '---',
+                    memo: vc.PrivateNote || line.Description || '',
+                    amount: -(line.Amount || 0),
+                    status: 'Closed',
+                    statusColor: 'emerald'
+                }));
+            });
+
+        const journals = (journalsData || [])
+            .filter((j: any) => j.Line?.some(isLineLinked))
+            .flatMap((j: any) => {
+                return j.Line.filter(isLineLinked).map((line: any) => {
+                    const amount = line.Amount || 0;
+                    const isDebit = line.JournalEntryLineDetail?.PostingType === 'Debit';
+                    return {
+                        id: `${j.Id}-${line.Id || Math.random().toString(36).substr(2, 5)}`,
+                        date: j.TxnDate,
+                        type: 'Journal Entry',
+                        no: j.DocNumber || '',
+                        from: line.JournalEntryLineDetail?.Entity?.EntityRef?.name || '---',
+                        memo: j.PrivateNote || line.Description || '',
+                        amount: amount, // Positive for both debit and credit? UI just shows them.
+                        status: 'Cleared',
+                        statusColor: 'emerald'
+                    };
+                });
+            });
 
         // Combine and sort by date descending
-        const allTransactions = [...invoices, ...payments, ...bills].sort((a, b) => 
+        const allTransactions = [...invoices, ...payments, ...purchases, ...ccCredits, ...bills, ...vendorCredits, ...journals].sort((a, b) => 
             new Date(b.date).getTime() - new Date(a.date).getTime()
         );
 

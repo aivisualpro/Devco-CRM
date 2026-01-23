@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { Loading } from '@/components/ui/Loading';
 import { DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, Calendar, User, Search, Filter, Star, MoreVertical, Settings, Printer, Share2, ChevronDown, Clock, Rocket } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 
 interface Project {
     Id: string;
@@ -40,6 +41,7 @@ export default function QuickBooksPage() {
     const [loadingProfitability, setLoadingProfitability] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
+    const [syncingProjectId, setSyncingProjectId] = useState<string | null>(null);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [projectStatusFilter, setProjectStatusFilter] = useState('In progress');
     const [customerFilter, setCustomerFilter] = useState('');
@@ -63,6 +65,18 @@ export default function QuickBooksPage() {
         else setLoading(true);
         
         try {
+            // If refreshing, trigger the actual sync first
+            if (isRefresh) {
+                const syncResponse = await fetch('/api/quickbooks/sync', { method: 'POST' });
+                const syncData = await syncResponse.json();
+                if (!syncData.success) {
+                    toast.error(syncData.error || 'Sync failed');
+                    // Continue to fetch at least what we have in DB
+                } else {
+                    toast.success(syncData.message);
+                }
+            }
+
             const response = await fetch('/api/quickbooks/projects');
             const data = await response.json();
             
@@ -133,6 +147,42 @@ export default function QuickBooksPage() {
         }
     };
 
+    const syncIndividualProject = async (projectId: string) => {
+        setSyncingProjectId(projectId);
+        try {
+            const response = await fetch('/api/quickbooks/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ projectId })
+            });
+            const data = await response.json();
+            if (data.success) {
+                toast.success(`Project ${projectId} synced successfully`);
+                // Update the project in the local list
+                const projectResponse = await fetch('/api/quickbooks/projects');
+                const projectData = await projectResponse.json();
+                if (!projectData.error) {
+                    const updatedProject = projectData.find((p: any) => p.projectId === projectId);
+                    if (updatedProject) {
+                        setProjects(prev => prev.map(p => p.Id === projectId ? {
+                            ...p,
+                            income: updatedProject.income || 0,
+                            cost: updatedProject.cost || 0,
+                            profitMargin: updatedProject.profitMargin || 0
+                        } : p));
+                    }
+                }
+            } else {
+                toast.error(data.error || 'Sync failed');
+            }
+        } catch (error) {
+            console.error('Error syncing project:', error);
+            toast.error('Sync failed');
+        } finally {
+            setSyncingProjectId(null);
+        }
+    };
+
     useEffect(() => {
         fetchProjects();
     }, []);
@@ -190,6 +240,10 @@ export default function QuickBooksPage() {
         
         return matchesSearch && matchesCustomer && matchesDateRange;
     });
+
+    const totalIncome = filteredProjects.reduce((acc, p) => acc + (p.income || 0), 0);
+    const totalCost = filteredProjects.reduce((acc, p) => acc + (p.cost || 0), 0);
+    const totalProfit = totalIncome - totalCost;
 
     const openInvoicesTotal = transactions
         .filter(tx => tx.type === 'Invoice' && (tx.status === 'Open' || tx.status === 'Overdue'))
@@ -260,43 +314,79 @@ export default function QuickBooksPage() {
                             <div className="space-y-6 animate-fade-in">
                                 {/* Navigation & Sync row for Overview */}
                                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-                                    <div className="flex flex-wrap items-end gap-4">
-                                        <div className="space-y-1.5 min-w-[140px]">
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">View</label>
-                                            <div className="relative group">
-                                                <select 
-                                                    value={activeTab}
-                                                    onChange={(e) => setActiveTab(e.target.value)}
-                                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
-                                                >
-                                                    <option value="overview">Overview</option>
-                                                    <option value="projects">Projects</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                            </div>
-                                        </div>
+                                    <div className="flex items-center gap-6">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <button className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all shadow-sm">
+                                                    <Filter className="w-3.5 h-3.5" />
+                                                    Filters
+                                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                                </button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-80 p-6 space-y-6" align="start">
+                                                <div className="space-y-4">
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">View</label>
+                                                        <div className="relative group">
+                                                            <select 
+                                                                value={activeTab}
+                                                                onChange={(e) => setActiveTab(e.target.value)}
+                                                                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                            >
+                                                                <option value="overview">Overview</option>
+                                                                <option value="projects">Projects</option>
+                                                            </select>
+                                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                        </div>
+                                                    </div>
 
-                                        <div className="space-y-1.5 min-w-[140px]">
-                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
-                                            <div className="relative group">
-                                                <select 
-                                                    value={dateRangeFilter}
-                                                    onChange={(e) => setDateRangeFilter(e.target.value)}
-                                                    className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
-                                                >
-                                                    <option value="all">All Time</option>
-                                                    <option value="this_month">This Month</option>
-                                                    <option value="this_year">This Year</option>
-                                                    <option value="last_year">Last Year</option>
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                    <div className="space-y-1.5">
+                                                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
+                                                        <div className="relative group">
+                                                            <select 
+                                                                value={dateRangeFilter}
+                                                                onChange={(e) => setDateRangeFilter(e.target.value)}
+                                                                className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                            >
+                                                                <option value="all">All Time</option>
+                                                                <option value="this_month">This Month</option>
+                                                                <option value="this_year">This Year</option>
+                                                                <option value="last_year">Last Year</option>
+                                                            </select>
+                                                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        <div className="h-10 w-[1px] bg-slate-100 hidden md:block"></div>
+
+                                        <div className="hidden md:flex items-center gap-8">
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Income</span>
+                                                <span className="text-sm font-black text-emerald-600">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalIncome)}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Cost</span>
+                                                <span className="text-sm font-black text-amber-600">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalCost)}
+                                                </span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Profit</span>
+                                                <span className="text-sm font-black text-[#0F4C75]">
+                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalProfit)}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
                                     <button 
                                         onClick={() => fetchProjects(true)}
                                         disabled={refreshing || loading}
-                                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
                                     >
                                         <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                                         Sync Data
@@ -680,89 +770,123 @@ export default function QuickBooksPage() {
                                     <div className="flex-1 flex flex-col min-h-0">
                                         {/* Filters Header */}
                                         <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-                                            <div className="flex flex-wrap items-end gap-3 overflow-x-auto pb-1">
-                                                <div className="space-y-1 min-w-[120px]">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">View</label>
-                                                    <div className="relative group">
-                                                        <select 
-                                                            value={activeTab}
-                                                            onChange={(e) => setActiveTab(e.target.value)}
-                                                            className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
-                                                        >
-                                                            <option value="overview">Overview</option>
-                                                            <option value="projects">Projects</option>
-                                                        </select>
-                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                                    </div>
-                                                </div>
+                                            <div className="flex items-center gap-6">
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all shadow-sm">
+                                                            <Filter className="w-3.5 h-3.5" />
+                                                            Filters
+                                                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                                        </button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-80 p-6 space-y-6" align="start">
+                                                        <div className="space-y-4">
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">View</label>
+                                                                <div className="relative group">
+                                                                    <select 
+                                                                        value={activeTab}
+                                                                        onChange={(e) => setActiveTab(e.target.value)}
+                                                                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                                    >
+                                                                        <option value="overview">Overview</option>
+                                                                        <option value="projects">Projects</option>
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                                </div>
+                                                            </div>
 
-                                                <div className="space-y-1 min-w-[150px]">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
-                                                    <div className="relative group">
-                                                        <select 
-                                                            value={projectStatusFilter}
-                                                            onChange={(e) => setProjectStatusFilter(e.target.value)}
-                                                            className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
-                                                        >
-                                                            <option>All statuses</option>
-                                                            <option>In progress</option>
-                                                            <option>Completed</option>
-                                                            <option>Cancelled</option>
-                                                        </select>
-                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                                    </div>
-                                                </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</label>
+                                                                <div className="relative group">
+                                                                    <select 
+                                                                        value={projectStatusFilter}
+                                                                        onChange={(e) => setProjectStatusFilter(e.target.value)}
+                                                                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                                    >
+                                                                        <option>All statuses</option>
+                                                                        <option>In progress</option>
+                                                                        <option>Completed</option>
+                                                                        <option>Cancelled</option>
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                                </div>
+                                                            </div>
 
-                                                <div className="space-y-1 min-w-[180px]">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer</label>
-                                                    <div className="relative group">
-                                                        <input 
-                                                            placeholder="Search customer" 
-                                                            value={customerFilter}
-                                                            onChange={(e) => setCustomerFilter(e.target.value)}
-                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75]" 
-                                                        />
-                                                    </div>
-                                                </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer</label>
+                                                                <input 
+                                                                    placeholder="Search customer" 
+                                                                    value={customerFilter}
+                                                                    onChange={(e) => setCustomerFilter(e.target.value)}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75]" 
+                                                                />
+                                                            </div>
 
-                                                <div className="space-y-1 min-w-[180px]">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Based on</label>
-                                                    <div className="relative group">
-                                                        <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer">
-                                                            <option>Payroll Expenses</option>
-                                                            <option>Total Expenses</option>
-                                                        </select>
-                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                                    </div>
-                                                </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Based on</label>
+                                                                <div className="relative group">
+                                                                    <select className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer">
+                                                                        <option>Payroll Expenses</option>
+                                                                        <option>Total Expenses</option>
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                                </div>
+                                                            </div>
 
-                                                <div className="space-y-1 min-w-[140px]">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
-                                                    <div className="relative group">
-                                                        <select 
-                                                            value={dateRangeFilter}
-                                                            onChange={(e) => setDateRangeFilter(e.target.value)}
-                                                            className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
-                                                        >
-                                                            <option value="all">All Time</option>
-                                                            <option value="this_month">This Month</option>
-                                                            <option value="this_year">This Year</option>
-                                                            <option value="last_year">Last Year</option>
-                                                        </select>
-                                                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                                                    </div>
-                                                </div>
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date Range</label>
+                                                                <div className="relative group">
+                                                                    <select 
+                                                                        value={dateRangeFilter}
+                                                                        onChange={(e) => setDateRangeFilter(e.target.value)}
+                                                                        className="w-full appearance-none bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer"
+                                                                    >
+                                                                        <option value="all">All Time</option>
+                                                                        <option value="this_month">This Month</option>
+                                                                        <option value="this_year">This Year</option>
+                                                                        <option value="last_year">Last Year</option>
+                                                                    </select>
+                                                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                                                </div>
+                                                            </div>
 
-                                                <div className="space-y-1 min-w-[200px]">
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
-                                                    <div className="relative group">
-                                                        <input 
-                                                            type="text" 
-                                                            placeholder="Project name..." 
-                                                            value={searchQuery}
-                                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75]" 
-                                                        />
+                                                            <div className="space-y-1.5">
+                                                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Search</label>
+                                                                <div className="relative group">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Project name..." 
+                                                                        value={searchQuery}
+                                                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75]" 
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+
+                                                <div className="h-10 w-[1px] bg-slate-100 hidden md:block"></div>
+
+                                                <div className="hidden md:flex items-center gap-8">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Income</span>
+                                                        <span className="text-sm font-black text-emerald-600">
+                                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalIncome)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Cost</span>
+                                                        <span className="text-sm font-black text-amber-600">
+                                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalCost)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Profit</span>
+                                                        <span className="text-sm font-black text-[#0F4C75]">
+                                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(totalProfit)}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -770,7 +894,7 @@ export default function QuickBooksPage() {
                                             <button 
                                                 onClick={() => fetchProjects(true)}
                                                 disabled={refreshing || loading}
-                                                className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50 ml-4"
+                                                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
                                             >
                                                 <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                                                 Sync Data
@@ -792,12 +916,13 @@ export default function QuickBooksPage() {
                                                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Start Date</th>
                                                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">End Date</th>
                                                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Status</th>
+                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Sync</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-50">
                                                         {loading ? (
                                                             <tr>
-                                                                <td colSpan={9} className="p-12 text-center">
+                                                                <td colSpan={10} className="p-12 text-center">
                                                                     <div className="flex flex-col items-center gap-2">
                                                                         <Rocket className="w-8 h-8 text-[#0F4C75] animate-bounce" style={{ animationDuration: '0.5s' }} />
                                                                         <span className="text-slate-400 font-bold">Loading your projects...</span>
@@ -872,11 +997,24 @@ export default function QuickBooksPage() {
                                                                             In progress
                                                                         </div>
                                                                     </td>
+                                                                    <td className="p-3 text-center">
+                                                                        <button 
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                syncIndividualProject(project.Id);
+                                                                            }}
+                                                                            disabled={syncingProjectId === project.Id}
+                                                                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-[#0F4C75] transition-all disabled:opacity-50"
+                                                                            title="Sync this project"
+                                                                        >
+                                                                            <RefreshCw className={`w-3.5 h-3.5 ${syncingProjectId === project.Id ? 'animate-spin' : ''}`} />
+                                                                        </button>
+                                                                    </td>
                                                                 </tr>
                                                             ))
                                                         ) : (
                                                             <tr>
-                                                                <td colSpan={9} className="p-20 text-center">
+                                                                <td colSpan={10} className="p-20 text-center">
                                                                     <div className="flex flex-col items-center gap-2">
                                                                         <Briefcase size={48} className="text-slate-200" />
                                                                         <span className="text-slate-400 font-bold">No projects found.</span>
