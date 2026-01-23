@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -390,6 +390,24 @@ export default function ImportsPage() {
         reader.readAsText(file);
     };
 
+    const handleSyncQuickBooks = async () => {
+        setIsImporting(true);
+        try {
+            const syncResponse = await fetch('/api/quickbooks/sync', { method: 'POST' });
+            const syncData = await syncResponse.json();
+            if (!syncData.success) {
+                toastError(syncData.error || 'Sync failed');
+            } else {
+                success(syncData.message || 'QuickBooks data synced successfully');
+            }
+        } catch (err: any) {
+            console.error(err);
+            toastError(err.message || 'Error syncing with QuickBooks');
+        } finally {
+            setIsImporting(false);
+        }
+    };
+
     const ImportCard = ({ title, icon: Icon, onClick, description, color }: any) => (
         <div 
             onClick={onClick}
@@ -474,6 +492,14 @@ export default function ImportsPage() {
                         color="bg-violet-600"
                         description="Restore signatures for Daily Job Tickets"
                         onClick={() => djtSignatureInputRef.current?.click()}
+                    />
+
+                    <ImportCard 
+                        title="Sync QuickBooks"
+                        icon={RefreshCw}
+                        color="bg-emerald-500"
+                        description="Fetch live project and financial data from QuickBooks"
+                        onClick={handleSyncQuickBooks}
                     />
                 </div>
 

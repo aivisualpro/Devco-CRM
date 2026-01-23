@@ -13,6 +13,283 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.78',
+        date: 'January 23, 2026',
+        time: '16:45 PKT',
+        type: 'Report Overhaul',
+        color: 'from-[#0F4C75] to-[#3282B8]',
+        highlights: [
+            'WIP Report Refactoring',
+            'Header Integrated Filters',
+            'QuickBooks Sync Tool',
+            'Consolidated Search'
+        ],
+        changes: [
+            {
+                category: 'Report Management (Jan 23)',
+                items: [
+                    "WIP Report UI: Complete refactor of the Work in Progress report with a cleaner, data-first layout.",
+                    "Header Filters: Moved WIP/QuickBooks toggle and Date Range selection to the global header for faster access.",
+                    "Shrunk Search: Integrated a space-efficient project search widget directly into the navigation bar.",
+                    "Sync Migration: Relocated the 'Sync QuickBooks' button to the Imports page as a premium data tool."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.77',
+        date: 'January 22, 2026',
+        time: '10:00 PKT',
+        type: 'Data Infrastructure',
+        color: 'from-emerald-600 to-teal-700',
+        highlights: [
+            'Import Engine Upgrade',
+            'Memory Optimization',
+            'Large CSV Support',
+            'Schema Validation'
+        ],
+        changes: [
+            {
+                category: 'Data Management (Jan 22)',
+                items: [
+                    "CSV Parser: Enhanced FSM logic to support massive datasets without browser lag.",
+                    "Error Handling: Improved validation feedback during bulk imports for Schedules and Time Cards.",
+                    "Streaming Imports: Implemented background processing for larger file uploads."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.76',
+        date: 'January 21, 2026',
+        time: '14:30 PKT',
+        type: 'System Performance',
+        color: 'from-violet-600 to-purple-700',
+        highlights: [
+            'Query Optimization',
+            'Widget Lazy Loading',
+            'Redis Caching',
+            'Dashboard Speed'
+        ],
+        changes: [
+            {
+                category: 'Core Optimization (Jan 21)',
+                items: [
+                    "Dashboard Load: Reduced initial bundle size by 15% through smart component lazy loading.",
+                    "MongoDB Aggregations: Refined financial report queries for near-instant response times.",
+                    "API Throttling: Implemented rate-limiting for stable sync operations."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.75',
+        date: 'January 20, 2026',
+        time: '11:15 PKT',
+        type: 'CRM Enhancements',
+        color: 'from-cyan-600 to-blue-700',
+        highlights: [
+            'Client Activity Timeline',
+            'Contact Role Mapping',
+            'Smart Search 2.0',
+            'Lead Scoring'
+        ],
+        changes: [
+            {
+                category: 'CRM Module (Jan 20)',
+                items: [
+                    "Activity Tracking: Added a real-time timeline of client interactions and project status changes.",
+                    "Role Mapping: Enhanced contact records with specialized roles (Accounting, Site Super, etc.).",
+                    "Global Search: Upgraded search results to prioritize most relevant client records."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.74',
+        date: 'January 19, 2026',
+        time: '09:00 PKT',
+        type: 'Document Control',
+        color: 'from-rose-600 to-pink-700',
+        highlights: [
+            'R2 Folder Support',
+            'Bulk File Actions',
+            'PDF Compression',
+            'Secure Links'
+        ],
+        changes: [
+            {
+                category: 'Document Management (Jan 19)',
+                items: [
+                    "Cloudflare R2: Added support for virtual folder structures in the document gallery.",
+                    "Bulk Select: Enabled batch download and move operations for project files.",
+                    "Compression: Integrated client-side PDF optimization to save storage space."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.73',
+        date: 'January 18, 2026',
+        time: '17:45 PKT',
+        type: 'Notifications',
+        color: 'from-amber-600 to-orange-700',
+        highlights: [
+            'Status Alerts',
+            'Email Integration',
+            'In-App Badges',
+            'Custom Triggers'
+        ],
+        changes: [
+            {
+                category: 'Communication (Jan 18)',
+                items: [
+                    "Status Notifications: Automatically notify project managers when estimates are approved.",
+                    "Email Templates: Standardized the brand aesthetic for all system-generated emails.",
+                    "Real-time Alerts: Integrated Socket.io for instant head-up notifications."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.72',
+        date: 'January 17, 2026',
+        time: '12:00 PKT',
+        type: 'UI/UX Polish',
+        color: 'from-slate-600 to-slate-800',
+        highlights: [
+            'Mobile Navigation',
+            'Sidebar Transitions',
+            'Skeleton States',
+            'Dark Mode Tweaks'
+        ],
+        changes: [
+            {
+                category: 'User Experience (Jan 17)',
+                items: [
+                    "Mobile Nav: Overhauled the touch interface for field teams using iPads and phones.",
+                    "Smooth Transitions: Added subtle micro-animations to sidebar navigation and modal openings.",
+                    "Loading States: Implemented skeleton screens across all slow-loading tables."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.71',
+        date: 'January 16, 2026',
+        time: '10:30 PKT',
+        type: 'Proposal System',
+        color: 'from-indigo-600 to-blue-700',
+        highlights: [
+            'Variable Replacement',
+            'Template Versioning',
+            'Image Inline Support',
+            'Signature Logic'
+        ],
+        changes: [
+            {
+                category: 'Proposal Editor (Jan 16)',
+                items: [
+                    "Smart Variables: Expanded list of auto-filling tokens for Proposal contacts and dates.",
+                    "Rich Editor: Added support for inline image placement and better table formatting.",
+                    "Version Control: Proposals now save as snapshots to prevent accidental edits."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.70',
+        date: 'January 15, 2026',
+        time: '08:45 PKT',
+        type: 'Payroll & Analytics',
+        color: 'from-green-600 to-teal-700',
+        highlights: [
+            'Analytics Dashboard',
+            'DT/OT Heatmaps',
+            'Fringe Analysis',
+            'Export PDF'
+        ],
+        changes: [
+            {
+                category: 'Payroll Module (Jan 15)',
+                items: [
+                    "Heatmap: Added visual charts for daily labor distribution and overtime spikes.",
+                    "Audit Trail: Detailed logging of rate changes in the payroll summary report.",
+                    "PDF Export: Clean, one-click payroll exports for accounting departments."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.69',
+        date: 'January 14, 2026',
+        time: '15:20 PKT',
+        type: 'Job Management',
+        color: 'from-sky-600 to-indigo-700',
+        highlights: [
+            'Schedule Drag & Drop',
+            'Team Assignment',
+            'Capacity Checks',
+            'Map Integration'
+        ],
+        changes: [
+            {
+                category: 'Jobs Module (Jan 14)',
+                items: [
+                    "Interactive Schedule: Drag cards between team members for quick re-assignment.",
+                    "Capacity Logic: System warns when members are double-booked on same-day shifts.",
+                    "Route Preview: Integrated Google Maps for quick job site location verification."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.68',
+        date: 'January 13, 2026',
+        time: '11:00 PKT',
+        type: 'Security & Auth',
+        color: 'from-red-600 to-rose-700',
+        highlights: [
+            'Session Refresh',
+            'Device Logging',
+            'Password Policy',
+            'Role Inheritance'
+        ],
+        changes: [
+            {
+                category: 'System Security (Jan 13)',
+                items: [
+                    "Stable Sessions: Fixed issues with premature logout on mobile browsers.",
+                    "Access Logs: Improved visibility of user activity for system administrators.",
+                    "Inheritance: Simplified role management with hierarchical permission levels."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.67',
+        date: 'January 12, 2026',
+        time: '09:00 PKT',
+        type: 'Brand Consistency',
+        color: 'from-blue-700 to-indigo-900',
+        highlights: [
+            'Asset Standardization',
+            'Brand Shadows',
+            'Icon Library 2.0',
+            'Typography Polish'
+        ],
+        changes: [
+            {
+                category: 'Design Systems (Jan 12)',
+                items: [
+                    "Standard Shadows: Applied a unified elevation system for all UI cards and modals.",
+                    "Iconography: Migrated to Lucide React v0.4xx for consistent line weights.",
+                    "Font Pairs: Refined the Audiowide/Inter pairing for a more high-tech aesthetic."
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.66',
         date: 'January 11, 2026',
         time: '07:45 PKT',
@@ -644,7 +921,7 @@ export default function KnowledgebasePage() {
                         <div className="grid grid-cols-12 gap-4">
                             {/* Version Sidebar */}
                             <div className="col-span-12 lg:col-span-3">
-                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sticky top-24">
+                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sticky top-24 max-h-[calc(100vh-120px)] overflow-y-auto custom-scrollbar">
                                     <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Versions</h3>
                                     <div className="space-y-2">
                                         {changelog.map((entry) => (

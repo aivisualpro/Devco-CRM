@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 
 interface SubItem {
@@ -20,7 +20,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/wip', '/roles', '/constants', '/chat', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/wip', '/roles', '/constants', '/chat', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -67,7 +67,7 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Payroll', href: '/reports/payroll', icon: <DollarSign className="w-5 h-5" />, description: 'Employee payroll summary', colorClass: 'text-green-600' },
             { label: 'Work Comp', href: '/reports/work-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
-            { label: 'Work in Progress Report', href: '/reports/wip', icon: <DollarSign className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
+            { label: 'Work in Progress Report', href: '/reports/wip', icon: <BarChart className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
             { label: 'Fringe Benefits', href: '/reports/fringe', icon: <Settings className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },
             { label: 'Sales Performance', href: '/reports/sales', icon: <BarChart className="w-5 h-5" />, description: 'Revenue and sales metrics', colorClass: 'text-rose-600' },
         ]
@@ -78,11 +78,12 @@ const menuStructure: MenuItem[] = [
             { label: 'Constants', href: '/constants', icon: <Sliders className="w-5 h-5" />, description: 'System-wide configuration settings', colorClass: 'text-fuchsia-500' },
             { label: 'Roles & Permissions', href: '/roles', icon: <Settings className="w-5 h-5" />, description: 'Manage access control and permissions', colorClass: 'text-red-500' },
             { label: 'Imports', href: '/settings/imports', icon: <Import className="w-5 h-5" />, description: 'Bulk import data from CSV files', colorClass: 'text-blue-500' },
+            { label: 'Knowledgebase', href: '/settings/knowledgebase', icon: <BookOpen className="w-5 h-5" />, description: 'System documentation and changelog', colorClass: 'text-amber-500' },
         ]
     },
 ];
 
-const CURRENT_VERSION = 'V.0.62';
+const CURRENT_VERSION = 'V.0.78';
 
 interface HeaderProps {
     rightContent?: React.ReactNode;
@@ -90,6 +91,16 @@ interface HeaderProps {
     centerContent?: React.ReactNode;
     showDashboardActions?: boolean;
     hideLogo?: boolean;
+    wipReportFilters?: {
+        activeTab: string;
+        setActiveTab: (tab: string) => void;
+        searchQuery: string;
+        setSearchQuery: (query: string) => void;
+        dateRangeFilter: string;
+        setDateRangeFilter: (range: string) => void;
+        hasActiveFilters: boolean;
+        clearFilters: () => void;
+    };
 }
 
 interface User {
@@ -100,7 +111,7 @@ interface User {
     profilePicture?: string;
 }
 
-export function Header({ rightContent, leftContent, centerContent, showDashboardActions, hideLogo }: HeaderProps) {
+export function Header({ rightContent, leftContent, centerContent, showDashboardActions, hideLogo, wipReportFilters }: HeaderProps) {
     const router = useRouter();
     const pathname = usePathname();
     const [searchOpen, setSearchOpen] = useState(false);
@@ -279,30 +290,93 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                         {/* Right Actions - Default Header Actions */}
                         <div className="flex items-center gap-3">
+                            {wipReportFilters && (
+                                <div className="flex items-center gap-3 mr-4">
+                                    {/* Toggle WIP/QuickBooks */}
+                                    <div className="flex p-0.5 bg-slate-200/50 rounded-xl border border-slate-200/50">
+                                        <button 
+                                            onClick={() => wipReportFilters.setActiveTab('wip')}
+                                            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${wipReportFilters.activeTab === 'wip' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            WIP
+                                        </button>
+                                        <button 
+                                            onClick={() => wipReportFilters.setActiveTab('quickbooks')}
+                                            className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${wipReportFilters.activeTab === 'quickbooks' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                        >
+                                            QB
+                                        </button>
+                                    </div>
+
+                                    <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
+
+                                    {/* Date Range Select */}
+                                    <div className="relative group">
+                                        <select 
+                                            value={wipReportFilters.dateRangeFilter}
+                                            onChange={(e) => wipReportFilters.setDateRangeFilter(e.target.value)}
+                                            className="appearance-none bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 pr-7 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer min-w-[100px] shadow-sm hover:bg-slate-50 transition-all"
+                                        >
+                                            <option value="all">All Time</option>
+                                            <option value="this_month">This Month</option>
+                                            <option value="this_year">This Year</option>
+                                            <option value="last_year">Last Year</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                                    </div>
+
+                                    {/* Search Input */}
+                                    <div className="relative w-[220px]">
+                                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="Search projects..." 
+                                            value={wipReportFilters.searchQuery}
+                                            onChange={(e) => wipReportFilters.setSearchQuery(e.target.value)}
+                                            className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] shadow-sm hover:bg-slate-50 transition-all" 
+                                        />
+                                    </div>
+
+                                    {wipReportFilters.hasActiveFilters && (
+                                        <button 
+                                            onClick={wipReportFilters.clearFilters}
+                                            className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
+                                            title="Clear filters"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
                             {showDashboardActions && (
                                 <>
                                     {/* Search Button with Shortcut */}
-                                    <button
-                                        onClick={() => setSearchOpen(true)}
-                                        className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-full text-xs text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
-                                        style={{ border: searchOpen ? '1px solid #0F4C75' : '' }}
-                                    >
-                                        <Search size={18} className="shrink-0 group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
-                                        <span className="flex-1 text-left font-medium">Search...</span>
-                                        <kbd className="hidden lg:flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 border border-slate-200">
-                                            <Command size={10} />K
-                                        </kbd>
-                                    </button>
+                                    {!wipReportFilters && (
+                                        <button
+                                            onClick={() => setSearchOpen(true)}
+                                            className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-full text-xs text-slate-500 transition-all flex-1 md:w-64 shadow-sm group overflow-hidden"
+                                            style={{ border: searchOpen ? '1px solid #0F4C75' : '' }}
+                                        >
+                                            <Search size={18} className="shrink-0 group-hover:scale-110 transition-transform group-hover:text-[#0F4C75]" />
+                                            <span className="flex-1 text-left font-medium">Search...</span>
+                                            <kbd className="hidden lg:flex items-center gap-0.5 px-2 py-0.5 bg-slate-100 rounded-full text-[10px] font-bold text-slate-500 border border-slate-200">
+                                                <Command size={10} />K
+                                            </kbd>
+                                        </button>
+                                    )}
 
-                                    {/* Version Badge - Links to Knowledgebase */}
-                                    <Link
-                                        href="/knowledgebase"
-                                        className="flex items-center gap-2 px-3 py-2 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
-                                        style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
-                                    >
-                                        <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
-                                        <span className="hidden xs:inline">{CURRENT_VERSION}</span>
-                                    </Link>
+                                    {/* Version Badge - Only on Homepage/Dashboard */}
+                                    {(pathname === '/' || pathname === '/dashboard') && (
+                                        <Link
+                                            href="/settings/knowledgebase"
+                                            className="flex items-center gap-2 px-3 py-2 text-white rounded-full text-xs font-bold transition-all shadow-lg group hover:-translate-y-0.5 whitespace-nowrap"
+                                            style={{ background: 'linear-gradient(to right, #0F4C75, #3282B8)', boxShadow: '0 10px 15px -3px rgba(15, 76, 117, 0.2)' }}
+                                        >
+                                            <BookOpen size={18} className="shrink-0 group-hover:rotate-12 transition-transform" />
+                                            <span className="hidden xs:inline">{CURRENT_VERSION}</span>
+                                        </Link>
+                                    )}
                                 </>
                             )}
 
