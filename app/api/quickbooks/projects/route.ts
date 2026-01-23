@@ -11,6 +11,48 @@ export async function GET() {
         // Fetch projects from MongoDB and sort by newest first
         const projects = await DevcoQuickBooks.find({}).sort({ createdAt: -1 });
 
+        // Fetch matching estimates to get contract amounts, writers, and change orders
+        const proposalNumbers = projects.map(p => p.proposalNumber).filter((n): n is string => !!n);
+        
+        const { default: Estimate } = await import('@/lib/models/Estimate');
+        
+        const allRelatedEstimates = await Estimate.find({
+            estimate: { $in: proposalNumbers }
+        } as any, { estimate: 1, grandTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1 });
+
+        // Map proposalNumber -> { originalContract, changeOrders, writers }
+        const estimateDataMap = new Map();
+        
+        allRelatedEstimates.forEach(e => {
+            if (!e.estimate) return;
+            
+            if (!estimateDataMap.has(e.estimate)) {
+                estimateDataMap.set(e.estimate, {
+                    originalContract: 0,
+                    changeOrdersTotal: 0,
+                    proposalWriters: [] as string[],
+                    latestVersion: -1
+                });
+            }
+            
+            const data = estimateDataMap.get(e.estimate);
+            
+            if (e.isChangeOrder) {
+                data.changeOrdersTotal += (e.grandTotal || 0);
+            } else {
+                // If it's a normal estimate, we want the latest version for original contract amount and writers
+                if ((e.versionNumber || 0) > data.latestVersion) {
+                    data.originalContract = e.grandTotal || 0;
+                    data.latestVersion = e.versionNumber || 0;
+                    
+                    const writers = Array.isArray(e.proposalWriter) 
+                        ? e.proposalWriter 
+                        : e.proposalWriter ? [e.proposalWriter] : [];
+                    data.proposalWriters = writers;
+                }
+            }
+        });
+
         // Map MongoDB projects to the format expected by the UI
         const formattedProjects = projects.map(p => {
             const transactions = (p as any).transactions || [];
@@ -26,17 +68,22 @@ export async function GET() {
                 }
             });
 
+            const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;
+
             return {
                 Id: p.projectId,
                 DisplayName: p.project,
                 CompanyName: p.customer,
                 FullyQualifiedName: `${p.customer}:${p.project}`,
                 MetaData: { CreateTime: p.startDate || p.createdAt },
-                income,
-                cost,
+                income, // Revenue Earned to Date
+                cost,   // Cost of Revenue Earned
                 profitMargin: income > 0 ? Math.round(((income - cost) / income) * 100) : 0,
                 status: p.status,
                 proposalNumber: p.proposalNumber,
+                proposalWriters: estData?.proposalWriters || [],
+                originalContract: estData?.originalContract || 0,
+                changeOrders: estData?.changeOrdersTotal || 0,
                 startDate: p.startDate,
                 endDate: p.endDate,
                 Active: true,

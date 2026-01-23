@@ -24,6 +24,8 @@ export interface IEstimate extends Document {
     proposalWriter?: string | string[];
     certifiedPayroll?: string;
     prevailingWage?: boolean;
+    isChangeOrder?: boolean;
+    parentVersionId?: string;
 
     // New fields
     createdBy?: string;

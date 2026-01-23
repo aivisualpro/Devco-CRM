@@ -19,13 +19,7 @@ export async function POST(req: Request) {
 
         console.log(projectId ? `Starting QuickBooks to MongoDB sync for project ${projectId}...` : 'Starting QuickBooks to MongoDB sync for all projects...');
 
-        // Set a timeout for the operation (15 minutes for bulk, 2 minutes for single)
-        const timeoutMs = projectId ? 120000 : 900000;
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Sync operation timed out')), timeoutMs)
-        );
-
-        // 1. Fetch live project(s) from QuickBooks with timeout
+        // 1. Fetch live project(s) from QuickBooks
         let liveProjects = [];
         try {
             if (projectId) {
@@ -163,13 +157,6 @@ export async function POST(req: Request) {
                 liveProjects = processedProjects;
             }
         } catch (error: any) {
-            if (error.message === 'Sync operation timed out') {
-                console.error('QuickBooks sync timed out after', timeoutMs / 1000, 'seconds');
-                return NextResponse.json({
-                    success: false,
-                    error: `Sync operation timed out after ${timeoutMs / 1000} seconds. Try syncing individual projects instead.`
-                }, { status: 408 });
-            }
             throw error;
         }
 
@@ -197,9 +184,22 @@ export async function POST(req: Request) {
                 }))
             };
 
+            // Extract Proposal Number from project name (digits before _)
+            const projectName = lp.project || lp.DisplayName || '';
+            const proposalMatch = projectName.match(/^([^_]+)_/);
+            const extractedProposalNumber = proposalMatch ? proposalMatch[1].trim() : undefined;
+
+            const existingProject = await DevcoQuickBooks.findOne({ projectId: lp.Id });
+            
+            // Only update proposalNumber if it's a new project or current proposalNumber is empty
+            const finalUpdateData: any = { ...updateData };
+            if (extractedProposalNumber && (!existingProject || !existingProject.proposalNumber)) {
+                finalUpdateData.proposalNumber = extractedProposalNumber;
+            }
+
             const result = await DevcoQuickBooks.findOneAndUpdate(
                 { projectId: lp.Id },
-                { $set: updateData },
+                { $set: finalUpdateData },
                 { upsert: true, new: true, runValidators: true }
             );
 

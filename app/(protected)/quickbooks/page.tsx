@@ -9,6 +9,8 @@ import { Loading } from '@/components/ui/Loading';
 import { DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, Calendar, User, Search, Filter, Star, MoreVertical, Settings, Printer, Share2, ChevronDown, Clock, Rocket, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { HelpCircle } from 'lucide-react';
 
 interface Project {
     Id: string;
@@ -22,13 +24,18 @@ interface Project {
     CurrencyRef: { value: string };
     Active: boolean;
     // Enhanced fields for the UI
-    income?: number;
-    cost?: number;
+    income?: number; // Revenue Earned to Date
+    cost?: number; // Cost of Revenue Earned
     profitMargin?: number;
     timeSpent?: string;
     startDate?: string;
     endDate?: string;
     isFavorite?: boolean;
+    proposalNumber?: string;
+    proposalWriters?: string[];
+    originalContract?: number;
+    changeOrders?: number;
+    status?: string;
 }
 
 export default function QuickBooksPage() {
@@ -42,6 +49,9 @@ export default function QuickBooksPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [refreshing, setRefreshing] = useState(false);
     const [syncingProjectId, setSyncingProjectId] = useState<string | null>(null);
+    const [editingProposalId, setEditingProposalId] = useState<string | null>(null);
+    const [editingProposalValue, setEditingProposalValue] = useState('');
+    const [savingProposal, setSavingProposal] = useState(false);
     const [transactions, setTransactions] = useState<any[]>([]);
     const [projectStatusFilter, setProjectStatusFilter] = useState('In progress');
     const [customerFilter, setCustomerFilter] = useState('');
@@ -52,6 +62,10 @@ export default function QuickBooksPage() {
         }
         return 'this_year';
     });
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage] = useState(20);
+    const [employees, setEmployees] = useState<any[]>([]);
+    const [activeHighlight, setActiveHighlight] = useState<string[]>([]);
 
     const tabs = [
         { id: 'overview', label: 'Overview' },
@@ -162,13 +176,17 @@ export default function QuickBooksPage() {
                 const projectResponse = await fetch('/api/quickbooks/projects');
                 const projectData = await projectResponse.json();
                 if (!projectData.error) {
-                    const updatedProject = projectData.find((p: any) => p.projectId === projectId);
+                    const updatedProject = projectData.find((p: any) => p.Id === projectId);
                     if (updatedProject) {
                         setProjects(prev => prev.map(p => p.Id === projectId ? {
                             ...p,
                             income: updatedProject.income || 0,
                             cost: updatedProject.cost || 0,
-                            profitMargin: updatedProject.profitMargin || 0
+                            profitMargin: updatedProject.profitMargin || 0,
+                            proposalNumber: updatedProject.proposalNumber,
+                            proposalWriters: updatedProject.proposalWriters || [],
+                            originalContract: updatedProject.originalContract || 0,
+                            changeOrders: updatedProject.changeOrders || 0,
                         } : p));
                     }
                 }
@@ -183,8 +201,55 @@ export default function QuickBooksPage() {
         }
     };
 
+    const handleSaveProposal = async (projectId: string) => {
+        setSavingProposal(true);
+        try {
+            const response = await fetch(`/api/quickbooks/projects/${projectId}/proposal`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proposalNumber: editingProposalValue })
+            });
+            const data = await response.json();
+            if (data.success) {
+                // We need to re-fetch or use the returned contract info
+                // The backend now returns contractAmount (which is the originalContract)
+                setProjects(prev => prev.map(p => p.Id === projectId ? { 
+                    ...p, 
+                    proposalNumber: editingProposalValue,
+                    originalContract: data.contractAmount || 0 
+                } : p));
+                toast.success('Proposal number updated');
+                setEditingProposalId(null);
+            } else {
+                toast.error(data.error || 'Failed to update proposal number');
+            }
+        } catch (error) {
+            console.error('Error updating proposal number:', error);
+            toast.error('Failed to update proposal number');
+        } finally {
+            setSavingProposal(false);
+        }
+    };
+
+    const fetchEmployees = async () => {
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getEmployees' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setEmployees(data.result || []);
+            }
+        } catch (err) {
+            console.error('Error fetching employees:', err);
+        }
+    };
+
     useEffect(() => {
         fetchProjects();
+        fetchEmployees();
     }, []);
 
     useEffect(() => {
@@ -264,7 +329,19 @@ export default function QuickBooksPage() {
         setProjectStatusFilter('All statuses');
         setCustomerFilter('');
         setDateRangeFilter('all');
+        setCurrentPage(1);
     };
+
+    // Pagination logic
+    const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
+    const paginatedProjects = filteredProjects.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchQuery, projectStatusFilter, customerFilter, dateRangeFilter]);
 
     return (
         <div className="flex flex-col h-screen overflow-hidden">
@@ -322,7 +399,7 @@ export default function QuickBooksPage() {
                     )}
 
                     {/* Tab Content */}
-                    <div className="space-y-6">
+                    <div className="flex-1 flex flex-col min-h-0">
                         {activeTab === 'overview' && (
                             <div className="space-y-6 animate-fade-in">
                                 {/* Navigation & Sync row for Overview */}
@@ -489,7 +566,7 @@ export default function QuickBooksPage() {
                         )}
 
                         {activeTab === 'projects' && (
-                            <div className="space-y-4 animate-fade-in">
+                            <div className="flex-1 flex flex-col min-h-0 space-y-4 animate-fade-in">
                                 {selectedProject ? (
                                     /* Project Detail View */
                                     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
@@ -924,106 +1001,339 @@ export default function QuickBooksPage() {
                                         {/* Table Layout */}
                                         <div className="flex-1 min-h-0 mt-4 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                                             <div className="flex-1 overflow-y-auto">
-                                                <table className="w-full text-left border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-slate-50/50 border-b border-slate-100">
-                                                            <th className="p-3 w-8"></th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Project</th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Customer</th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Income vs. Cost</th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Profit</th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Start Date</th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Status</th>
-                                                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Sync</th>
+                                                <TooltipProvider>
+                                                <table className="w-full text-left border-collapse border border-slate-200">
+                                                    <thead className="sticky top-0 z-10 bg-white">
+                                                        <tr className="bg-slate-50/50">
+                                                            <th className="p-1.5 w-6 border border-slate-200"></th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('project') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-left">Project</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('proposal-num') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-left">Proposal #</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by our proposals estimate#</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('date') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-left">Date</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('writers') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-left">Proposal Writers</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by our proposals proposal writer</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight border border-slate-200 transition-colors ${activeHighlight.includes('client') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-left">Client</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-contract') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Original Contract</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by our proposals amount (latest version)</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('change-orders') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Change Orders</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by our proposals change orders (sum of all change orders if status is completed)</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('updated-contract') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 ml-auto"
+                                                                        onMouseEnter={() => setActiveHighlight(['orig-contract', 'change-orders'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        Updated Contract <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Calculation: Original Contract + Change Orders</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="w-full text-right"
+                                                                        onMouseEnter={() => setActiveHighlight(['orig-contract', 'change-orders'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >Original Contract Cost</TooltipTrigger>
+                                                                    <TooltipContent side="top">Original Contract + Change Orders</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Change Order Cost</TooltipTrigger>
+                                                                    <TooltipContent side="top">(will update soon)</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('total-cost') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 ml-auto"
+                                                                        onMouseEnter={() => setActiveHighlight(['orig-cost', 'co-cost'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        Total Estimated Cost <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Calculation: Original Contract Cost + Change Order Cost</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('orig-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Original Contract GP</TooltipTrigger>
+                                                                    <TooltipContent side="top">(will update soon)</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('co-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Change Order GP</TooltipTrigger>
+                                                                    <TooltipContent side="top">(will update soon)</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('est-gp') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 ml-auto"
+                                                                        onMouseEnter={() => setActiveHighlight(['updated-contract', 'total-cost'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        Estimated GP <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Calculation: Updated Contract - Total Estimated Cost</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-800 uppercase tracking-tight text-right border border-slate-200 bg-[#D8E983] transition-colors ${activeHighlight.includes('revenue') ? 'bg-[#c1d35a]' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Revenue Earned to Date</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by QuickBooks Record</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('cost-revenue') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-right">Cost of Revenue Earned</TooltipTrigger>
+                                                                    <TooltipContent side="top">Reference by QuickBooks Records sum of all invoices</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('gp-loss') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 ml-auto"
+                                                                        onMouseEnter={() => setActiveHighlight(['revenue', 'cost-revenue'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        Gross Profit (Loss) <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-[10px]">Calculation: <span className="text-emerald-400 font-bold">Revenue Earned to Date</span> - <span className="text-rose-400 font-bold">Cost of Revenue Earned</span></p>
+                                                                        </div>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('gp-pct') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 justify-center"
+                                                                        onMouseEnter={() => setActiveHighlight(['gp-loss', 'revenue'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        Gross Profit (%) <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Calculation: (Gross Profit (Loss) / Revenue Earned to Date) * 100</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('markup') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 justify-center"
+                                                                        onMouseEnter={() => setActiveHighlight(['gp-loss', 'cost-revenue'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        Gross Markup on Cost (%) <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Calculation: (Gross Profit (Loss) / Cost of Revenue Earned) * 100</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('complete') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger 
+                                                                        className="flex items-center gap-1 justify-center"
+                                                                        onMouseEnter={() => setActiveHighlight(['revenue', 'updated-contract'])}
+                                                                        onMouseLeave={() => setActiveHighlight([])}
+                                                                    >
+                                                                        % Complete <HelpCircle size={8} className="text-slate-300" />
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent side="top">
+                                                                        <p className="text-[10px] font-bold">Calculation: (Revenue Earned to Date / Updated Contract) * 100</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
+                                                            <th className={`p-1.5 text-[8px] font-black text-slate-500 uppercase tracking-tight text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? 'bg-blue-100 text-blue-800' : ''}`}>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger className="w-full text-center">Sync</TooltipTrigger>
+                                                                    <TooltipContent side="top">Press to live update the records with QuickBooks</TooltipContent>
+                                                                </Tooltip>
+                                                            </th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="divide-y divide-slate-50">
+                                                    <tbody className="divide-y divide-slate-100 border-b border-slate-200">
                                                         {loading ? (
                                                             <tr>
-                                                                <td colSpan={10} className="p-12 text-center">
+                                                                <td colSpan={22} className="p-12 text-center border border-slate-200">
                                                                     <div className="flex flex-col items-center gap-2">
                                                                         <Rocket className="w-8 h-8 text-[#0F4C75] animate-bounce" style={{ animationDuration: '0.5s' }} />
                                                                         <span className="text-slate-400 font-bold">Loading your projects...</span>
                                                                     </div>
                                                                 </td>
                                                             </tr>
-                                                        ) : filteredProjects.length > 0 ? (
-                                                            filteredProjects.map((project) => (
-                                                                <tr 
-                                                                    key={project.Id} 
-                                                                    className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                                    onClick={() => setSelectedProject(project)}
-                                                                >
-                                                                    <td className="p-3 text-center">
-                                                                        <button 
-                                                                            className={`${project.isFavorite ? 'text-amber-400' : 'text-slate-300'} hover:text-amber-400 transition-colors`}
-                                                                            onClick={(e) => { e.stopPropagation(); /* Favorite logic */ }}
-                                                                        >
-                                                                            <Star size={14} fill={project.isFavorite ? 'currentColor' : 'none'} />
-                                                                        </button>
-                                                                    </td>
-                                                                    <td className="p-3 min-w-[250px]">
-                                                                        <div className="text-[11px] font-bold text-slate-700 group-hover:text-[#0F4C75] transition-colors line-clamp-1">{project.DisplayName}</div>
-                                                                    </td>
-                                                                    <td className="p-3">
-                                                                        <div className="text-[11px] font-medium text-slate-500 line-clamp-1">{project.CompanyName || project.FullyQualifiedName.split(':')[0] || '---'}</div>
-                                                                    </td>
-                                                                    <td className="p-3 min-w-[220px]">
-                                                                        <div className="space-y-2">
-                                                                            {/* Income Bar */}
-                                                                            <div className="flex items-center gap-3">
-                                                                                 <span className="text-[10px] font-medium text-slate-500 w-10">Income</span>
-                                                                                 <div className="flex-1 h-2 bg-slate-100 rounded-sm overflow-hidden">
-                                                                                     <div className="h-full bg-[#65C466] rounded-sm" style={{ width: '100%' }}></div> 
-                                                                                 </div>
-                                                                                 <span className="text-[11px] font-medium text-slate-700 w-20 text-right">
-                                                                                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(project.income || 0)}
-                                                                                 </span>
+                                                        ) : paginatedProjects.length > 0 ? (
+                                                            paginatedProjects.map((project) => {
+                                                                const originalContract = project.originalContract || 0;
+                                                                const changeOrders = project.changeOrders || 0;
+                                                                const updatedContract = originalContract + changeOrders;
+                                                                
+                                                                const originalContractCost = 0;
+                                                                const changeOrderCost = 0;
+                                                                const totalEstimatedCost = 0;
+                                                                
+                                                                const originalContractGP = 0;
+                                                                const changeOrderGP = 0;
+                                                                const estimatedGP = updatedContract - totalEstimatedCost;
+                                                                
+                                                                const revenueToDate = project.income || 0;
+                                                                const costOfRevenue = project.cost || 0;
+                                                                const grossProfit = revenueToDate - costOfRevenue;
+                                                                const grossProfitPct = revenueToDate > 0 ? (grossProfit / revenueToDate) * 100 : 0;
+                                                                const grossMarkupPct = costOfRevenue > 0 ? (grossProfit / costOfRevenue) * 100 : 0;
+                                                                const percentageComplete = updatedContract > 0 ? (revenueToDate / updatedContract) * 100 : 0;
+
+                                                                const fmt = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
+                                                                const cellBase = "p-1.5 text-[8px] whitespace-nowrap border border-slate-200 transition-colors";
+                                                                const cellCls = `${cellBase} text-slate-800`;
+                                                                const highlightCls = "bg-blue-100/30 font-bold text-blue-900";
+
+                                                                return (
+                                                                    <tr 
+                                                                        key={project.Id} 
+                                                                        className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                                                                        onClick={() => setSelectedProject(project)}
+                                                                    >
+                                                                        <td className="p-1.5 text-center text-[8px] border border-slate-200">
+                                                                            <button 
+                                                                                className={`${project.isFavorite ? 'text-amber-400' : 'text-slate-300'} hover:text-amber-400 transition-colors`}
+                                                                                onClick={(e) => { e.stopPropagation(); }}
+                                                                            >
+                                                                                <Star size={10} fill={project.isFavorite ? 'currentColor' : 'none'} />
+                                                                            </button>
+                                                                        </td>
+                                                                        <td className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''}`}>
+                                                                            <div className="truncate text-[8px]" title={project.DisplayName}>{project.DisplayName}</div>
+                                                                        </td>
+                                                                        <td className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`} onClick={(e) => e.stopPropagation()}>
+                                                                            {editingProposalId === project.Id ? (
+                                                                                <input 
+                                                                                    type="text"
+                                                                                    value={editingProposalValue}
+                                                                                    onChange={(e) => setEditingProposalValue(e.target.value)}
+                                                                                     className="w-16 bg-slate-50 border border-slate-200 rounded px-1 py-0.5 text-[7px] outline-none shadow-sm"
+                                                                                    autoFocus
+                                                                                    onKeyDown={(e) => {
+                                                                                        if (e.key === 'Enter') handleSaveProposal(project.Id);
+                                                                                        if (e.key === 'Escape') setEditingProposalId(null);
+                                                                                    }}
+                                                                                />
+                                                                            ) : (
+                                                                                <div 
+                                                                                    className="cursor-pointer hover:underline text-[8px]"
+                                                                                    onClick={() => {
+                                                                                        setEditingProposalId(project.Id);
+                                                                                        setEditingProposalValue(project.proposalNumber || '');
+                                                                                    }}
+                                                                                >
+                                                                                    {project.proposalNumber || '---'}
+                                                                                </div>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className={`${cellCls} ${activeHighlight.includes('date') ? highlightCls : ''}`}>{project.startDate}</td>
+                                                                        <td className={`${cellCls} ${activeHighlight.includes('writers') ? highlightCls : ''}`}>
+                                                                            <div className="flex -space-x-1">
+                                                                                {(project.proposalWriters || []).slice(0, 3).map((w, idx) => {
+                                                                                    const employee = employees.find(e => 
+                                                                                        `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase()
+                                                                                    );
+                                                                                    const profilePic = employee?.profilePicture;
+                                                                                    
+                                                                                    return (
+                                                                                        <div key={idx} className="w-5 h-5 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[7px] text-white font-black shadow-sm overflow-hidden" title={w}>
+                                                                                            {profilePic ? (
+                                                                                                <img src={profilePic} alt={w} className="w-full h-full object-cover" />
+                                                                                            ) : (
+                                                                                                w.substring(0, 1).toUpperCase()
+                                                                                            )}
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                                {(project.proposalWriters || []).length > 3 && (
+                                                                                     <div className="w-5 h-5 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[7px] text-slate-600 font-bold shadow-sm">
+                                                                                        +{(project.proposalWriters || []).length - 3}
+                                                                                     </div>
+                                                                                )}
                                                                             </div>
-                                                                            {/* Cost Bar */}
-                                                                            <div className="flex items-center gap-3">
-                                                                                 <span className="text-[10px] font-medium text-slate-500 w-10">Costs</span>
-                                                                                 <div className="flex-1 h-2 bg-slate-100 rounded-sm overflow-hidden">
-                                                                                     <div 
-                                                                                         className="h-full bg-[#007da0] rounded-sm" 
-                                                                                         style={{ width: `${project.income ? Math.min(((project.cost || 0) / project.income) * 100, 100) : 0}%` }}
-                                                                                     ></div>
-                                                                                 </div>
-                                                                                 <span className="text-[11px] font-medium text-slate-700 w-20 text-right">
-                                                                                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(project.cost || 0)}
-                                                                                 </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="p-3 text-center">
-                                                                        <div className="text-[12px] font-medium text-slate-600">{project.profitMargin}%</div>
-                                                                    </td>
-                                                                    <td className="p-3">
-                                                                        <div className="text-[10px] font-bold text-slate-500">{project.startDate}</div>
-                                                                    </td>
-                                                                    <td className="p-3 text-center">
-                                                                        <div className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-100 text-emerald-800 uppercase tracking-tighter">
-                                                                            In progress
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="p-3 text-center">
-                                                                        <button 
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                syncIndividualProject(project.Id);
-                                                                            }}
-                                                                            disabled={syncingProjectId === project.Id}
-                                                                            className="p-2 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-[#0F4C75] transition-all disabled:opacity-50"
-                                                                            title="Sync this project"
-                                                                        >
-                                                                            <RefreshCw className={`w-3.5 h-3.5 ${syncingProjectId === project.Id ? 'animate-spin' : ''}`} />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))
+                                                                        </td>
+                                                                        <td className={`${cellCls} max-w-[100px] truncate ${activeHighlight.includes('client') ? highlightCls : ''}`}>{project.CompanyName || '---'}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('orig-contract') ? highlightCls : ''}`}>{fmt(originalContract)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('change-orders') ? highlightCls : ''}`}>{fmt(changeOrders)}</td>
+                                                                        <td className={`${cellCls} text-right font-bold ${activeHighlight.includes('updated-contract') ? highlightCls : ''}`}>{fmt(updatedContract)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('orig-cost') ? highlightCls : ''}`}>{fmt(originalContractCost)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('co-cost') ? highlightCls : ''}`}>{fmt(changeOrderCost)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('total-cost') ? highlightCls : ''}`}>{fmt(totalEstimatedCost)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('orig-gp') ? highlightCls : ''}`}>{fmt(originalContractGP)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('co-gp') ? highlightCls : ''}`}>{fmt(changeOrderGP)}</td>
+                                                                        <td className={`${cellCls} text-right font-bold ${activeHighlight.includes('est-gp') ? highlightCls : ''}`}>{fmt(estimatedGP)}</td>
+                                                                        <td className={`${cellBase} text-right font-black bg-[#D8E983] text-slate-900 ${activeHighlight.includes('revenue') ? 'bg-[#c1d35a]' : ''}`}>{fmt(revenueToDate)}</td>
+                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('cost-revenue') ? highlightCls : ''}`}>{fmt(costOfRevenue)}</td>
+                                                                        <td className={`${cellBase} text-right font-bold ${grossProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'} ${activeHighlight.includes('gp-loss') ? highlightCls : ''}`}>{fmt(grossProfit)}</td>
+                                                                        <td className={`${cellBase} text-center font-bold ${grossProfitPct >= 0 ? 'text-emerald-600' : 'text-rose-600'} ${activeHighlight.includes('gp-pct') ? highlightCls : ''}`}>{grossProfitPct.toFixed(1)}%</td>
+                                                                        <td className={`${cellCls} text-center ${activeHighlight.includes('markup') ? highlightCls : ''}`}>{grossMarkupPct.toFixed(1)}%</td>
+                                                                        <td className={`${cellCls} text-center ${activeHighlight.includes('complete') ? highlightCls : ''}`}>{percentageComplete.toFixed(0)}%</td>
+                                                                        <td className={`p-1.5 text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? highlightCls : ''}`}>
+                                                                            <button 
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    syncIndividualProject(project.Id);
+                                                                                }}
+                                                                                disabled={syncingProjectId === project.Id}
+                                                                                className="p-1 hover:bg-slate-100 rounded text-slate-400 disabled:opacity-50"
+                                                                            >
+                                                                                <RefreshCw className={`w-2.5 h-2.5 ${syncingProjectId === project.Id ? 'animate-spin' : ''}`} />
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })
                                                         ) : (
                                                             <tr>
-                                                                <td colSpan={8} className="p-20 text-center">
+                                                                <td colSpan={22} className="p-20 text-center">
                                                                     <div className="flex flex-col items-center gap-2">
                                                                         <Briefcase size={48} className="text-slate-200" />
                                                                         <span className="text-slate-400 font-bold">No projects found.</span>
@@ -1033,7 +1343,60 @@ export default function QuickBooksPage() {
                                                         )}
                                                     </tbody>
                                                 </table>
+                                                </TooltipProvider>
                                             </div>
+
+                                            {/* Table Pagination Footer */}
+                                            {filteredProjects.length > 0 && (
+                                                <div className="py-2 px-4 border-t border-slate-50 flex items-center justify-between bg-white">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-[10px] font-bold text-slate-500">
+                                                            Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredProjects.length)}</span> of <span className="text-slate-900">{filteredProjects.length}</span> projects
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.max(prev - 1, 1)); }}
+                                                            disabled={currentPage === 1}
+                                                            className="px-2 py-1 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            Previous
+                                                        </button>
+                                                        <div className="flex items-center gap-1">
+                                                            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                                                                let pageNum = i + 1;
+                                                                if (totalPages > 5 && currentPage > 3) {
+                                                                    pageNum = currentPage - 3 + i + 1;
+                                                                    if (pageNum > totalPages) pageNum = totalPages - (4 - i);
+                                                                }
+                                                                if (pageNum <= 0) return null;
+                                                                if (pageNum > totalPages) return null;
+
+                                                                return (
+                                                                    <button
+                                                                        key={pageNum}
+                                                                        onClick={(e) => { e.stopPropagation(); setCurrentPage(pageNum); }}
+                                                                        className={`w-6 h-6 rounded-lg text-[10px] font-bold transition-all ${
+                                                                            currentPage === pageNum 
+                                                                            ? 'bg-[#0F4C75] text-white shadow-md' 
+                                                                            : 'text-slate-500 hover:bg-slate-50'
+                                                                        }`}
+                                                                    >
+                                                                        {pageNum}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.min(prev + 1, totalPages)); }}
+                                                            disabled={currentPage === totalPages}
+                                                            className="px-2 py-1 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                                                        >
+                                                            Next
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                         </div>
                                     )}
