@@ -111,6 +111,15 @@ export default function EstimatesPage() {
     }, [constants]);
 
     const handleStatusUpdate = async (id: string, newStatus: string) => {
+        // Find original item to allow revert on failure
+        const item = estimates.find(e => e._id === id);
+        if (!item) return;
+        const originalStatus = item.status;
+
+        // 1. Optimistic UI Update
+        setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: newStatus } : e));
+        setStatusDropdownId(null); // Close dropdown immediately
+
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
@@ -126,16 +135,17 @@ export default function EstimatesPage() {
             });
             const data = await res.json();
             if (data.success) {
-                setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: newStatus } : e));
-                success('Status updated successfully');
+                success('Status updated');
             } else {
+                // Revert if backend says failure
+                setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: originalStatus } : e));
                 toastError('Failed to update status');
             }
         } catch (err) {
             console.error(err);
+            // Revert on network error
+            setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: originalStatus } : e));
             toastError('Error updating status');
-        } finally {
-            setStatusDropdownId(null);
         }
     };
 

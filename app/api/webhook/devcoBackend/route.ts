@@ -962,6 +962,11 @@ export async function POST(request: NextRequest) {
                     } catch (e) {
                          console.error('Failed to log activity:', e);
                     }
+
+                    // Sync to AppSheet if status changed
+                    if (updateData.status) {
+                        updateAppSheet(updated, null, "Edit").catch(err => console.error('Background AppSheet sync failed:', err));
+                    }
                 }
 
                 if (updated && updated.estimate) {
