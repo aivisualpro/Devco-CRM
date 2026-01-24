@@ -878,25 +878,27 @@ export default function ClientViewPage() {
                                                                 </TableCell>
                                                                 <TableCell>
                                                                     <div className="flex">
-                                                                        {est.proposalWriter ? (
-                                                                            getEmployee(est.proposalWriter)?.profilePicture ? (
+                                                                        {(() => {
+                                                                            const writers = Array.isArray(est.proposalWriter) ? est.proposalWriter : (est.proposalWriter ? [est.proposalWriter] : []);
+                                                                            if (writers.length === 0) return <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />;
+                                                                            const firstWriter = writers[0];
+                                                                            const emp = getEmployee(firstWriter);
+                                                                            return emp?.profilePicture ? (
                                                                                 <img
-                                                                                    src={getEmployee(est.proposalWriter)!.profilePicture}
-                                                                                    alt={est.proposalWriter}
+                                                                                    src={emp.profilePicture}
+                                                                                    alt={firstWriter}
                                                                                     className="w-8 h-8 rounded-full border border-gray-200 object-cover"
-                                                                                    title={est.proposalWriter}
+                                                                                    title={firstWriter}
                                                                                 />
                                                                             ) : (
                                                                                 <div
                                                                                     className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-[10px] text-gray-500 border border-gray-200"
-                                                                                    title={est.proposalWriter}
+                                                                                    title={firstWriter}
                                                                                 >
-                                                                                    {est.proposalWriter.substring(0, 2).toUpperCase()}
+                                                                                    {(firstWriter || '').substring(0, 2).toUpperCase()}
                                                                                 </div>
-                                                                            )
-                                                                        ) : (
-                                                                            <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 border-dashed" />
-                                                                        )}
+                                                                            );
+                                                                        })()}
                                                                     </div>
                                                                 </TableCell>
                                                                 <TableCell>

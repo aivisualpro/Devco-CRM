@@ -10,7 +10,8 @@ interface ConfirmModalProps {
     message: string;
     confirmText?: string;
     cancelText?: string;
-    variant?: 'danger' | 'primary';
+    variant?: 'danger' | 'primary' | 'dark';
+    icon?: React.ElementType;
 }
 
 import { AlertTriangle, Trash2, X } from 'lucide-react';
@@ -24,7 +25,8 @@ export function ConfirmModal({
     message,
     confirmText = 'Delete',
     cancelText = 'Cancel',
-    variant = 'danger'
+    variant = 'danger',
+    icon
 }: ConfirmModalProps) {
     const [isVisible, setIsVisible] = useState(false);
 
@@ -50,7 +52,8 @@ export function ConfirmModal({
     if (!isVisible && !isOpen) return null;
 
     const isDanger = variant === 'danger';
-    const Icon = isDanger ? Trash2 : AlertTriangle;
+    const isDark = variant === 'dark';
+    const Icon = icon || (isDanger ? Trash2 : AlertTriangle);
 
     return (
         <div
@@ -79,7 +82,11 @@ export function ConfirmModal({
                 {/* Content */}
                 <div className="flex flex-col items-center text-center">
                     {/* Icon Bubble */}
-                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDanger ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${isDanger 
+                        ? 'bg-red-50 text-red-600' 
+                        : isDark
+                            ? 'bg-slate-100 text-slate-800'
+                            : 'bg-amber-50 text-amber-600'
                         }`}>
                         <Icon className="w-8 h-8" strokeWidth={1.5} />
                     </div>
@@ -105,9 +112,11 @@ export function ConfirmModal({
                                 onConfirm();
                                 onClose();
                             }}
-                            className={`flex-1 px-4 py-2.5 text-white rounded-xl font-medium shadow-lg shadow-red-500/20 transition-all hover:-translate-y-0.5 focus:ring-4 ${isDanger
-                                ? 'bg-red-600 hover:bg-red-700 focus:ring-red-100'
-                                : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-100'
+                            className={`flex-1 px-4 py-2.5 text-white rounded-xl font-medium transition-all hover:-translate-y-0.5 focus:ring-4 ${isDanger
+                                ? 'bg-red-600 hover:bg-red-700 focus:ring-red-100 shadow-lg shadow-red-500/20'
+                                : isDark
+                                    ? 'bg-black hover:bg-slate-800 focus:ring-slate-100 shadow-lg shadow-slate-500/20'
+                                    : 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-100 shadow-lg shadow-indigo-500/20'
                                 }`}
                         >
                             {confirmText}

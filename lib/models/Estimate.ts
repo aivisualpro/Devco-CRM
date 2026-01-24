@@ -30,6 +30,10 @@ export interface IEstimate extends Document {
     // New fields
     createdBy?: string;
     customerJobNumber?: string;
+    customerPONumber?: string;
+    workRequestNumber?: string;
+    subContractAgreementNumber?: string;
+    dirNumber?: string;
     accountingContact?: string;
     accountingEmail?: string;
     accountingPhone?: string; // Added field
@@ -132,6 +136,10 @@ const EstimateSchema = new Schema({
     // New fields
     createdBy: { type: String },
     customerJobNumber: { type: String },
+    customerPONumber: { type: String },
+    workRequestNumber: { type: String },
+    subContractAgreementNumber: { type: String },
+    dirNumber: { type: String },
     accountingContact: { type: String },
     accountingEmail: { type: String },
     accountingPhone: { type: String },

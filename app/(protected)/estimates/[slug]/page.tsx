@@ -246,6 +246,11 @@ export default function EstimateViewPage() {
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
     
+    // Confirmation States
+    const [cloneConfirmOpen, setCloneConfirmOpen] = useState<{ id?: string } | null>(null);
+    const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
+    const [changeOrderConfirmOpen, setChangeOrderConfirmOpen] = useState<{ id: string } | null>(null);
+    
     // Visibility State
     const [visibleSections, setVisibleSections] = useState({
         estimateDocs: false,
@@ -786,27 +791,19 @@ export default function EstimateViewPage() {
                     }
                     setContactOptions(contacts.sort((a: any, b: any) => a.label.localeCompare(b.label)));
 
-                    // Update Addresses
-                    const addresses = [...(client.addresses || []), ...(client.address || [])].map((a: any) => {
-                        const addrStr = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street || JSON.stringify(a));
-                        return {
-                            id: addrStr,
-                            label: addrStr,
-                            value: addrStr
-                        };
-                    });
+                    // Update Addresses - Exclude Primary/Business addresses
+                    const addresses = [...(client.addresses || []), ...(client.address || [])]
+                        .filter((a: any) => typeof a === 'object' ? !a.primary : true) // Filter out primary if object
+                        .map((a: any) => {
+                            const addrStr = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street || JSON.stringify(a));
+                            return {
+                                id: addrStr,
+                                label: addrStr,
+                                value: addrStr
+                            };
+                        })
+                        .filter(a => a.value !== client.businessAddress); // Also filter out business address string match
                     
-                    if (client.businessAddress && !addresses.find(a => a.value === client.businessAddress)) {
-                        const bAddr = typeof client.businessAddress === 'string' 
-                            ? client.businessAddress 
-                            : (client.businessAddress.fullAddress || client.businessAddress.address || client.businessAddress.street || JSON.stringify(client.businessAddress));
-                            
-                        addresses.unshift({
-                            id: bAddr,
-                            label: bAddr,
-                            value: bAddr
-                        });
-                    }
                     setAddressOptions(addresses.sort((a: any, b: any) => a.label.localeCompare(b.label)));
                 }
             } catch (err) {
@@ -1290,10 +1287,23 @@ export default function EstimateViewPage() {
                     
                     const primaryContact = (client.contacts || []).find((c: any) => c.primary) || client.contacts?.[0] || { name: client.contactFullName, email: client.email, phone: client.phone };
 
+                    // Find the first non-primary address to use as default Job Address
+                    const allAddresses = [...(client.addresses || []), ...(client.address || [])];
+                    const firstJobSite = allAddresses.find((a: any) => {
+                        const isPrimary = typeof a === 'object' && a.primary;
+                        const addrStr = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street);
+                        const isBusiness = addrStr === client.businessAddress;
+                        return !isPrimary && !isBusiness && !!addrStr;
+                    });
+                    
+                    const defaultJobAddress = firstJobSite 
+                        ? (typeof firstJobSite === 'string' ? firstJobSite : (firstJobSite.fullAddress || firstJobSite.address || firstJobSite.street))
+                        : '';
+
                     setFormData(prev => prev ? {
                         ...prev,
-                        jobAddress: primaryAddress,
-                        contactAddress: primaryAddress,
+                        jobAddress: defaultJobAddress,
+                        contactAddress: defaultJobAddress,
                         contactName: primaryContact.name || '',
                         contactId: primaryContact.name || '',
                         contactEmail: primaryContact.email || '',
@@ -1520,7 +1530,14 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleClone = async (id?: string) => {
+    const handleClone = (id?: string) => {
+        setCloneConfirmOpen({ id });
+    };
+
+    const confirmClone = async () => {
+        if (!cloneConfirmOpen) return;
+        const id = cloneConfirmOpen.id;
+        setCloneConfirmOpen(null);
         setLoading(true);
         try {
             const result = await apiCall('cloneEstimate', { id: id || estimate?._id });
@@ -1539,7 +1556,14 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleAddChangeOrder = async (id: string) => {
+    const handleAddChangeOrder = (id: string) => {
+        setChangeOrderConfirmOpen({ id });
+    };
+
+    const confirmAddChangeOrder = async () => {
+        if (!changeOrderConfirmOpen) return;
+        const id = changeOrderConfirmOpen.id;
+        setChangeOrderConfirmOpen(null);
         setLoading(true);
         try {
             const result = await apiCall('createChangeOrder', { id });
@@ -1558,7 +1582,12 @@ export default function EstimateViewPage() {
         }
     };
 
-    const handleCopy = async () => {
+    const handleCopy = () => {
+        setCopyConfirmOpen(true);
+    };
+
+    const confirmCopy = async () => {
+        setCopyConfirmOpen(false);
         setLoading(true);
         try {
             const result = await apiCall('copyEstimate', { id: estimate?._id });
@@ -1740,10 +1769,34 @@ export default function EstimateViewPage() {
     const handleUpdateClientAddresses = async (updatedAddresses: string[]) => {
         if (!formData?.customerId) return;
         try {
-            const res = await apiCall('updateClient', { id: formData.customerId, item: { addresses: updatedAddresses } });
+            // Fetch current client to preserve primary address
+            const detailRes = await apiCall('getClientById', { id: formData.customerId });
+            if (!detailRes.success || !detailRes.result) return;
+            
+            const client = detailRes.result;
+            const existingAddresses = client.addresses || [];
+            
+            // Re-integrate the primary address object if it was filtered out in the UI
+            const primaryAddr = existingAddresses.find((a: any) => typeof a === 'object' && a.primary);
+            
+            let finalAddresses = [...updatedAddresses];
+            if (primaryAddr) {
+                const primaryStr = primaryAddr.fullAddress || primaryAddr.address || primaryAddr.street || '';
+                // If the primary address isn't in the list (as a string or object), re-add it
+                const alreadyIncluded = finalAddresses.some((a: any) => {
+                    const s = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street);
+                    return s === primaryStr;
+                });
+                
+                if (!alreadyIncluded && primaryStr) {
+                    finalAddresses = [primaryAddr, ...finalAddresses];
+                }
+            }
+
+            const res = await apiCall('updateClient', { id: formData.customerId, item: { addresses: finalAddresses } });
             if (res.success) {
                 success('Client addresses updated');
-                setAddressOptions(updatedAddresses.map(a => ({ id: a, label: a, value: a })));
+                // The syncClientOptions effect will automatically handle the filtering and re-setting of addressOptions
             }
         } catch (e) { console.error(e); }
     };
@@ -2128,6 +2181,42 @@ export default function EstimateViewPage() {
                 title="Delete Version"
                 message={`Are you sure you want to delete Version ${versionToDelete?.number}? This action cannot be undone.`}
                 confirmText="Delete Version"
+            />
+
+            {/* Clone Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!cloneConfirmOpen}
+                onClose={() => setCloneConfirmOpen(null)}
+                onConfirm={confirmClone}
+                title="Clone Estimate"
+                message="Are you sure you want to clone this estimate version?"
+                confirmText="Clone Version"
+                variant="dark"
+                icon={Copy}
+            />
+
+            {/* Copy Confirmation Modal */}
+            <ConfirmModal
+                isOpen={copyConfirmOpen}
+                onClose={() => setCopyConfirmOpen(false)}
+                onConfirm={confirmCopy}
+                title="Copy Estimate"
+                message="Are you sure you want to copy this estimate to a new project?"
+                confirmText="Copy Estimate"
+                variant="dark"
+                icon={Copy}
+            />
+
+            {/* Change Order Confirmation Modal */}
+            <ConfirmModal
+                isOpen={!!changeOrderConfirmOpen}
+                onClose={() => setChangeOrderConfirmOpen(null)}
+                onConfirm={confirmAddChangeOrder}
+                title="Create Change Order"
+                message="Are you sure you want to create a change order from this version?"
+                confirmText="Create Change Order"
+                variant="dark"
+                icon={FilePlus}
             />
 
             {/* PDF Preview Modal */}

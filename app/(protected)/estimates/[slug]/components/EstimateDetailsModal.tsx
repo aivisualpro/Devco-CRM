@@ -35,10 +35,15 @@ const TABS = [
 
 const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string; readOnly?: boolean; placeholder?: string; span?: number }[]> = {
     accounting: [
-        { key: 'projectId', label: 'Project ID', span: 2 },
         { key: 'accountingContact', label: 'Accounting Contact' },
         { key: 'accountingEmail', label: 'Accounting Email', type: 'email', readOnly: true },
-        { key: 'accountingPhone', label: 'Accounting Phone' }
+        { key: 'accountingPhone', label: 'Accounting Phone', readOnly: true },
+        { key: 'projectId', label: 'Project ID' },
+        { key: 'customerPONumber', label: 'Customer PO#' },
+        { key: 'workRequestNumber', label: 'Work Request#' },
+        { key: 'subContractAgreementNumber', label: 'Sub Contract Agreement #' },
+        { key: 'customerJobNumber', label: 'Customer Job#' },
+        { key: 'dirNumber', label: 'DIR#' }
     ],
     owner: [
         { key: 'poName', label: 'Owner / Agency Name', span: 2 },
@@ -82,16 +87,7 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
 export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, onUpdate }: EstimateDetailsModalProps) {
     const [activeTab, setActiveTab] = useState('accounting');
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onClose();
-            }
-        };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
@@ -181,15 +177,14 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
 
                     {/* Fields Grid */}
                     <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">
-                        <div className="grid grid-cols-2 gap-6 max-w-3xl">
+                        <div className="grid grid-cols-3 gap-x-6 gap-y-5">
                             {currentFields.map((field, idx) => (
                                 <div 
                                     key={field.key} 
                                     className={`space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300 ${field.span === 2 ? 'col-span-2' : ''}`}
                                     style={{ animationDelay: `${idx * 50}ms` }}
                                 >
-                                    <label className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-400 to-blue-500" />
+                                    <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
                                         {field.label}
                                     </label>
 
@@ -207,9 +202,9 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
                                     ) : field.type === 'textarea' ? (
                                         <textarea
                                             className={`
-                                                w-full p-4 bg-slate-50/80 border-2 border-slate-100 rounded-2xl text-sm font-medium text-slate-700
+                                                w-full p-3 bg-slate-50/80 border-2 border-slate-100 rounded-xl text-xs font-medium text-slate-700
                                                 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 
-                                                transition-all outline-none resize-none h-32
+                                                transition-all outline-none resize-none h-24
                                                 placeholder:text-slate-300
                                                 ${field.readOnly ? 'opacity-60 cursor-not-allowed' : ''}
                                             `}
@@ -219,12 +214,12 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
                                             readOnly={field.readOnly}
                                         />
                                     ) : (
-                                        <input
-                                            type={field.type || 'text'}
-                                            className={`
-                                                w-full px-4 py-3.5 bg-slate-50/80 border-2 border-slate-100 rounded-2xl text-sm font-medium text-slate-700
-                                                focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 
-                                                transition-all outline-none
+                                            <input
+                                                type={field.type || 'text'}
+                                                className={`
+                                                    w-full px-3 py-2 bg-slate-50/80 border-2 border-slate-100 rounded-xl text-xs font-medium text-slate-700
+                                                    focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-500/10 
+                                                    transition-all outline-none
                                                 placeholder:text-slate-300
                                                 ${field.readOnly ? 'opacity-60 cursor-not-allowed bg-slate-100/50' : ''}
                                             `}
