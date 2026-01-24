@@ -127,14 +127,19 @@ const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     return R * c; // Matches spreadsheet result (e.g. 276 for the test coords)
 };
 
+// Timezone-agnostic: Parse ISO string directly without Date object conversion
+// This preserves the exact date/time values regardless of user's timezone
 const toLocalISO = (iso?: string) => {
     if (!iso) return "";
-    const clean = iso.split('.')[0];
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return "";
-    const offset = d.getTimezoneOffset() * 60000;
-    const local = new Date(d.getTime() - offset);
-    return local.toISOString().slice(0, 16);
+    // Handle ISO strings like "2026-01-26T06:00:00.000Z" or "2026-01-26T06:00:00.000+00:00"
+    // Extract YYYY-MM-DDTHH:mm directly from the string
+    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (match) {
+        const [, year, month, day, hour, minute] = match;
+        return `${year}-${month}-${day}T${hour}:${minute}`;
+    }
+    // Fallback for non-standard formats
+    return iso.slice(0, 16);
 };
 
 const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
@@ -359,17 +364,7 @@ export default function TimeCardPage() {
         return flat.sort((a, b) => new Date(b.clockIn || 0).getTime() - new Date(a.clockIn || 0).getTime());
     }, [rawSchedules, estimatesOptions]);
 
-    const toLocalISO = (isoStr?: string) => {
-        if (!isoStr) return '';
-        const d = new Date(isoStr);
-        if (isNaN(d.getTime())) return '';
-        const pad = (n: number) => n < 10 ? '0' + n : n;
-        return d.getFullYear() + '-' +
-            pad(d.getMonth() + 1) + '-' +
-            pad(d.getDate()) + 'T' +
-            pad(d.getHours()) + ':' +
-            pad(d.getMinutes());
-    };
+    // Note: Using the global toLocalISO function defined above (timezone-agnostic)
 
 
     // Data Fetching
@@ -1680,14 +1675,15 @@ export default function TimeCardPage() {
                         <>
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.clockIn)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditForm(prev => ({...prev, clockIn: date.toISOString()}));
+                                        // Store the value directly with Z suffix to preserve exact time
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditForm(prev => ({...prev, clockIn: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -1695,14 +1691,15 @@ export default function TimeCardPage() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.lunchStart)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditForm(prev => ({...prev, lunchStart: date.toISOString()}));
+                                        // Store the value directly with Z suffix to preserve exact time
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditForm(prev => ({...prev, lunchStart: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -1710,14 +1707,15 @@ export default function TimeCardPage() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.lunchEnd)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditForm(prev => ({...prev, lunchEnd: date.toISOString()}));
+                                        // Store the value directly with Z suffix to preserve exact time
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditForm(prev => ({...prev, lunchEnd: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -1725,14 +1723,15 @@ export default function TimeCardPage() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.clockOut)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditForm(prev => ({...prev, clockOut: date.toISOString()}));
+                                        // Store the value directly with Z suffix to preserve exact time
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditForm(prev => ({...prev, clockOut: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -1958,27 +1957,32 @@ export default function TimeCardPage() {
                             {/* Row 4: Clock In and Lunch Start */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(addForm.clockIn)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            // Auto-fill: Clock Out = Clock In + 7 hours
-                                            const clockOut = new Date(date.getTime() + (7 * 60 * 60 * 1000));
-                                            // Default lunch: 12:00 PM to 12:30 PM on same day
-                                            const lunchStart = new Date(date);
-                                            lunchStart.setHours(12, 0, 0, 0);
-                                            const lunchEnd = new Date(date);
-                                            lunchEnd.setHours(12, 30, 0, 0);
-                                            setAddForm(prev => ({
-                                                ...prev, 
-                                                clockIn: date.toISOString(),
-                                                clockOut: clockOut.toISOString(),
-                                                lunchStart: lunchStart.toISOString(),
-                                                lunchEnd: lunchEnd.toISOString()
-                                            }));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            // Parse the datetime-local value to extract date parts
+                                            const match = val.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                                            if (match) {
+                                                const [, year, month, day, hour, minute] = match;
+                                                const hourNum = parseInt(hour, 10);
+                                                // Auto-fill: Clock Out = Clock In + 7 hours (simple string manipulation)
+                                                const clockOutHour = String((hourNum + 7) % 24).padStart(2, '0');
+                                                const clockOutVal = `${year}-${month}-${day}T${clockOutHour}:${minute}:00.000Z`;
+                                                // Default lunch: 12:00 PM to 12:30 PM on same day
+                                                const lunchStartVal = `${year}-${month}-${day}T12:00:00.000Z`;
+                                                const lunchEndVal = `${year}-${month}-${day}T12:30:00.000Z`;
+                                                setAddForm(prev => ({
+                                                    ...prev,
+                                                    clockIn: val + ':00.000Z',
+                                                    clockOut: clockOutVal,
+                                                    lunchStart: lunchStartVal,
+                                                    lunchEnd: lunchEndVal
+                                                }));
+                                            }
                                         }
                                     }}
                                 />
@@ -1986,14 +1990,14 @@ export default function TimeCardPage() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(addForm.lunchStart)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setAddForm(prev => ({...prev, lunchStart: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setAddForm(prev => ({...prev, lunchStart: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -2002,14 +2006,14 @@ export default function TimeCardPage() {
                             {/* Row 5: Lunch End and Clock Out */}
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(addForm.lunchEnd)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setAddForm(prev => ({...prev, lunchEnd: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setAddForm(prev => ({...prev, lunchEnd: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -2017,14 +2021,14 @@ export default function TimeCardPage() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(addForm.clockOut)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setAddForm(prev => ({...prev, clockOut: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setAddForm(prev => ({...prev, clockOut: val + ':00.000Z'}));
                                         }
                                     }}
                                 />

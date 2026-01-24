@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Upload, X } from 'lucide-react';
-import { Header, Button, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, BadgeTabs, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SearchableSelect, SkeletonTable } from '@/components/ui';
+import { Plus, Pencil, Trash2, Upload, X, Filter } from 'lucide-react';
+import { Header, Button, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, EmptyState, Loading, Modal, ConfirmModal, ToastContainer, Badge, SearchableSelect, SkeletonTable, MyDropDown } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
 interface ConstantItem {
@@ -29,7 +29,8 @@ export default function ConstantsPage() {
     const [formData, setFormData] = useState<Record<string, unknown>>({});
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
-    const itemsPerPage = 15;
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
+    const itemsPerPage = 25;
 
     useEffect(() => {
         fetchConstants();
@@ -170,7 +171,7 @@ export default function ConstantsPage() {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#f8fafc]">
+        <div className="flex flex-col min-h-full bg-[#f8fafc]">
             <div className="flex-none">
             <Header rightContent={
                 <div className="flex items-center gap-3">
@@ -180,42 +181,77 @@ export default function ConstantsPage() {
                         placeholder="Search constants..."
                         className="w-48 sm:w-64"
                     />
-                    <AddButton onClick={openAddModal} label="Add Constant" />
+                    
+                    <div className="relative">
+                        <button
+                            id="filter-trigger"
+                            onClick={() => setIsFilterOpen(!isFilterOpen)}
+                            className={`flex items-center gap-2 px-3 py-2 bg-white border ${activeType !== 'all' ? 'border-[#0F4C75] text-[#0F4C75] bg-blue-50' : 'border-slate-200 text-slate-600'} rounded-xl hover:border-[#0F4C75] transition-colors shadow-sm`}
+                        >
+                            <Filter size={18} />
+                            <span className="text-sm font-bold hidden sm:inline">
+                                {activeType === 'all' ? 'Filter' : activeType}
+                            </span>
+                            {activeType !== 'all' && (
+                                <span className="flex items-center justify-center w-5 h-5 bg-[#0F4C75] text-white text-[10px] rounded-full">
+                                    {typeCounts[activeType]}
+                                </span>
+                            )}
+                        </button>
+
+                        <MyDropDown
+                            isOpen={isFilterOpen}
+                            onClose={() => setIsFilterOpen(false)}
+                            anchorId="filter-trigger"
+                            width="w-[220px]"
+                            options={tabs.map(t => ({
+                                id: t.id,
+                                label: t.label,
+                                value: t.id,
+                                badge: String(t.count)
+                            }))}
+                            selectedValues={[activeType]}
+                            onSelect={(val) => {
+                                setActiveType(val);
+                                setCurrentPage(1);
+                                setIsFilterOpen(false);
+                            }}
+                            placeholder="Search types..."
+                        />
+                    </div>
+
+                    <button
+                        onClick={openAddModal}
+                        className="hidden sm:flex p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                    >
+                        <Plus className="w-6 h-6 transition-transform group-hover:rotate-90" />
+                    </button>
                 </div>
             } />
             </div>
-            <div className="flex-1 overflow-y-auto pt-4 px-4 pb-0">
+            <div className="flex-1 pt-4 px-4 pb-8">
                 <ToastContainer toasts={toasts} removeToast={removeToast} />
-
-                {/* Tabs */}
-                <div className="flex justify-center mb-4">
-                    <BadgeTabs
-                        tabs={tabs}
-                        activeTab={activeType}
-                        onChange={(id) => { setActiveType(id); setCurrentPage(1); }}
-                    />
-                </div>
 
                 {/* Table */}
                 <div>
                     {loading ? (
-                        <SkeletonTable rows={10} columns={5} />
+                        <SkeletonTable rows={20} columns={5} />
                     ) : (
-                        <Table>
+                        <Table containerClassName="h-[calc(100vh-140px)] shadow-sm rounded-[24px] border-none" className="text-sm">
                             <TableHead>
                                 <TableRow>
-                                    <TableHeader>Image</TableHeader>
-                                    <TableHeader>Description</TableHeader>
-                                    <TableHeader>Type</TableHeader>
-                                    <TableHeader>Value</TableHeader>
-                                    <TableHeader>Color</TableHeader>
-                                    <TableHeader className="text-right">Actions</TableHeader>
+                                    <TableHeader className="py-4 px-6">Image</TableHeader>
+                                    <TableHeader className="py-4 px-6">Description</TableHeader>
+                                    <TableHeader className="py-4 px-6">Type</TableHeader>
+                                    <TableHeader className="py-4 px-6">Value</TableHeader>
+                                    <TableHeader className="py-4 px-6">Color</TableHeader>
+                                    <TableHeader className="py-4 px-6 text-right">Actions</TableHeader>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {paginatedConstants.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={6}>
+                                        <TableCell className="text-center py-20 text-gray-500" colSpan={6}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No constants found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Add system constants to get started.</p>
@@ -225,36 +261,36 @@ export default function ConstantsPage() {
                                 ) : (
                                     paginatedConstants.map((item) => (
                                         <TableRow key={item._id}>
-                                            <TableCell>
+                                            <TableCell className="py-3 px-6">
                                                 {item.image ? (
-                                                    <img src={item.image} alt="" className="w-8 h-8 rounded-full object-cover border border-slate-200" />
+                                                    <img src={item.image} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200" />
                                                 ) : (
-                                                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
+                                                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-400">
                                                         {item.description?.slice(0, 2).toUpperCase() || '??'}
                                                     </div>
                                                 )}
                                             </TableCell>
-                                            <TableCell>{item.description || '-'}</TableCell>
-                                            <TableCell>
-                                                <Badge variant="info">{item.type || '-'}</Badge>
+                                            <TableCell className="py-3 px-6 font-bold text-slate-700">{item.description || '-'}</TableCell>
+                                            <TableCell className="py-3 px-6">
+                                                <Badge variant="info" className="px-3 py-1 rounded-full">{item.type || '-'}</Badge>
                                             </TableCell>
-                                            <TableCell className="font-medium font-mono">{item.value || '-'}</TableCell>
-                                            <TableCell>
+                                            <TableCell className="py-3 px-6 font-black text-[#0F4C75] font-mono text-sm">{item.value || '-'}</TableCell>
+                                            <TableCell className="py-3 px-6">
                                                 {item.color ? (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-6 h-6 rounded border border-gray-200 shadow-sm" style={{ backgroundColor: item.color }}></div>
-                                                        <span className="font-mono text-xs text-gray-500">{item.color}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg border border-gray-200 shadow-sm" style={{ backgroundColor: item.color }}></div>
+                                                        <span className="font-mono text-xs font-bold text-gray-500 uppercase">{item.color}</span>
                                                     </div>
                                                 ) : (
                                                     <span className="text-gray-400">-</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex items-center justify-end whitespace-nowrap">
-                                                    <button onClick={() => openEditModal(item)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600">
+                                            <TableCell className="py-3 px-6 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <button onClick={() => openEditModal(item)} className="p-2 hover:bg-indigo-50 rounded-xl text-slate-400 hover:text-indigo-600 transition-colors">
                                                         <Pencil className="w-4 h-4" />
                                                     </button>
-                                                    <button onClick={() => confirmDelete(item._id)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-red-600 ml-1">
+                                                    <button onClick={() => confirmDelete(item._id)} className="p-2 hover:bg-red-50 rounded-xl text-slate-400 hover:text-red-500 transition-colors ml-1">
                                                         <Trash2 className="w-4 h-4" />
                                                     </button>
                                                 </div>
@@ -265,7 +301,9 @@ export default function ConstantsPage() {
                             </TableBody>
                         </Table>
                     )}
-                    <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
+                    <div className="mt-4">
+                        <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
+                    </div>
                 </div>
 
             </div>

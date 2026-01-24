@@ -381,16 +381,17 @@ function PayrollReportContent() {
         }
     };
 
+    // Timezone-agnostic: Parse ISO string directly using regex to avoid Date object timezone conversion
     const toLocalISO = (isoStr?: string) => {
         if (!isoStr) return '';
-        const d = new Date(isoStr);
-        if (isNaN(d.getTime())) return '';
-        const pad = (n: number) => n < 10 ? '0' + n : n;
-        return d.getFullYear() + '-' +
-            pad(d.getMonth() + 1) + '-' +
-            pad(d.getDate()) + 'T' +
-            pad(d.getHours()) + ':' +
-            pad(d.getMinutes());
+        // Parse ISO string directly using regex to extract components without timezone conversion
+        const match = isoStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (match) {
+            const [, year, month, day, hour, minute] = match;
+            return `${year}-${month}-${day}T${hour}:${minute}`;
+        }
+        // Fallback: just slice the first 16 characters (YYYY-MM-DDTHH:MM)
+        return isoStr.slice(0, 16);
     };
 
     const handleEditClick = (ts: any) => {
@@ -1410,14 +1411,15 @@ function PayrollReportContent() {
                             <>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
-                                    <input 
+                                    <input
                                         type="datetime-local"
                                         className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                         value={toLocalISO(editForm.clockIn)}
                                         onChange={e => {
-                                            const date = new Date(e.target.value);
-                                            if (!isNaN(date.getTime())) {
-                                                setEditForm((prev:any) => ({...prev, clockIn: date.toISOString()}));
+                                            // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
+                                            const val = e.target.value;
+                                            if (val) {
+                                                setEditForm((prev:any) => ({...prev, clockIn: val + ':00.000Z'}));
                                             }
                                         }}
                                     />
@@ -1425,14 +1427,15 @@ function PayrollReportContent() {
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
-                                    <input 
+                                    <input
                                         type="datetime-local"
                                         className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                         value={toLocalISO(editForm.lunchStart)}
                                         onChange={e => {
-                                            const date = new Date(e.target.value);
-                                            if (!isNaN(date.getTime())) {
-                                                setEditForm((prev:any) => ({...prev, lunchStart: date.toISOString()}));
+                                            // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
+                                            const val = e.target.value;
+                                            if (val) {
+                                                setEditForm((prev:any) => ({...prev, lunchStart: val + ':00.000Z'}));
                                             }
                                         }}
                                     />
@@ -1440,14 +1443,15 @@ function PayrollReportContent() {
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
-                                    <input 
+                                    <input
                                         type="datetime-local"
                                         className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                         value={toLocalISO(editForm.lunchEnd)}
                                         onChange={e => {
-                                            const date = new Date(e.target.value);
-                                            if (!isNaN(date.getTime())) {
-                                                setEditForm((prev:any) => ({...prev, lunchEnd: date.toISOString()}));
+                                            // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
+                                            const val = e.target.value;
+                                            if (val) {
+                                                setEditForm((prev:any) => ({...prev, lunchEnd: val + ':00.000Z'}));
                                             }
                                         }}
                                     />
@@ -1455,14 +1459,15 @@ function PayrollReportContent() {
 
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
-                                    <input 
+                                    <input
                                         type="datetime-local"
                                         className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                         value={toLocalISO(editForm.clockOut)}
                                         onChange={e => {
-                                            const date = new Date(e.target.value);
-                                            if (!isNaN(date.getTime())) {
-                                                setEditForm((prev:any) => ({...prev, clockOut: date.toISOString()}));
+                                            // Store the value directly with Z suffix to preserve exact time (timezone-agnostic)
+                                            const val = e.target.value;
+                                            if (val) {
+                                                setEditForm((prev:any) => ({...prev, clockOut: val + ':00.000Z'}));
                                             }
                                         }}
                                     />
