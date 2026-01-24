@@ -265,6 +265,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                 width="w-64"
                                                 className="!left-0 !translate-x-0"
                                                 hideSelectionIndicator={true}
+                                                modal={false}
                                             />
                                         </div>
                                     );

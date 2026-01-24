@@ -33,6 +33,7 @@ interface MyDropDownProps {
     multiSelect?: boolean;
     showSearch?: boolean;
     transparentBackdrop?: boolean;
+    modal?: boolean;
 }
 
 export function MyDropDown({
@@ -52,7 +53,8 @@ export function MyDropDown({
     positionMode = 'bottom',
     multiSelect = false,
     showSearch = true,
-    transparentBackdrop = false
+    transparentBackdrop = false,
+    modal = true
 }: MyDropDownProps) {
     const [search, setSearch] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -165,14 +167,16 @@ export function MyDropDown({
 
     const dropdownContent = (
         <>
-            {/* Backdrop Overlay - Blocks background interaction and visual focus */}
-            <div 
-                className={`fixed inset-0 z-[9998] animate-in fade-in duration-300 ${transparentBackdrop ? 'bg-transparent' : 'bg-slate-900/10 backdrop-blur-[1px]'}`}
-                onMouseDown={(e) => {
-                    e.stopPropagation();
-                    onClose();
-                }}
-            />
+            {/* Backdrop Overlay - Only render if modal is true */}
+            {modal && (
+                <div 
+                    className={`fixed inset-0 z-[9998] animate-in fade-in duration-300 ${transparentBackdrop ? 'bg-transparent' : 'bg-slate-900/10 backdrop-blur-[1px]'}`}
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                        onClose();
+                    }}
+                />
+            )}
             <div 
                 ref={dropdownRef}
                 className={`${anchorId ? 'fixed' : 'absolute top-full left-0 pt-2'} rounded-2xl z-[9999] ${className} animate-in fade-in zoom-in-95 duration-200 transition-all`}
