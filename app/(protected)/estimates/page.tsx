@@ -7,7 +7,7 @@ import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval }
 import Papa from 'papaparse';
 import { z } from 'zod';
 
-import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
+import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent, MyDropDown } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, BadgeTabs } from '@/components/ui/Tabs';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -36,6 +36,7 @@ interface Estimate {
     syncedToAppSheet?: boolean;
 }
 
+
 const searchSchema = z.string().max(100, "Search query too long");
 
 export default function EstimatesPage() {
@@ -61,6 +62,7 @@ export default function EstimatesPage() {
     const [constants, setConstants] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
     const [clients, setClients] = useState<any[]>([]);
+    const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -90,6 +92,50 @@ export default function EstimatesPage() {
             if (!signal?.aborted) {
                 setLoading(false);
             }
+        }
+    };
+    
+    const statusOptions = useMemo(() => {
+        return constants
+            .filter((c: any) => {
+                const type = (c.type || c.category || '').toLowerCase();
+                return type === 'estimate status';
+            })
+            .map((c: any) => ({
+                id: c._id,
+                label: c.description || c.value,
+                value: c.description || c.value,
+                color: c.color
+            }))
+            .sort((a: any, b: any) => a.label.localeCompare(b.label));
+    }, [constants]);
+
+    const handleStatusUpdate = async (id: string, newStatus: string) => {
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'updateEstimate', 
+                    payload: { 
+                        id, 
+                        item: { status: newStatus },
+                        updatedBy: currentUserEmail 
+                    } 
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: newStatus } : e));
+                success('Status updated successfully');
+            } else {
+                toastError('Failed to update status');
+            }
+        } catch (err) {
+            console.error(err);
+            toastError('Error updating status');
+        } finally {
+            setStatusDropdownId(null);
         }
     };
 
@@ -812,10 +858,35 @@ export default function EstimatesPage() {
                                                         return formatCurrency((est.grandTotal || 0) + coTotal);
                                                     })()}
                                                 </TableCell>
-                                                <TableCell>
-                                                    <Badge {...getBadgeProps('Status', est.status || 'draft')} className="text-[10px] px-2 py-0">
-                                                        {est.status || 'draft'}
-                                                    </Badge>
+                                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                                    <div className="relative">
+                                                        <div 
+                                                            id={`status-trigger-${est._id}`}
+                                                            onMouseDown={(e) => {
+                                                                e.stopPropagation();
+                                                                setStatusDropdownId(statusDropdownId === est._id ? null : est._id);
+                                                            }}
+                                                        >
+                                                            <Badge 
+                                                                {...getBadgeProps('Status', est.status || 'draft')} 
+                                                                className="text-[10px] px-2 py-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                                            >
+                                                                {est.status || 'draft'}
+                                                            </Badge>
+                                                        </div>
+                                                        <MyDropDown
+                                                            isOpen={statusDropdownId === est._id}
+                                                            onClose={() => setStatusDropdownId(null)}
+                                                            anchorId={`status-trigger-${est._id}`}
+                                                            options={statusOptions}
+                                                            selectedValues={est.status ? [est.status] : []}
+                                                            onSelect={(val) => handleStatusUpdate(est._id, val)}
+                                                            width="w-40"
+                                                            positionMode="bottom"
+                                                            showSearch={false}
+                                                            transparentBackdrop={true}
+                                                        />
+                                                    </div>
                                                 </TableCell>
                                                 {currentUserEmail === 'adeel@devco-inc.com' && (
                                                     <TableCell>

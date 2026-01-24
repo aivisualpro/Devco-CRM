@@ -31,6 +31,8 @@ interface MyDropDownProps {
     anchorId?: string;
     positionMode?: 'overlay' | 'bottom';
     multiSelect?: boolean;
+    showSearch?: boolean;
+    transparentBackdrop?: boolean;
 }
 
 export function MyDropDown({
@@ -48,7 +50,9 @@ export function MyDropDown({
     className = "",
     anchorId,
     positionMode = 'bottom',
-    multiSelect = false
+    multiSelect = false,
+    showSearch = true,
+    transparentBackdrop = false
 }: MyDropDownProps) {
     const [search, setSearch] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -160,24 +164,34 @@ export function MyDropDown({
     };
 
     const dropdownContent = (
-        <div 
-            ref={dropdownRef}
-            className={`${anchorId ? 'fixed' : 'absolute top-full left-0 pt-2'} rounded-2xl z-[9999] ${className} animate-in fade-in zoom-in-95 duration-200 transition-all`}
-            style={anchorId ? {
-                top: coords ? `${coords.top}px` : '0px',
-                left: adjustedLeft !== null ? `${adjustedLeft}px` : (coords ? `${coords.left}px` : '0px'),
-                width: width === 'w-full' && coords ? `${coords.width}px` : (width.startsWith('w-') ? undefined : width),
-                minWidth: width === 'w-full' && coords ? `${coords.width}px` : 'max-content',
-                transform: coords?.isBottom ? 'translateY(10px)' : 'translateY(-100%) translateY(-10px)',
-                display: coords ? 'block' : 'none'
-            } : { 
-                width: width.startsWith('w-') ? undefined : width,
-                minWidth: 'max-content'
-            }}
-        >
-            <div className="p-4 rounded-2xl bg-white shadow-2xl border border-slate-200">
+        <>
+            {/* Backdrop Overlay - Blocks background interaction and visual focus */}
+            <div 
+                className={`fixed inset-0 z-[9998] animate-in fade-in duration-300 ${transparentBackdrop ? 'bg-transparent' : 'bg-slate-900/10 backdrop-blur-[1px]'}`}
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    onClose();
+                }}
+            />
+            <div 
+                ref={dropdownRef}
+                className={`${anchorId ? 'fixed' : 'absolute top-full left-0 pt-2'} rounded-2xl z-[9999] ${className} animate-in fade-in zoom-in-95 duration-200 transition-all`}
+                style={anchorId ? {
+                    top: coords ? `${coords.top}px` : '0px',
+                    left: adjustedLeft !== null ? `${adjustedLeft}px` : (coords ? `${coords.left}px` : '0px'),
+                    width: width === 'w-full' && coords ? `${coords.width}px` : (width.startsWith('w-') ? undefined : width),
+                    minWidth: width === 'w-full' && coords ? `${coords.width}px` : 'max-content',
+                    transform: coords?.isBottom ? 'translateY(10px)' : 'translateY(-100%) translateY(-10px)',
+                    display: coords ? 'block' : 'none'
+                } : { 
+                    width: width.startsWith('w-') ? undefined : width,
+                    minWidth: 'max-content'
+                }}
+            >
+            <div className="p-2 rounded-2xl bg-white shadow-2xl border border-slate-200">
                 {/* Search Input */}
-                <div className="mb-3">
+                {showSearch && (
+                <div className="mb-2">
                     <div className="relative border border-slate-200 rounded-xl p-1 bg-slate-50">
                         <input
                             type="text"
@@ -207,6 +221,7 @@ export function MyDropDown({
                         />
                     </div>
                 </div>
+                )}
 
                 {/* Options List */}
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
@@ -298,6 +313,7 @@ export function MyDropDown({
                 </div>
             </div>
         </div>
+        </>
     );
 
     if (anchorId) {

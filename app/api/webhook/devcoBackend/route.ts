@@ -945,7 +945,11 @@ export async function POST(request: NextRequest) {
                         await Activity.create({
                             _id: activityId,
                             user: (() => {
-                                const u = (updateData as any).proposalWriter || (updateData as any).createdBy || '';
+                                const u = (updateData as any).proposalWriter || 
+                                          (updateData as any).createdBy || 
+                                          (payload as any).updatedBy || 
+                                          updated?.proposalWriter || 
+                                          'System';
                                 return Array.isArray(u) ? u.join(', ') : String(u);
                             })(),
                             action: 'updated_estimate',
