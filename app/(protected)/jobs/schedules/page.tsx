@@ -365,12 +365,14 @@ export default function SchedulePage() {
     };
 
     const formatLocalDateTime = (dateInput: string | Date) => {
+        if (!dateInput) return '';
         const date = new Date(dateInput);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
+        if (isNaN(date.getTime())) return '';
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const hours = String(date.getUTCHours()).padStart(2, '0');
+        const minutes = String(date.getUTCMinutes()).padStart(2, '0');
         return `${year}-${month}-${day}T${hours}:${minutes}`;
     };
 
@@ -777,12 +779,11 @@ export default function SchedulePage() {
             setEditingItem(null);
             
             // Helper to format date as local ISO string (no timezone conversion)
-            const toLocalISOString = (d: Date | string | undefined): string => {
+            const toLocalISOString = (d: string | undefined): string => {
                 if (!d) return '';
-                const date = typeof d === 'string' ? new Date(d) : d;
-                if (isNaN(date.getTime())) return typeof d === 'string' ? d : '';
-                const pad = (n: number) => n < 10 ? '0' + n : n;
-                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+                // Input strings from type="datetime-local" look like "YYYY-MM-DDTHH:mm"
+                // If it already has Z, keep it. If not, add Z to anchor it to UTC (Nominal Time).
+                return d.includes('Z') ? d : `${d}:00Z`;
             };
             
             const prevSchedules = [...schedules];
@@ -842,7 +843,7 @@ export default function SchedulePage() {
             // Helper to format date as local ISO string (no timezone conversion)
             const toLocalISOString = (d: Date) => {
                 const pad = (n: number) => n < 10 ? '0' + n : n;
-                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+                return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00Z`;
             };
 
             // Generate MongoDB-compatible ObjectId (24 hex characters)
@@ -3536,6 +3537,7 @@ export default function SchedulePage() {
                                     id="schedTag"
                                     label="Tag"
                                     placeholder="Select Tag"
+                                    disableBlank={true}
                                     options={initialData.constants.filter(c => c.type === 'Schedule Items').map(c => ({
                                         label: c.description,
                                         value: c.description,
@@ -3550,7 +3552,7 @@ export default function SchedulePage() {
                                         }
                                         setEditingItem(prev => ({ ...prev, ...updates }));
                                     }}
-                                    onNext={() => document.getElementById('schedFromDate')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3589,7 +3591,6 @@ export default function SchedulePage() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
-                                            document.getElementById('schedToDate')?.focus();
                                         }
                                     }}
                                 />
@@ -3606,12 +3607,6 @@ export default function SchedulePage() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
-                                            // If Day Off, submit. Otherwise, go to next field
-                                            if (editingItem?.item === 'Day Off') {
-                                                // Form will handle submit
-                                            } else {
-                                                document.getElementById('schedClient')?.focus();
-                                            }
                                         }
                                     }}
                                 />
@@ -3625,6 +3620,7 @@ export default function SchedulePage() {
                                 label="Assignees"
                                 placeholder="Select Team"
                                 multiple
+                                disableBlank={true}
                                 options={initialData.employees
                                     .filter(emp => emp.isScheduleActive)
                                     .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
@@ -3637,7 +3633,6 @@ export default function SchedulePage() {
                                 onChange={(val) => {
                                     setEditingItem(prev => ({ ...prev, assignees: val }));
                                 }}
-                                onNext={() => editingItem?.item === 'Day Off' ? null : document.getElementById('schedClient')?.focus()}
                             />
                         </div>
 
@@ -3651,6 +3646,7 @@ export default function SchedulePage() {
                                     id="schedClient"
                                     label="Client"
                                     placeholder="Select client"
+                                    disableBlank={true}
                                     options={initialData.clients.map(c => ({ label: c.name, value: c._id }))}
                                     value={editingItem?.customerId || ''}
                                     onChange={(val) => {
@@ -3663,7 +3659,7 @@ export default function SchedulePage() {
                                             estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
                                         }));
                                     }}
-                                    onNext={() => document.getElementById('schedProposal')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div>
@@ -3671,6 +3667,7 @@ export default function SchedulePage() {
                                     id="schedProposal"
                                     label="Proposal #"
                                     placeholder="Select proposal"
+                                    disableBlank={true}
                                     options={initialData.estimates
                                         .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
                                         .map(e => ({ label: e.label, value: e.value }))}
@@ -3699,7 +3696,7 @@ export default function SchedulePage() {
                                             jobLocation: est?.jobAddress || prev?.jobLocation || ''
                                         }));
                                     }}
-                                    onNext={() => document.getElementById('schedTitle')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3713,8 +3710,6 @@ export default function SchedulePage() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
-                                            const next = document.getElementById('schedPM');
-                                            if (next) (next as HTMLElement).focus();
                                         }
                                     }}
                                 />
@@ -3743,6 +3738,7 @@ export default function SchedulePage() {
                                     id="schedPM"
                                     label="Project Manager"
                                     placeholder="Select PM"
+                                    disableBlank={true}
                                     options={initialData.employees
                                         .filter(emp => emp.designation?.toLowerCase().includes('project manager'))
                                         .map(emp => ({
@@ -3752,7 +3748,7 @@ export default function SchedulePage() {
                                         }))}
                                     value={editingItem?.projectManager || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
-                                    onNext={() => document.getElementById('schedForeman')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3760,6 +3756,7 @@ export default function SchedulePage() {
                                     id="schedForeman"
                                     label="Foreman"
                                     placeholder="Select Foreman"
+                                    disableBlank={true}
                                     options={initialData.employees
                                         .filter(emp => emp.designation?.toLowerCase().includes('foreman'))
                                         .map(emp => ({
@@ -3769,7 +3766,7 @@ export default function SchedulePage() {
                                         }))}
                                     value={editingItem?.foremanName || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
-                                    onNext={() => document.getElementById('schedService')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                         </div>
@@ -3784,6 +3781,7 @@ export default function SchedulePage() {
                                     label="Service"
                                     placeholder="Select Service"
                                     multiple={true}
+                                    disableBlank={true}
                                     options={initialData.constants.filter(c => c.type?.toLowerCase() === 'services').map(c => ({
                                         label: c.description,
                                         value: c.description,
@@ -3796,7 +3794,7 @@ export default function SchedulePage() {
                                          const strVal = Array.isArray(val) ? val.join(', ') : val;
                                          setEditingItem({ ...editingItem, service: strVal });
                                     }}
-                                    onNext={() => document.getElementById('schedNotify')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3816,7 +3814,7 @@ export default function SchedulePage() {
                                             notifyAssignees: val
                                         });
                                     }}
-                                    onNext={() => document.getElementById('schedPerDiem')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3835,7 +3833,7 @@ export default function SchedulePage() {
                                     onChange={(val) => {
                                         setEditingItem({ ...editingItem, perDiem: val });
                                     }}
-                                    onNext={() => document.getElementById('schedFringe')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3843,6 +3841,7 @@ export default function SchedulePage() {
                                     id="schedFringe"
                                     label="Fringe"
                                     placeholder="Select Fringe"
+                                    disableBlank={true}
                                     options={initialData.constants.filter(c => c.type === 'Fringe').map(c => ({
                                         label: c.description,
                                         value: c.description,
@@ -3851,7 +3850,7 @@ export default function SchedulePage() {
                                     }))}
                                     value={editingItem?.fringe || ''}
                                     onChange={(val) => setEditingItem({ ...editingItem, fringe: val })}
-                                    onNext={() => document.getElementById('schedCP')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3859,6 +3858,7 @@ export default function SchedulePage() {
                                     id="schedCP"
                                     label="Certified Payroll"
                                     placeholder="Select CP"
+                                    disableBlank={true}
                                     options={initialData.constants.filter(c => c.type === 'Certified Payroll').map(c => ({
                                         label: c.description,
                                         value: c.description,
@@ -3867,7 +3867,7 @@ export default function SchedulePage() {
                                     }))}
                                     value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
                                     onChange={(val) => setEditingItem({ ...editingItem, certifiedPayroll: val })}
-                                    onNext={() => document.getElementById('schedAerial')?.focus()}
+                                    onNext={() => {}}
                                 />
                             </div>
                         </div>
@@ -3883,9 +3883,9 @@ export default function SchedulePage() {
                                     className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
-                                            e.preventDefault();
                                             const val = e.currentTarget.value.trim();
                                             if (val) {
+                                                e.preventDefault();
                                                 const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
                                                 const newObjective: Objective = { text: val, completed: false };
                                                 setEditingItem({ ...editingItem, todayObjectives: [...current, newObjective] });

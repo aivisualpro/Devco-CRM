@@ -59,6 +59,7 @@ export function SearchableSelect({
     const optionsListRef = useRef<HTMLDivElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const [placement, setPlacement] = useState<'bottom' | 'top'>('bottom');
+    const [sortValues, setSortValues] = useState<string[]>([]);
 
     // Calculate placement on open
     useEffect(() => {
@@ -76,28 +77,59 @@ export function SearchableSelect({
         }
     }, [isOpen]);
 
-    // Normalize options to SelectOption[]
-    const normalizedRaw = options.map(opt => {
-        if (typeof opt === 'string') {
-            return { label: opt, value: opt };
+    // Capture values for sorting when dropdown opens
+    useEffect(() => {
+        if (isOpen) {
+            setSortValues(Array.isArray(value) ? value : (value ? [value as string] : []));
         }
-        return opt;
-    });
+    }, [isOpen]); // Only run when isOpen changes
 
-    const hasBlank = normalizedRaw.some(o => o.value === '');
-    const normalizedOptions: SelectOption[] = (hasBlank || disableBlank)
-        ? normalizedRaw
-        : [{ label: '-', value: '', initials: '-' }, ...normalizedRaw];
+    // Normalize options to SelectOption[]
+    const normalizedOptions = React.useMemo(() => {
+        const normalizedRaw = options.map(opt => {
+            if (typeof opt === 'string') {
+                return { label: opt, value: opt };
+            }
+            return opt;
+        });
+
+        const hasBlank = normalizedRaw.some(o => o.value === '');
+        return (hasBlank || disableBlank)
+            ? normalizedRaw
+            : [{ label: '-', value: '', initials: '-' }, ...normalizedRaw];
+    }, [options, disableBlank]);
 
     // Filter based on search
-    const filteredOptions = normalizedOptions.filter(opt =>
-        opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        opt.value.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (opt.subtitle && opt.subtitle.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredOptions = React.useMemo(() => {
+        return normalizedOptions.filter(opt =>
+            opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            opt.value.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (opt.subtitle && opt.subtitle.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+    }, [normalizedOptions, searchTerm]);
 
-    // If search is empty, show all. If search exists, show filtered.
-    const displayOptions = filteredOptions;
+    // Sort selected options to the top based on values when opened
+    const displayOptions = React.useMemo(() => {
+        const sorted = [...filteredOptions];
+        if (multiple) {
+            sorted.sort((a, b) => {
+                const aSelected = sortValues.includes(a.value);
+                const bSelected = sortValues.includes(b.value);
+                if (aSelected && !bSelected) return -1;
+                if (!aSelected && bSelected) return 1;
+                return 0;
+            });
+        } else if (sortValues.length > 0) {
+            sorted.sort((a, b) => {
+                const aIsPrimary = sortValues.includes(a.value);
+                const bIsPrimary = sortValues.includes(b.value);
+                if (aIsPrimary && !bIsPrimary) return -1;
+                if (!aIsPrimary && bIsPrimary) return 1;
+                return 0;
+            });
+        }
+        return sorted;
+    }, [filteredOptions, sortValues, multiple]);
 
     // Check if current search is a new value (single select only)
     const isNewValue = searchTerm.trim() !== '' && !normalizedOptions.some(opt =>
@@ -111,36 +143,26 @@ export function SearchableSelect({
     if (multiple) {
         const vals = Array.isArray(value) ? value : [];
         if (vals.length > 0) {
-            const maxVisible = 5;
-            const showAll = vals.length <= maxVisible;
-            const visibleVals = showAll ? vals : vals.slice(0, maxVisible - 1);
-            const remaining = vals.length - visibleVals.length;
-
             displayLabel = (
                 <div className="flex flex-wrap gap-1.5 py-1">
-                    {visibleVals.map(v => {
+                    {vals.map(v => {
                         const opt = normalizedOptions.find(o => o.value === v);
                         const label = opt?.label || v;
                         return (
-                            <span key={v} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700">
-                                {label}
+                            <span key={v} className="inline-flex items-center px-2 py-0.5 rounded-lg text-[10px] font-bold bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/20 animate-in zoom-in-95 duration-200 max-w-full">
+                                <span className="truncate max-w-[120px]">{label}</span>
                                 <span
-                                    className="ml-1 cursor-pointer hover:text-red-500"
+                                    className="ml-1.5 cursor-pointer hover:text-red-500 transition-colors shrink-0"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleSelect(opt || { label: v, value: v });
                                     }}
                                 >
-                                    ×
+                                    <X size={10} strokeWidth={3} />
                                 </span>
                             </span>
                         );
                     })}
-                    {remaining > 0 && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
-                            +{remaining} more
-                        </span>
-                    )}
                 </div>
             );
         }
@@ -297,7 +319,8 @@ export function SearchableSelect({
                     ref={triggerRef}
                     onClick={() => setIsOpen(true)}
                     onFocus={() => {
-                        if (openOnFocus && !isOpen) setIsOpen(true);
+                        const hasValue = multiple ? (Array.isArray(value) && value.length > 0) : (value && value !== '');
+                        if (openOnFocus && !isOpen && !hasValue) setIsOpen(true);
                     }}
                     onKeyDown={(e) => {
                         if (e.key === ' ' || e.key === 'ArrowDown') {
@@ -318,13 +341,13 @@ export function SearchableSelect({
                             onKeyDown(e);
                         }
                     }}
-                    className="w-full min-h-[36px] h-auto py-1 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-100 hover:border-slate-300 active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                    className="w-full min-h-[42px] h-auto py-2 px-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm"
                 >
-                    <div className="flex items-center gap-3 overflow-hidden flex-1">
+                    <div className={`flex ${multiple ? 'items-start pt-0.5' : 'items-center'} gap-3 flex-1 min-w-0`}>
                         {(!multiple && (selectedOption?.image || selectedOption?.color || selectedOption?.initials || (displayLabel && displayLabel !== placeholder))) ? (
                             <div
-                                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden shrink-0 border border-slate-200"
-                                style={selectedOption?.color && !selectedOption.image ? { backgroundColor: selectedOption.color, color: '#fff', borderColor: 'transparent' } : { backgroundColor: '#e2e8f0' }}
+                                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden shrink-0 border border-slate-100 shadow-sm"
+                                style={selectedOption?.color && !selectedOption.image ? { backgroundColor: selectedOption.color, color: '#fff', borderColor: 'transparent' } : { backgroundColor: '#f8fafc' }}
                             >
                                 {selectedOption?.image ? (
                                     <img src={selectedOption.image} alt="" className="w-full h-full object-cover" />
@@ -334,10 +357,10 @@ export function SearchableSelect({
                             </div>
                         ) : null}
 
-                        {multiple && !displayLabel && <span className="text-slate-500">{placeholder}</span>}
-                        {multiple && displayLabel ? displayLabel : <span className="truncate">{typeof displayLabel === 'string' ? (displayLabel || placeholder) : displayLabel}</span>}
+                        {multiple && (!displayLabel || (Array.isArray(value) && value.length === 0)) && <span className="text-slate-400 font-normal">{placeholder}</span>}
+                        {multiple && displayLabel ? displayLabel : <span className="truncate font-semibold text-slate-900">{typeof displayLabel === 'string' ? (displayLabel || placeholder) : displayLabel}</span>}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
+                    <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </div>
 
                 {/* Dropdown Panel - Mobile Native (Full Screen Style) */}
@@ -369,7 +392,7 @@ export function SearchableSelect({
                             </div>
 
                             {/* Options List */}
-                            <div className="flex-1 overflow-y-auto py-4">
+                            <div className={`flex-1 overflow-y-auto py-4 ${multiple ? 'grid grid-cols-1 md:grid-cols-2 gap-1 px-4' : ''}`}>
                                 {/* New Option */}
                                 {onAddNew && isNewValue && (
                                     <div
@@ -393,14 +416,14 @@ export function SearchableSelect({
                                             <div
                                                 key={opt.value + i}
                                                 onClick={() => handleSelect(opt)}
-                                                className="px-6 py-5 flex items-center justify-between active:bg-slate-50 transition-colors border-b border-slate-50/50"
+                                                className={`px-6 py-5 flex items-center justify-between active:bg-slate-50 transition-colors border-b border-slate-50/50 ${isSelected ? 'bg-[#0F4C75]/5' : ''}`}
                                             >
                                                 <div className="flex items-center gap-5 flex-1">
-                                                    <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-blue-600 bg-white' : 'border-slate-300 bg-white'}`}>
-                                                        {isSelected && <div className="w-3.5 h-3.5 rounded-full bg-blue-600 animate-in zoom-in-50 duration-200" />}
+                                                    <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-[#0F4C75] bg-white' : 'border-slate-300 bg-white'}`}>
+                                                        {isSelected && <div className="w-3.5 h-3.5 rounded-full bg-[#0F4C75] animate-in zoom-in-50 duration-200" />}
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className={`text-xl font-bold ${isSelected ? 'text-slate-900' : 'text-slate-700'}`}>
+                                                        <span className={`text-xl font-bold ${isSelected ? 'text-[#0F4C75]' : 'text-slate-700'}`}>
                                                             {opt.label}
                                                         </span>
                                                         {opt.subtitle && <span className="text-base text-slate-400 mt-0.5">{opt.subtitle}</span>}
@@ -462,7 +485,7 @@ export function SearchableSelect({
                         </div>
 
                         {/* Options List */}
-                        <div className="max-h-[280px] overflow-y-auto p-2 scroll-smooth" ref={optionsListRef}>
+                        <div className={`max-h-[320px] overflow-y-auto p-2 scroll-smooth ${multiple ? 'grid grid-cols-2 gap-1.5' : ''}`} ref={optionsListRef}>
                             {onAddNew && isNewValue && (
                                 <div
                                     onClick={handleAddNew}
@@ -491,14 +514,14 @@ export function SearchableSelect({
                                                 setActiveIndex(i);
                                             }}
                                             className={`px-3 py-2.5 rounded-xl text-sm cursor-pointer transition-all flex items-center justify-between mb-0.5 ${isHighlighted
-                                                ? 'bg-slate-100 text-slate-900'
-                                                : isSelected ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-50'
+                                                ? 'bg-slate-100 text-slate-900 shadow-sm'
+                                                : isSelected ? 'bg-[#0F4C75]/10 text-[#0F4C75] ring-1 ring-[#0F4C75]/20 shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-3">
                                                 {/* Avatar / Initials */}
                                                 <div
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0 ${isHighlighted ? 'bg-white border-slate-200' : 'bg-slate-100 border-slate-100 text-slate-500'}`}
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0 ${isHighlighted ? 'bg-white border-slate-200' : isSelected ? 'bg-white border-[#0F4C75]/30 shadow-sm' : 'bg-slate-100 border-slate-100 text-slate-500'}`}
                                                     style={opt.color && !opt.image ? { backgroundColor: opt.color, color: '#fff', borderColor: 'transparent' } : {}}
                                                 >
                                                     {opt.image ? (
@@ -509,12 +532,12 @@ export function SearchableSelect({
                                                 </div>
 
                                                 <div className="flex flex-col">
-                                                    <span className={`font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-700'}`}>{opt.label}</span>
+                                                    <span className={`font-bold ${isSelected ? 'text-[#0F4C75]' : 'text-slate-700'}`}>{opt.label}</span>
                                                     {opt.subtitle && <span className="text-[10px] text-slate-400">{opt.subtitle}</span>}
                                                 </div>
                                             </div>
 
-                                            {isSelected && <Check className="w-4 h-4 text-indigo-600" />}
+                                            {isSelected && <Check className="w-4 h-4 text-[#0F4C75]" />}
                                         </div>
                                     );
                                 })

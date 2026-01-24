@@ -205,7 +205,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
                 <div>
-                    <h3 className="text-lg font-bold text-slate-800">Estimate Documents</h3>
+                    <h3 className="text-lg font-bold text-slate-800">Job Docs</h3>
                 </div>
             </div>
 

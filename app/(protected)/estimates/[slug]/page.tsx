@@ -376,7 +376,7 @@ export default function EstimateViewPage() {
                      // If settings exist, apply them. If not, we stick with defaults.
                      if (emp && Array.isArray(emp.estimateSettings)) {
                          setVisibleSections({
-                             estimateDocs: emp.estimateSettings.includes('Estimate Docs'),
+                             estimateDocs: emp.estimateSettings.includes('Job Docs'),
                              lineItems: emp.estimateSettings.includes('Line Items'),
                              proposal: emp.estimateSettings.includes('Proposal')
                          });
@@ -400,7 +400,7 @@ export default function EstimateViewPage() {
              if (!userEmail) return;
 
              const settings = [];
-             if (visibleSections.estimateDocs) settings.push('Estimate Docs');
+             if (visibleSections.estimateDocs) settings.push('Job Docs');
              if (visibleSections.lineItems) settings.push('Line Items');
              if (visibleSections.proposal) settings.push('Proposal');
 
@@ -1840,7 +1840,7 @@ export default function EstimateViewPage() {
                                 multiSelect={true}
                                 positionMode="bottom"
                                 options={[
-                                    { id: 'estimateDocs', label: 'Estimate Docs', value: 'estimateDocs' },
+                                    { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
                                     { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
                                     { id: 'proposal', label: 'Proposal', value: 'proposal' }
                                 ]}

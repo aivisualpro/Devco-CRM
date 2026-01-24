@@ -827,7 +827,7 @@ export default function WIPReportPage() {
                                                             <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('change-orders') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Change Orders</TooltipTrigger>
-                                                                    <TooltipContent side="top">Reference by our proposals change orders (sum of all change orders if status is completed)</TooltipContent>
+                                                                    <TooltipContent side="top">Reference by our proposals change orders (sum of all change orders if status is completed or won)</TooltipContent>
                                                                 </Tooltip>
                                                             </th>
                                                             <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('updated-contract') ? 'bg-blue-100 text-blue-800' : ''}`}>
@@ -994,11 +994,11 @@ export default function WIPReportPage() {
                                                                 const changeOrders = project.changeOrders || 0;
                                                                 const updatedContract = originalContract + changeOrders;
                                                                 
-                                                                const originalContractCost = 0;
+                                                                const originalContractCost = (project as any).originalContractCost || 0;
                                                                 const changeOrderCost = 0;
-                                                                const totalEstimatedCost = 0;
+                                                                const totalEstimatedCost = originalContractCost + changeOrderCost;
                                                                 
-                                                                const originalContractGP = 0;
+                                                                const originalContractGP = originalContract - originalContractCost;
                                                                 const changeOrderGP = 0;
                                                                 const estimatedGP = updatedContract - totalEstimatedCost;
                                                                 

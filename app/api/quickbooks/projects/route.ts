@@ -18,7 +18,7 @@ export async function GET() {
         
         const allRelatedEstimates = await Estimate.find({
             estimate: { $in: proposalNumbers }
-        } as any, { _id: 1, estimate: 1, grandTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1, status: 1 });
+        } as any, { _id: 1, estimate: 1, grandTotal: 1, subTotal: 1, proposalWriter: 1, isChangeOrder: 1, versionNumber: 1, status: 1 });
 
         // Map proposalNumber -> { originalContract, changeOrders, writers, slug }
         const estimateDataMap = new Map();
@@ -29,6 +29,7 @@ export async function GET() {
             if (!estimateDataMap.has(e.estimate)) {
                 estimateDataMap.set(e.estimate, {
                     originalContract: 0,
+                    originalContractCost: 0,
                     changeOrdersTotal: 0,
                     proposalWriters: [] as string[],
                     latestVersion: -1,
@@ -40,13 +41,14 @@ export async function GET() {
             
             if (e.isChangeOrder) {
                 const status = (e.status || '').toLowerCase();
-                if (status === 'completed' || status === 'confirmed' || status === 'won') {
+                if (status === 'completed' || status === 'won') {
                     data.changeOrdersTotal += (e.grandTotal || 0);
                 }
             } else {
                 // If it's a normal estimate, we want the latest version for original contract amount and writers
                 if ((e.versionNumber || 0) > data.latestVersion) {
                     data.originalContract = e.grandTotal || 0;
+                    data.originalContractCost = e.subTotal || 0;
                     data.latestVersion = e.versionNumber || 0;
                     data.estimateId = e._id;
                     
@@ -90,6 +92,7 @@ export async function GET() {
                 proposalSlug,
                 proposalWriters: estData?.proposalWriters || [],
                 originalContract: estData?.originalContract || 0,
+                originalContractCost: estData?.originalContractCost || 0,
                 changeOrders: estData?.changeOrdersTotal || 0,
                 startDate: p.startDate,
                 endDate: p.endDate,
