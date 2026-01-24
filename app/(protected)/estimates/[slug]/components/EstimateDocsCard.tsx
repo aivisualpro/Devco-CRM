@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download } from 'lucide-react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Layout, FileCheck, Receipt } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 // Google Doc Template IDs
@@ -71,6 +71,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         'Skilled & Trained Reporting',
         'Fringe Benefits Proof of Payment'
     ];
+
+    const planningDocs: string[] = [];
+    const signedContractsDocs: string[] = [];
+    const receiptsAndCostsDocs: string[] = [];
 
     const handleDocClick = async (docName: string) => {
         const templateId = DOC_TEMPLATES[docName];
@@ -202,15 +206,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     return (
         <div className={`bg-[#eef2f6] rounded-[40px] p-4 ${className || ''}`}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-                <div>
-                    <h3 className="text-lg font-bold text-slate-800">Job Docs</h3>
-                </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Prelims Column */}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+                {/* Column 1: Prelims */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md">
@@ -224,7 +223,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-3">
-                            {prelimDocs.map((docName, idx) => (
+                            {prelimDocs.length > 0 ? prelimDocs.map((docName, idx) => (
                                 <DocCard 
                                     key={idx} 
                                     label={docName}
@@ -232,12 +231,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     hasTemplate={!!DOC_TEMPLATES[docName]}
                                     onClick={() => handleDocClick(docName)}
                                 />
-                            ))}
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Certified Payroll Column */}
+                {/* Column 2: Certified Payroll */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md">
@@ -251,7 +252,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-3">
-                            {certifiedPayrollDocs.map((docName, idx) => (
+                            {certifiedPayrollDocs.length > 0 ? certifiedPayrollDocs.map((docName, idx) => (
                                 <DocCard 
                                     key={idx} 
                                     label={docName}
@@ -260,7 +261,96 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     hasTemplate={!!DOC_TEMPLATES[docName]}
                                     onClick={() => handleDocClick(docName)}
                                 />
-                            ))}
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column 3: Planning */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-md">
+                            <Layout className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-violet-700">Planning</h4>
+                        <span className="text-[10px] bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-bold">
+                            {planningDocs.length}
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {planningDocs.length > 0 ? planningDocs.map((docName, idx) => (
+                                <DocCard 
+                                    key={idx} 
+                                    label={docName}
+                                    isLoading={generatingDoc === docName}
+                                    hasTemplate={!!DOC_TEMPLATES[docName]}
+                                    onClick={() => handleDocClick(docName)}
+                                />
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column 4: Signed Contracts */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md">
+                            <FileCheck className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-amber-700">Signed Contracts</h4>
+                        <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
+                            {signedContractsDocs.length}
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {signedContractsDocs.length > 0 ? signedContractsDocs.map((docName, idx) => (
+                                <DocCard 
+                                    key={idx} 
+                                    label={docName}
+                                    isLoading={generatingDoc === docName}
+                                    hasTemplate={!!DOC_TEMPLATES[docName]}
+                                    onClick={() => handleDocClick(docName)}
+                                />
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column 5: Receipts & Costs */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 text-white flex items-center justify-center shadow-md">
+                            <Receipt className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-pink-700">Receipts & Costs</h4>
+                        <span className="text-[10px] bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full font-bold">
+                            {receiptsAndCostsDocs.length}
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {receiptsAndCostsDocs.length > 0 ? receiptsAndCostsDocs.map((docName, idx) => (
+                                <DocCard 
+                                    key={idx} 
+                                    label={docName}
+                                    isLoading={generatingDoc === docName}
+                                    hasTemplate={!!DOC_TEMPLATES[docName]}
+                                    onClick={() => handleDocClick(docName)}
+                                />
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                            )}
                         </div>
                     </div>
                 </div>
