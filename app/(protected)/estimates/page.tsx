@@ -128,7 +128,7 @@ export default function EstimatesPage() {
                     action: 'updateEstimate', 
                     payload: { 
                         id, 
-                        item: { status: newStatus },
+                        status: newStatus,
                         updatedBy: currentUserEmail 
                     } 
                 })
