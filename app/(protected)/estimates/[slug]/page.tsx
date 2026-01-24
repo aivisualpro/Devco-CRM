@@ -2003,7 +2003,11 @@ export default function EstimateViewPage() {
                     {/* Estimate Docs Section */}
                     {visibleSections.estimateDocs && (
                         <div className="mt-6 mb-2 animation-fade-in">
-                            <EstimateDocsCard formData={formData || {}} employees={employeesData} />
+                            <EstimateDocsCard 
+                                formData={formData || {}} 
+                                employees={employeesData} 
+                                onUpdate={handleHeaderUpdate}
+                            />
                         </div>
                     )}
                 </div>

@@ -234,16 +234,19 @@ export default function SchedulePage() {
     const INCREMENT = 20;
 
     const openCreateModal = () => {
+        // Create default times as strings directly - NO Date object to avoid timezone issues
         const today = new Date();
-        // Default: 7:00 AM to 3:30 PM (Typical shift)
-        const start = new Date(today);
-        start.setHours(7, 0, 0, 0);
-        const end = new Date(today);
-        end.setHours(15, 30, 0, 0);
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        
+        // Default: 7:00 AM to 3:30 PM (Typical shift) - stored as plain strings
+        const fromDate = `${year}-${month}-${day}T07:00`;
+        const toDate = `${year}-${month}-${day}T15:30`;
 
         setEditingItem({
-            fromDate: formatLocalDateTime(start), // Use local ISO string for input
-            toDate: formatLocalDateTime(end),
+            fromDate: fromDate,
+            toDate: toDate,
             assignees: [],
             notifyAssignees: 'No',
             perDiem: 'No',
@@ -364,8 +367,22 @@ export default function SchedulePage() {
         return `${year}-${month}-${day}`;
     };
 
+    // Format date for datetime-local input display
+    // This extracts the UTC components since we store dates as nominal UTC time
     const formatLocalDateTime = (dateInput: string | Date) => {
         if (!dateInput) return '';
+        
+        // If it's a string in ISO format with Z suffix, parse UTC components directly
+        if (typeof dateInput === 'string') {
+            // Handle ISO format: "2026-01-26T06:00:00.000Z" or "2026-01-26T06:00:00Z" or "2026-01-26T06:00Z"
+            const isoMatch = dateInput.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+            if (isoMatch) {
+                const [, year, month, day, hours, minutes] = isoMatch;
+                return `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+        }
+        
+        // Fallback: parse as Date and extract UTC components
         const date = new Date(dateInput);
         if (isNaN(date.getTime())) return '';
         const year = date.getUTCFullYear();
@@ -2526,11 +2543,26 @@ export default function SchedulePage() {
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             // Clone the schedule and add 1 day to dates
+                                                            // Using string manipulation to avoid timezone conversion
                                                             const addOneDay = (dateStr: string) => {
-                                                                const date = new Date(dateStr);
-                                                                date.setDate(date.getDate() + 1);
-                                                                const pad = (n: number) => n < 10 ? '0' + n : n;
-                                                                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:00`;
+                                                                // Parse the ISO string directly using regex
+                                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                                                                if (!match) return dateStr;
+                                                                const [, year, month, day, hours, minutes] = match;
+                                                                
+                                                                // Create a UTC date to safely add 1 day
+                                                                const utcDate = new Date(Date.UTC(
+                                                                    parseInt(year),
+                                                                    parseInt(month) - 1,
+                                                                    parseInt(day) + 1 // Add 1 day
+                                                                ));
+                                                                
+                                                                const newYear = utcDate.getUTCFullYear();
+                                                                const newMonth = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+                                                                const newDay = String(utcDate.getUTCDate()).padStart(2, '0');
+                                                                
+                                                                // Keep the same time, just change the date
+                                                                return `${newYear}-${newMonth}-${newDay}T${hours}:${minutes}`;
                                                             };
                                                             const clonedItem = {
                                                                 ...item,
@@ -3563,23 +3595,18 @@ export default function SchedulePage() {
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                                     value={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : ''}
                                     onChange={(e) => {
-                                        const newFrom = e.target.value;
+                                        // Store the value directly as string - NO Date object conversion
+                                        // datetime-local gives us "YYYY-MM-DDTHH:mm" format
+                                        const newFrom = e.target.value; // e.g., "2026-01-26T06:00"
                                         setEditingItem(prev => {
                                             if (!prev?.toDate) return { ...prev, fromDate: newFrom, toDate: newFrom };
                                             
-                                            // Calculate new To Date: New From DATE + Old To TIME
-                                            const newFromDate = new Date(newFrom);
-                                            const oldToDate = new Date(prev.toDate);
+                                            // Extract date part from new fromDate and time part from old toDate
+                                            // Using string manipulation to avoid timezone conversion
+                                            const newFromDatePart = newFrom.split('T')[0]; // "2026-01-26"
+                                            const oldToTimePart = formatLocalDateTime(prev.toDate).split('T')[1] || '15:30'; // "HH:mm"
                                             
-                                            const newToDate = new Date(newFromDate);
-                                            newToDate.setHours(oldToDate.getHours(), oldToDate.getMinutes(), 0, 0);
-
-                                            const year = newToDate.getFullYear();
-                                            const month = String(newToDate.getMonth() + 1).padStart(2, '0');
-                                            const day = String(newToDate.getDate()).padStart(2, '0');
-                                            const hours = String(newToDate.getHours()).padStart(2, '0');
-                                            const minutes = String(newToDate.getMinutes()).padStart(2, '0');
-                                            const newToDateString = `${year}-${month}-${day}T${hours}:${minutes}`;
+                                            const newToDateString = `${newFromDatePart}T${oldToTimePart}`;
 
                                             return {
                                                 ...prev,
@@ -3603,7 +3630,10 @@ export default function SchedulePage() {
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
                                     min={editingItem?.fromDate ? formatLocalDateTime(editingItem.fromDate) : undefined}
                                     value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, toDate: e.target.value })}
+                                    onChange={(e) => {
+                                        // Store the value directly as string - NO Date object conversion
+                                        setEditingItem({ ...editingItem, toDate: e.target.value });
+                                    }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();

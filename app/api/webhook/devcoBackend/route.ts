@@ -40,12 +40,8 @@ async function deleteFromCloudinary(url: string): Promise<boolean> {
 
         let startIndex = uploadIndex + 1;
         // Skip transformation or version segments
-        // Standard URLs: .../upload/v1234/folder/file.ext
-        // With Transformations: .../upload/w_400,h_533.../v1234/folder/file.ext
-
         while (startIndex < parts.length) {
             const segment = parts[startIndex];
-            // If it's a version (v followed by digits) or a transformation (contains _), skip it
             if (segment.match(/^v\d+$/) || segment.includes(',') || segment.includes('_')) {
                 startIndex++;
             } else {
@@ -110,7 +106,6 @@ async function uploadThumbnail(fileString: string, publicId: string, contentType
             return url;
         }
 
-        // Fallback for Word/Excel/etc.
         if (contentType.includes('word') || contentType.includes('officedocument.wordprocessingml')) {
             return 'https://res.cloudinary.com/dff9f7q8o/image/upload/v1711200000/word_icon.png';
         }
@@ -125,27 +120,66 @@ async function uploadThumbnail(fileString: string, publicId: string, contentType
     }
 }
 
-// Helper to upload documents to R2
+async function uploadRawToCloudinary(fileString: string, fileName: string, contentType: string): Promise<{ url: string; thumbnailUrl: string } | null> {
+    if (!fileString) return null;
+    try {
+        const safeId = fileName.replace(/[^a-zA-Z0-9]/g, '_');
+        
+        const uploadResult = await cloudinary.uploader.upload(fileString, {
+            folder: 'signed_contracts',
+            public_id: safeId,
+            resource_type: 'auto'
+        });
+
+        const mainUrl = uploadResult.secure_url;
+        let thumbUrl = mainUrl;
+
+        const isPDF = contentType.includes('pdf') || fileString.startsWith('data:application/pdf');
+        const isImage = contentType.startsWith('image/') || fileString.startsWith('data:image');
+
+        if (isPDF) {
+            const thumbResult = await cloudinary.uploader.upload(fileString, {
+                public_id: `${safeId}_thumb`,
+                folder: 'signed_contracts/thumbnails',
+                resource_type: 'auto',
+                transformation: [
+                    { width: 400, height: 533, crop: 'fill', gravity: 'north', format: 'png', page: 1 }
+                ]
+            });
+            thumbUrl = thumbResult.secure_url.replace(/\.[^/.]+$/, ".png");
+        } else if (isImage) {
+            thumbUrl = mainUrl;
+        } else if (contentType.includes('csv')) {
+            thumbUrl = 'https://img.icons8.com/color/480/csv.png';
+        } else if (contentType.includes('excel') || contentType.includes('officedocument.spreadsheetml')) {
+            thumbUrl = 'https://img.icons8.com/color/480/xlsx.png';
+        } else if (contentType.includes('word') || contentType.includes('officedocument.wordprocessingml')) {
+            thumbUrl = 'https://img.icons8.com/color/480/docx.png';
+        }
+
+        return { url: mainUrl, thumbnailUrl: thumbUrl };
+    } catch (error) {
+        console.error('Raw Cloudinary Upload Error:', error);
+        return null;
+    }
+}
+
 export async function uploadDocumentToR2(base64String: string, fileName: string, contentType: string) {
     return await uploadToR2(base64String, `documents/${fileName}`, contentType);
 }
 
-
-// AppSheet Configuration
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
     tableName: process.env.APSHEET_ESTIMATE_TABLE || "Customer Jobs"
 });
 
-// AppSheet Client Configuration
 const getAppSheetClientConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
     tableName: process.env.APSHEET_CUSTOMERS_TABLE || "Customers"
 });
 
-// Helper functions
 function toBoolean(value: unknown): boolean {
     if (value === 'Y' || value === 'y' || value === true) return true;
     return false;
@@ -2012,6 +2046,23 @@ export async function POST(request: NextRequest) {
                 if (!file) return NextResponse.json({ success: false, error: 'Missing file data' }, { status: 400 });
                 const url = await uploadThumbnail(file, fileName || `thumb_${Date.now()}`, contentType || 'image/png');
                 return NextResponse.json({ success: true, result: url });
+            }
+
+            case 'uploadRawToCloudinary': {
+                const { file, fileName, contentType } = payload || {};
+                if (!file) return NextResponse.json({ success: false, error: 'Missing file data' }, { status: 400 });
+                const result = await uploadRawToCloudinary(file, fileName || `contract_${Date.now()}`, contentType || 'application/octet-stream');
+                return NextResponse.json({ success: !!result, result });
+            }
+
+            case 'deleteCloudinaryFiles': {
+                const { urls } = payload || {};
+                if (!urls || !Array.isArray(urls)) return NextResponse.json({ success: false, error: 'Missing urls' }, { status: 400 });
+                
+                for (const url of urls) {
+                    await deleteFromCloudinary(url);
+                }
+                return NextResponse.json({ success: true });
             }
 
             case 'deleteDocumentFiles': {

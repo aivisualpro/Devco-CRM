@@ -69,6 +69,16 @@ export interface IEstimate extends Document {
     billingTerms?: string;
     otherBillingTerms?: string;
     usaNumber?: string;
+    signedContracts?: Array<{
+        date?: string;
+        amount?: number;
+        attachments?: Array<{
+            name: string;
+            url: string;
+            type: string;
+            thumbnailUrl?: string;
+        }>;
+    }>;
     syncedToAppSheet?: boolean;
 
     // Totals & Meta
@@ -175,6 +185,16 @@ const EstimateSchema = new Schema({
     billingTerms: { type: String },
     otherBillingTerms: { type: String },
     usaNumber: { type: String },
+    signedContracts: [{
+        date: { type: String },
+        amount: { type: Number },
+        attachments: [{
+            name: { type: String },
+            url: { type: String },
+            type: { type: String },
+            thumbnailUrl: { type: String }
+        }]
+    }],
     syncedToAppSheet: { type: Boolean, default: false },
     
     // Line Items

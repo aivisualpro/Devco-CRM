@@ -47,6 +47,7 @@ export default function EstimatesPage() {
     const [search, setSearch] = useState('');
     const [activeFilter, setActiveFilter] = useState('all');
     const [showFinals, setShowFinals] = useState(true);
+    const [showChangeOrders, setShowChangeOrders] = useState(false);
     const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
     useEffect(() => {
@@ -216,13 +217,23 @@ export default function EstimatesPage() {
     // If showFinals is TRUE: only show latest version of each estimate.
     // If showFinals is FALSE: show ALL history.
     const visibleEstimates = useMemo(() => {
-        if (!showFinals) return estimates;
+        let baseList = [...estimates];
+
+        // If Change Orders toggle is ON, only show change orders
+        if (showChangeOrders) {
+            baseList = baseList.filter(e => e.isChangeOrder);
+        } else {
+            // Normal mode: may include both, but showFinals usually wants to collapse them
+        }
+
+        if (!showFinals) return baseList;
 
         const latestVersions = new Map<string, Estimate>();
-        estimates.forEach(e => {
-            // Only consider non-change order versions as the "latest" representative of the original contract
-            if (e.isChangeOrder) return;
-
+        baseList.forEach(e => {
+            // Unique key for an estimate version "branch"
+            // For base estimates, the key is the estimate number.
+            // For change orders, we might want to see them as their own thing or group them.
+            // Requirement implies we want to filter to representative results.
             const key = e.estimate || e._id;
             if (!latestVersions.has(key)) {
                 latestVersions.set(key, e);
@@ -234,16 +245,8 @@ export default function EstimatesPage() {
             }
         });
 
-        // If an estimate ONLY has change orders (rare), pick the latest one of those
-        estimates.forEach(e => {
-            const key = e.estimate || e._id;
-            if (!latestVersions.has(key)) {
-                latestVersions.set(key, e);
-            }
-        });
-
         return Array.from(latestVersions.values());
-    }, [estimates, showFinals]);
+    }, [estimates, showFinals, showChangeOrders]);
 
     // Filter and search on top of visibleEstimates
     const filteredEstimates = useMemo(() => {
@@ -254,6 +257,10 @@ export default function EstimatesPage() {
             filtered = filtered.filter((e) => isThisMonth(e.date || ''));
         } else if (activeFilter === 'lastMonth') {
             filtered = filtered.filter((e) => isLastMonth(e.date || ''));
+        } else if (activeFilter === 'pending') {
+            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'pending' || (e.status || '').toLowerCase() === 'draft');
+        } else if (activeFilter === 'completed') {
+            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'completed' || (e.status || '').toLowerCase() === 'confirmed');
         } else if (activeFilter === 'lost') {
             filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'lost');
         } else if (activeFilter === 'won') {
@@ -346,8 +353,10 @@ export default function EstimatesPage() {
         { id: 'all', label: 'All', count: visibleEstimates.length },
         { id: 'thisMonth', label: 'This Month', count: visibleEstimates.filter((e) => isThisMonth(e.date || '')).length },
         { id: 'lastMonth', label: 'Last Month', count: visibleEstimates.filter((e) => isLastMonth(e.date || '')).length },
-        { id: 'lost', label: 'Lost', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'lost').length },
-        { id: 'won', label: 'Won', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'won' || (e.status || '').toLowerCase() === 'confirmed').length }
+        { id: 'pending', label: 'Pending', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'pending' || (e.status || '').toLowerCase() === 'draft').length },
+        { id: 'completed', label: 'Completed', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'completed' || (e.status || '').toLowerCase() === 'confirmed').length },
+        { id: 'won', label: 'Won', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'won' || (e.status || '').toLowerCase() === 'confirmed').length },
+        { id: 'lost', label: 'Lost', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'lost').length }
     ];
 
     const [isCreating, setIsCreating] = useState(false);
@@ -557,24 +566,38 @@ export default function EstimatesPage() {
                     <Tabs 
                         value={activeFilter} 
                         onValueChange={(val) => { setActiveFilter(val); setCurrentPage(1); }}
+                        className="scale-90 origin-center"
                     >
-                        <TabsList>
+                        <TabsList className="h-10 p-1">
                             {filterTabs.map(tab => (
-                                <TabsTrigger key={tab.id} value={tab.id}>
+                                <TabsTrigger 
+                                    key={tab.id} 
+                                    value={tab.id}
+                                    className="px-4 py-1 text-xs font-bold"
+                                >
                                     {tab.label}
                                     {tab.count !== undefined && (
-                                        <span className="ml-1.5 opacity-50 font-bold tabular-nums">({tab.count})</span>
+                                        <span className="ml-1 opacity-50 font-bold tabular-nums">({tab.count})</span>
                                     )}
                                 </TabsTrigger>
                             ))}
                         </TabsList>
                     </Tabs>
 
-                    <LabeledSwitch
-                        label="Finals"
-                        checked={showFinals}
-                        onCheckedChange={setShowFinals}
-                    />
+                    <div className="flex gap-2">
+                        <LabeledSwitch
+                            label="Finals"
+                            checked={showFinals}
+                            onCheckedChange={setShowFinals}
+                            className="scale-90 origin-center"
+                        />
+                        <LabeledSwitch
+                            label="Change Orders"
+                            checked={showChangeOrders}
+                            onCheckedChange={setShowChangeOrders}
+                            className="scale-90 origin-center"
+                        />
+                    </div>
                 </div>
 
                 <div className="flex-1 min-h-0 pb-4">
