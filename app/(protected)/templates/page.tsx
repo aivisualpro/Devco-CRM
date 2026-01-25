@@ -34,6 +34,8 @@ export default function TemplatesPage() {
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [editingDescId, setEditingDescId] = useState<string | null>(null);
     const [tempDesc, setTempDesc] = useState('');
+    const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+    const [tempTitle, setTempTitle] = useState('');
     const [serviceOptions, setServiceOptions] = useState<any[]>([]);
     const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
     const [isAddingService, setIsAddingService] = useState(false);
@@ -133,6 +135,28 @@ export default function TemplatesPage() {
             }
         }
         setEditingDescId(null);
+    };
+
+    const startEditingTitle = (item: Template) => {
+        setEditingTitleId(item._id);
+        setTempTitle(item.title || '');
+    };
+
+    const saveTitle = async (id: string) => {
+        if (tempTitle.trim() !== '' && tempTitle !== (templates.find(t => t._id === id)?.title || '')) {
+            const result = await apiCall('updateTemplate', {
+                id: id,
+                item: { title: tempTitle }
+            });
+
+            if (result.success) {
+                setTemplates(prev => prev.map(t => t._id === id ? { ...t, title: tempTitle } : t));
+                success('Title updated');
+            } else {
+                toastError(result.error || 'Failed to update title');
+            }
+        }
+        setEditingTitleId(null);
     };
 
     const handleClone = async (item: Template) => {
@@ -263,14 +287,40 @@ export default function TemplatesPage() {
                                 >
                                     {/* Content */}
                                     <div className="flex-1 mt-2">
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <h3 className="text-lg font-bold text-gray-700 mb-3 truncate">{item.title}</h3>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>{item.title}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
+                                        {editingTitleId === item._id ? (
+                                            <div className="mb-3">
+                                                 <input
+                                                    type="text"
+                                                    className="w-full text-lg font-bold text-gray-700 bg-transparent border-none focus:ring-2 focus:ring-blue-400 rounded-lg px-1 py-0.5"
+                                                    style={{ boxShadow: 'inset 2px 2px 5px #b8b9be, inset -2px -2px 5px #ffffff' }}
+                                                    value={tempTitle}
+                                                    onChange={(e) => setTempTitle(e.target.value)}
+                                                    onBlur={() => saveTitle(item._id)}
+                                                    onKeyDown={(e) => { 
+                                                        if (e.key === 'Enter') { 
+                                                            e.preventDefault(); 
+                                                            saveTitle(item._id); 
+                                                        } 
+                                                    }}
+                                                    autoFocus
+                                                    onClick={(e) => e.stopPropagation()}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <h3 
+                                                        className="text-lg font-bold text-gray-700 mb-3 truncate cursor-pointer select-none hover:text-blue-600 transition-colors"
+                                                        onDoubleClick={(e) => { e.stopPropagation(); startEditingTitle(item); }}
+                                                    >
+                                                        {item.title}
+                                                    </h3>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Double click to edit title</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        )}
                                         
                                         <div className="flex items-center justify-between mb-4 h-10">
                                             <div

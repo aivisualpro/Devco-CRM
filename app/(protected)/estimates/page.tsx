@@ -55,7 +55,8 @@ export default function EstimatesPage() {
         const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
         setCurrentUserEmail(user?.email || null);
     }, []);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [visibleCount, setVisibleCount] = useState(15);
+    const observerTarget = useRef(null);
 
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
     const [isImporting, setIsImporting] = useState(false);
@@ -402,8 +403,32 @@ export default function EstimatesPage() {
             : <ArrowDown className="w-3 h-3 text-[#0F4C75] ml-1" />;
     };
 
-    const totalPages = Math.ceil(filteredEstimates.length / itemsPerPage);
-    const paginatedEstimates = filteredEstimates.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    useEffect(() => {
+        setVisibleCount(itemsPerPage);
+    }, [activeFilter, search, showFinals, showChangeOrders, sortConfig]);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount(prev => Math.min(prev + itemsPerPage, filteredEstimates.length));
+                }
+            },
+            { threshold: 1.0 }
+        );
+
+        if (observerTarget.current) {
+            observer.observe(observerTarget.current);
+        }
+
+        return () => {
+            if (observerTarget.current) {
+                observer.unobserve(observerTarget.current);
+            }
+        };
+    }, [filteredEstimates]);
+
+    const paginatedEstimates = filteredEstimates.slice(0, visibleCount);
 
     const filterTabs = [
         { id: 'all', label: 'All', count: visibleEstimates.length },
@@ -621,7 +646,7 @@ export default function EstimatesPage() {
                 <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
                     <Tabs 
                         value={activeFilter} 
-                        onValueChange={(val) => { setActiveFilter(val); setCurrentPage(1); }}
+                        onValueChange={(val) => { setActiveFilter(val); }}
                         className="scale-90 origin-center"
                     >
                         <TabsList className="h-10 p-1">
@@ -663,7 +688,11 @@ export default function EstimatesPage() {
                         <Table
                             containerClassName="h-full"
                             footer={
-                                <Pagination currentPage={currentPage} totalPages={totalPages || 1} onPageChange={setCurrentPage} />
+                                <div className="flex flex-col items-center justify-center p-2 text-xs text-gray-500 w-full">
+                                    <span>
+                                        Showing {Math.min(visibleCount, filteredEstimates.length)} of {filteredEstimates.length} records
+                                    </span>
+                                </div>
                             }
                         >
                             <TableHead>
@@ -918,6 +947,13 @@ export default function EstimatesPage() {
                                             </TableRow>
                                         );
                                     })
+                                )}
+                                {visibleCount < filteredEstimates.length && (
+                                     <TableRow>
+                                        <TableCell colSpan={16} className="p-0 border-none">
+                                            <div ref={observerTarget} className="h-4 w-full" />
+                                        </TableCell>
+                                     </TableRow>
                                 )}
 
                             </TableBody>
