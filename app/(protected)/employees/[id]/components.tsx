@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Eye, EyeOff, KeyRound, Save, X } from 'lucide-react';
 
 interface Employee {
     _id: string;
@@ -22,6 +22,7 @@ interface Employee {
     state?: string;
     zip?: string;
     profilePicture?: string;
+    password?: string;
     [key: string]: any;
 
 }
@@ -33,9 +34,38 @@ interface EmployeeHeaderCardProps {
 }
 
 export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHeaderCardProps) {
-    const isEditing = false; // Add edit functionality later if needed
+    const [showPassword, setShowPassword] = useState(false);
+    const [isChangingPassword, setIsChangingPassword] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [saving, setSaving] = useState(false);
 
     const formatRate = (val?: number) => val ? `$${val.toFixed(2)}` : '$0.00';
+
+    const handleSavePassword = async () => {
+        if (!newPassword.trim()) return;
+        
+        setSaving(true);
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'updateEmployee', 
+                    payload: { id: employee._id, item: { password: newPassword } }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                onUpdate('password', newPassword);
+                setIsChangingPassword(false);
+                setNewPassword('');
+            }
+        } catch (err) {
+            console.error('Error saving password:', err);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <div className="bg-[#eef2f6] rounded-[40px] shadow-[12px_12px_24px_#d1d9e6,-12px_-12px_24px_#ffffff] p-4 mb-6">
@@ -98,8 +128,8 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                     </div>
                 </div>
 
-                {/* PART 3: Status & Rates */}
-                <div className="flex flex-col gap-4 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
+                {/* PART 3: Status, Rates & Password */}
+                <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
                     <div className="flex items-center justify-between">
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                             Status
@@ -112,15 +142,71 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-1">
+                    <div className="grid grid-cols-2 gap-2">
                         <div className="bg-[#eef2f6] rounded-xl p-2 shadow-[inset_2px_2px_4px_#d1d9e6,inset_-2px_-2px_4px_#ffffff]">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Site Rate</div>
-                            <div className="text-lg font-bold text-slate-700">{formatRate(employee.hourlyRateSITE)}</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Site Rate</div>
+                            <div className="text-base font-bold text-slate-700">{formatRate(employee.hourlyRateSITE)}</div>
                         </div>
                         <div className="bg-[#eef2f6] rounded-xl p-2 shadow-[inset_2px_2px_4px_#d1d9e6,inset_-2px_-2px_4px_#ffffff]">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">Drive Rate</div>
-                            <div className="text-lg font-bold text-slate-700">{formatRate(employee.hourlyRateDrive)}</div>
+                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">Drive Rate</div>
+                            <div className="text-base font-bold text-slate-700">{formatRate(employee.hourlyRateDrive)}</div>
                         </div>
+                    </div>
+
+                    {/* Password Section */}
+                    <div className="bg-[#eef2f6] rounded-xl p-3 shadow-[inset_2px_2px_4px_#d1d9e6,inset_-2px_-2px_4px_#ffffff]">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                                <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
+                                <span className="text-[10px] text-slate-400 font-bold uppercase">Password</span>
+                            </div>
+                            {!isChangingPassword && (
+                                <button 
+                                    onClick={() => setIsChangingPassword(true)}
+                                    className="text-[10px] text-indigo-600 font-semibold hover:text-indigo-700 transition-colors"
+                                >
+                                    Change
+                                </button>
+                            )}
+                        </div>
+                        
+                        {!isChangingPassword ? (
+                            <div className="flex items-center justify-between">
+                                <div className="font-mono text-sm font-bold text-slate-700 tracking-wider">
+                                    {showPassword ? (employee.password || 'Not Set') : '••••••••'}
+                                </div>
+                                <button 
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-slate-500 hover:text-indigo-600"
+                                >
+                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="text"
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="New password"
+                                    className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                                    autoFocus
+                                />
+                                <button 
+                                    onClick={handleSavePassword}
+                                    disabled={saving || !newPassword.trim()}
+                                    className="p-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Save className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={() => { setIsChangingPassword(false); setNewPassword(''); }}
+                                    className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
 

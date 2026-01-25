@@ -3,7 +3,8 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Building2, FileText, BarChart3, Shield, ArrowRight } from 'lucide-react';
+import { Building2, FileText, BarChart3, Shield, ArrowRight, ArrowLeft, Mail } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -12,6 +13,8 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
+    const [isForgotPassword, setIsForgotPassword] = useState(false);
+    const [recoverySent, setRecoverySent] = useState(false);
 
     useEffect(() => {
         setMounted(true);
@@ -21,6 +24,31 @@ export default function LoginPage() {
         e.preventDefault();
         setLoading(true);
         setError('');
+
+        if (isForgotPassword) {
+            try {
+                const res = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    setRecoverySent(true);
+                    toast.success('Password sent to your email');
+                } else {
+                    setError(data.error || 'Failed to send recovery email');
+                }
+            } catch (err) {
+                console.error('Recovery error:', err);
+                setError('An error occurred. Please try again.');
+            } finally {
+                setLoading(false);
+            }
+            return;
+        }
 
         try {
             const res = await fetch('/api/auth/login', {
@@ -138,104 +166,147 @@ export default function LoginPage() {
                         </h1>
                     </div>
 
-                    {/* Welcome Text */}
+                    {/* Header Text */}
                     <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome back</h2>
-                        <p className="text-slate-500">Enter your credentials to access your account</p>
+                        <h2 className="text-2xl font-bold text-slate-900 mb-2">
+                            {isForgotPassword ? 'Reset password' : 'Welcome back'}
+                        </h2>
+                        <p className="text-slate-500">
+                            {isForgotPassword 
+                                ? 'Enter your email to receive your account password' 
+                                : 'Enter your credentials to access your account'}
+                        </p>
                     </div>
 
-                    {/* Login Form */}
-                    <form onSubmit={handleSubmit} className="space-y-6">
-                        {error && (
-                            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="10" />
-                                    <line x1="12" y1="8" x2="12" y2="12" />
-                                    <line x1="12" y1="16" x2="12.01" y2="16" />
-                                </svg>
-                                {error}
-                            </div>
-                        )}
-
-                        {/* Email */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Email Address
-                            </label>
-                            <div className="relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                        <circle cx="12" cy="7" r="4" />
+                    {!recoverySent ? (
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {error && (
+                                <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <circle cx="12" cy="12" r="10" />
+                                        <line x1="12" y1="8" x2="12" y2="12" />
+                                        <line x1="12" y1="16" x2="12.01" y2="16" />
                                     </svg>
+                                    {error}
                                 </div>
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                                    placeholder="Enter your email"
-                                    required
-                                />
-                            </div>
-                        </div>
+                            )}
 
-                        {/* Password */}
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">
-                                Password
-                            </label>
-                            <div className="relative">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                    </svg>
+                            {/* Email */}
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">
+                                    Email Address
+                                </label>
+                                <div className="relative">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                        <Mail size={18} />
+                                    </div>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                        placeholder="Enter your email"
+                                        required
+                                    />
                                 </div>
-                                <input
-                                    type="password"
-                                    value={password}
-                                    onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
-                                    placeholder="Enter password"
-                                    required
-                                />
                             </div>
-                        </div>
 
-                        {/* Remember Me & Forgot */}
-                        <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                                <span className="text-sm text-slate-600">Remember me</span>
-                            </label>
-                            <button type="button" className="text-sm text-blue-600 font-medium hover:text-blue-700">
-                                Forgot password?
+                            {/* Password - Only show if not forgot password mode */}
+                            {!isForgotPassword && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Password
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                            </svg>
+                                        </div>
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="w-full pl-12 pr-4 py-3.5 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all"
+                                            placeholder="Enter password"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Remember Me & Forgot */}
+                            <div className="flex items-center justify-between">
+                                {!isForgotPassword && (
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                                        <span className="text-sm text-slate-600">Remember me</span>
+                                    </label>
+                                )}
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setIsForgotPassword(!isForgotPassword);
+                                        setError('');
+                                    }}
+                                    className="text-sm text-blue-600 font-medium hover:text-blue-700 flex items-center gap-1.5"
+                                >
+                                    {isForgotPassword ? (
+                                        <>
+                                            <ArrowLeft size={16} />
+                                            Back to login
+                                        </>
+                                    ) : (
+                                        'Forgot password?'
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Submit Button */}
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
+                            >
+                                {loading ? (
+                                    <>
+                                        <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="60" strokeLinecap="round" className="opacity-30" />
+                                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="60" strokeDashoffset="45" strokeLinecap="round" />
+                                        </svg>
+                                        {isForgotPassword ? 'Sending...' : 'Signing in...'}
+                                    </>
+                                ) : (
+                                    <>
+                                        {isForgotPassword ? 'Send password' : 'Sign in'}
+                                        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+                    ) : (
+                        <div className="text-center space-y-6 py-8">
+                            <div className="w-20 h-20 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Mail size={40} />
+                            </div>
+                            <h3 className="text-xl font-bold text-slate-900">Check your inbox</h3>
+                            <p className="text-slate-500 max-w-sm mx-auto">
+                                If an account exists for <span className="font-semibold text-slate-700">{email}</span>, we've sent the password to that email.
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setIsForgotPassword(false);
+                                    setRecoverySent(false);
+                                    setError('');
+                                }}
+                                className="text-blue-600 font-medium hover:text-blue-700 flex items-center justify-center gap-2 mx-auto"
+                            >
+                                <ArrowLeft size={18} />
+                                Back to login
                             </button>
                         </div>
-
-                        {/* Submit Button */}
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 disabled:opacity-60 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 group"
-                        >
-                            {loading ? (
-                                <>
-                                    <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24">
-                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="60" strokeLinecap="round" className="opacity-30" />
-                                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" strokeDasharray="60" strokeDashoffset="45" strokeLinecap="round" />
-                                    </svg>
-                                    Signing in...
-                                </>
-                            ) : (
-                                <>
-                                    Sign in
-                                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                </>
-                            )}
-                        </button>
-                    </form>
+                    )}
 
 
 
