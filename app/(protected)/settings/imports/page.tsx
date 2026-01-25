@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -16,6 +16,9 @@ export default function ImportsPage() {
     const jhaSignatureInputRef = useRef<HTMLInputElement>(null);
     const djtInputRef = useRef<HTMLInputElement>(null);
     const djtSignatureInputRef = useRef<HTMLInputElement>(null);
+    const logoInputRef = useRef<HTMLInputElement>(null);
+    const footerInputRef = useRef<HTMLInputElement>(null);
+    const coverFrameInputRef = useRef<HTMLInputElement>(null);
 
     const parseCSV = (csvText: string) => {
         const rows: string[][] = [];
@@ -387,7 +390,95 @@ export default function ImportsPage() {
                 if (djtSignatureInputRef.current) djtSignatureInputRef.current.value = '';
             }
         };
+
         reader.readAsText(file);
+    };
+
+    const handleUploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/upload-logo', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                success('Template Header Logo updated successfully');
+            } else {
+                toastError(data.error || 'Failed to upload logo');
+            }
+        } catch (err: any) {
+            console.error(err);
+            toastError(err.message || 'Error uploading logo');
+        } finally {
+            setIsImporting(false);
+            if (logoInputRef.current) logoInputRef.current.value = '';
+        }
+    };
+
+    const handleUploadFooter = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/upload-footer', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                success('Template Footer Image updated successfully');
+            } else {
+                toastError(data.error || 'Failed to upload footer');
+            }
+        } catch (err: any) {
+            console.error(err);
+            toastError(err.message || 'Error uploading footer');
+        } finally {
+            setIsImporting(false);
+            if (footerInputRef.current) footerInputRef.current.value = '';
+        }
+    };
+
+    const handleUploadCoverFrame = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const res = await fetch('/api/upload-cover-frame', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                success('Template Cover Frame updated successfully');
+            } else {
+                toastError(data.error || 'Failed to upload cover frame');
+            }
+        } catch (err: any) {
+            console.error(err);
+            toastError(err.message || 'Error uploading cover frame');
+        } finally {
+            setIsImporting(false);
+            if (coverFrameInputRef.current) coverFrameInputRef.current.value = '';
+        }
     };
 
     const handleSyncQuickBooks = async () => {
@@ -500,6 +591,33 @@ export default function ImportsPage() {
                         color="bg-emerald-500"
                         description="Fetch live project and financial data from QuickBooks"
                         onClick={handleSyncQuickBooks}
+                    />
+
+                    <input type="file" ref={logoInputRef} onChange={handleUploadLogo} className="hidden" accept="image/png, image/jpeg" />
+                    <ImportCard 
+                        title="Template Header Logo"
+                        icon={Image}
+                        color="bg-blue-600"
+                        description="Upload logo for PDF template headers"
+                        onClick={() => logoInputRef.current?.click()}
+                    />
+
+                    <input type="file" ref={footerInputRef} onChange={handleUploadFooter} className="hidden" accept="image/png, image/jpeg" />
+                    <ImportCard 
+                        title="Template Footer Image"
+                        icon={Footprints}
+                        color="bg-indigo-600"
+                        description="Upload footer image for PDF templates"
+                        onClick={() => footerInputRef.current?.click()}
+                    />
+
+                    <input type="file" ref={coverFrameInputRef} onChange={handleUploadCoverFrame} className="hidden" accept="image/png, image/jpeg" />
+                    <ImportCard 
+                        title="Template Cover Frame"
+                        icon={Image}
+                        color="bg-slate-700"
+                        description="Upload fixed cover frame (foreground) for PDF templates"
+                        onClick={() => coverFrameInputRef.current?.click()}
                     />
                 </div>
 

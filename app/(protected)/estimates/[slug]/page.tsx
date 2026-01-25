@@ -43,6 +43,7 @@ interface Template {
     title: string;
     content?: string;
     pages?: { content: string }[];
+    coverImage?: string;
     services?: string[];
 }
 
@@ -319,7 +320,16 @@ export default function EstimateViewPage() {
                 },
                 body: JSON.stringify({
                     html: content,
-                    filename: `Proposal-${estimate?.proposalNo || 'Draft'}.pdf`
+
+                    filename: `Proposal-${estimate?.proposalNo || 'Draft'}.pdf`,
+                    coverImage: templates.find(t => t._id === selectedTemplateId)?.coverImage,
+                    coverData: {
+                        proposalNo: formData?.proposalNo || estimate?.proposalNo,
+                        projectName: formData?.projectName || estimate?.projectName,
+                        jobAddress: formData?.jobAddress || estimate?.jobAddress,
+                        services: (formData?.services || estimate?.services || []).join(' & <br/>'),
+                        customerName: formData?.customerName || estimate?.customerName
+                    }
                 })
             });
 

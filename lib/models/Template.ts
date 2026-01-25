@@ -19,6 +19,7 @@ export interface ITemplate extends Document {
     }[];
     status?: string;
     services?: string[];
+    coverImage?: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -41,6 +42,7 @@ const TemplateSchema: Schema = new Schema({
     }],
     status: { type: String, default: 'draft' },
     services: { type: [String], default: [] },
+    coverImage: { type: String },
 }, { timestamps: true });
 
 export default mongoose.models.Template || mongoose.model<ITemplate>('Template', TemplateSchema);

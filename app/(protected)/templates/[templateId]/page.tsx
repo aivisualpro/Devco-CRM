@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { Plus, X, Save, ChevronDown, ChevronRight, ArrowLeft, FileText, Check, Loader2 } from 'lucide-react';
+import { Plus, X, Save, ChevronDown, ChevronRight, ArrowLeft, FileText, Check, Loader2, Image as ImageIcon } from 'lucide-react';
 import { Header, ToastContainer, Badge, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import 'react-quill-new/dist/quill.snow.css';
@@ -36,6 +36,7 @@ interface Template {
     subTitle?: string;
     subTitleDescription?: string;
     content?: string;
+    coverImage?: string;
     pages?: { content: string }[];
     customVariables?: CustomVariable[];
     status?: string;
@@ -111,10 +112,12 @@ export default function TemplateEditorPage() {
     const quillRefs = useRef<any[]>([]);
     const autoSaveTimer = useRef<NodeJS.Timeout | null>(null);
     const savedTemplateIdRef = useRef<string | null>(isNew ? null : templateId);
+    const coverInputRef = useRef<HTMLInputElement>(null);
 
     // State
     const [loading, setLoading] = useState(!isNew);
     const [saving, setSaving] = useState(false);
+    const [uploadingCover, setUploadingCover] = useState(false);
     const [lastSaved, setLastSaved] = useState<Date | null>(null);
     const [formData, setFormData] = useState<Partial<Template>>({ title: '', subTitleDescription: '', status: 'draft' });
     const [pages, setPages] = useState<{ content: string }[]>([{ content: '' }]);
@@ -256,6 +259,40 @@ export default function TemplateEditorPage() {
         setPages(newPages);
         if (index === 0) {
             setFormData({ ...formData, content: val });
+        }
+    };
+
+    const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', file);
+        if (!isNew) {
+            uploadFormData.append('templateId', templateId);
+        }
+
+
+        try {
+            setUploadingCover(true);
+            const res = await fetch('/api/upload-template-cover', {
+                method: 'POST',
+                body: uploadFormData
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                setFormData({ ...formData, coverImage: data.url });
+                success('Cover image uploaded');
+            } else {
+                toastError(data.error || 'Failed to upload cover');
+            }
+        } catch (err: any) {
+            console.error(err);
+            toastError(err.message || 'Error uploading cover');
+        } finally {
+            setUploadingCover(false);
+            if (coverInputRef.current) coverInputRef.current.value = '';
         }
     };
 
@@ -665,6 +702,40 @@ export default function TemplateEditorPage() {
                                     <Plus className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 flex-shrink-0" />
                                 </button>
                             ))}
+                        </div>
+                    </SidebarAccordion>
+
+                    <SidebarAccordion title="Cover Image" defaultOpen={true}>
+                         <div className="flex flex-col gap-3">
+                            {formData.coverImage ? (
+                                <div className="relative rounded-lg overflow-hidden group border border-gray-200" style={{ background: '#e0e5ec', boxShadow: 'inset 2px 2px 4px #b8b9be, inset -2px -2px 4px #ffffff' }}>
+                                    <img src={formData.coverImage} alt="Cover" className="w-full h-32 object-cover" />
+                                    <button 
+                                        onClick={() => setFormData({ ...formData, coverImage: undefined })}
+                                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div 
+                                    onClick={() => !uploadingCover && coverInputRef.current?.click()}
+                                    className={`border-2 border-dashed border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors h-32 ${uploadingCover ? 'opacity-50 pointer-events-none' : ''}`}
+                                >
+                                    {uploadingCover ? (
+                                        <>
+                                            <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
+                                            <span className="text-xs text-blue-500 font-medium">Uploading...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ImageIcon className="w-8 h-8 text-gray-400 mb-2" />
+                                            <span className="text-xs text-gray-500 font-medium">Click to upload cover</span>
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                            <input type="file" ref={coverInputRef} onChange={handleUploadCover} className="hidden" accept="image/*" />
                         </div>
                     </SidebarAccordion>
 
