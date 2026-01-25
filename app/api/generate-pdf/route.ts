@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
                  ${coverFrameDataUrl ? `<img src="${coverFrameDataUrl}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 5;" />` : ''}
                  
                  <!-- Top Dynamic Info (Project Details) -->
-                 <div style="position: absolute; top: 30%; left: 8%; width: 80%; z-index: 10; font-family: 'Lovelo', sans-serif;">
+                 <div style="position: absolute; top: 30%; left: 8%; width: 80%; z-index: 10; font-family: 'Lovelo', 'Montserrat', sans-serif;">
                     ${proposalNo ? `<div style="font-size: 38pt; font-weight: 900; color: #000; margin-bottom: 2px;">${proposalNo}</div>` : ''}
                     ${jobAddress ? `<div style="font-size: 28pt; width: 60%; font-weight: 900; color: #a91b3b; margin-bottom: 12px; line-height: 1.1;">${jobAddress.toUpperCase()}</div>` : ''}
                     
@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
                  </div>
 
                  <!-- Bottom Dynamic Info (Client Name - Aligned to Frame) -->
-                 <div style="position: absolute; bottom: 4%; left: 10.5%; width: 50%; z-index: 10; font-family: 'Lovelo', sans-serif;">
+                 <div style="position: absolute; bottom: 4%; left: 10.5%; width: 50%; z-index: 10; font-family: 'Lovelo', 'Montserrat', sans-serif;">
                     <div style="font-size: 16pt; width: 70%; font-weight: 900; color: #1a365d; text-transform: uppercase; line-height: 1.2;">
                         ${customerName || ''}
                     </div>
@@ -204,10 +204,28 @@ export async function POST(request: NextRequest) {
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <link href="https://cdn.jsdelivr.net/npm/quill@2.0.0/dist/quill.snow.css" rel="stylesheet" />
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-                <link href="https://fonts.cdnfonts.com/css/lovelo" rel="stylesheet">
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@300;700;900&display=swap" rel="stylesheet">
                 <style>
-                    /* CSS @page controls PDF page size and margins */
+                    @font-face {
+                        font-family: 'Lovelo';
+                        font-style: normal;
+                        font-weight: 300;
+                        src: local('Lovelo'), url('https://fonts.cdnfonts.com/s/18519/Lovelo-LineLight.woff') format('woff');
+                    }
+                    @font-face {
+                        font-family: 'Lovelo';
+                        font-style: normal;
+                        font-weight: 700;
+                        src: local('Lovelo'), url('https://fonts.cdnfonts.com/s/18519/Lovelo-LineBold.woff') format('woff');
+                    }
+                    @font-face {
+                        font-family: 'Lovelo';
+                        font-style: normal;
+                        font-weight: 900;
+                        src: local('Lovelo'), url('https://fonts.cdnfonts.com/s/18519/Lovelo-Black.woff') format('woff');
+                    }
+                    
+                    /* Reset */
                     @page {
                         size: letter;
                         margin-top: 0in;
@@ -411,11 +429,20 @@ export async function POST(request: NextRequest) {
             waitUntil: 'networkidle'
         });
 
-        // Wait for fonts to load
-        await page.evaluate(() => document.fonts.ready);
+        // Wait for fonts to load explicitly
+        await page.evaluate(async () => {
+            // Force browser to actually try and render text with these fonts to trigger loading
+            const div = document.createElement('div');
+            div.style.fontFamily = 'Lovelo';
+            div.textContent = 'loading...';
+            document.body.appendChild(div);
+            // Wait for all fonts (including dynamic ones)
+            await document.fonts.ready;
+            document.body.removeChild(div);
+        });
         
-        // Small delay to ensure rendering is complete
-        await page.waitForTimeout(500);
+        // Final safety delay for full rendering
+        await page.waitForTimeout(1000);
 
         // Generate PDF - allow multiple pages based on content
         const pdfBuffer = await page.pdf({
