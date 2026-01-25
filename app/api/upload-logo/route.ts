@@ -1,8 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs';
-import path from 'path';
-import { uploadBufferToR2 } from '@/lib/s3';
+
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 export async function POST(req: NextRequest) {
     try {
@@ -14,14 +13,13 @@ export async function POST(req: NextRequest) {
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const fileName = `assets/devco-logo-header.png`;
-        const r2Url = await uploadBufferToR2(buffer, fileName, file.type);
+        const result = await uploadToCloudinary(buffer, 'assets', 'devco-logo-header');
 
-        if (!r2Url) {
-            throw new Error('Failed to upload to R2');
+        if (!result) {
+            throw new Error('Failed to upload to Cloudinary');
         }
 
-        return NextResponse.json({ success: true, message: 'Logo uploaded successfully', url: r2Url });
+        return NextResponse.json({ success: true, message: 'Logo uploaded successfully', url: result.url });
     } catch (error: any) {
         console.error('Error uploading logo:', error);
         return NextResponse.json({ error: error.message || 'Failed to upload logo' }, { status: 500 });

@@ -2,36 +2,41 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { v2 as cloudinary } from 'cloudinary';
 
-const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
-const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
-const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
-
-const s3Client = new S3Client({
-    region: "auto",
-    endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: {
-        accessKeyId: R2_ACCESS_KEY_ID || "",
-        secretAccessKey: R2_SECRET_ACCESS_KEY || "",
-    },
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true,
 });
 
-async function getR2ImageAsDataUrl(key: string): Promise<string> {
-    if (!R2_BUCKET_NAME) return '';
+async function getCloudinaryImageAsDataUrl(publicId: string): Promise<string> {
     try {
-        const command = new GetObjectCommand({
-            Bucket: R2_BUCKET_NAME,
-            Key: key,
-        });
-        const response = await s3Client.send(command);
-        if (!response.Body) return '';
-        const data = await response.Body.transformToByteArray();
-        const base64 = Buffer.from(data).toString('base64');
-        return `data:${response.ContentType || 'image/png'};base64,${base64}`;
+        // Build the URL. We use 'v1' as a placeholder version or omit it.
+        const url = cloudinary.url(publicId, { secure: true });
+        const response = await fetch(url);
+        if (!response.ok) return '';
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        const contentType = response.headers.get('content-type') || 'image/png';
+        return `data:${contentType};base64,${base64}`;
     } catch (e) {
-        console.error(`Error fetching ${key} from R2:`, e);
+        console.error(`Error fetching ${publicId} from Cloudinary:`, e);
+        return '';
+    }
+}
+
+async function getExternalImageAsDataUrl(url: string): Promise<string> {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) return '';
+        const buffer = await response.arrayBuffer();
+        const base64 = Buffer.from(buffer).toString('base64');
+        const contentType = response.headers.get('content-type') || 'image/png';
+        return `data:${contentType};base64,${base64}`;
+    } catch (e) {
+        console.error(`Error fetching external image ${url}:`, e);
         return '';
     }
 }
@@ -81,7 +86,7 @@ export async function POST(request: NextRequest) {
                 return stripped.length > 0 && s.trim().length > 0;
             });
 
-        // Read images for header and footer - favoring local for dev, R2 for prod
+        // Read images for header and footer - favoring local for dev, Cloudinary for prod
         const publicDir = path.join(process.cwd(), 'public');
         let logoDataUrl = '';
         let footerDataUrl = '';
@@ -92,7 +97,7 @@ export async function POST(request: NextRequest) {
                 const logoBase64 = fs.readFileSync(logoPath).toString('base64');
                 logoDataUrl = `data:image/png;base64,${logoBase64}`;
             } else {
-                logoDataUrl = await getR2ImageAsDataUrl('assets/devco-logo-header.png');
+                logoDataUrl = await getCloudinaryImageAsDataUrl('assets/devco-logo-header');
             }
 
             const footerPath = path.join(publicDir, 'pdf-footer.png');
@@ -100,7 +105,7 @@ export async function POST(request: NextRequest) {
                 const footerBase64 = fs.readFileSync(footerPath).toString('base64');
                 footerDataUrl = `data:image/png;base64,${footerBase64}`;
             } else {
-                footerDataUrl = await getR2ImageAsDataUrl('assets/pdf-footer.png');
+                footerDataUrl = await getCloudinaryImageAsDataUrl('assets/pdf-footer');
             }
         } catch (e) {
             console.error('Error reading assets for PDF:', e);
@@ -113,27 +118,33 @@ export async function POST(request: NextRequest) {
                 const base64 = fs.readFileSync(coverFramePath).toString('base64');
                 coverFrameDataUrl = `data:image/png;base64,${base64}`;
             } else {
-                coverFrameDataUrl = await getR2ImageAsDataUrl('assets/template-cover-frame.png');
+                coverFrameDataUrl = await getCloudinaryImageAsDataUrl('assets/template-cover-frame');
             }
         } catch (e) {}
 
         let coverPageHtml = '';
         if (coverImage || coverFrameDataUrl) {
-             // Convert to base64 if it's a local public file
-             if (coverImage && coverImage.startsWith('/')) {
-                   const cleanPath = coverImage.startsWith('/api/docs/') ? coverImage.replace('/api/docs/', '') : coverImage.startsWith('/') ? coverImage.substring(1) : coverImage;
-                   const coverPath = path.join(process.cwd(), 'public', cleanPath);
-                   
-                   if (fs.existsSync(coverPath)) {
-                        const coverBase64 = fs.readFileSync(coverPath).toString('base64');
-                        // assume png/jpg
-                        const ext = path.extname(coverPath).substring(1) || 'png';
-                        coverImage = `data:image/${ext};base64,${coverBase64}`;
+             // Handle cover image (local path, R2-api-proxy-legacy, or Cloudinary/External URL)
+             if (coverImage && (coverImage.startsWith('/') || coverImage.startsWith('http'))) {
+                   if (coverImage.startsWith('http')) {
+                       // Direct Cloudinary or external URL
+                       coverImage = await getExternalImageAsDataUrl(coverImage);
                    } else {
-                        // Try R2
-                        const r2Key = coverImage.startsWith('/api/docs/') ? coverImage.replace('/api/docs/', '') : coverImage.startsWith('/') ? coverImage.substring(1) : coverImage;
-                        const r2Data = await getR2ImageAsDataUrl(r2Key);
-                        if (r2Data) coverImage = r2Data;
+                       const cleanPath = coverImage.startsWith('/api/docs/') ? coverImage.replace('/api/docs/', '') : coverImage.startsWith('/') ? coverImage.substring(1) : coverImage;
+                       const coverPath = path.join(process.cwd(), 'public', cleanPath);
+                       
+                       if (fs.existsSync(coverPath)) {
+                            const coverBase64 = fs.readFileSync(coverPath).toString('base64');
+                            const ext = path.extname(coverPath).substring(1) || 'png';
+                            coverImage = `data:image/${ext};base64,${coverBase64}`;
+                       } else {
+                            // Try Cloudinary if it looks like a legacy R2 key or relative path
+                            const r2Key = coverImage.startsWith('/api/docs/') ? coverImage.replace('/api/docs/', '') : coverImage.startsWith('/') ? coverImage.substring(1) : coverImage;
+                            // R2 keys were like covers/cover_xxx.png, Cloudinary uses the same as public_id
+                            const cloudinaryId = r2Key.replace(/\.[^/.]+$/, ""); // strip extension
+                            const cloudData = await getCloudinaryImageAsDataUrl(cloudinaryId);
+                            if (cloudData) coverImage = cloudData;
+                       }
                    }
              }
 
