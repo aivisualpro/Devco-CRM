@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
-import path from 'path';
+import { uploadBufferToR2 } from '@/lib/s3';
 
 export async function POST(req: NextRequest) {
     try {
@@ -15,23 +15,15 @@ export async function POST(req: NextRequest) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
         
-        // Ensure covers directory exists
-        const publicDir = path.join(process.cwd(), 'public');
-        const coversDir = path.join(publicDir, 'covers');
-        if (!fs.existsSync(coversDir)) {
-            fs.mkdirSync(coversDir, { recursive: true });
+        // Generate filename
+        const filename = `covers/cover_${templateId || 'temp_' + Date.now()}.png`;
+        const r2Url = await uploadBufferToR2(buffer, filename, file.type);
+
+        if (!r2Url) {
+            throw new Error('Failed to upload to R2');
         }
 
-        // Generate filename
-        const filename = `cover_${templateId || 'temp_' + Date.now()}.png`;
-        const filePath = path.join(coversDir, filename);
-
-        fs.writeFileSync(filePath, buffer);
-
-        // Return the relative path for the frontend/DB
-        const publicPath = `/covers/${filename}`;
-
-        return NextResponse.json({ success: true, url: publicPath });
+        return NextResponse.json({ success: true, url: r2Url });
     } catch (error: any) {
         console.error('Error uploading cover:', error);
         return NextResponse.json({ error: error.message || 'Failed to upload cover' }, { status: 500 });

@@ -48,6 +48,32 @@ export async function uploadToR2(
     }
 }
 
+export async function uploadBufferToR2(
+    buffer: Buffer,
+    fileName: string,
+    contentType: string = "image/png"
+): Promise<string | null> {
+    if (!R2_BUCKET_NAME || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+        console.error("R2 credentials or bucket name not configured");
+        return null;
+    }
+
+    try {
+        const command = new PutObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: fileName,
+            Body: buffer,
+            ContentType: contentType,
+        });
+
+        await s3Client.send(command);
+        return `/api/docs/${fileName}`;
+    } catch (error) {
+        console.error("R2 Buffer Upload Error:", error);
+        return null;
+    }
+}
+
 export async function removeFromR2(fileName: string): Promise<boolean> {
     if (!R2_BUCKET_NAME || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
         console.error("R2 credentials or bucket name not configured");

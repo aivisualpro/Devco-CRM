@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
-import path from 'path';
+import { uploadBufferToR2 } from '@/lib/s3';
 
 export async function POST(req: NextRequest) {
     try {
@@ -13,12 +13,14 @@ export async function POST(req: NextRequest) {
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        // Save as pdf-footer.png to match what generate-pdf expects
-        const filePath = path.join(process.cwd(), 'public', 'pdf-footer.png');
+        const fileName = `assets/pdf-footer.png`;
+        const r2Url = await uploadBufferToR2(buffer, fileName, file.type);
 
-        fs.writeFileSync(filePath, buffer);
+        if (!r2Url) {
+            throw new Error('Failed to upload to R2');
+        }
 
-        return NextResponse.json({ success: true, message: 'Footer updated successfully' });
+        return NextResponse.json({ success: true, message: 'Footer updated successfully', url: r2Url });
     } catch (error: any) {
         console.error('Error uploading footer:', error);
         return NextResponse.json({ error: error.message || 'Failed to upload footer' }, { status: 500 });

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { uploadBufferToR2 } from '@/lib/s3';
 
 export async function POST(req: NextRequest) {
     try {
@@ -13,11 +14,14 @@ export async function POST(req: NextRequest) {
         }
 
         const buffer = Buffer.from(await file.arrayBuffer());
-        const filePath = path.join(process.cwd(), 'public', 'devco-logo-header.png');
+        const fileName = `assets/devco-logo-header.png`;
+        const r2Url = await uploadBufferToR2(buffer, fileName, file.type);
 
-        fs.writeFileSync(filePath, buffer);
+        if (!r2Url) {
+            throw new Error('Failed to upload to R2');
+        }
 
-        return NextResponse.json({ success: true, message: 'Logo uploaded successfully' });
+        return NextResponse.json({ success: true, message: 'Logo uploaded successfully', url: r2Url });
     } catch (error: any) {
         console.error('Error uploading logo:', error);
         return NextResponse.json({ error: error.message || 'Failed to upload logo' }, { status: 500 });
