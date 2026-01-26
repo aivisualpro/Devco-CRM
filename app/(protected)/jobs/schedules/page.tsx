@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
@@ -36,7 +36,7 @@ interface Objective {
 
 // ScheduleItem interface imported from components/ScheduleCard
 
-export default function SchedulePage() {
+function SchedulePageContent() {
     const { success, error: toastError } = useToast();
     const { user } = usePermissions();
     
@@ -4207,5 +4207,13 @@ export default function SchedulePage() {
                 </div>
             </Modal>
         </div>
+    );
+}
+
+export default function SchedulePage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <SchedulePageContent />
+        </Suspense>
     );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { Save, Trash2, ArrowLeft, Building, User, FileText, Briefcase, FileSpreadsheet, Plus, Pencil, Mail, Phone, MapPin, Upload, RefreshCw, Eye } from 'lucide-react';
 
@@ -59,7 +59,7 @@ const formatPhoneNumber = (value: string) => {
     return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`;
 };
 
-export default function ClientViewPage() {
+function ClientViewPageContent() {
     const router = useRouter();
     const params = useParams();
     const searchParams = useSearchParams();
@@ -1267,5 +1267,20 @@ export default function ClientViewPage() {
             />
 
         </div>
+    );
+}
+
+export default function ClientViewPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex-1 p-8 flex items-center justify-center h-screen bg-slate-50">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <p className="text-gray-400 font-medium">Loading Client Profile...</p>
+                </div>
+            </div>
+        }>
+            <ClientViewPageContent />
+        </Suspense>
     );
 }
