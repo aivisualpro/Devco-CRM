@@ -16,7 +16,9 @@ import {
 // SUPER ADMIN CHECK
 // =====================================
 export function isSuperAdmin(appRole?: string): boolean {
-    return appRole?.toLowerCase() === 'super admin';
+    if (!appRole) return false;
+    const role = appRole.toLowerCase();
+    return role === 'super admin' || role === 'superadmin' || role === 'devco admin';
 }
 
 // =====================================
