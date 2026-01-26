@@ -281,6 +281,13 @@ function DashboardContent() {
     // UI States
     const [loading, setLoading] = useState(true);
     const [scheduleView, setScheduleView] = useState<'all' | 'self'>('self');
+
+    // Default to 'all' if super admin
+    useEffect(() => {
+        if (isSuperAdmin) {
+            setScheduleView('all');
+        }
+    }, [isSuperAdmin]);
     const [chatFilter, setChatFilter] = useState('');
     const [newMessage, setNewMessage] = useState('');
     const [selectedDetailSchedule, setSelectedDetailSchedule] = useState<Schedule | null>(null);
@@ -822,7 +829,7 @@ function DashboardContent() {
                         startDate: startStr,
                         endDate: endStr,
                         page: 1,
-                        limit: 50,
+                        limit: 100,
                         skipInitialData: initialData.employees.length > 0, // Fetch once if empty
                         userEmail: scheduleView === 'self' ? userEmail : undefined
                     }
@@ -831,7 +838,7 @@ function DashboardContent() {
             const schedData = await schedRes.json();
             if (schedData.success) {
                 const scheds = schedData.result?.schedules || [];
-                setSchedules(scheds.slice(0, 12));
+                setSchedules(scheds);
                 if (schedData.result?.initialData) {
                     setInitialData(schedData.result.initialData);
                 }

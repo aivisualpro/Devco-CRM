@@ -371,6 +371,7 @@ export default function EstimateViewPage() {
     const [statusOptions, setStatusOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [serviceOptions, setServiceOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [planningOptions, setPlanningOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [certifiedPayrollOptions, setCertifiedPayrollOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [employeesData, setEmployeesData] = useState<any[]>([]); // Full employee data for signature/position lookup
@@ -683,6 +684,21 @@ export default function EstimateViewPage() {
                     }))
                     .sort((a: any, b: any) => a.label.localeCompare(b.label));
                 setCertifiedPayrollOptions(certifiedPayroll);
+
+                // Process Planning Options
+                const planning = (constant || [])
+                    .filter((c: any) => {
+                        const type = (c.type || c.category || '').toLowerCase();
+                        return type === 'planning';
+                    })
+                    .map((c: any) => ({
+                        id: c._id,
+                        label: c.description || c.value,
+                        value: (c.description || c.value || '').trim(),
+                        color: c.color
+                    }))
+                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
+                setPlanningOptions(planning);
 
                 // Fetch Employees for Proposal Writer
                 const employeeRes = await apiCall('getEmployees');
@@ -2017,6 +2033,7 @@ export default function EstimateViewPage() {
                                 formData={formData || {}} 
                                 employees={employeesData} 
                                 onUpdate={handleHeaderUpdate}
+                                planningOptions={planningOptions}
                             />
                         </div>
                     )}

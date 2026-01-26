@@ -2512,6 +2512,75 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, count: records.length, modified: modifiedCount });
             }
 
+            case 'importPlanningDocs': {
+                const { records } = payload || {};
+                if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid records' }, { status: 400 });
+
+                // 1. Group records by Estimate key
+                const groups = records.reduce((acc: Record<string, any[]>, r: any) => {
+                    const key = String(r.estimate || r['Estimate #'] || r['Proposal Number'] || r.Proposal_Number || '').trim();
+                    if (key) {
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(r);
+                    }
+                    return acc;
+                }, {});
+
+                let modifiedCount = 0;
+
+                for (const [estKey, entries] of Object.entries(groups)) {
+                    // Find the latest version of this estimate
+                    const targetDoc = await Estimate.findOne({ 
+                        $or: [{ _id: estKey }, { estimate: estKey }]
+                    }).sort({ versionNumber: -1 });
+
+                    if (targetDoc) {
+                        const existing = targetDoc.jobPlanningDocs || [];
+                        
+                        for (const r of entries) {
+                            const recordId = String(r._id || r.Record_ID || new Types.ObjectId().toString());
+                            const cleanRecord: any = {
+                                _id: recordId,
+                                planningType: String(r.planningType || r.PlanningType || r['Planning Type'] || ''),
+                                usaTicketNo: String(r.usaTicketNo || r.USATicketNo || r['USA Ticket No'] || ''),
+                                dateSubmitted: String(r.dateSubmitted || r.DateSubmitted || r['Date Submitted'] || ''),
+                                activationDate: String(r.activationDate || r.ActivationDate || r['Activation Date'] || ''),
+                                expirationDate: String(r.expirationDate || r.ExpirationDate || r['Expiration Date'] || ''),
+                                documentName: String(r.documentName || r.DocumentName || r['Document Name'] || ''),
+                                documents: [] as any[],
+                                createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+                                updatedAt: new Date()
+                            };
+
+                            if (r.documents || r.Documents) {
+                                const docVal = r.documents || r.Documents;
+                                const urls = String(docVal).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+                                cleanRecord.documents = urls.map(url => ({
+                                    name: url.split('/').pop() || 'file',
+                                    url: url,
+                                    type: url.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg',
+                                    uploadedAt: new Date().toISOString()
+                                }));
+                            }
+
+                            // Update or Add
+                            const idx = existing.findIndex((ep: any) => String(ep._id) === recordId);
+                            if (idx === -1) {
+                                existing.push(cleanRecord);
+                            } else {
+                                const existingItem = existing[idx];
+                                Object.assign(existingItem, cleanRecord);
+                            }
+                        }
+
+                        targetDoc.jobPlanningDocs = existing;
+                        await targetDoc.save();
+                        modifiedCount++;
+                    }
+                }
+                return NextResponse.json({ success: true, count: records.length, modified: modifiedCount });
+            }
+
             case 'updateReceiptsAndCosts': {
                 const { id, receiptsAndCosts } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Missing estimate id' }, { status: 400 });

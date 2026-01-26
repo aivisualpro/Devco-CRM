@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User } from 'lucide-react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { format } from 'date-fns';
@@ -26,6 +26,25 @@ const DOC_TEMPLATES: Record<string, string> = {
     // Add more templates here as needed
 };
 
+const safeFormatDate = (dateStr: string | undefined | null, formatStr: string = 'MM/dd/yy') => {
+    if (!dateStr || String(dateStr).trim() === '') return '-';
+    try {
+        let finalStr = String(dateStr);
+        if (finalStr.includes('-') && !finalStr.includes('T')) {
+            finalStr = `${finalStr}T00:00:00`;
+        }
+        const d = new Date(finalStr);
+        if (isNaN(d.getTime())) {
+            const d2 = new Date(String(dateStr));
+            if (isNaN(d2.getTime())) return String(dateStr);
+            return format(d2, formatStr);
+        }
+        return format(d, formatStr);
+    } catch (e) {
+        return String(dateStr) || '-';
+    }
+};
+
 interface Employee {
     _id: string;
     firstName?: string;
@@ -40,9 +59,10 @@ interface EstimateDocsCardProps {
     formData?: Record<string, any>;
     employees?: Employee[];
     onUpdate?: (field: string, value: any) => void;
+    planningOptions?: { id: string; label: string; value: string; color?: string }[];
 }
 
-export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate }) => {
+export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [] }) => {
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [isSignedContractModalOpen, setIsSignedContractModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -84,7 +104,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         'Fringe Benefits Proof of Payment'
     ];
 
-    const planningDocs: string[] = [];
+    const jobPlanningDocs = formData?.jobPlanningDocs || [];
     const signedContracts = formData?.signedContracts || [];
     const receiptsAndCosts = formData?.receiptsAndCosts || [];
 
@@ -109,6 +129,23 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         paymentDate: '',
         upload: [] as any[],
         createdBy: ''
+    });
+
+    const [isPlanningModalOpen, setIsPlanningModalOpen] = useState(false);
+    const [isPlanningDetailsModalOpen, setIsPlanningDetailsModalOpen] = useState(false);
+    const [selectedPlanningItem, setSelectedPlanningItem] = useState<any>(null);
+    const [isPlanningUploading, setIsPlanningUploading] = useState(false);
+    const [planningItemToDelete, setPlanningItemToDelete] = useState<number | null>(null);
+    const [editingPlanningIndex, setEditingPlanningIndex] = useState<number | null>(null);
+
+    const [newPlanningItem, setNewPlanningItem] = useState({
+        planningType: '',
+        usaTicketNo: '',
+        dateSubmitted: format(new Date(), 'yyyy-MM-dd'),
+        activationDate: '',
+        expirationDate: '',
+        documentName: '',
+        documents: [] as any[]
     });
 
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -148,6 +185,105 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             };
         }).sort((a, b) => a.label.localeCompare(b.label));
     }, [employees]);
+
+    const handleAddPlanning = () => {
+        setNewPlanningItem({
+            planningType: '',
+            usaTicketNo: '',
+            dateSubmitted: format(new Date(), 'yyyy-MM-dd'),
+            activationDate: '',
+            expirationDate: '',
+            documentName: '',
+            documents: []
+        });
+        setEditingPlanningIndex(null);
+        setIsPlanningModalOpen(true);
+    };
+
+    const handleEditPlanning = (index: number, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const item = jobPlanningDocs[index];
+        setNewPlanningItem({ ...item });
+        setEditingPlanningIndex(index);
+        setIsPlanningModalOpen(true);
+    };
+
+    const handleConfirmPlanning = async () => {
+        if (!newPlanningItem.planningType || !newPlanningItem.documentName) {
+            toast.error('Type and Document Name are required');
+            return;
+        }
+
+        const updatedDocs = [...jobPlanningDocs];
+        if (editingPlanningIndex !== null) {
+            updatedDocs[editingPlanningIndex] = { ...newPlanningItem };
+        } else {
+            updatedDocs.push({ 
+                ...newPlanningItem, 
+                _id: `plan-${Date.now()}`,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        onUpdate?.('jobPlanningDocs', updatedDocs);
+        setIsPlanningModalOpen(false);
+        toast.success(editingPlanningIndex !== null ? 'Planning document updated' : 'Planning document added');
+    };
+
+    const handlePlanningFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        setIsPlanningUploading(true);
+        const uploaded = [...newPlanningItem.documents];
+
+        for (const file of files) {
+            try {
+                const reader = new FileReader();
+                const base64Promise = new Promise((resolve) => {
+                    reader.onload = () => resolve(reader.result);
+                    reader.readAsDataURL(file);
+                });
+                const base64 = await base64Promise;
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'uploadDocument',
+                        payload: {
+                            file: base64,
+                            fileName: `${formData?.estimate || 'estimate'}_planning_${file.name}`,
+                            contentType: file.type
+                        }
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    uploaded.push({
+                        name: file.name,
+                        url: data.result,
+                        type: file.type,
+                        uploadedAt: new Date().toISOString()
+                    });
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                toast.error(`Failed to upload ${file.name}`);
+            }
+        }
+
+        setNewPlanningItem(prev => ({ ...prev, documents: uploaded }));
+        setIsPlanningUploading(false);
+    };
+
+    const confirmRemovePlanningItem = () => {
+        if (planningItemToDelete === null) return;
+        const updated = jobPlanningDocs.filter((_: any, i: number) => i !== planningItemToDelete);
+        onUpdate?.('jobPlanningDocs', updated);
+        setPlanningItemToDelete(null);
+        toast.success('Planning document removed');
+    };
 
     const handleDocClick = async (docName: string) => {
         const templateId = DOC_TEMPLATES[docName];
@@ -648,22 +784,98 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <h4 className="text-sm font-bold text-violet-700">Planning</h4>
                         <span className="text-[10px] bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-bold">
-                            {planningDocs.length}
+                            {jobPlanningDocs.length}
                         </span>
+                        <button 
+                            onClick={handleAddPlanning}
+                            className="ml-auto p-1.5 bg-violet-100 text-violet-600 rounded-lg hover:bg-violet-200 transition-colors"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-3">
-                            {planningDocs.length > 0 ? planningDocs.map((docName, idx) => (
-                                <DocCard 
-                                    key={idx} 
-                                    label={docName}
-                                    isLoading={generatingDoc === docName}
-                                    hasTemplate={!!DOC_TEMPLATES[docName]}
-                                    onClick={() => handleDocClick(docName)}
-                                />
+                            {jobPlanningDocs.length > 0 ? jobPlanningDocs.map((item: any, idx: number) => (
+                                <div 
+                                    key={idx}
+                                    onClick={() => {
+                                        setSelectedPlanningItem(item);
+                                        setIsPlanningDetailsModalOpen(true);
+                                    }}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex-1 min-w-0 pr-8">
+                                            <span className="inline-block text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-violet-100 text-violet-600 mb-1.5">
+                                                {item.planningType}
+                                            </span>
+                                            <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate leading-none mb-1">
+                                                {item.documentName}
+                                            </h5>
+                                            {item.usaTicketNo && (
+                                                <p className="text-[9px] font-bold text-slate-400">USA: {item.usaTicketNo}</p>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-0.5 absolute top-2 right-2">
+                                            <button 
+                                                onClick={(e) => handleEditPlanning(idx, e)}
+                                                className="p-1 text-slate-300 hover:text-violet-600 transition-colors opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPlanningItemToDelete(idx);
+                                                }}
+                                                className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50">
+                                        <div>
+                                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Active</p>
+                                            <p className="text-[9px] font-black text-slate-700 leading-none">
+                                                {safeFormatDate(item.activationDate, 'MM/dd/yy')}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Expires</p>
+                                            <p className={`text-[9px] font-black leading-none ${
+                                                (() => {
+                                                    if (!item.expirationDate) return 'text-slate-700';
+                                                    try {
+                                                        const d = new Date(item.expirationDate);
+                                                        return !isNaN(d.getTime()) && d < new Date() ? 'text-red-500' : 'text-slate-700';
+                                                    } catch (e) { return 'text-slate-700'; }
+                                                })()
+                                            }`}>
+                                                {safeFormatDate(item.expirationDate, 'MM/dd/yy')}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {item.documents && item.documents.length > 0 && (
+                                        <div className="flex items-center gap-1.5 mt-2.5">
+                                            <div className="flex -space-x-1.5">
+                                                {item.documents.slice(0, 3).map((doc: any, dIdx: number) => (
+                                                    <div key={dIdx} className="w-5 h-5 rounded-full bg-violet-50 border border-white flex items-center justify-center shadow-sm">
+                                                        <Paperclip className="w-2.5 h-2.5 text-violet-600" />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <span className="text-[8px] font-bold text-slate-400">
+                                                {item.documents.length} item{item.documents.length !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
                             )) : (
-                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No planning documents</p>
                             )}
                         </div>
                     </div>
@@ -698,14 +910,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {(() => {
-                                                    try {
-                                                        const d = contract.date?.includes('-') ? new Date(contract.date + 'T00:00:00') : new Date(contract.date);
-                                                        return format(d, 'MM/dd/yyyy');
-                                                    } catch (e) {
-                                                        return contract.date || '-';
-                                                    }
-                                                })()}
+                                                {safeFormatDate(contract.date, 'MM/dd/yyyy')}
                                             </p>
                                             <p className="text-sm font-black text-slate-800">
                                                 ${(contract.amount || 0).toLocaleString()}
@@ -997,14 +1202,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div>
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 block">Contract Date</label>
                                 <p className="text-2xl font-black text-[#0F4C75]">
-                                    {(() => {
-                                        try {
-                                            const d = selectedViewContract.date?.includes('-') ? new Date(selectedViewContract.date + 'T00:00:00') : new Date(selectedViewContract.date);
-                                            return format(d, 'MM/dd/yyyy');
-                                        } catch (e) {
-                                            return selectedViewContract.date;
-                                        }
-                                    })()}
+                                    {safeFormatDate(selectedViewContract.date, 'MM/dd/yyyy')}
                                 </p>
                             </div>
                             <div className="text-right">
@@ -1486,6 +1684,259 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 )}
             </Modal>
+
+            {/* Planning Document Modal */}
+            <Modal
+                isOpen={isPlanningModalOpen}
+                onClose={() => setIsPlanningModalOpen(false)}
+                title={editingPlanningIndex !== null ? 'Edit Planning Document' : 'Add Planning Document'}
+                maxWidth="md"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setIsPlanningModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleConfirmPlanning} disabled={isPlanningUploading}>
+                            {editingPlanningIndex !== null ? 'Save Changes' : 'Add Document'}
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="space-y-6 pt-4 max-h-[70vh] overflow-y-auto px-1">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 text-nowrap">Document Name</label>
+                            <Input 
+                                placeholder="e.g. USA Ticket"
+                                value={newPlanningItem.documentName}
+                                onChange={(e) => setNewPlanningItem(prev => ({ ...prev, documentName: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Planning Type</label>
+                            <div className="relative">
+                                <button
+                                    id="planning-type-anchor"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        (window as any).__planningTypeAnchor = rect;
+                                        setNewPlanningItem(prev => ({ ...prev })); // trigger re-render
+                                    }}
+                                    className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 flex items-center justify-between text-sm font-medium text-slate-700 hover:bg-slate-100 transition-all outline-none"
+                                >
+                                    <span>{newPlanningItem.planningType || 'Select Type...'}</span>
+                                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                                </button>
+                                <MyDropDown 
+                                    isOpen={!!(window as any).__planningTypeAnchor}
+                                    onClose={() => (window as any).__planningTypeAnchor = null}
+                                    anchorId="planning-type-anchor"
+                                    options={planningOptions || [
+                                        { id: '1', label: 'USA Ticket', value: 'USA Ticket' },
+                                        { id: '2', label: 'Encroachment', value: 'Encroachment' },
+                                        { id: '3', label: 'Sewer Bypass', value: 'Sewer Bypass' },
+                                        { id: '4', label: 'Traffic Control', value: 'Traffic Control' }
+                                    ]}
+                                    selectedValues={newPlanningItem.planningType ? [newPlanningItem.planningType] : []}
+                                    onSelect={(val: string) => {
+                                        setNewPlanningItem(prev => ({ ...prev, planningType: val }));
+                                        (window as any).__planningTypeAnchor = null;
+                                    }}
+                                    width="w-full"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">USA Ticket No (Optional)</label>
+                        <Input 
+                            placeholder="Enter ticket number"
+                            value={newPlanningItem.usaTicketNo}
+                            onChange={(e) => setNewPlanningItem(prev => ({ ...prev, usaTicketNo: e.target.value }))}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Submitted</label>
+                            <Input 
+                                type="date"
+                                value={newPlanningItem.dateSubmitted}
+                                onChange={(e) => setNewPlanningItem(prev => ({ ...prev, dateSubmitted: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Activation</label>
+                            <Input 
+                                type="date"
+                                value={newPlanningItem.activationDate}
+                                onChange={(e) => setNewPlanningItem(prev => ({ ...prev, activationDate: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Expiration</label>
+                            <Input 
+                                type="date"
+                                value={newPlanningItem.expirationDate}
+                                onChange={(e) => setNewPlanningItem(prev => ({ ...prev, expirationDate: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Documents / Attachments</label>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            {newPlanningItem.documents.map((file: any, idx: number) => (
+                                <div key={idx} className="flex items-center gap-3 p-3 bg-violet-50/50 border border-violet-100 rounded-xl group relative">
+                                    <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                                        <Paperclip className="w-4 h-4 text-violet-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] font-black text-slate-700 truncate leading-none mb-1">{file.name}</p>
+                                        <p className="text-[8px] font-bold text-slate-400 leading-none">Uploaded {format(new Date(file.uploadedAt), 'MMM d')}</p>
+                                    </div>
+                                    <button 
+                                        onClick={() => setNewPlanningItem(prev => ({ ...prev, documents: prev.documents.filter((_, i) => i !== idx) }))}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-white shadow-md border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
+                            
+                            <label className={`
+                                flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed transition-all cursor-pointer min-h-[80px]
+                                ${isPlanningUploading ? 'bg-slate-50 border-slate-200 pointer-events-none' : 'bg-violet-50/30 border-violet-100 hover:bg-violet-50 hover:border-violet-200'}
+                            `}>
+                                <input 
+                                    type="file" 
+                                    multiple 
+                                    className="hidden" 
+                                    onChange={handlePlanningFileUpload}
+                                />
+                                {isPlanningUploading ? (
+                                    <Loader2 className="w-5 h-5 text-violet-600 animate-spin" />
+                                ) : (
+                                    <>
+                                        <Plus className="w-5 h-5 text-violet-600" />
+                                        <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Upload Files</span>
+                                    </>
+                                )}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Planning Details Modal */}
+            <Modal
+                isOpen={isPlanningDetailsModalOpen}
+                onClose={() => setIsPlanningDetailsModalOpen(false)}
+                title="Planning Document Details"
+                maxWidth="lg"
+            >
+                {selectedPlanningItem && (
+                    <div className="space-y-8 pt-4">
+                        <div className="flex items-center justify-between p-6 bg-gradient-to-br from-violet-50 to-indigo-50/30 rounded-[32px] border border-violet-100/50">
+                            <div>
+                                <span className="inline-block px-3 py-1 rounded-full bg-violet-100 text-violet-600 text-[10px] font-black uppercase tracking-widest mb-3">
+                                    {selectedPlanningItem.planningType}
+                                </span>
+                                <h3 className="text-2xl font-black text-slate-800 tracking-tight leading-none">
+                                    {selectedPlanningItem.documentName}
+                                </h3>
+                                {selectedPlanningItem.usaTicketNo && (
+                                    <p className="mt-2 text-sm font-bold text-slate-500">USA Ticket: <span className="text-violet-600">{selectedPlanningItem.usaTicketNo}</span></p>
+                                )}
+                            </div>
+                            <div className="text-right">
+                                <div className="p-3 bg-white/80 rounded-2xl shadow-sm border border-white inline-block">
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
+                                    <p className={`text-sm font-black ${
+                                        selectedPlanningItem.expirationDate && new Date(selectedPlanningItem.expirationDate) < new Date() ? 'text-red-500' : 'text-green-500'
+                                    }`}>
+                                        {selectedPlanningItem.expirationDate && new Date(selectedPlanningItem.expirationDate) < new Date() ? 'EXPIRED' : 'ACTIVE'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-6">
+                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Date Submitted</p>
+                                <p className="text-base font-black text-slate-800">
+                                    {safeFormatDate(selectedPlanningItem.dateSubmitted, 'MMM dd, yyyy')}
+                                </p>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Activation Date</p>
+                                <p className="text-base font-black text-green-600">
+                                    {safeFormatDate(selectedPlanningItem.activationDate, 'MMM dd, yyyy')}
+                                </p>
+                            </div>
+                            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Expiration Date</p>
+                                <p className={`text-base font-black ${
+                                    (() => {
+                                        if (!selectedPlanningItem.expirationDate) return 'text-slate-800';
+                                        try {
+                                            const d = new Date(selectedPlanningItem.expirationDate);
+                                            return !isNaN(d.getTime()) && d < new Date() ? 'text-red-500' : 'text-slate-800';
+                                        } catch (e) { return 'text-slate-800'; }
+                                    })()
+                                }`}>
+                                    {safeFormatDate(selectedPlanningItem.expirationDate, 'MMM dd, yyyy')}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block">Attachments ({selectedPlanningItem.documents?.length || 0})</label>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-4">
+                                {selectedPlanningItem.documents?.map((file: any, idx: number) => (
+                                    <a 
+                                        key={idx}
+                                        href={file.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 overflow-hidden"
+                                    >
+                                        <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
+                                            {file.type?.startsWith('image/') ? (
+                                                <img 
+                                                    src={file.url} 
+                                                    alt={file.name}
+                                                    className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+                                                />
+                                            ) : (
+                                                <div className="flex flex-col items-center gap-2 text-violet-600">
+                                                    <div className="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center mb-1">
+                                                        <FileText className="w-6 h-6" />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-center w-full">
+                                            <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
+                                        </div>
+                                    </a>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <ConfirmModal
+                isOpen={planningItemToDelete !== null}
+                onClose={() => setPlanningItemToDelete(null)}
+                onConfirm={confirmRemovePlanningItem}
+                title="Remove Planning Document"
+                message="Are you sure you want to remove this planning document? This cannot be undone."
+                confirmText="Remove"
+                variant="danger"
+            />
 
             <ConfirmModal
                 isOpen={receiptToDelete !== null}

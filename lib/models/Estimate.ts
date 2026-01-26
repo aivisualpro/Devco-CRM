@@ -133,6 +133,23 @@ export interface IEstimate extends Document {
     }>;
     customVariables?: Record<string, string>;
     services?: string[];
+    jobPlanningDocs?: Array<{
+        _id?: string;
+        planningType?: string;
+        usaTicketNo?: string;
+        dateSubmitted?: string;
+        activationDate?: string;
+        expirationDate?: string;
+        documentName?: string;
+        documents?: Array<{
+            name: string;
+            url: string;
+            type: string;
+            uploadedAt?: string;
+        }>;
+        createdAt?: Date;
+        updatedAt?: Date;
+    }>;
 }
 
 const EstimateSchema = new Schema({
@@ -280,7 +297,24 @@ const EstimateSchema = new Schema({
         customPages: { type: [Object], default: [] },
         services: { type: [String], default: [] }
     }],
-    customVariables: { type: Object, default: {} }
+    customVariables: { type: Object, default: {} },
+    jobPlanningDocs: [{
+        _id: { type: String },
+        planningType: { type: String },
+        usaTicketNo: { type: String },
+        dateSubmitted: { type: String },
+        activationDate: { type: String },
+        expirationDate: { type: String },
+        documentName: { type: String },
+        documents: [{
+            name: { type: String },
+            url: { type: String },
+            type: { type: String },
+            uploadedAt: { type: String }
+        }],
+        createdAt: { type: Date, default: Date.now },
+        updatedAt: { type: Date, default: Date.now }
+    }]
 }, {
     timestamps: true,
     strict: false,  // Allow additional fields not in schema

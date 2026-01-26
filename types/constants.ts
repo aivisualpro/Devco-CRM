@@ -15,4 +15,5 @@ export type ConstantCategory =
     | 'Markup'
     | 'Status'
     | 'PayrollTax'
-    | 'WComp';
+    | 'WComp'
+    | 'Planning';
