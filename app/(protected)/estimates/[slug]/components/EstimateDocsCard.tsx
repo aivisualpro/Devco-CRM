@@ -137,6 +137,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [isPlanningUploading, setIsPlanningUploading] = useState(false);
     const [planningItemToDelete, setPlanningItemToDelete] = useState<number | null>(null);
     const [editingPlanningIndex, setEditingPlanningIndex] = useState<number | null>(null);
+    const [isPlanningTypeDropdownOpen, setIsPlanningTypeDropdownOpen] = useState(false);
 
     const [newPlanningItem, setNewPlanningItem] = useState({
         planningType: '',
@@ -1715,20 +1716,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="relative">
                                 <button
                                     id="planning-type-anchor"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        (window as any).__planningTypeAnchor = rect;
-                                        setNewPlanningItem(prev => ({ ...prev })); // trigger re-render
-                                    }}
+                                    onClick={() => setIsPlanningTypeDropdownOpen(!isPlanningTypeDropdownOpen)}
                                     className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 flex items-center justify-between text-sm font-medium text-slate-700 hover:bg-slate-100 transition-all outline-none"
                                 >
                                     <span>{newPlanningItem.planningType || 'Select Type...'}</span>
                                     <ChevronDown className="w-4 h-4 text-slate-400" />
                                 </button>
                                 <MyDropDown 
-                                    isOpen={!!(window as any).__planningTypeAnchor}
-                                    onClose={() => (window as any).__planningTypeAnchor = null}
+                                    isOpen={isPlanningTypeDropdownOpen}
+                                    onClose={() => setIsPlanningTypeDropdownOpen(false)}
                                     anchorId="planning-type-anchor"
                                     options={planningOptions || [
                                         { id: '1', label: 'USA Ticket', value: 'USA Ticket' },
@@ -1739,7 +1735,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     selectedValues={newPlanningItem.planningType ? [newPlanningItem.planningType] : []}
                                     onSelect={(val: string) => {
                                         setNewPlanningItem(prev => ({ ...prev, planningType: val }));
-                                        (window as any).__planningTypeAnchor = null;
+                                        setIsPlanningTypeDropdownOpen(false);
                                     }}
                                     width="w-full"
                                 />
