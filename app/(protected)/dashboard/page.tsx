@@ -227,7 +227,7 @@ const PieChart = ({ data }: { data: EstimateStats[] }) => {
                     <div key={i} className="flex items-center gap-2 text-sm">
                         <div className="w-3 h-3 rounded" style={{ backgroundColor: colors[i % colors.length] }} />
                         <span className="text-slate-600 capitalize">{d.status}</span>
-                        <span className="font-semibold text-slate-900 ml-auto">${(d.total / 1000).toFixed(0)}k</span>
+                        <span className="font-semibold text-slate-900 ml-auto">${Math.round(d.total).toLocaleString()}</span>
                     </div>
                 ))}
             </div>
@@ -277,6 +277,10 @@ function DashboardContent() {
     const [estimateStats, setEstimateStats] = useState<EstimateStats[]>([]);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]); // Keep for type safety if needed, but we use 'messages' state now
+
+    // Estimate Filter State
+    const [estimateFilter, setEstimateFilter] = useState('all'); // all, this_month, last_month, ytd, last_year
+
 
     
     // UI States
@@ -1011,21 +1015,73 @@ function DashboardContent() {
             }
             
             // Fetch estimate stats using aggregate
+            // Fetch estimate stats using aggregate
+            // Calculate date range for estimate stats
+            let estStart = null;
+            let estEnd = null;
+            const now = new Date();
+            
+            switch (estimateFilter) {
+                case 'this_month':
+                    estStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                    estEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+                    break;
+                case 'last_month':
+                    estStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                    estEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+                    break;
+                case 'ytd':
+                    estStart = new Date(now.getFullYear(), 0, 1);
+                    estEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+                    break;
+                case 'last_year':
+                    estStart = new Date(now.getFullYear() - 1, 0, 1);
+                    estEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
+                    break;
+                default:
+                    // 'all' - no filter
+                    break;
+            }
+
             const estRes = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEstimateStats' })
+                body: JSON.stringify({ 
+                    action: 'getEstimateStats',
+                    payload: { startDate: estStart, endDate: estEnd } // Pass filter to backend
+                })
             });
             const estData = await estRes.json();
             if (estData.success && estData.result?.length > 0) {
-                setEstimateStats(estData.result);
+                // Merge statuses
+                const merged = estData.result.reduce((acc: any[], curr: any) => {
+                     let status = curr.status;
+                     // Normalize statuses - check loosely 
+                     const lower = status.toLowerCase();
+                     if (lower === 'pending' || lower === 'in progress') {
+                         status = 'Pending';
+                     } else {
+                        // Capitalize others
+                        status = status.charAt(0).toUpperCase() + status.slice(1);
+                     }
+                     
+                     const existing = acc.find((i: any) => i.status === status);
+                     if (existing) {
+                         existing.count += curr.count;
+                         existing.total += curr.total;
+                     } else {
+                         acc.push({ status, count: curr.count, total: curr.total });
+                     }
+                     return acc;
+                }, []);
+                setEstimateStats(merged);
             } else {
                 // Fallback mock data for demo
                 setEstimateStats([
-                    { status: 'pending', count: 12, total: 145000 },
-                    { status: 'approved', count: 8, total: 320000 },
-                    { status: 'sent', count: 15, total: 210000 },
-                    { status: 'declined', count: 3, total: 45000 },
+                    { status: 'Pending', count: 12, total: 87936000 },
+                    { status: 'Won', count: 8, total: 6056000 },
+                    { status: 'Completed', count: 15, total: 2274000 },
+                    { status: 'Lost', count: 3, total: 402000 },
                 ]);
             }
             
@@ -1059,7 +1115,7 @@ function DashboardContent() {
         } finally {
             setLoading(false);
         }
-    }, [weekRange, scheduleView, userEmail, isSuperAdmin]);
+    }, [weekRange, scheduleView, userEmail, isSuperAdmin, estimateFilter]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -1277,13 +1333,31 @@ function DashboardContent() {
                                 
                                 {/* Estimate Stats Pie Chart */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                                            <TrendingUp className="w-5 h-5 text-purple-600" />
+                                    <div className="flex items-center gap-3 mb-4 justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                                                <TrendingUp className="w-5 h-5 text-purple-600" />
+                                            </div>
+                                            <div>
+                                                <h2 className="font-bold text-slate-900">Estimates Overview</h2>
+                                                <p className="text-xs text-slate-500">Grand total by status</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h2 className="font-bold text-slate-900">Estimates Overview</h2>
-                                            <p className="text-xs text-slate-500">Grand total by status</p>
+                                        
+                                        {/* Filter Dropdown */}
+                                        <div className="relative">
+                                            <select 
+                                                value={estimateFilter}
+                                                onChange={(e) => setEstimateFilter(e.target.value)}
+                                                className="appearance-none bg-slate-50 border border-slate-200 rounded-lg pl-3 pr-8 py-1.5 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-purple-100 cursor-pointer"
+                                            >
+                                                <option value="all">All Time</option>
+                                                <option value="this_month">This Month</option>
+                                                <option value="last_month">Last Month</option>
+                                                <option value="ytd">Year to Date</option>
+                                                <option value="last_year">Last Year</option>
+                                            </select>
+                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
                                         </div>
                                     </div>
                                     {estimateStats.length > 0 ? (

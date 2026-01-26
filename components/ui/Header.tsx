@@ -20,7 +20,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/wip', '/roles', '/constants', '/chat', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/wip', '/roles', '/constants', '/chat', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -75,6 +75,7 @@ const menuStructure: MenuItem[] = [
     {
         label: 'SETTINGS',
         items: [
+            { label: 'General', href: '/settings/general', icon: <Settings className="w-5 h-5" />, description: 'General system configuration', colorClass: 'text-gray-500' },
             { label: 'Constants', href: '/constants', icon: <Sliders className="w-5 h-5" />, description: 'System-wide configuration settings', colorClass: 'text-fuchsia-500' },
             { label: 'Roles & Permissions', href: '/roles', icon: <Settings className="w-5 h-5" />, description: 'Manage access control and permissions', colorClass: 'text-red-500' },
             { label: 'Imports', href: '/settings/imports', icon: <Import className="w-5 h-5" />, description: 'Bulk import data from CSV files', colorClass: 'text-blue-500' },

@@ -149,6 +149,118 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         documents: [] as any[]
     });
 
+    // Releases State
+    const [releasesConstants, setReleasesConstants] = useState<any[]>([]);
+    const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false);
+    const [isReleaseTypeOpen, setIsReleaseTypeOpen] = useState(false);
+    const [editingReleaseIndex, setEditingReleaseIndex] = useState<number | null>(null);
+    const [releaseToDelete, setReleaseToDelete] = useState<number | null>(null);
+    const [newRelease, setNewRelease] = useState({
+        documentType: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        amountOfCheck: '',
+        DatesOfWaiverRelease: [] as string[],
+        amountsOfUnpaidProgressPayment: [] as string[],
+        receivedProgressPayment: '',
+        disputedClaims: '',
+        documentId: '' // For linking later
+    });
+
+    const releases = formData?.releases || []; // Extract from formData
+
+    // Fetch Release Constants
+    React.useEffect(() => {
+        const fetchRel = async () => {
+            try {
+                const res = await fetch('/api/constants?type=Releases');
+                const data = await res.json();
+                if (data.success) {
+                    const constants = data.result.map((item: any) => ({
+                        ...item,
+                        value: item.value || item.description || ''
+                    }));
+                    setReleasesConstants(constants);
+                }
+            } catch (e) { console.error('Failed to fetch release constants', e); }
+        };
+        fetchRel();
+    }, []);
+
+    const handleAddRelease = () => {
+        setNewRelease({
+            documentType: '',
+            date: format(new Date(), 'yyyy-MM-dd'),
+            amountOfCheck: '',
+            DatesOfWaiverRelease: [],
+            amountsOfUnpaidProgressPayment: [],
+            receivedProgressPayment: '',
+            disputedClaims: '',
+            documentId: ''
+        });
+        setEditingReleaseIndex(null);
+        setIsReleaseModalOpen(true);
+    };
+
+    const handleEditRelease = (index: number, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const item = releases[index];
+        setNewRelease({
+            documentType: item.documentType || '',
+            date: item.date || '',
+            amountOfCheck: item.amountOfCheck || '',
+            DatesOfWaiverRelease: item.DatesOfWaiverRelease || [],
+            amountsOfUnpaidProgressPayment: item.amountsOfUnpaidProgressPayment || [],
+            receivedProgressPayment: item.receivedProgressPayment || '',
+            disputedClaims: item.disputedClaims || '',
+            documentId: item.documentId || ''
+        });
+        setEditingReleaseIndex(index);
+        setIsReleaseModalOpen(true);
+    };
+
+    const handleSaveRelease = () => {
+        if (!onUpdate) return;
+        if (!newRelease.documentType) {
+            toast.error('Document Type is required');
+            return;
+        }
+
+        let updated;
+        if (editingReleaseIndex !== null) {
+            updated = releases.map((item: any, idx: number) => 
+                idx === editingReleaseIndex ? { ...item, ...newRelease } : item
+            );
+        } else {
+            updated = [...releases, { 
+                ...newRelease, 
+                _id: Math.random().toString(36).substr(2, 9),
+                createdAt: new Date().toISOString()
+            }];
+        }
+        
+        onUpdate('releases', updated);
+        setIsReleaseModalOpen(false);
+        setEditingReleaseIndex(null);
+        toast.success(editingReleaseIndex !== null ? 'Release updated' : 'Release added');
+    };
+
+    const confirmRemoveRelease = () => {
+        if (!onUpdate || releaseToDelete === null) return;
+        const updated = releases.filter((_: any, i: number) => i !== releaseToDelete);
+        onUpdate('releases', updated);
+        setReleaseToDelete(null);
+        toast.success('Release removed');
+    };
+
+    const getReleaseCode = (type: string) => {
+        if (!type) return '';
+        if (type.includes('CP -') || type.includes('CP (')) return 'CP';
+        if (type.includes('UP -') || type.includes('UP (')) return 'UP';
+        if (type.includes('CF -') || type.includes('CF (')) return 'CF';
+        if (type.includes('UF -') || type.includes('UF (')) return 'UF';
+        return '';
+    };
+
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
     const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
@@ -415,7 +527,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     const handleDocClick = async (docName: string) => {
-        const templateId = DOC_TEMPLATES[docName];
+        // 1. Try to find ID in fetched release constants (dynamic)
+        const dbConstant = releasesConstants.find(r => r.value === docName);
+        let templateId = dbConstant?.templateId;
+
+        // 2. Fallback to hardcoded map
+        if (!templateId) {
+            templateId = DOC_TEMPLATES[docName];
+        }
         
         if (!templateId) {
             toast.error(`Template not configured for "${docName}"`);
@@ -1009,13 +1128,77 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <h4 className="text-sm font-bold text-cyan-700">Releases</h4>
                         <span className="text-[10px] bg-cyan-100 text-cyan-600 px-2 py-0.5 rounded-full font-bold">
-                            0
+                            {releases.length}
                         </span>
+                        <button 
+                            onClick={handleAddRelease}
+                            className="ml-auto p-1.5 bg-cyan-100 text-cyan-600 rounded-lg hover:bg-cyan-200 transition-colors"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
-
-                         <p className="text-[10px] text-slate-400 font-bold text-center py-4">No release docs</p>
+                         <div className="grid grid-cols-1 gap-3">
+                            {releases.length > 0 ? releases.map((item: any, idx: number) => (
+                                <div 
+                                    key={idx}
+                                    onClick={(e) => handleEditRelease(idx, e)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex-1 min-w-0 pr-6">
+                                            <span className="inline-block text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-600 mb-1.5 truncate max-w-full">
+                                                {item.documentType}
+                                            </span>
+                                            {item.date && (
+                                                <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
+                                            )}
+                                        </div>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setReleaseToDelete(idx);
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDocClick(item.documentType);
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-8"
+                                            title="Download PDF"
+                                        >
+                                            {generatingDoc === item.documentType ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                                            ) : (
+                                                <Download className="w-3.5 h-3.5" />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2 border-t border-slate-100/50 pt-2">
+                                        {/* Dynamic content summary */}
+                                        {['CP', 'CF'].includes(getReleaseCode(item.documentType)) && item.amountOfCheck && (
+                                            <div>
+                                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">Check Amt</span>
+                                                <span className="text-[10px] font-black text-slate-700">${item.amountOfCheck}</span>
+                                            </div>
+                                        )}
+                                        {['UF', 'CF'].includes(getReleaseCode(item.documentType)) && item.disputedClaims && (
+                                            <div>
+                                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">Disputed</span>
+                                                <span className="text-[10px] font-black text-red-600">${item.disputedClaims}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No release docs</p>
+                            )}
+                         </div>
                     </div>
                 </div>
 
@@ -1554,6 +1737,205 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 )}
             </Modal>
+
+            {/* Add/Edit Release Modal */}
+            <Modal
+                isOpen={isReleaseModalOpen}
+                onClose={() => setIsReleaseModalOpen(false)}
+                title={editingReleaseIndex !== null ? "Edit Release Document" : "Add Release Document"}
+                maxWidth="lg"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setIsReleaseModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveRelease}>Save Document</Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Document Type</label>
+                        <div className="relative">
+                             <button
+                                 id="release-type-trigger"
+                                 onClick={() => setIsReleaseTypeOpen(!isReleaseTypeOpen)}
+                                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between"
+                             >
+                                 <span className={newRelease.documentType ? "text-slate-700 font-medium" : "text-slate-400"}>
+                                     {newRelease.documentType || "Select Document Type"}
+                                 </span>
+                                 <ChevronDown className="w-4 h-4 text-slate-400" />
+                             </button>
+                             <MyDropDown 
+                                  isOpen={isReleaseTypeOpen}
+                                  onClose={() => setIsReleaseTypeOpen(false)}
+                                  anchorId="release-type-trigger"
+                                  options={releasesConstants.map((c: any) => ({
+                                      id: c._id,
+                                      label: c.value,
+                                      value: c.value
+                                  }))}
+                                  selectedValues={newRelease.documentType ? [newRelease.documentType] : []}
+                                  onSelect={(val) => {
+                                      setNewRelease(prev => ({ ...prev, documentType: val }));
+                                      setIsReleaseTypeOpen(false);
+                                  }}
+                                  placeholder="Search Document Type"
+                                  width="w-full"
+                             />
+                        </div>
+                    </div>
+
+                    {/* CP Fields */}
+                    {getReleaseCode(newRelease.documentType) === 'CP' && (
+                        <>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
+                                    <Input 
+                                        type="date"
+                                        value={newRelease.date}
+                                        onChange={e => setNewRelease(prev => ({ ...prev, date: e.target.value }))}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount of Check</label>
+                                    <Input 
+                                        type="number"
+                                        value={newRelease.amountOfCheck}
+                                        onChange={e => setNewRelease(prev => ({ ...prev, amountOfCheck: e.target.value }))}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* DatesOfWaiverRelease Array */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Dates of Waiver Release</label>
+                                    <button 
+                                        onClick={() => setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: [...prev.DatesOfWaiverRelease, ''] }))}
+                                        className="text-[10px] text-blue-600 font-bold hover:underline"
+                                    >
+                                        + Add Date
+                                    </button>
+                                </div>
+                                {newRelease.DatesOfWaiverRelease.length > 0 ? newRelease.DatesOfWaiverRelease.map((dt, i) => (
+                                    <div key={i} className="flex gap-2">
+                                        <Input 
+                                            type="date"
+                                            value={dt}
+                                            onChange={e => {
+                                                const updated = [...newRelease.DatesOfWaiverRelease];
+                                                updated[i] = e.target.value;
+                                                setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: updated }));
+                                            }}
+                                        />
+                                        <button onClick={() => setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: prev.DatesOfWaiverRelease.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16}/></button>
+                                    </div>
+                                )) : <span className="text-xs text-slate-400 italic pl-1">No additional dates added</span>}
+                            </div>
+
+                            {/* amountsOfUnpaidProgressPayment Array */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Unpaid Progress Ammounts</label>
+                                    <button 
+                                        onClick={() => setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: [...prev.amountsOfUnpaidProgressPayment, ''] }))}
+                                        className="text-[10px] text-blue-600 font-bold hover:underline"
+                                    >
+                                        + Add Amount
+                                    </button>
+                                </div>
+                                {newRelease.amountsOfUnpaidProgressPayment.length > 0 ? newRelease.amountsOfUnpaidProgressPayment.map((amt, i) => (
+                                    <div key={i} className="flex gap-2">
+                                        <Input 
+                                            type="number"
+                                            placeholder="0.00"
+                                            value={amt}
+                                            onChange={e => {
+                                                const updated = [...newRelease.amountsOfUnpaidProgressPayment];
+                                                updated[i] = e.target.value;
+                                                setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: updated }));
+                                            }}
+                                        />
+                                        <button onClick={() => setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: prev.amountsOfUnpaidProgressPayment.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16}/></button>
+                                    </div>
+                                )) : <span className="text-xs text-slate-400 italic pl-1">No unpaid amounts added</span>}
+                            </div>
+                        </>
+                    )}
+
+                    {/* UP Fields */}
+                    {getReleaseCode(newRelease.documentType) === 'UP' && (
+                        <div className="space-y-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
+                                <Input 
+                                    type="date"
+                                    value={newRelease.date}
+                                    onChange={e => setNewRelease(prev => ({ ...prev, date: e.target.value }))}
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Received Progress Payment(s)</label>
+                                <Input 
+                                    type="text"
+                                    placeholder="Amount or Description"
+                                    value={newRelease.receivedProgressPayment}
+                                    onChange={e => setNewRelease(prev => ({ ...prev, receivedProgressPayment: e.target.value }))}
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* CF Fields */}
+                    {getReleaseCode(newRelease.documentType) === 'CF' && (
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount of Check</label>
+                                <Input 
+                                    type="number"
+                                    value={newRelease.amountOfCheck}
+                                    onChange={e => setNewRelease(prev => ({ ...prev, amountOfCheck: e.target.value }))}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Disputed Claims ($)</label>
+                                <Input 
+                                    type="number"
+                                    value={newRelease.disputedClaims}
+                                    onChange={e => setNewRelease(prev => ({ ...prev, disputedClaims: e.target.value }))}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* UF Fields */}
+                    {getReleaseCode(newRelease.documentType) === 'UF' && (
+                         <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Disputed Claims ($)</label>
+                            <Input 
+                                type="number"
+                                value={newRelease.disputedClaims}
+                                onChange={e => setNewRelease(prev => ({ ...prev, disputedClaims: e.target.value }))}
+                                placeholder="0.00"
+                            />
+                        </div>
+                    )}
+                </div>
+            </Modal>
+
+            <ConfirmModal
+                isOpen={releaseToDelete !== null}
+                onClose={() => setReleaseToDelete(null)}
+                onConfirm={confirmRemoveRelease}
+                title="Remove Release"
+                message="Are you sure you want to remove this release document?"
+                confirmText="Remove"
+                variant="danger"
+            />
 
             <ConfirmModal
                 isOpen={contractIndexToDelete !== null}

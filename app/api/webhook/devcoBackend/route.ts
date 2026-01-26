@@ -461,25 +461,78 @@ export async function POST(request: NextRequest) {
 
             case 'getEstimateStats': {
                 // Aggregate estimates by status with count and total grandTotal
-                const stats = await Estimate.aggregate([
-                    { $match: { status: { $ne: 'deleted' } } },
-                    {
-                        $group: {
-                            _id: '$status',
-                            count: { $sum: 1 },
-                            total: { $sum: { $ifNull: ['$grandTotal', 0] } }
+                const { startDate, endDate } = payload || {};
+                
+                const pipeline: any[] = [];
+
+                // 1. Normalize fields (handle String vs Date for createdAt, String vs Number for grandTotal)
+                pipeline.push({
+                    $addFields: {
+                        // Prioritize 'date' field (e.g. "10/6/2023"), fallback to 'createdAt'
+                        normalizedDate: {
+                            $cond: {
+                                if: { 
+                                    $and: [
+                                        { $ifNull: ["$date", false] }, 
+                                        { $ne: ["$date", ""] }
+                                    ] 
+                                },
+                                then: {
+                                    $convert: {
+                                        input: "$date",
+                                        to: "date",
+                                        onError: "$createdAt", // If date string is invalid, use createdAt
+                                        onNull: "$createdAt"
+                                    }
+                                },
+                                else: "$createdAt"
+                            }
+                        },
+                        
+                        // Ensure grandTotal is a number
+                        normalizedTotal: { 
+                             $cond: {
+                                if: { $isNumber: "$grandTotal" }, // if number, use it
+                                then: "$grandTotal",
+                                else: { $toDouble: "$grandTotal" } // try to parse string
+                             }
                         }
-                    },
-                    {
-                        $project: {
-                            _id: 0,
-                            status: '$_id',
-                            count: 1,
-                            total: 1
-                        }
-                    },
-                    { $sort: { total: -1 } }
-                ]);
+                    }
+                });
+
+                // 2. Build Match Query
+                const matchQuery: any = { status: { $ne: 'deleted' } };
+                
+                if (startDate || endDate) {
+                    matchQuery.normalizedDate = {};
+                    // Ensure we compare Date objects to Date objects
+                    if (startDate) matchQuery.normalizedDate.$gte = new Date(startDate);
+                    if (endDate) matchQuery.normalizedDate.$lte = new Date(endDate);
+                }
+
+                pipeline.push({ $match: matchQuery });
+
+                // 3. Group and Project
+                pipeline.push({
+                    $group: {
+                        _id: '$status',
+                        count: { $sum: 1 },
+                        total: { $sum: "$normalizedTotal" }
+                    }
+                });
+
+                pipeline.push({
+                    $project: {
+                        _id: 0,
+                        status: '$_id',
+                        count: 1,
+                        total: 1
+                    }
+                });
+
+                pipeline.push({ $sort: { total: -1 } });
+
+                const stats = await Estimate.aggregate(pipeline);
                 return NextResponse.json({ success: true, result: stats });
             }
 

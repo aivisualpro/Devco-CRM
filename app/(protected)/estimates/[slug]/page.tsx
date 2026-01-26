@@ -2006,7 +2006,7 @@ export default function EstimateViewPage() {
             <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
                 {/* Section 1: Header Card */}
                 <div className="w-full p-4">
-                        /* Header Card */
+                        
                         <EstimateHeaderCard
                         formData={formData}
                         chartData={chartData}
