@@ -769,29 +769,30 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    {/* Financial Summary */}
-                    <div className="grid grid-cols-3 gap-2 mb-4">
-                        <div className="bg-white/50 p-2 rounded-xl border border-white/40 shadow-sm">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Receipts</p>
-                            <p className="text-xs font-black text-pink-600">
-                                ${receiptsAndCosts.filter((r: any) => r.type === 'Receipt').reduce((sum: number, r: any) => sum + (r.amount || 0), 0).toLocaleString()}
-                            </p>
-                        </div>
-                        <div className="bg-white/50 p-2 rounded-xl border border-white/40 shadow-sm">
-                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Invoices</p>
-                            <p className="text-xs font-black text-indigo-600">
-                                ${receiptsAndCosts.filter((r: any) => r.type === 'Invoice').reduce((sum: number, r: any) => sum + (r.amount || 0), 0).toLocaleString()}
-                            </p>
-                        </div>
-                        <div className="bg-[#0F4C75] p-2 rounded-xl shadow-md">
-                            <p className="text-[8px] font-black text-white/60 uppercase tracking-tighter">Total</p>
-                            <p className="text-xs font-black text-white">
-                                ${receiptsAndCosts.reduce((sum: number, r: any) => sum + (r.amount || 0), 0).toLocaleString()}
-                            </p>
-                        </div>
-                    </div>
-
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-3 gap-1 mb-4 pb-3 border-b border-slate-200/50">
+                            {(() => {
+                                const rects = receiptsAndCosts.filter((r: any) => r.type === 'Receipt').reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+                                const invs = receiptsAndCosts.filter((r: any) => r.type === 'Invoice').reduce((sum: number, r: any) => sum + (r.amount || 0), 0);
+                                const total = rects + invs;
+                                return (
+                                    <>
+                                        <div className="text-center border-r border-slate-200/50 pr-1">
+                                            <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-1">Receipts</p>
+                                            <p className="text-[9px] font-black text-pink-600">${rects.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        </div>
+                                        <div className="text-center border-r border-slate-200/50 px-1">
+                                            <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-1">Invoices</p>
+                                            <p className="text-[9px] font-black text-indigo-600">${invs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        </div>
+                                        <div className="text-center pl-1">
+                                            <p className="text-[6px] font-black text-slate-400 uppercase tracking-tighter mb-1">Total</p>
+                                            <p className="text-[10px] font-black text-[#0F4C75]">${total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
                         <div className="grid grid-cols-1 gap-3">
                             {receiptsAndCosts.length > 0 ? [...receiptsAndCosts]
                                 .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
