@@ -69,6 +69,28 @@ export interface IEstimate extends Document {
     billingTerms?: string;
     otherBillingTerms?: string;
     usaNumber?: string;
+    receiptsAndCosts?: Array<{
+        _id?: string;
+        estimate?: string;
+        type: 'Invoice' | 'Receipt';
+        vendor?: string;
+        amount?: number;
+        date?: string;
+        dueDate?: string;
+        upload?: Array<{
+            name: string;
+            url: string;
+            type: string;
+        }>;
+        remarks?: string;
+        tag?: string[];
+        createdBy?: string;
+        createdAt?: Date;
+        approvalStatus?: 'Approved' | 'Not Approved';
+        status?: 'Devco Paid' | '';
+        paidBy?: string;
+        paymentDate?: string;
+    }>;
     signedContracts?: Array<{
         date?: string;
         amount?: number;
@@ -185,6 +207,28 @@ const EstimateSchema = new Schema({
     billingTerms: { type: String },
     otherBillingTerms: { type: String },
     usaNumber: { type: String },
+    receiptsAndCosts: [{
+        _id: { type: String },
+        estimate: { type: String },
+        type: { type: String, enum: ['Invoice', 'Receipt'] },
+        vendor: { type: String },
+        amount: { type: Number },
+        date: { type: String },
+        dueDate: { type: String },
+        upload: [{
+            name: { type: String },
+            url: { type: String },
+            type: { type: String }
+        }],
+        remarks: { type: String },
+        tag: { type: [String] },
+        createdBy: { type: String },
+        createdAt: { type: Date, default: Date.now },
+        approvalStatus: { type: String, enum: ['Approved', 'Not Approved'], default: 'Not Approved' },
+        status: { type: String, enum: ['Devco Paid', ''], default: '' },
+        paidBy: { type: String },
+        paymentDate: { type: String }
+    }],
     signedContracts: [{
         date: { type: String },
         amount: { type: Number },

@@ -459,6 +459,30 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: estimates });
             }
 
+            case 'getEstimateStats': {
+                // Aggregate estimates by status with count and total grandTotal
+                const stats = await Estimate.aggregate([
+                    { $match: { status: { $ne: 'deleted' } } },
+                    {
+                        $group: {
+                            _id: '$status',
+                            count: { $sum: 1 },
+                            total: { $sum: { $ifNull: ['$grandTotal', 0] } }
+                        }
+                    },
+                    {
+                        $project: {
+                            _id: 0,
+                            status: '$_id',
+                            count: 1,
+                            total: 1
+                        }
+                    },
+                    { $sort: { total: -1 } }
+                ]);
+                return NextResponse.json({ success: true, result: stats });
+            }
+
             case 'getEstimateById': {
                 const { id } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
@@ -2409,6 +2433,97 @@ export async function POST(request: NextRequest) {
                 const result = await Employee.bulkWrite(operations as any);
                 return NextResponse.json({ success: true, result });
             }
+            case 'importReceiptsAndCosts': {
+                const { records } = payload || {};
+                if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid records' }, { status: 400 });
+
+                // 1. Group records by Estimate key to minimize DB calls
+                const groups = records.reduce((acc: Record<string, any[]>, r: any) => {
+                    const key = String(r.estimate || r['Estimate #'] || r['Proposal Number'] || '').trim();
+                    if (key) {
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(r);
+                    }
+                    return acc;
+                }, {});
+
+                let modifiedCount = 0;
+
+                for (const [estKey, entries] of Object.entries(groups)) {
+                    // Find the latest version of this estimate
+                    const targetDoc = await Estimate.findOne({ 
+                        $or: [{ _id: estKey }, { estimate: estKey }]
+                    }).sort({ versionNumber: -1 });
+
+                    if (targetDoc) {
+                        const existing = targetDoc.receiptsAndCosts || [];
+                        
+                        for (const r of entries) {
+                            const recordId = String(r._id || r.Record_ID || new Types.ObjectId().toString());
+                            const cleanRecord: any = {
+                                _id: recordId,
+                                estimate: estKey,
+                                type: (r.type || r.Type || 'Receipt') as 'Invoice' | 'Receipt',
+                                vendor: String(r.vendor || r.Vendor || ''),
+                                amount: parseNum(r.amount || r.Amount),
+                                date: String(r.date || r.Date || ''),
+                                dueDate: String(r.dueDate || r.DueDate || ''),
+                                remarks: String(r.remarks || r.Remarks || ''),
+                                approvalStatus: (r.approvalStatus || r.ApprovalStatus || 'Not Approved') as 'Approved' | 'Not Approved',
+                                status: (r.status || r.Status || '').includes('Paid') ? 'Devco Paid' : '' as 'Devco Paid' | '',
+                                paidBy: String(r.paidBy || r.PaidBy || ''),
+                                paymentDate: String(r.paymentDate || r.PaymentDate || ''),
+                                createdBy: String(r.createdBy || r.CreatedBy || ''),
+                                createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+                                upload: [] as any[],
+                                tag: [] as string[]
+                            };
+
+                            if (cleanRecord.approvalStatus !== 'Approved') cleanRecord.approvalStatus = 'Not Approved';
+                            if (cleanRecord.status !== 'Devco Paid') cleanRecord.status = '';
+
+                            if (r.tag) cleanRecord.tag = String(r.tag).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+                            if (r.upload) {
+                                const urls = String(r.upload).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+                                cleanRecord.upload = urls.map(url => ({
+                                    name: url.split('/').pop() || 'file',
+                                    url: url,
+                                    type: url.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+                                }));
+                            }
+
+                            // Update or Add
+                            const idx = existing.findIndex((er: any) => String(er._id) === recordId);
+                            if (idx === -1) {
+                                existing.push(cleanRecord);
+                            } else {
+                                // CRITICAL: Avoid spreading Mongoose subdocuments {...existing[idx]} 
+                                // to prevent "Maximum call stack size exceeded"
+                                const existingItem = existing[idx];
+                                Object.assign(existingItem, cleanRecord);
+                            }
+                        }
+
+                        targetDoc.receiptsAndCosts = existing;
+                        await targetDoc.save();
+                        modifiedCount++;
+                    }
+                }
+                return NextResponse.json({ success: true, count: records.length, modified: modifiedCount });
+            }
+
+            case 'updateReceiptsAndCosts': {
+                const { id, receiptsAndCosts } = payload || {};
+                if (!id) return NextResponse.json({ success: false, error: 'Missing estimate id' }, { status: 400 });
+
+                const result = await Estimate.findByIdAndUpdate(
+                    id,
+                    { receiptsAndCosts },
+                    { new: true }
+                );
+                return NextResponse.json({ success: true, result });
+            }
+
 
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });

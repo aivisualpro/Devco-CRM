@@ -9,8 +9,26 @@ const SHARED_DRIVE_FOLDER_ID = process.env.GOOGLE_TEMP_FOLDER_ID || '';
 
 // Handle private key
 let PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY || '';
-if (PRIVATE_KEY.includes('\\n')) {
-    PRIVATE_KEY = PRIVATE_KEY.split('\\n').join('\n');
+
+if (!PRIVATE_KEY) {
+    console.error('CRITICAL: GOOGLE_PRIVATE_KEY is missing from environment variables.');
+}
+
+if (!CLIENT_EMAIL) {
+    console.error('CRITICAL: GOOGLE_CLIENT_EMAIL is missing from environment variables.');
+}
+
+// Robust private key parsing
+if (PRIVATE_KEY) {
+    // 1. Remove surrounding quotes if any (common Vercel/Docker issue)
+    if (PRIVATE_KEY.startsWith('"') && PRIVATE_KEY.endsWith('"')) {
+        PRIVATE_KEY = PRIVATE_KEY.slice(1, -1);
+    }
+    
+    // 2. Handle escaped newlines (e.g. if pasted as a single line with \n)
+    if (PRIVATE_KEY.includes('\\n')) {
+        PRIVATE_KEY = PRIVATE_KEY.replace(/\\n/g, '\n');
+    }
 }
 
 const SCOPES = [
@@ -29,7 +47,11 @@ const getAuthClient = async () => {
     if (cachedAuthClient && authExpiry > now) {
         return cachedAuthClient;
     }
-    
+
+    if (!PRIVATE_KEY || !CLIENT_EMAIL) {
+        throw new Error('Google Auth configuration error: GOOGLE_PRIVATE_KEY or GOOGLE_CLIENT_EMAIL is missing. Please verify your Vercel Environment Variables.');
+    }
+
     const client = new JWT({
         email: CLIENT_EMAIL,
         key: PRIVATE_KEY,

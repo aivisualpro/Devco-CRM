@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -19,6 +19,7 @@ export default function ImportsPage() {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const footerInputRef = useRef<HTMLInputElement>(null);
     const coverFrameInputRef = useRef<HTMLInputElement>(null);
+    const receiptsAndCostsInputRef = useRef<HTMLInputElement>(null);
 
     const parseCSV = (csvText: string) => {
         const rows: string[][] = [];
@@ -481,6 +482,40 @@ export default function ImportsPage() {
         }
     };
 
+    const handleImportReceiptsAndCosts = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importReceiptsAndCosts', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} receipts & costs records`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (receiptsAndCostsInputRef.current) receiptsAndCostsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleSyncQuickBooks = async () => {
         setIsImporting(true);
         try {
@@ -536,6 +571,7 @@ export default function ImportsPage() {
                     <input type="file" ref={jhaSignatureInputRef} onChange={handleImportJHASignatures} className="hidden" accept=".csv" />
                     <input type="file" ref={djtInputRef} onChange={handleImportDJT} className="hidden" accept=".csv" />
                     <input type="file" ref={djtSignatureInputRef} onChange={handleImportDJTSignatures} className="hidden" accept=".csv" />
+                    <input type="file" ref={receiptsAndCostsInputRef} onChange={handleImportReceiptsAndCosts} className="hidden" accept=".csv" />
 
                     <ImportCard 
                         title="Import Schedules"
@@ -583,6 +619,14 @@ export default function ImportsPage() {
                         color="bg-violet-600"
                         description="Restore signatures for Daily Job Tickets"
                         onClick={() => djtSignatureInputRef.current?.click()}
+                    />
+
+                    <ImportCard 
+                        title="Import Receipts & Costs"
+                        icon={DollarSign}
+                        color="bg-emerald-600"
+                        description="Bulk import project receipts and vendor costs"
+                        onClick={() => receiptsAndCostsInputRef.current?.click()}
                     />
 
                     <ImportCard 

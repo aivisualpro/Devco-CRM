@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import {
     Plus, Trash2, Edit, Calendar as CalendarIcon, User, Search,
     Upload, Download, Filter, MoreHorizontal,
@@ -21,6 +22,7 @@ import { JHAModal } from './components/JHAModal';
 import { DJTModal } from './components/DJTModal';
 import { TimesheetModal } from './components/TimesheetModal';
 import { DriveMapModal } from './components/DriveMapModal';
+import { ScheduleCard, ScheduleItem } from './components/ScheduleCard';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -32,40 +34,7 @@ interface Objective {
     completedAt?: string;
 }
 
-interface ScheduleItem {
-    _id: string;
-    // recordId removed
-    title: string;
-    fromDate: string;
-    toDate: string;
-    customerId: string;
-    customerName: string;
-    estimate: string;
-    jobLocation: string;
-    projectManager: string;
-    foremanName: string;
-    assignees: string[];
-    description: string;
-    service: string;
-    item: string;
-    fringe: string;
-    certifiedPayroll: string | boolean;
-    notifyAssignees: string | boolean;
-    perDiem: string | boolean;
-    aerialImage?: string;
-    siteLayout?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    timesheet?: any[];
-    hasJHA?: boolean;
-    jha?: any;
-    JHASignatures?: any[];
-    hasDJT?: boolean;
-    djt?: any;
-    DJTSignatures?: any[];
-    todayObjectives?: Objective[];
-    syncedToAppSheet?: boolean;
-}
+// ScheduleItem interface imported from components/ScheduleCard
 
 export default function SchedulePage() {
     const { success, error: toastError } = useToast();
@@ -186,16 +155,18 @@ export default function SchedulePage() {
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
-            const user = localStorage.getItem('devco_user');
-            if (user) {
+            const storedUser = localStorage.getItem('devco_user');
+            if (storedUser) {
                 try {
-                    setCurrentUser(JSON.parse(user));
+                    setCurrentUser(JSON.parse(storedUser));
                 } catch (e) {
                     console.error('Failed to parse user', e);
                 }
+            } else if (user) {
+                setCurrentUser(user);
             }
         }
-    }, []);
+    }, [user]);
 
     const clearFilters = () => {
         setSearch('');
@@ -567,40 +538,58 @@ export default function SchedulePage() {
         return tabs;
     }, [selectedDates, schedules, search]);
 
-    // Simplified Memo for Display (since filtering is server-side)
     const filteredSchedules = useMemo(() => {
-        // We still might want client-side filtering for Day Tabs if we fetched a "week" view?
-        // But with pagination, we can't reliably filter by day client-side for the whole set.
-        // For now, if "All" tab is active, show everything.
-        // If a specific day is selected, we ideally should have filtered on server.
-        // BUT, the current server implementation filters by `selectedDates` which is an array of the whole week.
-        // The `activeDayTab` is purely client-side UI.
-        // Ideally, clicking a "Day Tab" should trigger a server refetch with ONLY that day in `selectedDates`.
-        // However, to keep it smooth and matching previous UX where we load "Week" and toggle days:
-        // We will filter the *visible* pages by day tab client-side.
-        // BUT this is flawed because we only have 20 items. 
-        // 
-        // Resolution: The user prompt asked specifically for "load more on scroll".
-        // If we want accurate "Day" tabs with pagination, we MUST fetch by Day from server.
-        // FOR NOW: We will just filter what we have. If the user scrolls, we load more, and if those belong to the day, they appear.
-        // This is "acceptable" for infinite scroll lists usually.
-        
         return schedules.filter(s => {
             const scheduleDate = formatLocalDate(s.fromDate);
-
-            // Strict Filter: Verify the item visually falls on one of the selected dates
-            // This catches timezone drifts where server returns an item it thinks is on Day X (UTC)
-            // but client renders it on Day Y (Local).
-            // REMOVED: Trusting server response to allow all returned items to show (fixes potential 23 vs 24 mismatch if one is slightly off)
-            // if (selectedDates.length > 0 && !selectedDates.includes(scheduleDate)) {
-            //     return false;
-            // }
-
             if (activeDayTab === 'all') return true;
-             
              return getDayName(scheduleDate) === activeDayTab;
         }).sort((a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime());
-    }, [schedules, activeDayTab, selectedDates]);
+    }, [schedules, activeDayTab]);
+
+    const searchParams = useSearchParams();
+
+    // Handle deep linking from Dashboard or URLs
+    useEffect(() => {
+        const id = searchParams.get('id');
+        const edit = searchParams.get('edit');
+        const jha = searchParams.get('jha');
+        const djt = searchParams.get('djt');
+        const timesheet = searchParams.get('timesheet');
+
+        if (id && schedules.length > 0) {
+            const item = schedules.find(s => s._id === id);
+            if (item) {
+                // Select the item
+                setSelectedSchedule(item);
+
+                // Open specific modals if requested
+                if (edit === 'true') {
+                    setEditingItem(item);
+                    setIsModalOpen(true);
+                } else if (jha === 'true') {
+                    const jhaWithSigs = { 
+                        ...item.jha || {}, 
+                        signatures: item.JHASignatures || [] 
+                    };
+                    setSelectedJHA(jhaWithSigs);
+                    setIsJhaEditMode(false);
+                    setJhaModalOpen(true);
+                } else if (djt === 'true') {
+                    const djtWithSigs = { 
+                        ...item.djt || {}, 
+                        schedule_id: item._id,
+                        signatures: item.DJTSignatures || [] 
+                    };
+                    setSelectedDJT(djtWithSigs);
+                    setIsDjtEditMode(false);
+                    setDjtModalOpen(true);
+                } else if (timesheet === 'true') {
+                    setEditingItem(item);
+                    setTimesheetModalOpen?.(true); 
+                }
+            }
+        }
+    }, [searchParams, schedules]);
 
 
 
@@ -2052,32 +2041,49 @@ export default function SchedulePage() {
             return;
         }
 
-        const hours = type === 'Dump Washout' ? 0.50 : 0.25;
+        const unitHours = type === 'Dump Washout' ? 0.50 : 0.25;
         const now = new Date();
-        const clockIn = new Date(now.getTime() - (hours * 60 * 60 * 1000)).toISOString();
         const clockOut = now.toISOString();
-
-        const newTimesheet = {
-            _id: `ts-${Date.now()}`,
-            scheduleId: schedule._id,
-            employee: employeeEmail,
-            clockIn: clockIn,
-            clockOut: clockOut,
-            type: 'Drive Time',
-            hours: hours,
-            dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
-            shopTime: type === 'Shop Time' ? 'true' : undefined,
-            status: 'Pending',
-            createdAt: now.toISOString()
-        };
 
         // Optimistic update
         setSchedules(prev => prev.map(s => {
             if (s._id !== schedule._id) return s;
-            return {
-                ...s,
-                timesheet: [...(s.timesheet || []), newTimesheet]
-            };
+            
+            const timesheets = s.timesheet || [];
+            const empEmailLower = employeeEmail!.toLowerCase();
+            const existingIndex = timesheets.findIndex((ts: any) => 
+                ts.employee?.toLowerCase() === empEmailLower && 
+                ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
+                 (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
+            );
+
+            if (existingIndex > -1) {
+                const updatedTimesheets = [...timesheets];
+                const existingTs = updatedTimesheets[existingIndex];
+                updatedTimesheets[existingIndex] = {
+                    ...existingTs,
+                    qty: (existingTs.qty || 1) + 1,
+                    hours: parseFloat(((existingTs.hours || 0) + unitHours).toFixed(2))
+                };
+                return { ...s, timesheet: updatedTimesheets };
+            } else {
+                const clockIn = new Date(now.getTime() - (unitHours * 60 * 60 * 1000)).toISOString();
+                const newTs = {
+                    _id: `ts-${Date.now()}`,
+                    scheduleId: schedule._id,
+                    employee: employeeEmail,
+                    clockIn: clockIn,
+                    clockOut: clockOut,
+                    type: 'Drive Time',
+                    hours: unitHours,
+                    qty: 1,
+                    dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
+                    shopTime: type === 'Shop Time' ? 'true' : undefined,
+                    status: 'Pending',
+                    createdAt: now.toISOString()
+                };
+                return { ...s, timesheet: [...timesheets, newTs] };
+            }
         }));
 
         try {
@@ -2085,23 +2091,34 @@ export default function SchedulePage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    action: 'saveIndividualTimesheet',
-                    payload: { timesheet: newTimesheet }
+                    action: 'quickTimesheet',
+                    payload: { 
+                        scheduleId: schedule._id,
+                        employee: employeeEmail,
+                        type,
+                        date: clockOut
+                    }
                 })
             });
             const data = await res.json();
             if (data.success) {
-                success(`${type} Registered`);
+                success(`${type} Updated`);
             } else {
-                toastError(data.error || `Failed to save ${type}`);
-                // Revert
+                toastError(data.error || `Failed to update ${type}`);
                 fetchPageData(1, true);
             }
         } catch (error) {
             console.error(error);
-            toastError(`Error saving ${type}`);
+            toastError(`Error updating ${type}`);
             fetchPageData(1, true);
         }
+    };
+
+    const handleViewTimesheet = (item: ScheduleItem, ts: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setSelectedTimesheet(ts);
+        setIsTimesheetEditMode(false);
+        setTimesheetModalOpen(true);
     };
 
     const handleDeleteTimesheet = (tsId: string) => {
@@ -2466,517 +2483,103 @@ export default function SchedulePage() {
                             </div>
                         ) : filteredSchedules.length > 0 ? (
                             <div className={`grid grid-cols-1 ${selectedSchedule ? '' : 'md:grid-cols-2'} gap-4 pt-0 transition-all duration-500`}>
-                                {displayedSchedules.map((item) => {
-                                    const dayName = getDayName(formatLocalDate(item.fromDate));
-                                    const dayBorderColor = {
-                                        'Mon': 'border-t-blue-500',
-                                        'Tue': 'border-t-green-500',
-                                        'Wed': 'border-t-purple-500',
-                                        'Thu': 'border-t-orange-500',
-                                        'Fri': 'border-t-red-500',
-                                        'Sat': 'border-t-teal-500',
-                                        'Sun': 'border-t-pink-500'
-                                    }[dayName] || 'border-t-slate-200';
-
-                                    return (
-                                    <div
+                                {displayedSchedules.map((item) => (
+                                    <ScheduleCard
                                         key={item._id}
-                                        data-day={dayName}
+                                        item={item}
+                                        initialData={initialData}
+                                        currentUser={currentUser}
+                                        isSelected={selectedSchedule?._id === item._id}
                                         onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
-                                        className={`group relative bg-white rounded-[32px] p-5 cursor-pointer transition-all duration-500 ease-out border shadow-sm border-t-[6px] ${dayBorderColor}
-                                            ${selectedSchedule?._id === item._id
-                                                ? 'border-x-[#0F4C75] border-b-[#0F4C75] ring-2 ring-[#0F4C75]/20 shadow-xl scale-[1.02] bg-blue-50/50'
-                                                : 'border-x-slate-100 border-b-slate-100 hover:border-x-[#0F4C75]/20 hover:border-b-[#0F4C75]/20 hover:shadow-md hover:-translate-y-1'
-                                            }
-                                        `}
-                                    >
-                                        {selectedSchedule?._id === item._id && (
-                                            <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#0F4C75] text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-20 flex items-center gap-1.5 animate-in fade-in zoom-in duration-300">
-                                                <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                                                VIEWING
-                                            </div>
-                                        )}
-
-                                        {/* Action Overlay & Day Chip */}
-                                        <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
-                                            {/* Day Chip - Always Visible */}
-                                            {(() => {
-                                                 const chipColors: Record<string, string> = {
-                                                     'Mon': 'bg-blue-50 text-blue-600 border-blue-200 shadow-blue-100',
-                                                     'Tue': 'bg-green-50 text-green-600 border-green-200 shadow-green-100',
-                                                     'Wed': 'bg-purple-50 text-purple-600 border-purple-200 shadow-purple-100',
-                                                     'Thu': 'bg-orange-50 text-orange-600 border-orange-200 shadow-orange-100',
-                                                     'Fri': 'bg-red-50 text-red-600 border-red-200 shadow-red-100',
-                                                     'Sat': 'bg-teal-50 text-teal-600 border-teal-200 shadow-teal-100',
-                                                     'Sun': 'bg-pink-50 text-pink-600 border-pink-200 shadow-pink-100'
-                                                 };
-                                                 const colorClass = chipColors[dayName] || 'bg-slate-50 text-slate-600 border-slate-200 shadow-slate-100';
-                                                 return (
-                                                     <div className={`px-2.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border shadow-sm ${colorClass} bg-gradient-to-b from-white/80 to-transparent backdrop-blur-sm`}>
-                                                         {dayName}
-                                                     </div>
-                                                 );
-                                            })()}
-
-                                            {/* Actions - Hover Only */}
-                                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setEditingItem(item);
-                                                            setIsModalOpen(true);
-                                                        }}
-                                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-[#0F4C75] hover:bg-blue-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                                    >
-                                                        <Edit size={14} />
-                                                    </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Edit Schedule</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            // Clone the schedule and add 1 day to dates
-                                                            // Using string manipulation to avoid timezone conversion
-                                                            const addOneDay = (dateStr: string) => {
-                                                                // Parse the ISO string directly using regex
-                                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-                                                                if (!match) return dateStr;
-                                                                const [, year, month, day, hours, minutes] = match;
-                                                                
-                                                                // Create a UTC date to safely add 1 day
-                                                                const utcDate = new Date(Date.UTC(
-                                                                    parseInt(year),
-                                                                    parseInt(month) - 1,
-                                                                    parseInt(day) + 1 // Add 1 day
-                                                                ));
-                                                                
-                                                                const newYear = utcDate.getUTCFullYear();
-                                                                const newMonth = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
-                                                                const newDay = String(utcDate.getUTCDate()).padStart(2, '0');
-                                                                
-                                                                // Keep the same time, just change the date
-                                                                return `${newYear}-${newMonth}-${newDay}T${hours}:${minutes}`;
-                                                            };
-                                                            const clonedItem = {
-                                                                ...item,
-                                                                _id: undefined, // Remove ID so it creates a new schedule
-                                                                fromDate: addOneDay(item.fromDate),
-                                                                toDate: addOneDay(item.toDate),
-                                                                timesheet: [], // Don't copy timesheets
-                                                                hasJHA: false,
-                                                                jha: undefined,
-                                                                JHASignatures: [],
-                                                                hasDJT: false,
-                                                                djt: undefined,
-                                                                DJTSignatures: [],
-                                                                syncedToAppSheet: false
-                                                            };
-                                                            setEditingItem(clonedItem as any);
-                                                            setIsModalOpen(true);
-                                                        }}
-                                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-emerald-500 hover:bg-emerald-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                                    >
-                                                        <Copy size={14} />
-                                                    </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Copy Schedule (+1 Day)</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setDeleteId(item._id);
-                                                            setIsConfirmOpen(true);
-                                                        }}
-                                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                                    >
-                                                        <Trash2 size={14} />
-                                                    </button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>Delete Schedule</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col h-full justify-between">
-
-                                            {/* Header: Icon (Tag) + Customer */}
-                                            <div className="flex justify-between items-start mb-3 sm:mb-4">
-                                                <div className="flex items-center gap-2 sm:gap-3">
-                                                    {(() => {
-                                                        // Find the tag constant for this schedule item
-                                                        const tagConstant = initialData.constants.find(c => c.description === item.item);
-                                                        const tagImage = tagConstant?.image;
-                                                        const tagColor = tagConstant?.color;
-                                                        const tagLabel = item.item || item.service || 'S';
-
-                                                        if (tagImage) {
-                                                            // Priority 1: Show image (filled circle)
-                                                            return (
-                                                                <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full overflow-hidden shadow-md">
-                                                                    <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
-                                                                </div>
-                                                            );
-                                                        } else if (tagColor) {
-                                                            // Priority 2: Show color circle with letters
-                                                            return (
-                                                                <div
-                                                                    className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full shadow-[inset_5px_5px_10px_rgba(0,0,0,0.1),inset_-5px_-5px_10px_rgba(255,255,255,0.5)] flex items-center justify-center text-white font-black text-xs sm:text-sm"
-                                                                    style={{ backgroundColor: tagColor }}
-                                                                >
-                                                                    {tagLabel.substring(0, 2).toUpperCase()}
-                                                                </div>
-                                                            );
-                                                        } else {
-                                                            // Priority 3: Show letters with default styling
-                                                            return (
-                                                                <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-full bg-[#E6EEF8] shadow-[inset_5px_5px_10px_#d1d9e6,inset_-5px_-5px_10px_#ffffff] flex items-center justify-center text-[#0F4C75] font-black text-xs sm:text-sm">
-                                                                    {tagLabel.substring(0, 2).toUpperCase()}
-                                                                </div>
-                                                            );
-                                                        }
-                                                    })()}
-                                                    <div className="flex flex-col">
-                                                        {item.item !== 'Day Off' && (
-                                                            <>
-                                                                <span className="text-xs sm:text-sm font-bold text-slate-500 leading-tight">{getCustomerName(item)}</span>
-                                                                {(() => {
-                                                                    const est = initialData.estimates.find(e => e.value === item.estimate);
-                                                                    if (est?.jobAddress) {
-                                                                        return (
-                                                                            <span className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                                                                {est.jobAddress}
-                                                                            </span>
-                                                                        );
-                                                                    }
-                                                                    return null;
-                                                                })()}
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Row 2: Title (smaller font) */}
-                                            <div className="mb-2">
-                                                <h3 className="text-sm sm:text-base font-bold text-slate-800 leading-tight line-clamp-2">
-                                                    {item.title || 'Untitled Schedule'}
-                                                </h3>
-                                            </div>
-
-                                            {/* Row 3: Estimate # & Date/Time */}
-                                            {/* Row 3: Estimate #, Date/Time & Assignees */}
-                                            <div className="flex items-center justify-between mb-3">
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {item.item !== 'Day Off' && item.estimate && (
-                                                        <span className="text-[10px] sm:text-[11px] font-bold text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full">
-                                                            {item.estimate.replace(/-[vV]\d+$/, '')}
-                                                        </span>
-                                                    )}
-                                                    <div className="flex items-center gap-1 text-[11px] sm:text-xs font-bold text-slate-500">
-                                                        <span>{new Date(item.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' })}</span>
-                                                        <span className="text-slate-300">|</span>
-                                                        <span>{new Date(item.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
-                                                        <span>-</span>
-                                                        <span>{new Date(item.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
-                                                    </div>
-                                                </div>
-
-                                                {/* Assignees - Right aligned */}
-                                                <div className="flex -space-x-1.5 shrink-0">
-                                                    {(item.assignees || []).filter(Boolean).slice(0, 3).map((email: string, i: number) => {
-                                                        const emp = initialData.employees.find(e => e.value === email);
-                                                        return (
-                                                            <Tooltip key={i}>
-                                                                <TooltipTrigger asChild>
-                                                                    <div className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
-                                                                        {emp?.image ? (
-                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            email?.[0]?.toUpperCase() || '?'
-                                                                        )}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>{emp?.label || email}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        );
-                                                    })}
-                                                    {(item.assignees || []).filter(Boolean).length > 3 && (
-                                                        <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[8px] font-bold text-slate-500 shadow-sm">
-                                                            +{(item.assignees?.filter(Boolean).length || 0) - 3}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            {/* Bottom: Actions & Personnel */}
-                                            <div className={`flex items-center justify-between mt-auto pt-2 border-t border-slate-100 ${item.item === 'Day Off' ? 'hidden' : ''}`}>
-                                                {/* Actions: JHA, DJT, Timesheet */}
-                                                <div className="flex items-center gap-1">
-                                                    {/* JHA */}
-                                                    {item.hasJHA ? (
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const jhaWithSigs = { 
-                                                                            ...item.jha, 
-                                                                            signatures: item.JHASignatures || [] 
-                                                                        };
-                                                                        setSelectedJHA(jhaWithSigs);
-                                                                        setIsJhaEditMode(false);
-                                                                        setJhaModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <ShieldCheck size={12} strokeWidth={2.5} />
-                                                                </div>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>View JHA</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    ) : (
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedJHA({
-                                                                            schedule_id: item._id,
-                                                                            date: new Date(),
-                                                                            jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }), // Default time
-                                                                            emailCounter: 0,
-                                                                            signatures: [], // Empty signatures initially
-                                                                            scheduleRef: item // Pass reference for assignees access
-                                                                        });
-                                                                        setIsJhaEditMode(true);
-                                                                        setJhaModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <Shield size={12} strokeWidth={2.5} />
-                                                                </div>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Create JHA</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    )}
-
-                                                     {/* DJT Status Check */}
-                                                     {(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? (
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 hover:bg-indigo-200 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        const djtWithSigs = { 
-                                                                            ...item.djt, 
-                                                                            schedule_id: item._id, // Ensure schedule_id is explicitly set
-                                                                            signatures: item.DJTSignatures || [] 
-                                                                        };
-                                                                        setSelectedDJT(djtWithSigs);
-                                                                        setIsDjtEditMode(false);
-                                                                        setDjtModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <FileCheck size={12} strokeWidth={2.5} />
-                                                                </div>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>View DJT</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    ) : (
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <div 
-                                                                    className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        setSelectedDJT({
-                                                                            schedule_id: item._id,
-                                                                            dailyJobDescription: '',
-                                                                            customerPrintName: '',
-                                                                            customerSignature: '',
-                                                                            createdBy: '', 
-                                                                            clientEmail: '',
-                                                                            emailCounter: 0
-                                                                        });
-                                                                        setIsDjtEditMode(true);
-                                                                        setDjtModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <FilePlus size={12} strokeWidth={2.5} />
-                                                                </div>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Create DJT</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    )}
-                                                    
-                                                     {/* Timesheet */}
-                                                    {(() => {
-                                                        const userTimesheets = item.timesheet?.filter((ts: any) => ts.employee === currentUser?.email) || [];
-                                                        const activeDriveTime = userTimesheets.find((ts: any) => (ts.type === 'Drive Time' || ts.type === 'Drive Time') && !ts.clockOut);
-                                                                                                                // Priority: 1. Active Drive Time (Stop Button) -> 2. Existing Records (View Button) -> 3. No Records (Start Drive Time)
-                                                         const hasDumpWashout = userTimesheets.some((ts: any) => String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes');
-                                                         const hasShopTime = userTimesheets.some((ts: any) => String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true);
-
-                                                         if (activeDriveTime) {
-                                                             return (
-                                                                 <>
-                                                                 <Tooltip>
-                                                                     <TooltipTrigger asChild>
-                                                                         <div 
-                                                                             className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
-                                                                             onClick={(e) => handleDriveTimeToggle(item, activeDriveTime, e)}
-                                                                         >
-                                                                             <StopCircle size={14} strokeWidth={2.5} />
-                                                                         </div>
-                                                                     </TooltipTrigger>
-                                                                     <TooltipContent>
-                                                                         <p>Stop Drive Time</p>
-                                                                     </TooltipContent>
-                                                                 </Tooltip>
-                                                                     <Tooltip>
-                                                                         <TooltipTrigger asChild>
-                                                                             <div 
-                                                                                 className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasDumpWashout ? 'bg-teal-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 cursor-pointer'}`} 
-                                                                                 onClick={(e) => !hasDumpWashout && handleQuickTimesheet(item, 'Dump Washout', e)}
-                                                                             >
-                                                                                 <Droplets size={14} strokeWidth={2.5} />
-                                                                             </div>
-                                                                         </TooltipTrigger>
-                                                                         <TooltipContent>
-                                                                             <p>{hasDumpWashout ? 'Dump Washout Registered' : 'Dump Washout'}</p>
-                                                                         </TooltipContent>
-                                                                     </Tooltip>
-
-                                                                     <Tooltip>
-                                                                         <TooltipTrigger asChild>
-                                                                             <div 
-                                                                                 className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasShopTime ? 'bg-amber-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 cursor-pointer'}`} 
-                                                                                 onClick={(e) => !hasShopTime && handleQuickTimesheet(item, 'Shop Time', e)}
-                                                                             >
-                                                                                 <Warehouse size={14} strokeWidth={2.5} />
-                                                                             </div>
-                                                                         </TooltipTrigger>
-                                                                         <TooltipContent>
-                                                                             <p>{hasShopTime ? 'Shop Time Registered' : 'Shop Time'}</p>
-                                                                         </TooltipContent>
-                                                                     </Tooltip>
-                                                                 </>
-                                                             );
-                                                         }
-                                                         
-                                                         // Fallback: Show ONLY Start Button for new session (View button removed per request)
-                                                         const displayedTs = userTimesheets.length > 0 ? userTimesheets[0] : null;
-
-                                                         return (
-                                                             <>
-                                                                 <Tooltip>
-                                                                     <TooltipTrigger asChild>
-                                                                         <div 
-                                                                             className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                                             onClick={(e) => handleDriveTimeToggle(item, null, e)}
-                                                                         >
-                                                                             <Car size={14} strokeWidth={2.5} />
-                                                                         </div>
-                                                                     </TooltipTrigger>
-                                                                     <TooltipContent>
-                                                                         <p>Start Drive Time</p>
-                                                                     </TooltipContent>
-                                                                 </Tooltip>
-
-                                                                 <Tooltip>
-                                                                     <TooltipTrigger asChild>
-                                                                         <div 
-                                                                             className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasDumpWashout ? 'bg-teal-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600 cursor-pointer'}`} 
-                                                                             onClick={(e) => !hasDumpWashout && handleQuickTimesheet(item, 'Dump Washout', e)}
-                                                                         >
-                                                                             <Droplets size={14} strokeWidth={2.5} />
-                                                                         </div>
-                                                                     </TooltipTrigger>
-                                                                     <TooltipContent>
-                                                                         <p>{hasDumpWashout ? 'Dump Washout Registered' : 'Dump Washout'}</p>
-                                                                     </TooltipContent>
-                                                                 </Tooltip>
-
-                                                                 <Tooltip>
-                                                                     <TooltipTrigger asChild>
-                                                                         <div 
-                                                                             className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm ${hasShopTime ? 'bg-amber-500 text-white cursor-not-allowed opacity-70' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600 cursor-pointer'}`} 
-                                                                             onClick={(e) => !hasShopTime && handleQuickTimesheet(item, 'Shop Time', e)}
-                                                                         >
-                                                                             <Warehouse size={14} strokeWidth={2.5} />
-                                                                         </div>
-                                                                     </TooltipTrigger>
-                                                                     <TooltipContent>
-                                                                         <p>{hasShopTime ? 'Shop Time Registered' : 'Shop Time'}</p>
-                                                                     </TooltipContent>
-                                                                 </Tooltip>
-                                                             </>
-                                                         );
-                                                    })()}
-                                                </div>
-
-                                                {/* PM / Foreman / Assignees - mixed or separate? Card requested PM/Foreman specifically */}
-                                                <div className="flex items-center -space-x-1.5">
-                                                     {/* PM and Foreman */}
-                                                    {[item.projectManager, item.foremanName].map((email, i) => {
-                                                        if (!email) return null;
-                                                        const emp = initialData.employees.find(e => e.value === email);
-                                                        const labels = ['P', 'F']; 
-                                                        const colors = ['bg-[#0F4C75]', 'bg-[#10B981]'];
-                                                        
-                                                        return (
-                                                            <Tooltip key={i}>
-                                                                <TooltipTrigger asChild>
-                                                                    <div
-                                                                        className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}
-                                                                    >
-                                                                        {emp?.image ? (
-                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                                        ) : (
-                                                                            labels[i]
-                                                                        )}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>{`${i === 0 ? 'Project Manager' : 'Foreman'}: ${emp?.label || email}`}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        );
-                                                    })}
-                                                    
-                                                    {/* Assignees (Optional: maybe hide if card too busy, or show small +count?) */}
-                                                     {/* Leaving assignees out of bottom row per specific design request for "project manager, foreman" */}
-                                                </div>
-                                            </div>
-
-                                        </div>
-                                    </div>
-                                    );
-                                })}
+                                        onEdit={(item) => {
+                                            setEditingItem(item);
+                                            setIsModalOpen(true);
+                                        }}
+                                        onCopy={(item) => {
+                                            const addOneDay = (dateStr: string) => {
+                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                                                if (!match) return dateStr;
+                                                const [, year, month, day, hours, minutes] = match;
+                                                const utcDate = new Date(Date.UTC(
+                                                    parseInt(year),
+                                                    parseInt(month) - 1,
+                                                    parseInt(day) + 1
+                                                ));
+                                                const newYear = utcDate.getUTCFullYear();
+                                                const newMonth = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+                                                const newDay = String(utcDate.getUTCDate()).padStart(2, '0');
+                                                return `${newYear}-${newMonth}-${newDay}T${hours}:${minutes}`;
+                                            };
+                                            const clonedItem = {
+                                                ...item,
+                                                _id: undefined,
+                                                fromDate: addOneDay(item.fromDate),
+                                                toDate: addOneDay(item.toDate),
+                                                timesheet: [],
+                                                hasJHA: false,
+                                                jha: undefined,
+                                                JHASignatures: [],
+                                                hasDJT: false,
+                                                djt: undefined,
+                                                DJTSignatures: [],
+                                                syncedToAppSheet: false
+                                            };
+                                            setEditingItem(clonedItem as any);
+                                            setIsModalOpen(true);
+                                        }}
+                                        onDelete={(item) => {
+                                            setDeleteId(item._id);
+                                            setIsConfirmOpen(true);
+                                        }}
+                                        onViewJHA={(item) => {
+                                            const jhaWithSigs = { 
+                                                ...item.jha, 
+                                                signatures: item.JHASignatures || [] 
+                                            };
+                                            setSelectedJHA(jhaWithSigs);
+                                            setIsJhaEditMode(false);
+                                            setJhaModalOpen(true);
+                                        }}
+                                        onCreateJHA={(item) => {
+                                            setSelectedJHA({
+                                                schedule_id: item._id,
+                                                date: new Date(),
+                                                jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                                                emailCounter: 0,
+                                                signatures: [],
+                                                scheduleRef: item
+                                            });
+                                            setIsJhaEditMode(true);
+                                            setJhaModalOpen(true);
+                                        }}
+                                        onViewDJT={(item) => {
+                                            const djtWithSigs = { 
+                                                ...item.djt, 
+                                                schedule_id: item._id,
+                                                signatures: item.DJTSignatures || [] 
+                                            };
+                                            setSelectedDJT(djtWithSigs);
+                                            setIsDjtEditMode(false);
+                                            setDjtModalOpen(true);
+                                        }}
+                                        onCreateDJT={(item) => {
+                                            setSelectedDJT({
+                                                schedule_id: item._id,
+                                                dailyJobDescription: '',
+                                                customerPrintName: '',
+                                                customerSignature: '',
+                                                createdBy: '', 
+                                                clientEmail: '',
+                                                emailCounter: 0
+                                            });
+                                            setIsDjtEditMode(true);
+                                            setDjtModalOpen(true);
+                                        }}
+                                        onToggleDriveTime={(item, activeTs, e) => handleDriveTimeToggle(item, activeTs, e)}
+                                        onQuickTimesheet={(item, type, e) => handleQuickTimesheet(item, type, e)}
+                                        onViewTimesheet={(item, ts, e) => handleViewTimesheet(item, ts, e)}
+                                    />
+                                ))}
                             </div>
                         ) : (
                             <EmptyState

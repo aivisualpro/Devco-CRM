@@ -368,15 +368,17 @@ export async function POST(request: NextRequest) {
                     existingIndex = -1;
                 } else if (timesheet.type === 'Drive Time' && timesheet.clockOut) {
                     // Stopping Drive Time: find the active one for this employee
+                    const empEmail = String(timesheet.employee).toLowerCase();
                     existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
-                        ts.employee === timesheet.employee && 
+                        String(ts.employee).toLowerCase() === empEmail && 
                         ts.type === 'Drive Time' && 
                         (!ts.clockOut || ts.clockOut === '' || ts.clockOut === null)
                     );
                 } else {
                     // For other types, find by employee and type
+                    const empEmail = String(timesheet.employee).toLowerCase();
                     existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
-                        ts.employee === timesheet.employee && ts.type === timesheet.type
+                        String(ts.employee).toLowerCase() === empEmail && ts.type === timesheet.type
                     );
                 }
                 
@@ -407,6 +409,97 @@ export async function POST(request: NextRequest) {
                 updateAppSheetTimesheet(timesheet, existingIndex > -1 ? "Edit" : "Add");
 
                 return NextResponse.json({ success: true, result: updatedSchedule });
+            }
+
+            case 'quickTimesheet': {
+                const { scheduleId, employee, type, date } = payload || {};
+                const schedule = await Schedule.findById(scheduleId);
+                if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
+
+                const unitHours = type === 'Dump Washout' ? 0.50 : 0.25;
+                const empEmail = String(employee).toLowerCase();
+                
+                // Find existing record for this employee and type within this schedule
+                const existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
+                    String(ts.employee).toLowerCase() === empEmail && 
+                    ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true')) ||
+                     (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true')))
+                );
+
+                if (existingIndex > -1 && schedule.timesheet) {
+                    const ts = schedule.timesheet[existingIndex];
+                    const newQty = (ts.qty || 1) + 1;
+                    const newHours = parseFloat(((ts.hours || 0) + unitHours).toFixed(2));
+                    
+                    const updateObj: any = {};
+                    updateObj[`timesheet.${existingIndex}.qty`] = newQty;
+                    updateObj[`timesheet.${existingIndex}.hours`] = newHours;
+                    updateObj[`timesheet.${existingIndex}.updatedAt`] = new Date().toISOString();
+                    updateObj.updatedAt = new Date();
+                    
+                    await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
+                    
+                    const updatedTs = { ...ts, qty: newQty, hours: newHours };
+                    updateAppSheetTimesheet(updatedTs, "Edit");
+                    return NextResponse.json({ success: true, result: updatedTs });
+                } else {
+                    const clockOut = new Date(date || new Date()).toISOString();
+                    const clockIn = new Date(new Date(clockOut).getTime() - (unitHours * 60 * 60 * 1000)).toISOString();
+
+                    const newTs = {
+                        _id: new mongoose.Types.ObjectId().toString(),
+                        scheduleId,
+                        employee,
+                        clockIn,
+                        clockOut,
+                        type: 'Drive Time',
+                        hours: unitHours,
+                        qty: 1,
+                        dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
+                        shopTime: type === 'Shop Time' ? 'true' : undefined,
+                        status: 'Pending',
+                        createdAt: new Date().toISOString()
+                    };
+
+                    await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
+                    updateAppSheetTimesheet(newTs, "Add");
+                    return NextResponse.json({ success: true, result: newTs });
+                }
+            }
+
+            case 'toggleDriveTime': {
+                const { scheduleId, employee, timesheetId, date } = payload || {};
+                const schedule = await Schedule.findById(scheduleId);
+                if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
+
+                if (timesheetId) {
+                    // Stopping existing
+                    const tsIndex = (schedule.timesheet || []).findIndex(t => String(t._id) === String(timesheetId));
+                    if (tsIndex > -1) {
+                        const updateObj: any = {};
+                        updateObj[`timesheet.${tsIndex}.clockOut`] = date || new Date().toISOString();
+                        updateObj.updatedAt = new Date();
+                        await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
+                        
+                        const updated = await Schedule.findById(scheduleId).lean();
+                        const ts = updated?.timesheet?.[tsIndex];
+                        if (ts) updateAppSheetTimesheet(ts, "Edit");
+                    }
+                } else {
+                    // Starting new
+                    const newTs = {
+                        _id: new mongoose.Types.ObjectId().toString(),
+                        scheduleId,
+                        employee,
+                        clockIn: date || new Date().toISOString(),
+                        type: 'Drive Time',
+                        status: 'Pending',
+                        createdAt: new Date().toISOString()
+                    };
+                    await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
+                    updateAppSheetTimesheet(newTs, "Add");
+                }
+                return NextResponse.json({ success: true });
             }
 
             case 'getScheduleActivity': {

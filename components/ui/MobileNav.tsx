@@ -51,12 +51,12 @@ const MobileNav = () => {
     const [isChatOpen, setIsChatOpen] = useState(false);
 
     const tabs = [
-        { label: 'SCHEDULES', href: '/dashboard/jobschedule', icon: Calendar },
+        { label: 'SCHEDULES', href: '/dashboard', icon: Calendar },
         { label: 'TIMESHEET', href: '/jobs/time-cards', icon: Clock },
     ];
 
     const isTabActive = (href: string) => {
-        if (href === '/dashboard/jobschedule') return pathname.startsWith('/dashboard');
+        if (href === '/dashboard') return pathname === '/dashboard';
         return pathname.startsWith(href);
     };
 

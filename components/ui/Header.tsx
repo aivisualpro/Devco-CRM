@@ -208,7 +208,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                         {/* Left Content + Navigation Menu */}
                         <div className="flex items-center gap-4">
                             {!hideLogo && (
-                                <Link href="/" className="hidden md:block text-xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                <Link href="/dashboard" className="hidden md:block text-xl tracking-tight hover:opacity-80 transition-opacity mr-2" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                     DEVCO
                                 </Link>
                             )}
@@ -276,7 +276,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                         {/* Mobile Centered Logo */}
                         {!hideLogo && (
                             <div className="md:hidden absolute left-1/2 -translate-x-1/2">
-                                <Link href="/" className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                <Link href="/dashboard" className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                     DEVCO
                                 </Link>
                             </div>
