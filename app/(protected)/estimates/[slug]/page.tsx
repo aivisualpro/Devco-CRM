@@ -254,7 +254,6 @@ export default function EstimateViewPage() {
     
     // Visibility State
     const [visibleSections, setVisibleSections] = useState({
-        estimateSummary: true,
         estimateDocs: false,
         lineItems: true,
         proposal: true
@@ -393,7 +392,6 @@ export default function EstimateViewPage() {
                      // If settings exist, apply them. If not, we stick with defaults.
                      if (emp && Array.isArray(emp.estimateSettings)) {
                              setVisibleSections({
-                                 estimateSummary: emp.estimateSettings.includes('Estimate Summary'),
                                  estimateDocs: emp.estimateSettings.includes('Job Docs'),
                                  lineItems: emp.estimateSettings.includes('Line Items'),
                                  proposal: emp.estimateSettings.includes('Proposal')
@@ -418,7 +416,6 @@ export default function EstimateViewPage() {
              if (!userEmail) return;
 
              const settings = [];
-             if (visibleSections.estimateSummary) settings.push('Estimate Summary');
              if (visibleSections.estimateDocs) settings.push('Job Docs');
              if (visibleSections.lineItems) settings.push('Line Items');
              if (visibleSections.proposal) settings.push('Proposal');
@@ -1933,7 +1930,6 @@ export default function EstimateViewPage() {
                                 multiSelect={true}
                                 positionMode="bottom"
                                 options={[
-                                    { id: 'estimateSummary', label: 'Estimate Summary', value: 'estimateSummary' },
                                     { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
                                     { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
                                     { id: 'proposal', label: 'Proposal', value: 'proposal' }
@@ -2010,7 +2006,6 @@ export default function EstimateViewPage() {
             <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
                 {/* Section 1: Header Card */}
                 <div className="w-full p-4">
-                    {visibleSections.estimateSummary && (
                         /* Header Card */
                         <EstimateHeaderCard
                         formData={formData}
@@ -2041,7 +2036,6 @@ export default function EstimateViewPage() {
 
                         onVersionClick={handleVersionClick}
                     />
-                    )}
                     
                     {/* Estimate Docs Section */}
                     {visibleSections.estimateDocs && (
