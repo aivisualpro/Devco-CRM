@@ -68,6 +68,7 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
             "Per Diem": String(item.perDiem || ""),
             "Aerial Image": String(item.aerialImage || ""),
             "Site Layout": String(item.siteLayout || ""),
+            "Job Location": String(item.jobLocation || ""),
             "todayObjectives": Array.isArray(item.todayObjectives) 
                 ? item.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ') 
                 : String(item.todayObjectives || "") 

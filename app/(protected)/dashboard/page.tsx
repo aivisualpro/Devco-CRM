@@ -276,7 +276,8 @@ function DashboardContent() {
     const [todos, setTodos] = useState<TodoItem[]>([]);
     const [estimateStats, setEstimateStats] = useState<EstimateStats[]>([]);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
-    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]); // Keep for type safety if needed, but we use 'messages' state now
+
     
     // UI States
     const [loading, setLoading] = useState(true);
@@ -288,7 +289,8 @@ function DashboardContent() {
             setScheduleView('all');
         }
     }, [isSuperAdmin]);
-    const [chatFilter, setChatFilter] = useState('');
+    // const [chatFilter, setChatFilter] = useState(''); // Removed, using tagFilters and local state
+
     const [newMessage, setNewMessage] = useState('');
     const [selectedDetailSchedule, setSelectedDetailSchedule] = useState<Schedule | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -319,6 +321,20 @@ function DashboardContent() {
     const [timesheetModalOpen, setTimesheetModalOpen] = useState(false);
     const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
     const [isTimesheetEditMode, setIsTimesheetEditMode] = useState(false);
+
+    // Chat States
+    const [messages, setMessages] = useState<any[]>([]);
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [referenceQuery, setReferenceQuery] = useState('');
+    const [showMentions, setShowMentions] = useState(false);
+    const [showReferences, setShowReferences] = useState(false);
+    const [cursorPosition, setCursorPosition] = useState(0); // for tracking where to insert
+    const [chatFilterValue, setChatFilterValue] = useState(''); // For the UI filter input
+    const [tagFilters, setTagFilters] = useState<{type: 'user'|'estimate', value: string, label: string}[]>([]);
+    
+    const chatScrollRef = useRef<HTMLDivElement>(null);
+    const chatInputRef = useRef<HTMLInputElement>(null);
 
     // Load User
     useEffect(() => {
@@ -811,6 +827,156 @@ function DashboardContent() {
             fetchDashboardData(); // Revert on failure
         }
     };
+
+    // Chat Functions
+    const fetchChatMessages = useCallback(async () => {
+        try {
+            let url = '/api/chat?limit=50';
+            if (chatFilterValue) {
+                url += `&filter=${encodeURIComponent(chatFilterValue)}`;
+            }
+            if (tagFilters.length > 0) {
+                 // Prioritize estimate tags for filtering if available
+                 const estTag = tagFilters.find(t => t.type === 'estimate');
+                 if (estTag) {
+                     url += `&estimate=${encodeURIComponent(estTag.value)}`;
+                 }
+            }
+            
+            const res = await fetch(url);
+            const data = await res.json();
+            if (data.success) {
+                setMessages(data.messages);
+                // Scroll to bottom on initial load
+                setTimeout(() => {
+                    if (chatScrollRef.current) {
+                        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                    }
+                }, 100);
+            }
+        } catch (error) {
+            console.error('Failed to fetch chat', error);
+        }
+    }, [chatFilterValue, tagFilters]);
+
+    // Poll for messages
+    useEffect(() => {
+        fetchChatMessages();
+        const interval = setInterval(fetchChatMessages, 10000); // Poll every 10s
+        return () => clearInterval(interval);
+    }, [fetchChatMessages]);
+
+    const handleChatInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setNewMessage(val);
+        
+        const cursor = e.target.selectionStart || 0;
+        setCursorPosition(cursor);
+        
+        // Check for trigger at cursor
+        const textBefore = val.slice(0, cursor);
+        const words = textBefore.split(/\s+/);
+        const lastWord = words[words.length - 1];
+
+        if (lastWord.startsWith('@')) {
+            setMentionQuery(lastWord.slice(1));
+            setShowMentions(true);
+            setShowReferences(false);
+        } else if (lastWord.startsWith('#')) {
+            setReferenceQuery(lastWord.slice(1));
+            setShowReferences(true);
+            setShowMentions(false);
+        } else {
+            setShowMentions(false);
+            setShowReferences(false);
+        }
+    };
+
+    const insertTag = (tag: string, type: 'mention' | 'reference') => {
+        if (!chatInputRef.current) return;
+        
+        const val = newMessage;
+        const textBefore = val.slice(0, cursorPosition);
+        const textAfter = val.slice(cursorPosition);
+        
+        const lastWordStart = textBefore.lastIndexOf(type === 'mention' ? '@' : '#');
+        
+        if (lastWordStart >= 0) {
+            const newTextBefore = textBefore.slice(0, lastWordStart) + tag + ' ';
+            setNewMessage(newTextBefore + textAfter);
+            
+            // Close popups
+            setShowMentions(false);
+            setShowReferences(false);
+            
+            // Restore focus
+            chatInputRef.current.focus();
+        }
+    };
+
+    const handleSendMessage = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!newMessage.trim()) return;
+
+        // Parse mentions and references explicitly from final text to ensure sync
+        const extractedMentions = (newMessage.match(/@([\w.@]+)/g) || []).map(s => s.slice(1)); // Simple email/name extraction
+        const extractedReferences = (newMessage.match(/#(\d+[-A-Za-z0-9]*)/g) || []).map(s => s.slice(1));
+
+        // Optimistic UI
+        const optimisticMsg: any = {
+            _id: `temp-${Date.now()}`,
+            sender: userEmail,
+            senderName: currentUser?.firstName || userEmail,
+            message: newMessage,
+            timestamp: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            mentions: extractedMentions,
+            references: extractedReferences
+        };
+        setMessages(prev => [...prev, optimisticMsg]);
+        setNewMessage('');
+        
+        // Scroll
+        setTimeout(() => {
+            if (chatScrollRef.current) {
+                chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+            }
+        }, 50);
+
+        try {
+            await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: optimisticMsg.message,
+                    mentions: extractedMentions,
+                    references: extractedReferences,
+                    senderName: optimisticMsg.senderName
+                })
+            });
+            fetchChatMessages(); // Sync real ID
+        } catch (error) {
+            console.error('Failed to send', error);
+            showError('Failed to send message');
+        }
+    };
+
+    // Filter Helpers
+    const filteredEmployees = useMemo(() => {
+        if (!mentionQuery) return initialData.employees.slice(0, 5);
+        return initialData.employees.filter((e: any) => 
+            (e.label || e.value).toLowerCase().includes(mentionQuery.toLowerCase())
+        ).slice(0, 5);
+    }, [mentionQuery, initialData.employees]);
+
+    const filteredEstimates = useMemo(() => {
+        if (!referenceQuery) return initialData.estimates.slice(0, 5);
+        return initialData.estimates.filter((e: any) => 
+            (e.value || '' + e.estimate).toLowerCase().includes(referenceQuery.toLowerCase()) || 
+            (e.projectTitle || '').toLowerCase().includes(referenceQuery.toLowerCase())
+        ).slice(0, 5);
+    }, [referenceQuery, initialData.estimates]);
+
 
     // Fetch Data
     const fetchDashboardData = useCallback(async () => {
@@ -1336,7 +1502,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Chat */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: '400px' }}>
+                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
                                 <div className="flex items-center justify-between p-4 border-b border-slate-100">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
@@ -1344,52 +1510,152 @@ function DashboardContent() {
                                         </div>
                                         <div>
                                             <h2 className="font-bold text-slate-900">Chat</h2>
-                                            <p className="text-xs text-slate-500">Team messages</p>
+                                            <p className="text-xs text-slate-500">
+                                                {tagFilters.length > 0 ? `Filtered by: ${tagFilters.map(t => t.label).join(', ')}` : 'Team messages'}
+                                            </p>
                                         </div>
                                     </div>
-                                    <button className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
-                                        <Filter className="w-4 h-4 text-slate-500" />
-                                    </button>
-                                </div>
-                                
-                                <div className="flex-1 p-4 overflow-y-auto space-y-3">
-                                    {/* Sample messages */}
-                                    <div className="flex gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">JS</div>
-                                        <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
-                                            <p className="text-sm text-slate-800">Hey team, equipment is ready for tomorrow's job!</p>
-                                            <p className="text-[10px] text-slate-400 mt-1">10:32 AM</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-2 justify-end">
-                                        <div className="bg-blue-500 text-white rounded-2xl rounded-tr-sm px-3 py-2 max-w-[80%]">
-                                            <p className="text-sm">Great, I'll be there at 7am sharp.</p>
-                                            <p className="text-[10px] text-blue-200 mt-1">10:35 AM</p>
-                                        </div>
-                                        <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold shrink-0">ME</div>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-purple-500 flex items-center justify-center text-white text-xs font-bold shrink-0">SW</div>
-                                        <div className="bg-slate-100 rounded-2xl rounded-tl-sm px-3 py-2 max-w-[80%]">
-                                            <p className="text-sm text-slate-800">Don't forget to bring the safety gear 🦺</p>
-                                            <p className="text-[10px] text-slate-400 mt-1">10:40 AM</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-3 border-t border-slate-100">
-                                    <div className="flex gap-2">
-                                        <input 
-                                            type="text"
-                                            placeholder="Type a message..."
-                                            className="flex-1 px-3 py-2 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            value={newMessage}
-                                            onChange={(e) => setNewMessage(e.target.value)}
-                                        />
-                                        <button className="w-10 h-10 bg-blue-500 text-white rounded-xl flex items-center justify-center hover:bg-blue-600 transition-colors">
-                                            <Send className="w-4 h-4" />
+                                    <div className="flex items-center gap-2">
+                                        {tagFilters.length > 0 && (
+                                            <button 
+                                                onClick={() => { setTagFilters([]); setChatFilterValue(''); }}
+                                                className="text-xs text-slate-400 hover:text-slate-600 px-2"
+                                            >
+                                                Clear
+                                            </button>
+                                        )}
+                                        <button 
+                                            onClick={() => setChatFilterValue(prev => prev ? '' : ' ')} // Minimal toggle to trigger re-fetch or show input
+                                            className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
+                                        >
+                                            <Filter className={`w-4 h-4 ${tagFilters.length > 0 ? 'text-blue-500' : 'text-slate-500'}`} />
+                                            {tagFilters.length > 0 && <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full" />}
                                         </button>
                                     </div>
+                                </div>
+                                
+                                <div 
+                                    className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin"
+                                    ref={chatScrollRef}
+                                >
+                                    {messages.length === 0 ? (
+                                        <div className="text-center py-12">
+                                            <p className="text-sm text-slate-400">No messages yet. Start the conversation!</p>
+                                        </div>
+                                    ) : (
+                                        messages.map((msg, idx) => {
+                                            const isMe = msg.sender === userEmail;
+                                            // Handle mentions highlighting
+                                            const renderMessage = (text: string) => {
+                                                const parts = text.split(/(@[\w.@]+|#\d+[-A-Za-z0-9]*)/g);
+                                                return parts.map((part, i) => {
+                                                    if (part.startsWith('@')) return <span key={i} className="text-blue-600 font-bold">{part}</span>;
+                                                    if (part.startsWith('#')) return <span key={i} className="text-purple-600 font-bold cursor-pointer hover:underline" onClick={() => {
+                                                        const estVal = part.slice(1);
+                                                        setTagFilters([{ type: 'estimate', value: estVal, label: part }]);
+                                                    }}>{part}</span>;
+                                                    return part;
+                                                });
+                                            };
+
+                                            return (
+                                                <div key={idx} className={`flex gap-2 ${isMe ? 'justify-end' : ''}`}>
+                                                    {!isMe && (
+                                                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+                                                            {msg.senderName?.[0] || 'U'}
+                                                        </div>
+                                                    )}
+                                                    <div className={`rounded-2xl px-3 py-2 max-w-[85%] ${
+                                                        isMe 
+                                                            ? 'bg-blue-600 text-white rounded-tr-none' 
+                                                            : 'bg-slate-100 text-slate-800 rounded-tl-none'
+                                                    }`}>
+                                                        <p className="text-sm cursor-text selection:bg-white/30">
+                                                            {renderMessage(msg.message)}
+                                                        </p>
+                                                        <p className={`text-[10px] mt-1 ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
+                                                            {!isMe && <span className="font-bold mr-1">{msg.senderName}</span>}
+                                                            {new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                        </p>
+                                                    </div>
+                                                    {isMe && (
+                                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                                                            ME
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+
+                                <div className="p-3 border-t border-slate-100 relative">
+                                    {/* Mention Popup */}
+                                    {showMentions && (
+                                        <div className="absolute bottom-full left-4 mb-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
+                                            <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
+                                                Mention Teammate
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto">
+                                                {filteredEmployees.map((emp: any) => (
+                                                    <div 
+                                                        key={emp.value}
+                                                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2"
+                                                        onClick={() => insertTag(`@${emp.label || emp.value}`, 'mention')}
+                                                    >
+                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">
+                                                            {(emp.label || emp.value)[0]}
+                                                        </div>
+                                                        <span className="text-sm text-slate-700">{emp.label || emp.value}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Reference Popup */}
+                                    {showReferences && (
+                                        <div className="absolute bottom-full left-4 mb-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
+                                            <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
+                                                Reference Estimate
+                                            </div>
+                                            <div className="max-h-48 overflow-y-auto">
+                                                {filteredEstimates.map((est: any) => (
+                                                    <div 
+                                                        key={est.value}
+                                                        className="px-3 py-2 hover:bg-purple-50 cursor-pointer"
+                                                        onClick={() => insertTag(`#${est.value || est.estimate}`, 'reference')}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-bold text-sm text-[#0F4C75]">{est.value || est.estimate}</span>
+                                                            <span className="text-[10px] text-slate-400">{est.customerName || 'Client'}</span>
+                                                        </div>
+                                                        <p className="text-xs text-slate-600 truncate">{est.projectTitle || 'Untitled Project'}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <form onSubmit={handleSendMessage} className="flex gap-2">
+                                        <div className="relative flex-1">
+                                            <input 
+                                                ref={chatInputRef}
+                                                type="text"
+                                                placeholder="Type @ for team or # for jobs..."
+                                                className="w-full px-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+                                                value={newMessage}
+                                                onChange={handleChatInput}
+                                            />
+                                        </div>
+                                        <button 
+                                            type="submit"
+                                            disabled={!newMessage.trim()}
+                                            className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </button>
+                                    </form>
                                 </div>
                             </div>
                         </div>

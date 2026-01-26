@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown } from 'lucide-react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { format } from 'date-fns';
@@ -157,6 +157,134 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         paidBy: '',
         paymentDate: format(new Date(), 'yyyy-MM-dd')
     });
+
+    // Chat States for Estimate
+    const [chatMessages, setChatMessages] = useState<any[]>([]);
+    const [newChatMessage, setNewChatMessage] = useState('');
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [showMentions, setShowMentions] = useState(false);
+    const [cursorPosition, setCursorPosition] = useState(0); 
+    const chatInputRef = React.useRef<HTMLInputElement>(null);
+    const chatScrollRef = React.useRef<HTMLDivElement>(null);
+
+    // Fetch Chat Messages for this Estimate
+    React.useEffect(() => {
+        if (!formData?.estimate) return;
+
+        const fetchChat = async () => {
+            try {
+                // Fetch messages specifically for this estimate
+                const res = await fetch(`/api/chat?limit=50&estimate=${encodeURIComponent(formData.estimate)}`);
+                const data = await res.json();
+                if (data.success) {
+                    setChatMessages(data.messages);
+                    // Scroll to bottom
+                    setTimeout(() => {
+                        if (chatScrollRef.current) {
+                            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                        }
+                    }, 100);
+                }
+            } catch (error) {
+                console.error('Failed to fetch estimate chat', error);
+            }
+        };
+
+        fetchChat();
+        const interval = setInterval(fetchChat, 10000); // Poll every 10s
+        return () => clearInterval(interval);
+    }, [formData?.estimate]); // Re-run if estimate ID changes
+
+    const handleChatInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        setNewChatMessage(val);
+        
+        const cursor = e.target.selectionStart || 0;
+        setCursorPosition(cursor);
+        
+        // Check for trigger at cursor
+        const textBefore = val.slice(0, cursor);
+        const words = textBefore.split(/\s+/);
+        const lastWord = words[words.length - 1];
+
+        if (lastWord.startsWith('@')) {
+            setMentionQuery(lastWord.slice(1));
+            setShowMentions(true);
+        } else {
+            setShowMentions(false);
+        }
+    };
+
+    const insertChatTag = (tag: string) => {
+        if (!chatInputRef.current) return;
+        
+        const val = newChatMessage;
+        const textBefore = val.slice(0, cursorPosition);
+        const textAfter = val.slice(cursorPosition);
+        
+        const lastWordStart = textBefore.lastIndexOf('@');
+        
+        if (lastWordStart >= 0) {
+            const newTextBefore = textBefore.slice(0, lastWordStart) + tag + ' ';
+            setNewChatMessage(newTextBefore + textAfter);
+            setShowMentions(false);
+            chatInputRef.current.focus();
+        }
+    };
+
+    const handleSendChatMessage = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!newChatMessage.trim() || !formData?.estimate) return;
+
+        const extractedMentions = (newChatMessage.match(/@([\w.@]+)/g) || []).map(s => s.slice(1));
+        
+        // Optimistic UI
+        const optimisticMsg: any = {
+            _id: `temp-${Date.now()}`,
+            sender: 'Me', // We might not have full user context here easily without auth hook, but backend handles it
+            senderName: 'Me', // Backend will overwrite
+            message: newChatMessage,
+            createdAt: new Date().toISOString(),
+            mentions: extractedMentions,
+            references: [formData.estimate]
+        };
+        setChatMessages(prev => [...prev, optimisticMsg]);
+        setNewChatMessage('');
+        
+        setTimeout(() => {
+            if (chatScrollRef.current) {
+                chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+            }
+        }, 50);
+
+        try {
+            await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message: optimisticMsg.message,
+                    mentions: extractedMentions,
+                    references: [formData.estimate], // Automatically link to this estimate
+                    // senderName handled by backend session
+                })
+            });
+            // Re-fetch to sync
+            const res = await fetch(`/api/chat?limit=50&estimate=${encodeURIComponent(formData.estimate)}`);
+            const data = await res.json();
+            if (data.success) setChatMessages(data.messages);
+        } catch (error) {
+            console.error('Failed to send', error);
+            toast.error('Failed to send message');
+        }
+    };
+
+    const filteredChatEmployees = useMemo(() => {
+        if (!mentionQuery) return (employees || []).slice(0, 5);
+        return (employees || []).filter((e: any) => 
+            (e.label || e.firstName || e.email || '').toLowerCase().includes(mentionQuery.toLowerCase())
+        ).slice(0, 5);
+    }, [mentionQuery, employees]);
 
     const getEmployeeData = (idOrEmail: string) => {
         if (!idOrEmail) return null;
@@ -717,7 +845,113 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         <div className={`bg-[#eef2f6] rounded-[40px] p-4 ${className || ''}`}>
 
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-6">
+
+
+                {/* Column 0: Estimate Chat */}
+                <div className="space-y-4 flex flex-col h-full">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center shadow-md">
+                            <MessageSquare className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-700">Estimate Chat</h4>
+                        {formData?.estimate && (
+                            <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">
+                                #{formData.estimate}
+                            </span>
+                        )}
+                    </div>
+                    
+                    
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex-1 flex flex-col h-[500px] relative">
+
+                         <div 
+                            className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
+                            ref={chatScrollRef}
+                         >
+                            {chatMessages.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-[10px] text-slate-400 font-bold">No messages for this estimate yet.</p>
+                                </div>
+                            ) : (
+                                chatMessages.map((msg, idx) => {
+                                    // Identify if message is from me (simple check by 'Me' for optimistic, or check if I can get current user email prop, but for now generic style is fine)
+                                    // Since we don't have current user email passed in props easily, we'll style loosely or assume 'Me'
+                                    const isMe = msg.senderName === 'Me' || msg.sender === formData?.proposalWriter; // Rough guess
+                                    
+                                    return (
+                                        <div key={idx} className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
+                                            <div className={`rounded-xl px-3 py-2 max-w-[90%] ${
+                                                isMe 
+                                                    ? 'bg-blue-600 text-white rounded-tr-none' 
+                                                    : 'bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-sm'
+                                            }`}>
+                                                <p className="text-[11px] leading-relaxed break-words">
+                                                    {msg.message.split(/(@[\w.@]+)/g).map((part: string, i: number) => 
+                                                        part.startsWith('@') ? <span key={i} className={`font-bold ${isMe ? 'text-blue-200' : 'text-blue-600'}`}>{part}</span> : part
+                                                    )}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 px-1">
+                                                {!isMe && (
+                                                    <span className="text-[9px] font-bold text-slate-400">{msg.senderName}</span>
+                                                )}
+                                                <span className="text-[9px] text-slate-300">
+                                                    {format(new Date(msg.createdAt), 'h:mm a')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                         </div>
+
+                         {/* Chat Input Area */}
+                         <div className="mt-3 pt-3 border-t border-slate-200/50 relative">
+                             {/* Mentions Popup inside the card */}
+                             {showMentions && (
+                                <div className="absolute bottom-full left-0 mb-2 w-full bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
+                                    <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                        Mention Team
+                                    </div>
+                                    <div className="max-h-32 overflow-y-auto">
+                                        {filteredChatEmployees.map((emp: any) => (
+                                            <div 
+                                                key={emp._id || emp.value}
+                                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2"
+                                                onClick={() => insertChatTag(`@${emp.label || emp.firstName || emp.value}`)}
+                                            >
+                                                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold">
+                                                    {(emp.label || emp.firstName || emp.value || '?')[0]}
+                                                </div>
+                                                <span className="text-xs text-slate-700 truncate">{emp.label || emp.firstName || emp.value}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <form onSubmit={handleSendChatMessage} className="flex gap-2">
+                                <input 
+                                    ref={chatInputRef}
+                                    type="text"
+                                    placeholder="Message team..."
+                                    className="flex-1 bg-white/50 border border-white focus:bg-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400"
+                                    value={newChatMessage}
+                                    onChange={handleChatInput}
+                                />
+                                <button 
+                                    type="submit"
+                                    disabled={!newChatMessage.trim()}
+                                    className="w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                >
+                                    <Send className="w-3.5 h-3.5" />
+                                </button>
+                            </form>
+                         </div>
+                    </div>
+                </div>
+
                 {/* Column 1: Prelims */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
@@ -730,7 +964,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </span>
                     </div>
                     
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                    
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
                         <div className="grid grid-cols-1 gap-3">
                             {prelimDocs.length > 0 ? prelimDocs.map((docName, idx) => (
                                 <DocCard 
@@ -747,7 +983,43 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
 
-                {/* Column 2: Certified Payroll */}
+                {/* Column 2: Billing Tickets */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-md">
+                            <Receipt className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-indigo-700">Billing Tickets</h4>
+                        <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
+                            0
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
+                         <p className="text-[10px] text-slate-400 font-bold text-center py-4">No billing tickets</p>
+                    </div>
+                </div>
+
+                {/* Column 3: Conditional / Un-Conditional Releases */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 text-white flex items-center justify-center shadow-md">
+                            <FileCheck className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-cyan-700">Releases</h4>
+                        <span className="text-[10px] bg-cyan-100 text-cyan-600 px-2 py-0.5 rounded-full font-bold">
+                            0
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
+                         <p className="text-[10px] text-slate-400 font-bold text-center py-4">No release docs</p>
+                    </div>
+                </div>
+
+                {/* Column 4: Certified Payroll */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center shadow-md">
@@ -759,7 +1031,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
                         <div className="grid grid-cols-1 gap-3">
                             {certifiedPayrollDocs.length > 0 ? certifiedPayrollDocs.map((docName, idx) => (
                                 <DocCard 
@@ -777,7 +1050,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
 
-                {/* Column 3: Planning */}
+                {/* Column 5: Planning */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 text-white flex items-center justify-center shadow-md">
@@ -795,7 +1068,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
                         <div className="grid grid-cols-1 gap-3">
                             {jobPlanningDocs.length > 0 ? jobPlanningDocs.map((item: any, idx: number) => (
                                 <div 
@@ -882,7 +1156,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
 
-                {/* Column 4: Signed Contracts */}
+                {/* Column 6: Signed Contracts */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md">
@@ -900,7 +1174,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
                         <div className="grid grid-cols-1 gap-3">
                             {signedContracts.length > 0 ? signedContracts.map((contract: any, idx: number) => (
                                 <div 
@@ -957,7 +1232,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
 
-                {/* Column 5: Receipts & Costs */}
+                {/* Column 7: Receipts & Costs */}
                 <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 text-white flex items-center justify-center shadow-md">
@@ -975,7 +1250,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-full max-h-[500px] overflow-y-auto">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+
                         <div className="grid grid-cols-3 gap-1 mb-4 pb-3 border-b border-slate-200/50">
                             {(() => {
                                 const rects = receiptsAndCosts.filter((r: any) => r.type === 'Receipt').reduce((sum: number, r: any) => sum + (r.amount || 0), 0);

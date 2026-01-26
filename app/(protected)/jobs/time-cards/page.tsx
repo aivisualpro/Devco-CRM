@@ -131,15 +131,27 @@ const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
 // This preserves the exact date/time values regardless of user's timezone
 const toLocalISO = (iso?: string) => {
     if (!iso) return "";
-    // Handle ISO strings like "2026-01-26T06:00:00.000Z" or "2026-01-26T06:00:00.000+00:00"
-    // Extract YYYY-MM-DDTHH:mm directly from the string
+    
+    // 1. Try regex extraction of T-separated components (Best for preserving raw values "Timezone-agnostic")
     const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (match) {
         const [, year, month, day, hour, minute] = match;
         return `${year}-${month}-${day}T${hour}:${minute}`;
     }
-    // Fallback for non-standard formats
-    return iso.slice(0, 16);
+
+    // 2. If no T, check if it's just a date YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+        return `${iso}T00:00`;
+    }
+
+    // 3. Last resort: use Date object to normalize (e.g. handles other valid formats)
+    try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return "";
+        return d.toISOString().slice(0, 16);
+    } catch {
+        return "";
+    }
 };
 
 const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
