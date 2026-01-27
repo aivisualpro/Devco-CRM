@@ -51,6 +51,7 @@ interface ScheduleDoc {
     timesheet?: TimesheetEntry[];
     fromDate: string;
     toDate: string;
+    item?: string; // Tag field - used to filter out "Day Off" schedules
     // ... other fields
 }
 
@@ -1731,7 +1732,7 @@ export default function TimeCardPage() {
                                 if (!editForm.estimate) return [];
                                 const estNorm = normalizeEst(editForm.estimate);
                                 return rawSchedules
-                                    .filter(s => normalizeEst(s.estimate) === estNorm)
+                                    .filter(s => normalizeEst(s.estimate) === estNorm && s.item !== 'Day Off')
                                     .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                     .map(s => ({
                                         value: s._id,
@@ -2007,7 +2008,7 @@ export default function TimeCardPage() {
                                 if (!addForm.estimate) return [];
                                 const estNorm = normalizeEst(addForm.estimate);
                                 return rawSchedules
-                                    .filter(s => normalizeEst(s.estimate) === estNorm)
+                                    .filter(s => normalizeEst(s.estimate) === estNorm && s.item !== 'Day Off')
                                     .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                     .map(s => ({
                                         value: s._id,
