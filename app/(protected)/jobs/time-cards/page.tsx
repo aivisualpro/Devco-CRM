@@ -50,7 +50,8 @@ interface ScheduleDoc {
     estimate: string;
     timesheet?: TimesheetEntry[];
     fromDate: string;
-    // ... other fields irrelevant for this specific view
+    toDate: string;
+    // ... other fields
 }
 
 // --- Constants ---
@@ -1365,8 +1366,14 @@ export default function TimeCardPage() {
                                          placeholder="All Employees" 
                                          value={filEmployee} 
                                          onChange={setFilEmployee} 
-                                         options={uniqueEmployees.map(e => ({label: employeesMap[e]?.label || e || '', value: e}))}
-                                         className="w-[140px]"
+                                         options={uniqueEmployees.map(e => ({
+                                             label: employeesMap[e]?.label || e || '', 
+                                             value: e,
+                                             image: employeesMap[e]?.image,
+                                             initials: employeesMap[e]?.initials
+                                         }))}
+                                         className="w-[180px]"
+                                         size="sm"
                                     />
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -1377,7 +1384,8 @@ export default function TimeCardPage() {
                                          value={filEstimate} 
                                          onChange={setFilEstimate} 
                                          options={uniqueEstimates}
-                                         className="w-[200px]"
+                                         className="w-[260px]"
+                                         size="sm"
                                     />
                                 </div>
                                 <div className="flex items-center gap-1.5">
@@ -1388,8 +1396,9 @@ export default function TimeCardPage() {
                                          value={filType} 
                                          onChange={setFilType} 
                                          options={uniqueTypes.map(e => ({label: e, value: e}))}
-                                         className="w-[140px]"
+                                         className="w-[160px]"
                                          align="right"
+                                         size="sm"
                                     />
                                 </div>
 
@@ -1415,15 +1424,15 @@ export default function TimeCardPage() {
                             <Table containerClassName="flex-1">
                                 <TableHead className="bg-white/80 backdrop-blur-md shadow-sm">
                                     <TableRow>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 w-[140px]">Employee</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[90px]">Date</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[60px]">Type</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 w-[100px]">Estimate #</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[110px]">In</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-center w-[110px]">Out</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right w-[80px]">Dist (Mi)</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right w-16">Hrs</TableHeader>
-                                        <TableHeader className="text-xs uppercase font-black text-slate-500 text-right w-[100px]">Actions</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 w-[160px] text-left">Employee</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[70px]">Type</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[120px]">In</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[120px]">Out</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[90px]">Dist (Mi)</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -1443,7 +1452,7 @@ export default function TimeCardPage() {
                                                                 (employeesMap[ts.employee]?.initials || ts.employee.substring(0, 2)).toUpperCase()
                                                             )}
                                                         </div>
-                                                        <span className="text-xs font-semibold text-slate-700">{employeesMap[ts.employee]?.label || ts.employee}</span>
+                                                        <span className="text-[11px] font-medium text-slate-600">{employeesMap[ts.employee]?.label || ts.employee}</span>
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
@@ -1471,8 +1480,10 @@ export default function TimeCardPage() {
                                                         </TooltipContent>
                                                     </Tooltip>
                                                 </TableCell>
-                                                <TableCell className="font-bold text-[#0F4C75] text-xs">
-                                                    {ts.estimate || '-'}
+                                                <TableCell className="text-center">
+                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                        {ts.estimate || '-'}
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
@@ -1492,18 +1503,22 @@ export default function TimeCardPage() {
                                                             </button>
                                                         </div>
                                                     ) : isQuickEditing ? (
-                                                        <input 
-                                                            type="time"
-                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-20"
-                                                            value={quickEditForm.clockIn ? toLocalISO(quickEditForm.clockIn).split('T')[1] : ''}
-                                                            onChange={e => {
-                                                                const timeVal = e.target.value;
-                                                                const currentIso = toLocalISO(quickEditForm.clockIn || '');
-                                                                const datePart = currentIso.split('T')[0];
-                                                                setQuickEditForm(prev => ({...prev, clockIn: `${datePart}T${timeVal}:00.000Z`}));
-                                                            }}
-                                                        />
-                                                    ) : formatTimeOnly(ts.clockIn)}
+                                                        <div className="px-1">
+                                                            <input 
+                                                                type="time"
+                                                                className="w-full px-2 py-1.5 bg-white border-2 border-[#0F4C75]/20 focus:border-[#0F4C75] focus:ring-4 focus:ring-[#0F4C75]/5 rounded-xl text-[10px] font-medium text-[#0F4C75] transition-all outline-none shadow-inner"
+                                                                value={quickEditForm.clockIn ? toLocalISO(quickEditForm.clockIn).split('T')[1] : ''}
+                                                                onChange={e => {
+                                                                    const timeVal = e.target.value;
+                                                                    const currentIso = toLocalISO(quickEditForm.clockIn || '');
+                                                                    const datePart = currentIso.split('T')[0];
+                                                                    setQuickEditForm(prev => ({...prev, clockIn: `${datePart}T${timeVal}:00.000Z`}));
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[11px] font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockIn)}</span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
@@ -1523,18 +1538,22 @@ export default function TimeCardPage() {
                                                             </button>
                                                         </div>
                                                     ) : isQuickEditing ? (
-                                                        <input 
-                                                            type="time"
-                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-20"
-                                                            value={quickEditForm.clockOut ? toLocalISO(quickEditForm.clockOut).split('T')[1] : ''}
-                                                            onChange={e => {
-                                                                const timeVal = e.target.value;
-                                                                const currentIso = toLocalISO(quickEditForm.clockOut || quickEditForm.clockIn || '');
-                                                                const datePart = currentIso.split('T')[0];
-                                                                setQuickEditForm(prev => ({...prev, clockOut: `${datePart}T${timeVal}:00.000Z`}));
-                                                            }}
-                                                        />
-                                                    ) : formatTimeOnly(ts.clockOut)}
+                                                        <div className="px-1">
+                                                            <input 
+                                                                type="time"
+                                                                className="w-full px-2 py-1.5 bg-white border-2 border-[#0F4C75]/20 focus:border-[#0F4C75] focus:ring-4 focus:ring-[#0F4C75]/5 rounded-xl text-[10px] font-medium text-[#0F4C75] transition-all outline-none shadow-inner"
+                                                                value={quickEditForm.clockOut ? toLocalISO(quickEditForm.clockOut).split('T')[1] : ''}
+                                                                onChange={e => {
+                                                                    const timeVal = e.target.value;
+                                                                    const currentIso = toLocalISO(quickEditForm.clockOut || quickEditForm.clockIn || '');
+                                                                    const datePart = currentIso.split('T')[0];
+                                                                    setQuickEditForm(prev => ({...prev, clockOut: `${datePart}T${timeVal}:00.000Z`}));
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[11px] font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockOut)}</span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell className="text-right text-xs font-medium text-slate-500">
                                                     {isQuickEditing && ts.type?.toLowerCase().includes('drive') ? (
@@ -1993,7 +2012,24 @@ export default function TimeCardPage() {
                                     }));
                             })()}
                             value={addForm.scheduleId || ''}
-                            onChange={(val) => setAddForm(prev => ({...prev, scheduleId: val}))}
+                            onChange={(val) => {
+                                const sched = rawSchedules.find(s => s._id === val);
+                                if (sched && addForm.type?.trim().toLowerCase() === 'site time') {
+                                    const clockIn = robustNormalizeISO(sched.fromDate);
+                                    const clockOut = robustNormalizeISO(sched.toDate || sched.fromDate);
+                                    const datePart = clockIn.split('T')[0];
+                                    setAddForm(prev => ({
+                                        ...prev,
+                                        scheduleId: val,
+                                        clockIn: clockIn,
+                                        clockOut: clockOut,
+                                        lunchStart: `${datePart}T12:00:00.000Z`,
+                                        lunchEnd: `${datePart}T12:30:00.000Z`
+                                    }));
+                                } else {
+                                    setAddForm(prev => ({...prev, scheduleId: val}));
+                                }
+                            }}
                             placeholder={addForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
                         />
                     </div>
@@ -2005,7 +2041,27 @@ export default function TimeCardPage() {
                                 <button
                                     key={t}
                                     type="button"
-                                    onClick={() => setAddForm(prev => ({...prev, type: t}))}
+                                    onClick={() => {
+                                        const isSiteTime = t.trim().toLowerCase() === 'site time';
+                                        if (isSiteTime && addForm.scheduleId) {
+                                            const sched = rawSchedules.find(s => s._id === addForm.scheduleId);
+                                            if (sched) {
+                                                const clockIn = robustNormalizeISO(sched.fromDate);
+                                                const clockOut = robustNormalizeISO(sched.toDate || sched.fromDate);
+                                                const datePart = clockIn.split('T')[0];
+                                                setAddForm(prev => ({
+                                                    ...prev,
+                                                    type: t,
+                                                    clockIn: clockIn,
+                                                    clockOut: clockOut,
+                                                    lunchStart: `${datePart}T12:00:00.000Z`,
+                                                    lunchEnd: `${datePart}T12:30:00.000Z`
+                                                }));
+                                                return;
+                                            }
+                                        }
+                                        setAddForm(prev => ({...prev, type: t}));
+                                    }}
                                     className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
                                         addForm.type?.trim().toLowerCase() === t.trim().toLowerCase() 
                                         ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 

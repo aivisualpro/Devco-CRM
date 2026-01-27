@@ -30,6 +30,7 @@ interface SearchableSelectProps {
     openOnFocus?: boolean;
     renderOption?: (option: SelectOption) => React.ReactNode;
     align?: 'left' | 'right';
+    size?: 'sm' | 'md' | 'lg';
 }
 
 export function SearchableSelect({
@@ -49,7 +50,8 @@ export function SearchableSelect({
     submitOnEnter = false,
     openOnFocus = false,
     renderOption,
-    align = 'left'
+    align = 'left',
+    size = 'md'
 }: SearchableSelectProps) {
     const [isOpen, setIsOpen] = useState(autoFocus || false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -309,7 +311,7 @@ export function SearchableSelect({
 
     return (
         <div className={`${className} ${isOpen ? 'relative z-[100]' : ''}`} ref={containerRef}>
-            {label && <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>}
+            {label && <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{label}</label>}
 
             <div className="relative">
                 {/* Trigger */}
@@ -341,12 +343,12 @@ export function SearchableSelect({
                             onKeyDown(e);
                         }
                     }}
-                    className="w-full min-h-[42px] h-auto py-2 px-3 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm"
+                    className={`w-full ${size === 'sm' ? 'min-h-[30px] py-1 px-2.5 rounded-lg text-[10px]' : 'min-h-[42px] py-2 px-3 rounded-xl text-sm'} bg-white border border-slate-200 font-medium text-slate-600 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm`}
                 >
                     <div className={`flex ${multiple ? 'items-start pt-0.5' : 'items-center'} gap-3 flex-1 min-w-0`}>
                         {(!multiple && (selectedOption?.image || selectedOption?.color || selectedOption?.initials || (displayLabel && displayLabel !== placeholder))) ? (
                             <div
-                                className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden shrink-0 border border-slate-100 shadow-sm"
+                                className={`${size === 'sm' ? 'w-5 h-5 text-[8px]' : 'w-7 h-7 text-[10px]'} rounded-full flex items-center justify-center font-bold text-slate-600 overflow-hidden shrink-0 border border-slate-100 shadow-sm`}
                                 style={selectedOption?.color && !selectedOption.image ? { backgroundColor: selectedOption.color, color: '#fff', borderColor: 'transparent' } : { backgroundColor: '#f8fafc' }}
                             >
                                 {selectedOption?.image ? (
@@ -358,7 +360,7 @@ export function SearchableSelect({
                         ) : null}
 
                         {multiple && (!displayLabel || (Array.isArray(value) && value.length === 0)) && <span className="text-slate-400 font-normal">{placeholder}</span>}
-                        {multiple && displayLabel ? displayLabel : <span className="truncate font-semibold text-slate-900">{typeof displayLabel === 'string' ? (displayLabel || placeholder) : displayLabel}</span>}
+                        {multiple && displayLabel ? displayLabel : <span className={`truncate font-medium ${size === 'sm' ? 'text-slate-600' : 'text-slate-800'}`}>{typeof displayLabel === 'string' ? (displayLabel || placeholder) : displayLabel}</span>}
                     </div>
                     <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                 </div>
@@ -513,15 +515,15 @@ export function SearchableSelect({
                                                 isKeyboardRef.current = false;
                                                 setActiveIndex(i);
                                             }}
-                                            className={`px-3 py-2.5 rounded-xl text-sm cursor-pointer transition-all flex items-center justify-between mb-0.5 ${isHighlighted
+                                            className={`px-3 py-2 rounded-xl text-[11px] cursor-pointer transition-all flex items-center justify-between mb-0.5 ${isHighlighted
                                                 ? 'bg-slate-100 text-slate-900 shadow-sm'
                                                 : isSelected ? 'bg-[#0F4C75]/10 text-[#0F4C75] ring-1 ring-[#0F4C75]/20 shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                                                 }`}
                                         >
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-2.5">
                                                 {/* Avatar / Initials */}
                                                 <div
-                                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0 ${isHighlighted ? 'bg-white border-slate-200' : isSelected ? 'bg-white border-[#0F4C75]/30 shadow-sm' : 'bg-slate-100 border-slate-100 text-slate-500'}`}
+                                                    className={`w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-medium border transition-colors shrink-0 ${isHighlighted ? 'bg-white border-slate-200' : isSelected ? 'bg-white border-[#0F4C75]/30 shadow-sm' : 'bg-slate-100 border-slate-100 text-slate-500'}`}
                                                     style={opt.color && !opt.image ? { backgroundColor: opt.color, color: '#fff', borderColor: 'transparent' } : {}}
                                                 >
                                                     {opt.image ? (
@@ -532,8 +534,8 @@ export function SearchableSelect({
                                                 </div>
 
                                                 <div className="flex flex-col">
-                                                    <span className={`font-bold ${isSelected ? 'text-[#0F4C75]' : 'text-slate-700'}`}>{opt.label}</span>
-                                                    {opt.subtitle && <span className="text-[10px] text-slate-400">{opt.subtitle}</span>}
+                                                    <span className={`font-medium ${isSelected ? 'text-[#0F4C75]' : 'text-slate-600'}`}>{opt.label}</span>
+                                                    {opt.subtitle && <span className="text-[9px] text-slate-400">{opt.subtitle}</span>}
                                                 </div>
                                             </div>
 
