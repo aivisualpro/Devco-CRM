@@ -371,10 +371,7 @@ export default function TimeCardPage() {
     const [editingRecord, setEditingRecord] = useState<TimesheetEntry | null>(null);
     const [editForm, setEditForm] = useState<Partial<TimesheetEntry>>({});
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [addForm, setAddForm] = useState<Partial<TimesheetEntry>>({
-        type: 'Drive Time',
-        clockIn: new Date().toISOString()
-    });
+    const [addForm, setAddForm] = useState<Partial<TimesheetEntry>>({});
     const [quickEditingId, setQuickEditingId] = useState<string | null>(null);
     const [quickEditForm, setQuickEditForm] = useState<Partial<TimesheetEntry>>({});
 
@@ -888,6 +885,13 @@ export default function TimeCardPage() {
         }
     };
 
+    const openAddModal = () => {
+        setAddForm({
+            type: 'Drive Time'
+        });
+        setIsAddModalOpen(true);
+    };
+
     const handleSaveAdd = async () => {
         const isDriveTime = addForm.type === 'Drive Time';
         
@@ -927,7 +931,7 @@ export default function TimeCardPage() {
 
         try {
             setIsAddModalOpen(false);
-            setAddForm({ type: 'Drive Time', clockIn: new Date().toISOString() });
+            setAddForm({ type: 'Drive Time' });
 
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
@@ -1070,7 +1074,7 @@ export default function TimeCardPage() {
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <button 
-                                            onClick={() => setIsAddModalOpen(true)}
+                                            onClick={openAddModal}
                                             className="w-10 h-10 flex items-center justify-center bg-[#0F4C75] text-white rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all active:scale-95"
                                         >
                                             <Plus size={20} />
