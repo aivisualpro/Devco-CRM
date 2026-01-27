@@ -303,8 +303,12 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                         </div>
                         
                         {(() => {
-                            const siteTimeEntries = schedule.timesheet.filter(ts => ts.type === 'Site Time' || !ts.type || ts.type === 'Work Time');
-                            const driveTimeEntries = schedule.timesheet.filter(ts => ts.type === 'Drive Time');
+                            const driveTimeEntries = schedule.timesheet.filter(ts => {
+                                const t = (ts.type || '').toLowerCase().trim();
+                                const isShop = ts.shopTime === 'Yes' || ts.shopTime === 'true' || ts.shopTime === true;
+                                return t === 'drive time' || t === 'shop time' || isShop;
+                            });
+                            const siteTimeEntries = schedule.timesheet.filter(ts => !driveTimeEntries.includes(ts));
 
                             const renderTable = (entries: any[], title: string, icon: React.ReactNode, titleColor: string, isDriveTime: boolean = false) => {
                                 if (entries.length === 0) return null;

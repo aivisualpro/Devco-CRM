@@ -1,7 +1,8 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Header from '@/components/ui/Header';
 import { BadgeTabs } from '@/components/ui/Tabs';
 import { Card } from '@/components/ui/Card';
@@ -9,8 +10,10 @@ import { Loading } from '@/components/ui/Loading';
 import { DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, Calendar, User, Search, Filter, Star, MoreVertical, Settings, Printer, Share2, ChevronDown, Clock, Rocket, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
-import { HelpCircle } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Skeleton, SkeletonTableRow, SkeletonTable } from '@/components/ui';
+import { HelpCircle, PieChart as PieChartIcon, Info } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
+import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 
 interface Project {
     Id: string;
@@ -26,6 +29,8 @@ interface Project {
     // Enhanced fields for the UI
     income?: number; // Revenue Earned to Date
     cost?: number; // Cost of Revenue Earned
+    qbCost?: number;
+    devcoCost?: number;
     profitMargin?: number;
     timeSpent?: string;
     startDate?: string;
@@ -37,6 +42,7 @@ interface Project {
     changeOrders?: number;
     status?: string;
     proposalSlug?: string;
+    jobTickets?: any[];
 }
 
 export default function WIPReportPage() {
@@ -59,14 +65,27 @@ export default function WIPReportPage() {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(20);
     const [employees, setEmployees] = useState<any[]>([]);
+    const [equipmentMachines, setEquipmentMachines] = useState<any[]>([]);
     const [activeHighlight, setActiveHighlight] = useState<string[]>([]);
+    
+    // DJT Modal State
+    const [selectedDJT, setSelectedDJT] = useState<any>(null);
+    const [djtModalOpen, setDjtModalOpen] = useState(false);
+    const [isDjtEditMode, setIsDjtEditMode] = useState(false);
+    const [isSavingSignature, setIsSavingSignature] = useState(false);
+    const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
+    const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
+    
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
 
     const tabs = [
         { id: 'quickbooks', label: 'QuickBooks' },
         { id: 'wip', label: 'WIP' },
     ];
 
-    const detailTabs = ['Summary', 'Transactions', 'Time Activity', 'Project Reports', 'Project Details', 'Change Log', 'Attachments'];
+    const detailTabs = ['Summary', 'Transactions', 'Daily Job Tickets'];
 
     const fetchProjects = async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
@@ -126,8 +145,11 @@ export default function WIPReportPage() {
                 setSelectedProject(prev => prev ? {
                     ...prev,
                     income: data.income,
-                    cost: data.cost,
-                    profitMargin: data.profitMargin
+                    cost: data.totalCost,
+                    qbCost: data.qbCost,
+                    devcoCost: data.devcoCost,
+                    profitMargin: data.profitMargin,
+                    jobTickets: data.jobTickets
                 } : null);
             }
         } catch (error) {
@@ -195,6 +217,61 @@ export default function WIPReportPage() {
         }
     };
 
+    // Sync state from URL on initial load and when projects are fetched
+    useEffect(() => {
+        const projectIdFromUrl = searchParams.get('project');
+        const tab = searchParams.get('tab');
+        const mainTab = searchParams.get('view');
+
+        if (mainTab && ['quickbooks', 'wip'].includes(mainTab)) {
+            setActiveTab(mainTab);
+        }
+
+        if (projectIdFromUrl && projects.length > 0) {
+            const project = projects.find(p => p.Id === projectIdFromUrl || p.proposalNumber === projectIdFromUrl);
+            if (project) {
+                // Only update if it's a DIFFERENT project
+                if (!selectedProject || selectedProject.Id !== project.Id) {
+                    setSelectedProject(project);
+                }
+                
+                if (tab && detailTabs.includes(tab) && activeDetailTab !== tab) {
+                    setActiveDetailTab(tab);
+                }
+            }
+        } else if (!projectIdFromUrl && selectedProject) {
+            // Only reset if we're NOT in transition (i.e. if the URL has no project but we have one)
+            // Actually, if selectedProject was just set via UI, the URL will be updated soon.
+            // We should only nullify if the URL explicitly has no project AND we had one.
+            setSelectedProject(null);
+        }
+    }, [projects.length, searchParams]); // Removed selectedProject?.Id as dependency to avoid immediate reset loops
+
+    // Update URL when state changes
+    useEffect(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        
+        if (activeTab !== 'wip') {
+            params.set('view', activeTab);
+        } else {
+            params.delete('view');
+        }
+
+        if (selectedProject) {
+            params.set('project', selectedProject.proposalNumber || selectedProject.Id);
+            params.set('tab', activeDetailTab);
+        } else {
+            params.delete('project');
+            params.delete('tab');
+        }
+
+        const newSearch = params.toString();
+        const query = newSearch ? `?${newSearch}` : '';
+        
+        // Use replace to avoid cluttering history while navigating tabs
+        router.replace(`${pathname}${query}`, { scroll: false });
+    }, [selectedProject, activeDetailTab, activeTab, pathname, router]);
+
     const handleSaveProposal = async (projectId: string) => {
         setSavingProposal(true);
         try {
@@ -241,10 +318,129 @@ export default function WIPReportPage() {
         }
     };
 
+    const fetchEquipment = async () => {
+        try {
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getCatalogueItems', payload: { type: 'equipment' } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setEquipmentMachines(data.result || []);
+            }
+        } catch (err) {
+            console.error('Error fetching equipment:', err);
+        }
+    };
+
     useEffect(() => {
         fetchProjects();
         fetchEmployees();
+        fetchEquipment();
     }, []);
+
+    const handleSaveDJT = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDJT) return;
+        try {
+            const payload = { ...selectedDJT, schedule_id: selectedDJT.schedule_id || selectedDJT._id };
+            const res = await fetch('/api/djt', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ action: 'saveDJT', payload }) 
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('DJT Saved');
+                setDjtModalOpen(false);
+                if (selectedProject) fetchProjectProfitability(selectedProject.Id);
+            } else {
+                toast.error(data.error || 'Failed to save DJT');
+            }
+        } catch (e) {
+            console.error('Error saving DJT:', e);
+            toast.error('Failed to save DJT');
+        }
+    };
+
+    const handleSaveDJTSignature = async (data: any) => {
+        if (!activeSignatureEmployee || !selectedDJT) return;
+        setIsSavingSignature(true);
+        try {
+            const payload = { 
+                schedule_id: selectedDJT.schedule_id, 
+                employee: activeSignatureEmployee, 
+                signature: typeof data === 'string' ? data : data.signature, 
+                createdBy: 'WIP Report' 
+            };
+            const res = await fetch('/api/djt', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ action: 'saveDJTSignature', payload }) 
+            });
+            const json = await res.json();
+            if (json.success) {
+                setSelectedDJT((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), json.result] }));
+                setActiveSignatureEmployee(null);
+                toast.success('Signature Saved');
+                if (selectedProject) fetchProjectProfitability(selectedProject.Id);
+            } else {
+                toast.error(json.error || 'Failed to save signature');
+            }
+        } catch (e) {
+            console.error('Error saving signature:', e);
+            toast.error('Failed to save signature');
+        } finally {
+            setIsSavingSignature(false);
+        }
+    };
+
+    const handleDownloadDjtPdf = async () => {
+        if (!selectedDJT) return;
+        setIsGeneratingDJTPDF(true);
+        try {
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
+            
+            // Build variables
+            const variables: Record<string, any> = {
+                dailyJobDescription: selectedDJT.dailyJobDescription || '',
+                customerPrintName: selectedDJT.customerPrintName || '',
+                customerName: selectedProject?.DisplayName || '',
+                jobLocation: selectedDJT.jobLocation || '',
+                estimate: selectedProject?.proposalNumber || '',
+                date: new Date(selectedDJT.date || new Date()).toLocaleDateString(),
+            };
+
+            if (selectedDJT.customerSignature) {
+                variables['customerSignature'] = selectedDJT.customerSignature;
+            }
+
+            const response = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!response.ok) throw new Error('Failed to generate PDF');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `DJT_${selectedProject?.proposalNumber || 'Report'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            toast.success('PDF Downloaded');
+        } catch (error) {
+            console.error('PDF Error:', error);
+            toast.error('Failed to download PDF');
+        } finally {
+            setIsGeneratingDJTPDF(false);
+        }
+    };
 
     useEffect(() => {
         if (selectedProject) {
@@ -344,6 +540,7 @@ export default function WIPReportPage() {
 
     return (
         <div className="flex flex-col h-screen overflow-hidden">
+            <TooltipProvider>
             <Header 
                 showDashboardActions={true} 
                 wipReportFilters={{
@@ -358,56 +555,9 @@ export default function WIPReportPage() {
                 }}
             />
             
-            <main className="flex-1 flex flex-col min-h-0 pt-0 pb-4 px-4 bg-[#f8fafc]">
+            <main className="flex-1 flex flex-col min-h-0 p-4 bg-[#f8fafc]">
                 <div className="flex-1 flex flex-col min-h-0 space-y-6">
-                    {/* Project Detail Header */}
-                    {selectedProject && (
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 animate-fade-in mb-6">
-                            <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={() => setSelectedProject(null)}
-                                        className="p-1 hover:bg-slate-200 rounded-lg text-slate-500 transition-colors"
-                                    >
-                                        <ChevronDown className="w-5 h-5 rotate-90" />
-                                    </button>
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex items-center gap-2">
-                                            <DollarSign className="w-5 h-5 text-emerald-600" />
-                                            <h1 className="text-xl font-black text-slate-900 tracking-tight">
-                                                {selectedProject.DisplayName}
-                                            </h1>
-                                        </div>
-                                        <div className="h-6 w-[1px] bg-slate-200"></div>
-                                        <div className="flex items-center gap-1 cursor-pointer group">
-                                            <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">In progress</span>
-                                            <ChevronDown className="w-3.5 h-3.5 text-emerald-600 transition-transform group-hover:translate-y-0.5" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-4 pl-12">
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                                        Project ID: {selectedProject.Id}
-                                    </p>
-                                    <Star className="w-3.5 h-3.5 text-slate-300 cursor-pointer hover:text-amber-400 transition-colors" />
-                                </div>
-                            </div>
-                            
-                            <div className="flex items-center gap-2">
-                                <button className="px-4 py-1.5 border border-slate-300 rounded-md text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-sm">
-                                    Edit
-                                </button>
-                                <div className="flex items-center">
-                                    <button className="px-4 py-1.5 bg-[#2CA01C] border border-[#2CA01C] rounded-l-md text-xs font-bold text-white hover:bg-[#248216] transition-colors shadow-sm">
-                                        Add to project
-                                    </button>
-                                    <button className="px-2 py-1.5 bg-[#2CA01C] border-l border-white/20 rounded-r-md text-white hover:bg-[#248216] transition-colors shadow-sm">
-                                        <ChevronDown className="w-4 h-4" />
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
+                    {/* Project Detail Header removed per user request */}
 
                     {/* Tab Content */}
                     <div className="flex-1 flex flex-col min-h-0">
@@ -487,8 +637,23 @@ export default function WIPReportPage() {
                                 {selectedProject ? (
                                     /* Project Detail View */
                                     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                                        {/* Detail Tabs */}
-                                        <div className="flex items-center px-6 border-b border-slate-100 overflow-x-auto">
+                                        {/* Detail Tabs & Navigation */}
+                                        <div className="flex items-center px-4 border-b border-slate-100 overflow-x-auto shrink-0 bg-white sticky top-0 z-10">
+                                            <button 
+                                                onClick={() => setSelectedProject(null)}
+                                                className="p-2 hover:bg-slate-100 rounded-xl text-slate-400 hover:text-slate-900 transition-all mr-2 group"
+                                                title="Back to Projects"
+                                            >
+                                                <X className="w-5 h-5 transition-transform group-hover:rotate-90" />
+                                            </button>
+                                            
+                                            <div className="flex items-center gap-2 mr-6 border-r border-slate-100 pr-6 py-4">
+                                                <DollarSign className="w-4 h-4 text-emerald-500" />
+                                                <span className="text-sm font-black text-slate-900 truncate max-w-[200px]">
+                                                    {selectedProject.DisplayName}
+                                                </span>
+                                            </div>
+
                                             {detailTabs.map((tab) => (
                                                 <button
                                                     key={tab}
@@ -506,11 +671,10 @@ export default function WIPReportPage() {
                                                 </button>
                                             ))}
                                             <div className="flex-1"></div>
-                                            <button className="text-sm font-bold text-[#0F4C75] hover:underline">Take a tour</button>
                                         </div>
 
-                                        {/* Tab Content Rendering */}
-                                        <div className="flex-1">
+                                        <div className="flex-1 overflow-y-auto min-h-0 bg-slate-50/30">
+
                                             {activeDetailTab === 'Transactions' && (
                                                 <>
                                                     {/* Detail View Sub-header */}
@@ -560,14 +724,9 @@ export default function WIPReportPage() {
                                                             </thead>
                                                             <tbody className="divide-y divide-slate-50">
                                                                 {loadingTransactions ? (
-                                                                    <tr>
-                                                                        <td colSpan={9} className="p-12 text-center text-slate-400 font-bold">
-                                                                            <div className="flex flex-col items-center gap-2">
-                                                                                <Rocket className="w-6 h-6 animate-bounce text-[#0F4C75]" style={{ animationDuration: '0.5s' }} />
-                                                                                Loading transactions...
-                                                                            </div>
-                                                                        </td>
-                                                                    </tr>
+                                                                    Array.from({ length: 5 }).map((_, i) => (
+                                                                        <SkeletonTableRow key={i} columns={9} />
+                                                                    ))
                                                                 ) : transactions.length > 0 ? (
                                                                     transactions.map((tx: any) => (
                                                                         <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
@@ -634,19 +793,17 @@ export default function WIPReportPage() {
                                             )}
 
                                             {activeDetailTab === 'Summary' && (
-                                                <div className="p-4 space-y-10 animate-fade-in max-w-6xl">
-                                                    {/* Invoices Section placeholder removed */}
-
+                                                <div className="p-4 space-y-10 animate-fade-in w-full">
                                                     {/* Project Balance Summary Section */}
                                                     <div className="space-y-6">
-                                                        <h2 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Project balance summary</h2>
-                                                        
-                                                        <div className="flex flex-col lg:flex-row items-center gap-4">
+                                                        <div className="flex flex-col lg:flex-row items-stretch gap-4">
                                                             {/* Income Card */}
                                                             <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
                                                                 {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 transition-all duration-300">
-                                                                        <Rocket className="w-5 h-5 text-[#0F4C75] animate-bounce" style={{ animationDuration: '0.5s' }} />
+                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
+                                                                        <Skeleton className="h-4 w-20 rounded-full" />
+                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
+                                                                        <Skeleton className="h-2.5 w-full rounded-full" />
                                                                     </div>
                                                                 )}
                                                                 <div className="space-y-1">
@@ -655,74 +812,92 @@ export default function WIPReportPage() {
                                                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.income || 0)}
                                                                     </div>
                                                                 </div>
-                                                                <div className="flex items-center justify-between text-[10px] font-black tracking-tighter">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-slate-400 uppercase mb-0.5">Actual</span>
-                                                                        <span className="text-slate-900">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.income || 0)}</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col text-right">
-                                                                        <span className="text-slate-400 uppercase mb-0.5">Estimated</span>
-                                                                        <span className="text-slate-500">$0.00</span>
-                                                                    </div>
-                                                                </div>
                                                                 <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div className="h-full bg-emerald-500 rounded-full w-full shadow-[0_0_10px_rgba(16,185,129,0.3)]"></div>
                                                                 </div>
-                                                                <button className="text-[10px] font-black text-[#0F4C75] hover:underline uppercase tracking-widest">View details</button>
                                                             </Card>
 
                                                             {/* Operator - */}
-                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner">
+                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner self-center">
                                                                 <span className="text-xl">−</span>
                                                             </div>
 
-                                                            {/* Costs Card */}
+                                                            {/* QB Costs Card */}
                                                             <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
                                                                 {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 transition-all duration-300">
-                                                                        <Rocket className="w-5 h-5 text-[#0F4C75] animate-bounce" style={{ animationDuration: '0.5s' }} />
+                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
+                                                                        <Skeleton className="h-4 w-20 rounded-full" />
+                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
+                                                                        <Skeleton className="h-2.5 w-full rounded-full" />
                                                                     </div>
                                                                 )}
                                                                 <div className="space-y-1">
-                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">COSTS</span>
+                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">QB COSTS</span>
                                                                     <div className="text-3xl font-black text-slate-800 tracking-tighter">
-                                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.cost || 0)}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="flex items-center justify-between text-[10px] font-black tracking-tighter">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-slate-400 uppercase mb-0.5">Actual</span>
-                                                                        <span className="text-slate-900">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.cost || 0)}</span>
-                                                                    </div>
-                                                                    <div className="flex flex-col text-right">
-                                                                        <span className="text-slate-400 uppercase mb-0.5">Estimated</span>
-                                                                        <span className="text-slate-500">$0.00</span>
+                                                                        {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.qbCost || 0)}
                                                                     </div>
                                                                 </div>
                                                                 <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
                                                                     <div 
                                                                         className="h-full bg-teal-500 rounded-full shadow-[0_0_10px_rgba(20,184,166,0.3)]"
-                                                                        style={{ width: `${((selectedProject.cost || 0) / (selectedProject.income || 1)) * 100}%` }}
+                                                                        style={{ width: `${((selectedProject.qbCost || 0) / (selectedProject.income || 1)) * 100}%` }}
                                                                     ></div>
                                                                 </div>
-                                                                <button className="text-[10px] font-black text-[#0F4C75] hover:underline uppercase tracking-widest">View details</button>
+                                                            </Card>
+
+                                                            {/* Operator - */}
+                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner self-center">
+                                                                <span className="text-xl">−</span>
+                                                            </div>
+
+                                                            {/* Devco Costs Card */}
+                                                            <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                                                                {loadingProfitability && (
+                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
+                                                                        <Skeleton className="h-4 w-32 rounded-full" />
+                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
+                                                                        <Skeleton className="h-2.5 w-full rounded-full" />
+                                                                    </div>
+                                                                )}
+                                                                <div className="space-y-1">
+                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">(Overheads + Equipment cost)</span>
+                                                                    <div className="space-y-1">
+                                                                        <div className="text-3xl font-black text-slate-800 tracking-tighter">
+                                                                            {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(selectedProject.devcoCost || 0)}
+                                                                        </div>
+                                                                        <div className="text-[10px] font-black text-blue-600 uppercase tracking-tighter">
+                                                                            {(selectedProject.jobTickets || []).length} Job Tickets
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className="h-full bg-amber-500 rounded-full shadow-[0_0_10px_rgba(245,158,11,0.3)]"
+                                                                        style={{ width: `${((selectedProject.devcoCost || 0) / (selectedProject.income || 1)) * 100}%` }}
+                                                                    ></div>
+                                                                </div>
                                                             </Card>
 
                                                             {/* Operator = */}
-                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner">
+                                                            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-400 font-bold shrink-0 shadow-inner self-center">
                                                                 <span className="text-xl">=</span>
                                                             </div>
 
                                                             {/* Profit Card */}
                                                             <Card className="flex-1 w-full p-6 space-y-5 border-slate-100 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
                                                                 {loadingProfitability && (
-                                                                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center z-10 transition-all duration-300">
-                                                                        <Rocket className="w-5 h-5 text-[#0F4C75] animate-bounce" style={{ animationDuration: '0.5s' }} />
+                                                                    <div className="absolute inset-0 bg-white/80 backdrop-blur-[2px] flex flex-col p-6 space-y-5 z-10 transition-all duration-300">
+                                                                        <Skeleton className="h-4 w-20 rounded-full" />
+                                                                        <Skeleton className="h-10 w-3/4 rounded-xl" />
+                                                                        <div className="pt-4 space-y-4">
+                                                                            <Skeleton className="h-3 w-28 rounded-full" />
+                                                                            <Skeleton className="h-6 w-12 rounded-lg" />
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                                 <div className="space-y-1">
                                                                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">PROFIT</span>
-                                                                    <div className="text-3xl font-black text-slate-[#0F4C75] tracking-tighter">
+                                                                    <div className="text-3xl font-black text-[#0F4C75] tracking-tighter">
                                                                         {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format((selectedProject.income || 0) - (selectedProject.cost || 0))}
                                                                     </div>
                                                                 </div>
@@ -730,37 +905,165 @@ export default function WIPReportPage() {
                                                                     <span className="text-slate-400 uppercase block">Actual profit margin</span>
                                                                     <span className="text-slate-900 text-lg">{selectedProject.profitMargin}%</span>
                                                                 </div>
-                                                                <div className="pt-2"></div>
                                                             </Card>
                                                         </div>
                                                     </div>
-
-                                                    {/* Invoices Section */}
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
-                                                        <Card className="p-6 space-y-4 border-slate-100 shadow-sm hover:border-emerald-100 transition-colors">
-                                                            <div className="space-y-1">
-                                                                <div className="text-3xl font-black text-slate-800 tracking-tighter">
-                                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(openInvoicesTotal)}
+                                                    
+                                                    {/* Charts & Health Section */}
+                                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                        {/* Breakdowns Column */}
+                                                        <div className="space-y-6">
+                                                            <Card className="p-6 space-y-6">
+                                                                <div className="flex items-center gap-2">
+                                                                    <PieChartIcon className="w-5 h-5 text-[#0F4C75]" />
+                                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Profit Breakdown</h3>
                                                                 </div>
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Open invoices</span>
-                                                            </div>
-                                                            <button className="text-[10px] font-black text-[#0F4C75] hover:underline uppercase tracking-widest">View all</button>
-                                                        </Card>
-
-                                                        <Card className="p-6 space-y-4 border-slate-100 shadow-sm hover:border-amber-100 transition-colors">
-                                                            <div className="space-y-1">
-                                                                <div className="text-3xl font-black text-slate-800 tracking-tighter">
-                                                                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(overdueInvoicesTotal)}
+                                                                
+                                                                <div className="h-[250px] w-full">
+                                                                    <ResponsiveContainer width="100%" height="100%">
+                                                                        <PieChart>
+                                                                            <Pie
+                                                                                data={[
+                                                                                    { name: 'QB Costs', value: selectedProject.qbCost || 0 },
+                                                                                    { name: 'Devco Costs', value: selectedProject.devcoCost || 0 },
+                                                                                    { name: 'Profit', value: Math.max(0, (selectedProject.income || 0) - (selectedProject.cost || 0)) }
+                                                                                ].filter(d => d.value > 0)}
+                                                                                cx="50%"
+                                                                                cy="50%"
+                                                                                innerRadius={60}
+                                                                                outerRadius={80}
+                                                                                paddingAngle={5}
+                                                                                dataKey="value"
+                                                                            >
+                                                                                <Cell fill="#14B8A6" /> {/* QB Costs - Teal */}
+                                                                                <Cell fill="#F59E0B" /> {/* Devco Costs - Amber */}
+                                                                                <Cell fill="#0F4C75" /> {/* Profit - Blue */}
+                                                                            </Pie>
+                                                                            <RechartsTooltip 
+                                                                                formatter={(value: any) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}
+                                                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                                                            />
+                                                                            <Legend 
+                                                                                verticalAlign="bottom" 
+                                                                                height={36}
+                                                                                iconType="circle"
+                                                                                formatter={(value) => <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{value}</span>}
+                                                                            />
+                                                                        </PieChart>
+                                                                    </ResponsiveContainer>
                                                                 </div>
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Overdue invoices</span>
+                                                            </Card>
+                                                        </div>
+
+                                                        {/* Status & Info Column */}
+                                                        <Card className="p-6 space-y-6">
+                                                            <div className="flex items-center gap-2">
+                                                                <Settings className="w-5 h-5 text-slate-400" />
+                                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Project Health</h3>
                                                             </div>
-                                                            <button className="text-[10px] font-black text-[#0F4C75] hover:underline uppercase tracking-widest">View all</button>
+                                                            
+                                                            <div className="space-y-4">
+                                                                <div className="space-y-2">
+                                                                    <div className="flex justify-between text-[10px] font-bold">
+                                                                        <span className="text-slate-400 uppercase">Cost Burn</span>
+                                                                        <span className="text-slate-900">{( (selectedProject.cost || 0) / (selectedProject.income || 1) * 100).toFixed(1)}%</span>
+                                                                    </div>
+                                                                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                                                        <div 
+                                                                            className="h-full bg-amber-500 rounded-full" 
+                                                                            style={{ width: `${Math.min(100, (selectedProject.cost || 0) / (selectedProject.income || 1) * 100)}%` }}
+                                                                        ></div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="pt-4 border-t border-slate-50 grid grid-cols-1 gap-4">
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Proposal Status</span>
+                                                                        <span className="text-sm font-black text-slate-900">{selectedProject.status || 'Active'}</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Start Date</span>
+                                                                        <span className="text-sm font-black text-slate-900">{selectedProject.startDate || '---'}</span>
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">QuickBooks ID</span>
+                                                                        <span className="text-sm font-black text-slate-900">{selectedProject.Id}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
                                                         </Card>
                                                     </div>
                                                 </div>
                                             )}
 
-                                            {!['Transactions', 'Summary'].includes(activeDetailTab) && (
+                                            {activeDetailTab === 'Daily Job Tickets' && (
+                                                <div className="p-6 space-y-6 animate-fade-in">
+                                                    <div className="overflow-x-auto bg-white border border-slate-200 rounded-xl">
+                                                        <table className="w-full text-left">
+                                                            <thead>
+                                                                <tr className="border-b border-slate-100 bg-slate-50/50">
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Date</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Equipment Cost</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Overhead Cost</th>
+                                                                    <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-wider">Total Cost</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-50">
+                                                                {loadingProfitability ? (
+                                                                    Array.from({ length: 5 }).map((_, i) => (
+                                                                        <SkeletonTableRow key={i} columns={4} />
+                                                                    ))
+                                                                ) : selectedProject.jobTickets && selectedProject.jobTickets.length > 0 ? (
+                                                                    selectedProject.jobTickets.map((ticket, idx) => (
+                                                                        <tr 
+                                                                            key={idx} 
+                                                                            className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                                                            onClick={() => {
+                                                                                if (ticket.djtData) {
+                                                                                    // Format for DJTModal exactly as expected by other components
+                                                                                    const djtWithSigs = { 
+                                                                                        ...ticket.djtData, 
+                                                                                        signatures: ticket.djtData.signatures || [],
+                                                                                        // Ensure we have a reference to the schedule if needed
+                                                                                        schedule_id: ticket.schedule_id
+                                                                                    };
+                                                                                    setSelectedDJT(djtWithSigs);
+                                                                                    setIsDjtEditMode(false);
+                                                                                    setDjtModalOpen(true);
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            <td className="p-4 text-[11px] font-medium text-slate-600">
+                                                                                {new Date(ticket.date).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}
+                                                                            </td>
+                                                                            <td className="p-4 text-[11px] font-bold text-slate-800">
+                                                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.equipmentCost)}
+                                                                            </td>
+                                                                            <td className="p-4 text-[11px] font-bold text-slate-800">
+                                                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.overheadCost)}
+                                                                            </td>
+                                                                            <td className="p-4 text-[11px] font-black text-slate-900">
+                                                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ticket.totalCost)}
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))
+                                                                ) : (
+                                                                    <tr>
+                                                                        <td colSpan={4} className="p-20 text-center">
+                                                                            <div className="flex flex-col items-center gap-2">
+                                                                                <Search size={40} className="text-slate-200" />
+                                                                                <span className="text-slate-400 text-xs font-bold">No daily job tickets found for this project.</span>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!['Transactions', 'Summary', 'Daily Job Tickets'].includes(activeDetailTab) && (
                                                 <div className="p-24 text-center space-y-6 animate-fade-in">
                                                     <div className="p-6 bg-slate-50 inline-block rounded-full shadow-inner">
                                                         <Clock className="w-16 h-16 text-slate-300" />
@@ -783,7 +1086,6 @@ export default function WIPReportPage() {
                                         {/* Table Layout */}
                                         <div className="flex-1 min-h-0 mt-4 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                                             <div className="flex-1 overflow-y-auto">
-                                                <TooltipProvider>
                                                 <table className="w-full text-left border-collapse border border-slate-200">
                                                     <thead className="sticky top-0 z-10 bg-white">
                                                         <tr className="bg-slate-50/50">
@@ -909,7 +1211,12 @@ export default function WIPReportPage() {
                                                             <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('cost-revenue') ? 'bg-blue-100/50 text-blue-700' : ''}`}>
                                                                 <Tooltip>
                                                                     <TooltipTrigger className="w-full text-right">Cost of Revenue Earned</TooltipTrigger>
-                                                                    <TooltipContent side="top">Reference by QuickBooks Records sum of all invoices</TooltipContent>
+                                                                    <TooltipContent side="top">
+                                                                        <div className="space-y-1">
+                                                                            <p className="text-[10px] font-bold">Sum of all QB Project Cost +</p>
+                                                                            <p className="text-[10px] font-bold">Devco Owned Equipment & Overhead Cost</p>
+                                                                        </div>
+                                                                    </TooltipContent>
                                                                 </Tooltip>
                                                             </th>
                                                             <th className={`p-1.5 text-[9px] font-black text-slate-500 uppercase tracking-tight text-right border border-slate-200 transition-colors ${activeHighlight.includes('gp-loss') ? 'bg-blue-100 text-blue-800' : ''}`}>
@@ -980,14 +1287,9 @@ export default function WIPReportPage() {
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100 border-b border-slate-200">
                                                         {loading ? (
-                                                            <tr>
-                                                                <td colSpan={22} className="p-12 text-center border border-slate-200">
-                                                                    <div className="flex flex-col items-center gap-2">
-                                                                        <Rocket className="w-8 h-8 text-[#0F4C75] animate-bounce" style={{ animationDuration: '0.5s' }} />
-                                                                        <span className="text-slate-400 font-bold">Loading your projects...</span>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
+                                                            Array.from({ length: 15 }).map((_, i) => (
+                                                                <SkeletonTableRow key={i} columns={22} />
+                                                            ))
                                                         ) : paginatedProjects.length > 0 ? (
                                                             paginatedProjects.map((project) => {
                                                                 const originalContract = project.originalContract || 0;
@@ -1031,7 +1333,7 @@ export default function WIPReportPage() {
                                                                         <td className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''}`}>
                                                                             <div className="truncate text-[9px]" title={project.DisplayName}>{project.DisplayName}</div>
                                                                         </td>
-                                                                        <td className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`} onClick={(e) => e.stopPropagation()}>
+                                                                        <td className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`}>
                                                                             <div className="flex items-center gap-1.5">
                                                                                 {editingProposalId === project.Id ? (
                                                                                     <input 
@@ -1048,7 +1350,8 @@ export default function WIPReportPage() {
                                                                                 ) : (
                                                                                     <div 
                                                                                         className="cursor-pointer hover:underline text-[9px]"
-                                                                                        onClick={() => {
+                                                                                        onClick={(e) => {
+                                                                                            e.stopPropagation();
                                                                                             setEditingProposalId(project.Id);
                                                                                             setEditingProposalValue(project.proposalNumber || '');
                                                                                         }}
@@ -1163,7 +1466,6 @@ export default function WIPReportPage() {
                                                         )}
                                                     </tbody>
                                                 </table>
-                                                </TooltipProvider>
                                             </div>
 
                                             {/* Table Pagination Footer */}
@@ -1225,6 +1527,38 @@ export default function WIPReportPage() {
                         </div>
                     </div>
                 </main>
+                
+                {selectedDJT && (
+                    <DJTModal
+                        isOpen={djtModalOpen}
+                        onClose={() => setDjtModalOpen(false)}
+                        selectedDJT={selectedDJT}
+                        setSelectedDJT={setSelectedDJT}
+                        isEditMode={isDjtEditMode}
+                        setIsEditMode={setIsDjtEditMode}
+                        schedules={[]} // We don't have all schedules here, but the modal handles fallbacks
+                        handleSave={handleSaveDJT}
+                        initialData={{
+                            employees: employees.map(e => ({ 
+                                label: e.displayName || `${e.firstName} ${e.lastName}`.trim() || e.email, 
+                                value: e.email, 
+                                image: e.profilePicture 
+                            })),
+                            equipmentItems: equipmentMachines.map(m => ({ 
+                                label: m.equipmentMachine || m.name, 
+                                value: m._id, 
+                                dailyCost: m.dailyCost 
+                            }))
+                        }}
+                        handleSaveSignature={handleSaveDJTSignature}
+                        activeSignatureEmployee={activeSignatureEmployee}
+                        setActiveSignatureEmployee={setActiveSignatureEmployee}
+                        isSavingSignature={isSavingSignature}
+                        isGeneratingPDF={isGeneratingDJTPDF}
+                        handleDownloadPDF={handleDownloadDjtPdf}
+                    />
+                )}
+            </TooltipProvider>
         </div>
     );
 }

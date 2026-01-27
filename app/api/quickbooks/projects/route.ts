@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { DevcoQuickBooks } from '@/lib/models';
+import { DevcoQuickBooks, Schedule } from '@/lib/models';
 
 export async function GET() {
     try {
@@ -60,23 +60,37 @@ export async function GET() {
             }
         });
 
+        const allRelatedSchedules = await Schedule.find({
+            estimate: { $in: proposalNumbers }
+        } as any, { estimate: 1, djt: 1 });
+
+        const devcoCostMap = new Map();
+        allRelatedSchedules.forEach(s => {
+            if (!s.estimate) return;
+            const cost = s.djt?.djtCost || 0;
+            devcoCostMap.set(s.estimate, (devcoCostMap.get(s.estimate) || 0) + cost);
+        });
+
         // Map MongoDB projects to the format expected by the UI
         const formattedProjects = projects.map(p => {
             const transactions = (p as any).transactions || [];
             let income = 0;
-            let cost = 0;
+            let qbCost = 0;
 
             transactions.forEach((t: any) => {
                 const amount = t.amount || 0;
                 if (t.transactionType?.toLowerCase() === 'invoice') {
                     income += amount;
                 } else {
-                    cost += amount;
+                    qbCost += amount;
                 }
             });
 
             const estData = p.proposalNumber ? estimateDataMap.get(p.proposalNumber) : null;
             const proposalSlug = p.proposalNumber ? (estData?.latestVersion > 0 ? `${p.proposalNumber}-V${estData.latestVersion}` : estData?.estimateId) : null;
+            
+            const devcoCost = p.proposalNumber ? (devcoCostMap.get(p.proposalNumber) || 0) : 0;
+            const totalProjectCost = qbCost + devcoCost;
 
             return {
                 Id: p.projectId,
@@ -85,8 +99,8 @@ export async function GET() {
                 FullyQualifiedName: `${p.customer}:${p.project}`,
                 MetaData: { CreateTime: p.startDate || p.createdAt },
                 income, // Revenue Earned to Date
-                cost,   // Cost of Revenue Earned
-                profitMargin: income > 0 ? Math.round(((income - cost) / income) * 100) : 0,
+                cost: totalProjectCost,   // Cost of Revenue Earned (QB Cost + Devco Cost)
+                profitMargin: income > 0 ? Math.round(((income - totalProjectCost) / income) * 100) : 0,
                 status: p.status,
                 proposalNumber: p.proposalNumber,
                 proposalSlug,
