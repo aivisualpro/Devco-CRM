@@ -57,63 +57,115 @@ interface ScheduleDoc {
 const SPEED_MPH = 55;
 const ROAD_ADJUSTMENT_FACTOR = 1.0; // No longer needed as we're following spreadsheet logic
 const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
-const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
+const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00.000Z');
 const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
+
+const robustNormalizeISO = (str?: string) => {
+    if (!str) return '';
+    // If it's already standard ISO-Z, return it
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(str)) return str;
+
+    // Handle M/D/YYYY H:mm:ss AM/PM
+    const mdMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(:(\d{2}))?(\s+(AM|PM))?/i);
+    if (mdMatch) {
+        const m = mdMatch[1].padStart(2, '0');
+        const d = mdMatch[2].padStart(2, '0');
+        const y = mdMatch[3];
+        let h = parseInt(mdMatch[4]);
+        const min = mdMatch[5].padStart(2, '0');
+        const sec = mdMatch[7] ? mdMatch[7].padStart(2, '0') : '00';
+        const ampm = mdMatch[9] ? mdMatch[9].toUpperCase() : null;
+        
+        if (ampm === 'PM' && h < 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        
+        const hStr = String(h).padStart(2, '0');
+        return `${y}-${m}-${d}T${hStr}:${min}:${sec}.000Z`;
+    }
+
+    // Handle YYYY-MM-DDTHH:mm
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
+        const base = str.slice(0, 16);
+        return `${base}:00.000Z`;
+    }
+
+    // Last resort: Date object as UTC
+    try {
+        const date = new Date(str.includes('Z') || str.includes('UTC') ? str : str + ' UTC');
+        if (!isNaN(date.getTime())) return date.toISOString();
+    } catch {}
+
+    return str;
+};
+
+const getDayName = (dateStr?: string) => {
+    if (!dateStr) return '';
+    // Use strictly the date part
+    const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+    const [y, m, d] = datePart.split('-').map(Number);
+    // Force UTC for day name lookup
+    const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[date.getUTCDay()];
+};
 
 // --- Helpers ---
 
 const getWeekNumber = (d: Date) => {
-    // Copy date so don't modify original
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    // Ensure we use UTC components for week calculation
+    const utcDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
     // Set to nearest Thursday: current date + 4 - current day number
-    // Make Sunday's day number 7 (ISO week starts on Monday)
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    utcDate.setUTCDate(utcDate.getUTCDate() + 4 - (utcDate.getUTCDay() || 7));
     // Get first day of year
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
     // Calculate full weeks to nearest Thursday
-    const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    const weekNo = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
     return weekNo;
 };
 
 const getWeekRangeString = (dateObj: Date) => {
-    const curr = new Date(dateObj);
+    // Use UTC components to ensure consistent week range calculation across timezones
+    const dayOfWeek = dateObj.getUTCDay();
     // Get the day of week where Monday = 0, Sunday = 6
-    const dayOfWeek = curr.getDay();
-    // Convert Sunday (0) to 7 for ISO week, then subtract 1 to get days since Monday
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     
-    // Calculate Monday (first day of week)
-    const monday = new Date(curr);
-    monday.setDate(curr.getDate() - daysSinceMonday);
+    // Calculate Monday (first day of week) in UTC
+    const monday = new Date(dateObj);
+    monday.setUTCDate(dateObj.getUTCDate() - daysSinceMonday);
     
-    // Calculate Sunday (last day of week)
+    // Calculate Sunday (last day of week) in UTC
     const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
 
-    // Format as MM/DD ~ MM/DD
-    const fmt = (d: Date) => `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    // Format as MM/DD ~ MM/DD using UTC components
+    const fmt = (d: Date) => `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
     return `${fmt(monday)} ~ ${fmt(sunday)}`;
 };
 
 const formatTimeOnly = (dateStr?: string) => {
     if (!dateStr) return '-';
-    try {
-        const date = new Date(dateStr);
-        const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' });
-        return time === 'Invalid Date' ? dateStr : time;
-    } catch (e) {
-        return dateStr;
+    const normalized = robustNormalizeISO(dateStr);
+    const match = normalized.match(/T(\d{2}):(\d{2})/);
+    if (match) {
+        let [ , hStr, mStr] = match;
+        let h = parseInt(hStr);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12;
+        if (h === 0) h = 12;
+        return `${h}:${mStr} ${ampm}`;
     }
+    return dateStr;
 };
 
 const formatDateOnly = (dateStr?: string) => {
     if (!dateStr) return '-';
-    try {
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
-    } catch (e) {
-        return dateStr;
+    const normalized = robustNormalizeISO(dateStr);
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) {
+        const [ , y, m, d] = match;
+        return `${m}/${d}/${y}`;
     }
+    return dateStr;
 };
 
 const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
@@ -131,27 +183,12 @@ const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
 // This preserves the exact date/time values regardless of user's timezone
 const toLocalISO = (iso?: string) => {
     if (!iso) return "";
-    
-    // 1. Try regex extraction of T-separated components (Best for preserving raw values "Timezone-agnostic")
-    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    const normalized = robustNormalizeISO(iso);
+    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (match) {
-        const [, year, month, day, hour, minute] = match;
-        return `${year}-${month}-${day}T${hour}:${minute}`;
+        return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
     }
-
-    // 2. If no T, check if it's just a date YYYY-MM-DD
-    if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
-        return `${iso}T00:00`;
-    }
-
-    // 3. Last resort: use Date object to normalize (e.g. handles other valid formats)
-    try {
-        const d = new Date(iso);
-        if (isNaN(d.getTime())) return "";
-        return d.toISOString().slice(0, 16);
-    } catch {
-        return "";
-    }
+    return "";
 };
 
 const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
@@ -225,27 +262,31 @@ const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
         if (manualHrs > 0) {
             hours = manualHrs;
         } else {
-            const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
-            const tsDate = new Date(tsDateStr);
-
             const calcTimeHours = () => {
                 if (!ts.clockIn || !ts.clockOut) return 0;
-                const start = new Date(ts.clockIn).getTime();
-                const end = new Date(ts.clockOut).getTime();
+                
+                // Use robust normalization to anchor to UTC Nominal
+                const startStr = robustNormalizeISO(ts.clockIn);
+                const endStr = robustNormalizeISO(ts.clockOut);
+                
+                const start = new Date(startStr).getTime();
+                const end = new Date(endStr).getTime();
                 let durationMs = end - start;
 
                 if (ts.lunchStart && ts.lunchEnd) {
-                    const lStart = new Date(ts.lunchStart).getTime();
-                    const lEnd = new Date(ts.lunchEnd).getTime();
+                    const lStartStr = robustNormalizeISO(ts.lunchStart);
+                    const lEndStr = robustNormalizeISO(ts.lunchEnd);
+                    const lStart = new Date(lStartStr).getTime();
+                    const lEnd = new Date(lEndStr).getTime();
                     if (lEnd > lStart) durationMs -= (lEnd - lStart);
                 }
                 if (durationMs <= 0) return 0;
                 
                 const totalHoursRaw = durationMs / (1000 * 60 * 60);
 
-                // Cutoff rounding logic
-                const cutoff2025 = new Date('2025-10-26T00:00:00');
-                if (tsDate < cutoff2025) return totalHoursRaw;
+                // Cutoff rounding logic - Ensure UTC comparison
+                const cutoff2025 = new Date('2025-10-26T00:00:00.000Z');
+                if (new Date(robustNormalizeISO(ts.clockIn)) < cutoff2025) return totalHoursRaw;
                 if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
 
                 const h = Math.floor(totalHoursRaw);
@@ -293,7 +334,11 @@ export default function TimeCardPage() {
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
     const [isMobile, setIsMobile] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [mobileSelectedDate, setMobileSelectedDate] = useState(new Date());
+    const [mobileSelectedDate, setMobileSelectedDate] = useState(() => {
+        const now = new Date();
+        // Initialize as UTC-aligned date object for the mobile selector
+        return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    });
     const dateInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -427,9 +472,10 @@ export default function TimeCardPage() {
                 if (currentUser && r.employee !== currentUser.email) return false;
                 
                 if (r.clockIn) {
-                    const recordDate = new Date(r.clockIn).toLocaleDateString();
-                    const selectedDateStr = mobileSelectedDate.toLocaleDateString();
-                    if (recordDate !== selectedDateStr) return false;
+                    const recordDateStr = formatDateOnly(r.clockIn);
+                    const selectedDateStr = `${String(mobileSelectedDate.getUTCMonth() + 1).padStart(2, '0')}/${String(mobileSelectedDate.getUTCDate()).padStart(2, '0')}/${mobileSelectedDate.getUTCFullYear()}`;
+                    // Compare simplified date strings (MM/DD/YYYY)
+                    if (recordDateStr !== selectedDateStr) return false;
                 } else {
                     return false;
                 }
@@ -455,8 +501,12 @@ export default function TimeCardPage() {
         
         filteredRecords.forEach(r => {
             if (!r.clockIn) return;
-            const d = new Date(r.clockIn);
-            const year = d.getFullYear();
+            // Use robust normalization for consistent parsing
+            const dStr = robustNormalizeISO(r.clockIn);
+            const d = new Date(dStr);
+            if (isNaN(d.getTime())) return;
+
+            const year = d.getUTCFullYear();
             const weekNo = getWeekNumber(d);
             const weekRange = getWeekRangeString(d);
             
@@ -494,8 +544,11 @@ export default function TimeCardPage() {
         if (selectedNode.type === 'ROOT') return filteredRecords;
         return filteredRecords.filter(r => {
             if (!r.clockIn) return false;
-            const d = new Date(r.clockIn);
-            const year = d.getFullYear();
+            const dStr = robustNormalizeISO(r.clockIn);
+            const d = new Date(dStr);
+            if (isNaN(d.getTime())) return false;
+            
+            const year = d.getUTCFullYear();
             const weekNo = getWeekNumber(d);
             const weekKey = `${year}-${weekNo}`;
 
@@ -1013,13 +1066,19 @@ export default function TimeCardPage() {
                     <Header 
                         rightContent={
                             <div className="flex items-center gap-3">
-                                <button 
-                                    onClick={() => setIsAddModalOpen(true)}
-                                    className="flex items-center gap-2 px-4 py-2 bg-[#0F4C75] text-white rounded-xl text-xs font-bold hover:bg-[#0b3c5d] shadow-sm transition-all active:scale-95"
-                                >
-                                    <Plus size={16} />
-                                    Add Record
-                                </button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button 
+                                            onClick={() => setIsAddModalOpen(true)}
+                                            className="w-10 h-10 flex items-center justify-center bg-[#0F4C75] text-white rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all active:scale-95"
+                                        >
+                                            <Plus size={20} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>Add Timecard Record</p>
+                                    </TooltipContent>
+                                </Tooltip>
                                 <Link 
                                     href="/reports/payroll"
                                     className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
@@ -1042,7 +1101,7 @@ export default function TimeCardPage() {
                                 <button 
                                     onClick={() => {
                                         const d = new Date(mobileSelectedDate);
-                                        d.setDate(d.getDate() - 1);
+                                        d.setUTCDate(d.getUTCDate() - 1);
                                         setMobileSelectedDate(d);
                                     }}
                                     className="w-12 h-12 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all active:scale-90"
@@ -1052,10 +1111,10 @@ export default function TimeCardPage() {
                                 
                                 <div className="text-center cursor-pointer relative group flex-1" onClick={() => dateInputRef.current?.showPicker()}>
                                     <h3 className="text-[28px] font-black text-slate-900 mb-1 tracking-tight">
-                                        {mobileSelectedDate.toLocaleDateString('en-US', { weekday: 'long' })}
+                                        {mobileSelectedDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })}
                                     </h3>
                                     <p className="text-sm font-bold text-slate-400 tracking-wide">
-                                        {mobileSelectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                                        {mobileSelectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
                                     </p>
                                     <input 
                                         type="date"
@@ -1065,7 +1124,7 @@ export default function TimeCardPage() {
                                         onChange={(e) => {
                                             if (e.target.value) {
                                                 const [y, m, d] = e.target.value.split('-').map(Number);
-                                                setMobileSelectedDate(new Date(y, m - 1, d));
+                                                setMobileSelectedDate(new Date(Date.UTC(y, m - 1, d)));
                                             }
                                         }} 
                                     />
@@ -1074,7 +1133,7 @@ export default function TimeCardPage() {
                                 <button 
                                     onClick={() => {
                                         const d = new Date(mobileSelectedDate);
-                                        d.setDate(d.getDate() + 1);
+                                        d.setUTCDate(d.getUTCDate() + 1);
                                         setMobileSelectedDate(d);
                                     }}
                                     className="w-12 h-12 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all active:scale-90"
@@ -1436,12 +1495,12 @@ export default function TimeCardPage() {
                                                         <input 
                                                             type="time"
                                                             className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-20"
-                                                            value={quickEditForm.clockIn ? new Date(quickEditForm.clockIn).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : ''}
+                                                            value={quickEditForm.clockIn ? toLocalISO(quickEditForm.clockIn).split('T')[1] : ''}
                                                             onChange={e => {
-                                                                const [h, m] = e.target.value.split(':').map(Number);
-                                                                const d = new Date(quickEditForm.clockIn || '');
-                                                                d.setHours(h, m);
-                                                                setQuickEditForm(prev => ({...prev, clockIn: d.toISOString()}));
+                                                                const timeVal = e.target.value;
+                                                                const currentIso = toLocalISO(quickEditForm.clockIn || '');
+                                                                const datePart = currentIso.split('T')[0];
+                                                                setQuickEditForm(prev => ({...prev, clockIn: `${datePart}T${timeVal}:00.000Z`}));
                                                             }}
                                                         />
                                                     ) : formatTimeOnly(ts.clockIn)}
@@ -1467,12 +1526,12 @@ export default function TimeCardPage() {
                                                         <input 
                                                             type="time"
                                                             className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-20"
-                                                            value={quickEditForm.clockOut ? new Date(quickEditForm.clockOut).toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }) : ''}
+                                                            value={quickEditForm.clockOut ? toLocalISO(quickEditForm.clockOut).split('T')[1] : ''}
                                                             onChange={e => {
-                                                                const [h, m] = e.target.value.split(':').map(Number);
-                                                                const d = new Date(quickEditForm.clockOut || quickEditForm.clockIn || '');
-                                                                d.setHours(h, m);
-                                                                setQuickEditForm(prev => ({...prev, clockOut: d.toISOString()}));
+                                                                const timeVal = e.target.value;
+                                                                const currentIso = toLocalISO(quickEditForm.clockOut || quickEditForm.clockIn || '');
+                                                                const datePart = currentIso.split('T')[0];
+                                                                setQuickEditForm(prev => ({...prev, clockOut: `${datePart}T${timeVal}:00.000Z`}));
                                                             }}
                                                         />
                                                     ) : formatTimeOnly(ts.clockOut)}
@@ -1653,7 +1712,7 @@ export default function TimeCardPage() {
                                     .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                     .map(s => ({
                                         value: s._id,
-                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`,
+                                        label: `${formatDateOnly(s.fromDate)} ${getDayName(s.fromDate)}`,
                                         estimate: s.estimate
                                     }));
                             })()}
@@ -1692,7 +1751,6 @@ export default function TimeCardPage() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.clockIn)}
                                     onChange={e => {
-                                        // Store the value directly with Z suffix to preserve exact time
                                         const val = e.target.value;
                                         if (val) {
                                             setEditForm(prev => ({...prev, clockIn: val + ':00.000Z'}));
@@ -1708,7 +1766,6 @@ export default function TimeCardPage() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.lunchStart)}
                                     onChange={e => {
-                                        // Store the value directly with Z suffix to preserve exact time
                                         const val = e.target.value;
                                         if (val) {
                                             setEditForm(prev => ({...prev, lunchStart: val + ':00.000Z'}));
@@ -1724,7 +1781,6 @@ export default function TimeCardPage() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.lunchEnd)}
                                     onChange={e => {
-                                        // Store the value directly with Z suffix to preserve exact time
                                         const val = e.target.value;
                                         if (val) {
                                             setEditForm(prev => ({...prev, lunchEnd: val + ':00.000Z'}));
@@ -1740,7 +1796,6 @@ export default function TimeCardPage() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editForm.clockOut)}
                                     onChange={e => {
-                                        // Store the value directly with Z suffix to preserve exact time
                                         const val = e.target.value;
                                         if (val) {
                                             setEditForm(prev => ({...prev, clockOut: val + ':00.000Z'}));
@@ -1933,7 +1988,7 @@ export default function TimeCardPage() {
                                     .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                     .map(s => ({
                                         value: s._id,
-                                        label: `${new Date(s.fromDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}`,
+                                        label: `${formatDateOnly(s.fromDate)} ${getDayName(s.fromDate)}`,
                                         estimate: s.estimate
                                     }));
                             })()}
@@ -1976,17 +2031,21 @@ export default function TimeCardPage() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            // Parse the datetime-local value to extract date parts
-                                            const match = val.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-                                            if (match) {
-                                                const [, year, month, day, hour, minute] = match;
-                                                const hourNum = parseInt(hour, 10);
-                                                // Auto-fill: Clock Out = Clock In + 7 hours (simple string manipulation)
-                                                const clockOutHour = String((hourNum + 7) % 24).padStart(2, '0');
-                                                const clockOutVal = `${year}-${month}-${day}T${clockOutHour}:${minute}:00.000Z`;
+                                            // Split by T to get date parts without Date object conversion
+                                            const parts = val.split('T');
+                                            if (parts.length === 2) {
+                                                const datePart = parts[0];
+                                                const timePart = parts[1];
+                                                const [hour] = timePart.split(':').map(Number);
+                                                
+                                                // Auto-fill: Clock Out = Clock In + 7 hours (manual string manipulation)
+                                                const clockOutHour = String((hour + 7) % 24).padStart(2, '0');
+                                                const clockOutVal = `${datePart}T${clockOutHour}:${timePart.split(':')[1]}:00.000Z`;
+                                                
                                                 // Default lunch: 12:00 PM to 12:30 PM on same day
-                                                const lunchStartVal = `${year}-${month}-${day}T12:00:00.000Z`;
-                                                const lunchEndVal = `${year}-${month}-${day}T12:30:00.000Z`;
+                                                const lunchStartVal = `${datePart}T12:00:00.000Z`;
+                                                const lunchEndVal = `${datePart}T12:30:00.000Z`;
+                                                
                                                 setAddForm(prev => ({
                                                     ...prev,
                                                     clockIn: val + ':00.000Z',
