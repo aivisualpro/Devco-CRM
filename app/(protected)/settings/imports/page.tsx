@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -21,6 +21,7 @@ export default function ImportsPage() {
     const coverFrameInputRef = useRef<HTMLInputElement>(null);
     const receiptsAndCostsInputRef = useRef<HTMLInputElement>(null);
     const planningDocsInputRef = useRef<HTMLInputElement>(null);
+    const billingTicketsInputRef = useRef<HTMLInputElement>(null);
 
     const parseCSV = (csvText: string) => {
         const rows: string[][] = [];
@@ -551,6 +552,40 @@ export default function ImportsPage() {
         reader.readAsText(file);
     };
 
+    const handleImportBillingTickets = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importBillingTickets', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${data.length} billing tickets`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (billingTicketsInputRef.current) billingTicketsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleSyncQuickBooks = async () => {
         setIsImporting(true);
         try {
@@ -671,6 +706,15 @@ export default function ImportsPage() {
                         color="bg-violet-700"
                         description="Bulk import USA tickets and job planning documents"
                         onClick={() => planningDocsInputRef.current?.click()}
+                    />
+
+                    <input type="file" ref={billingTicketsInputRef} onChange={handleImportBillingTickets} className="hidden" accept=".csv" />
+                    <ImportCard 
+                        title="Import Billing Tickets"
+                        icon={Receipt}
+                        color="bg-indigo-600"
+                        description="Bulk import billing tickets for estimates"
+                        onClick={() => billingTicketsInputRef.current?.click()}
                     />
 
                     <ImportCard 

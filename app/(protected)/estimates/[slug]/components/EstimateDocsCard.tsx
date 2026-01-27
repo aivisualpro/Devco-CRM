@@ -261,6 +261,200 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         return '';
     };
 
+    // Billing Tickets State
+    const billingTickets = formData?.billingTickets || [];
+    const [isBillingTicketModalOpen, setIsBillingTicketModalOpen] = useState(false);
+    const [isBillingTermsOpen, setIsBillingTermsOpen] = useState(false);
+    const [editingBillingTicketIndex, setEditingBillingTicketIndex] = useState<number | null>(null);
+    const [billingTicketToDelete, setBillingTicketToDelete] = useState<number | null>(null);
+    const [isBillingTicketUploading, setIsBillingTicketUploading] = useState(false);
+    const [newBillingTicket, setNewBillingTicket] = useState({
+        date: format(new Date(), 'yyyy-MM-dd'),
+        billingTerms: '' as 'COD' | 'Net 30' | 'Net 45' | 'Net 60' | 'Other' | '',
+        otherBillingTerms: '',
+        fileName: '',
+        uploads: [] as any[],
+        links: [] as string[],
+        titleDescriptions: [] as { title: string; description: string }[],
+        lumpSum: '',
+        createdBy: ''
+    });
+
+    const billingTermsOptions = ['COD', 'Net 30', 'Net 45', 'Net 60', 'Other'];
+
+    const handleAddBillingTicket = () => {
+        setNewBillingTicket({
+            date: format(new Date(), 'yyyy-MM-dd'),
+            billingTerms: '',
+            otherBillingTerms: '',
+            fileName: '',
+            uploads: [],
+            links: [''],
+            titleDescriptions: [{ title: '', description: '' }],
+            lumpSum: '',
+            createdBy: formData?.proposalWriter || ''
+        });
+        setEditingBillingTicketIndex(null);
+        setIsBillingTicketModalOpen(true);
+    };
+
+    const handleEditBillingTicket = (index: number, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const item = billingTickets[index];
+        setNewBillingTicket({
+            date: item.date || format(new Date(), 'yyyy-MM-dd'),
+            billingTerms: item.billingTerms || '',
+            otherBillingTerms: item.otherBillingTerms || '',
+            fileName: item.fileName || '',
+            uploads: item.uploads || [],
+            links: item.links?.length ? item.links : [''],
+            titleDescriptions: item.titleDescriptions?.length ? item.titleDescriptions : [{ title: '', description: '' }],
+            lumpSum: item.lumpSum || '',
+            createdBy: item.createdBy || ''
+        });
+        setEditingBillingTicketIndex(index);
+        setIsBillingTicketModalOpen(true);
+    };
+
+    const handleSaveBillingTicket = () => {
+        if (!onUpdate) return;
+
+        // Clean up empty links and titleDescriptions
+        const cleanedLinks = newBillingTicket.links.filter(l => l.trim());
+        const cleanedTitleDescriptions = newBillingTicket.titleDescriptions.filter(td => td.title.trim() || td.description.trim());
+
+        const ticketData = {
+            ...newBillingTicket,
+            links: cleanedLinks,
+            titleDescriptions: cleanedTitleDescriptions
+        };
+
+        let updated;
+        if (editingBillingTicketIndex !== null) {
+            updated = billingTickets.map((item: any, idx: number) =>
+                idx === editingBillingTicketIndex ? { ...item, ...ticketData } : item
+            );
+        } else {
+            updated = [...billingTickets, {
+                ...ticketData,
+                _id: Math.random().toString(36).substr(2, 9),
+                createdAt: new Date().toISOString()
+            }];
+        }
+
+        onUpdate('billingTickets', updated);
+        setIsBillingTicketModalOpen(false);
+        setEditingBillingTicketIndex(null);
+        toast.success(editingBillingTicketIndex !== null ? 'Billing ticket updated' : 'Billing ticket added');
+    };
+
+    const confirmRemoveBillingTicket = () => {
+        if (!onUpdate || billingTicketToDelete === null) return;
+        const updated = billingTickets.filter((_: any, i: number) => i !== billingTicketToDelete);
+        onUpdate('billingTickets', updated);
+        setBillingTicketToDelete(null);
+        toast.success('Billing ticket removed');
+    };
+
+    const handleBillingTicketFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        setIsBillingTicketUploading(true);
+        const uploaded = [...newBillingTicket.uploads];
+
+        for (const file of files) {
+            try {
+                const reader = new FileReader();
+                const base64Promise = new Promise<string>((resolve) => {
+                    reader.onload = (ev) => resolve(ev.target?.result as string);
+                    reader.readAsDataURL(file);
+                });
+                const base64 = await base64Promise;
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'uploadRawToCloudinary',
+                        payload: {
+                            file: base64,
+                            fileName: `billing_${Date.now()}_${file.name}`,
+                            contentType: file.type
+                        }
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success && data.result) {
+                    uploaded.push({
+                        name: file.name,
+                        url: data.result.url,
+                        thumbnailUrl: data.result.thumbnailUrl,
+                        type: file.type
+                    });
+                } else {
+                    toast.error(`Failed to upload ${file.name}`);
+                }
+            } catch (err) {
+                console.error('Upload Error:', err);
+                toast.error(`Error uploading ${file.name}`);
+            }
+        }
+
+        setNewBillingTicket(prev => ({ ...prev, uploads: uploaded }));
+        setIsBillingTicketUploading(false);
+    };
+
+    const removeBillingTicketUpload = (index: number) => {
+        setNewBillingTicket(prev => ({
+            ...prev,
+            uploads: prev.uploads.filter((_, i) => i !== index)
+        }));
+    };
+
+    const addBillingLink = () => {
+        setNewBillingTicket(prev => ({ ...prev, links: [...prev.links, ''] }));
+    };
+
+    const updateBillingLink = (index: number, value: string) => {
+        setNewBillingTicket(prev => ({
+            ...prev,
+            links: prev.links.map((l, i) => i === index ? value : l)
+        }));
+    };
+
+    const removeBillingLink = (index: number) => {
+        setNewBillingTicket(prev => ({
+            ...prev,
+            links: prev.links.filter((_, i) => i !== index)
+        }));
+    };
+
+    const addTitleDescription = () => {
+        setNewBillingTicket(prev => ({
+            ...prev,
+            titleDescriptions: [...prev.titleDescriptions, { title: '', description: '' }]
+        }));
+    };
+
+    const updateTitleDescription = (index: number, field: 'title' | 'description', value: string) => {
+        setNewBillingTicket(prev => ({
+            ...prev,
+            titleDescriptions: prev.titleDescriptions.map((td, i) =>
+                i === index ? { ...td, [field]: value } : td
+            )
+        }));
+    };
+
+    const removeTitleDescription = (index: number) => {
+        setNewBillingTicket(prev => ({
+            ...prev,
+            titleDescriptions: prev.titleDescriptions.filter((_, i) => i !== index)
+        }));
+    };
+
+
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
     const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
@@ -601,6 +795,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 estimate: formData.estimate || '',
                 usaNumber: formData.usaNumber || '',
                 
+                // Customer ID should be the client name
+                customerId: formData.customerName || formData.customer || '',
+                
                 // Get proposalWriter employee details
                 createdBy: (() => {
                     const proposalWriterEmail = formData.proposalWriter;
@@ -609,6 +806,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         if (emp) {
                             return `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
                         }
+                    }
+                    return '';
+                })(),
+                companyPosition: (() => {
+                    const proposalWriterEmail = formData.proposalWriter;
+                    if (proposalWriterEmail && employees.length > 0) {
+                        const emp = employees.find(e => e._id === proposalWriterEmail);
+                        return emp?.companyPosition || '';
                     }
                     return '';
                 })(),
@@ -1131,13 +1336,96 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <h4 className="text-sm font-bold text-indigo-700">Billing Tickets</h4>
                         <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
-                            0
+                            {billingTickets.length}
                         </span>
+                        <button 
+                            onClick={handleAddBillingTicket}
+                            className="ml-auto p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
                     </div>
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {billingTickets.length > 0 ? billingTickets.map((item: any, idx: number) => (
+                                <div 
+                                    key={idx}
+                                    onClick={(e) => handleEditBillingTicket(idx, e)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex-1 min-w-0 pr-6">
+                                            {item.fileName && (
+                                                <span className="inline-block text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600 mb-1.5 truncate max-w-full">
+                                                    {item.fileName}
+                                                </span>
+                                            )}
+                                            {item.billingTerms && (
+                                                <p className="text-[10px] font-bold text-indigo-500">
+                                                    {item.billingTerms === 'Other' ? item.otherBillingTerms : item.billingTerms}
+                                                </p>
+                                            )}
+                                            {item.date && (
+                                                <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
+                                            )}
+                                        </div>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setBillingTicketToDelete(idx);
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button 
+                                            onClick={(e) => handleEditBillingTicket(idx, e)}
+                                            className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                    
+                                    {item.lumpSum && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
+                                            <span className="text-xs font-black text-green-600">${parseFloat(item.lumpSum).toLocaleString()}</span>
+                                        </div>
+                                    )}
 
-                         <p className="text-[10px] text-slate-400 font-bold text-center py-4">No billing tickets</p>
+                                    {item.titleDescriptions?.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {item.titleDescriptions.slice(0, 2).map((td: any, tIdx: number) => (
+                                                <div key={tIdx} className="text-[9px] text-slate-600 truncate">
+                                                    <strong>{td.title}</strong>{td.description ? `: ${td.description.substring(0, 50)}...` : ''}
+                                                </div>
+                                            ))}
+                                            {item.titleDescriptions.length > 2 && (
+                                                <p className="text-[8px] text-slate-400">+{item.titleDescriptions.length - 2} more</p>
+                                            )}
+                                        </div>
+                                    )}
+                                    
+                                    {(item.uploads?.length > 0 || item.links?.length > 0) && (
+                                        <div className="mt-2 flex items-center gap-2 text-[9px] text-slate-400">
+                                            {item.uploads?.length > 0 && (
+                                                <span className="flex items-center gap-1">
+                                                    <Paperclip className="w-3 h-3" /> {item.uploads.length}
+                                                </span>
+                                            )}
+                                            {item.links?.length > 0 && (
+                                                <span className="flex items-center gap-1">
+                                                    🔗 {item.links.length}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No billing tickets</p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -1954,6 +2242,234 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 onConfirm={confirmRemoveRelease}
                 title="Remove Release"
                 message="Are you sure you want to remove this release document?"
+                confirmText="Remove"
+                variant="danger"
+            />
+
+            {/* Add/Edit Billing Ticket Modal */}
+            <Modal
+                isOpen={isBillingTicketModalOpen}
+                onClose={() => setIsBillingTicketModalOpen(false)}
+                title={editingBillingTicketIndex !== null ? "Edit Billing Ticket" : "Add Billing Ticket"}
+                maxWidth="2xl"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setIsBillingTicketModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveBillingTicket}>Save Billing Ticket</Button>
+                    </div>
+                }
+            >
+                <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-2">
+                    {/* Row 1: Date, Billing Terms, File Name */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
+                            <Input 
+                                type="date"
+                                value={newBillingTicket.date}
+                                onChange={e => setNewBillingTicket(prev => ({ ...prev, date: e.target.value }))}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Billing Terms</label>
+                            <div className="relative">
+                                <button
+                                    id="billing-terms-trigger"
+                                    onClick={() => setIsBillingTermsOpen(!isBillingTermsOpen)}
+                                    className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between"
+                                >
+                                    <span className={newBillingTicket.billingTerms ? "text-slate-700 font-medium" : "text-slate-400"}>
+                                        {newBillingTicket.billingTerms || "Select Terms"}
+                                    </span>
+                                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                                </button>
+                                <MyDropDown 
+                                    isOpen={isBillingTermsOpen}
+                                    onClose={() => setIsBillingTermsOpen(false)}
+                                    anchorId="billing-terms-trigger"
+                                    options={billingTermsOptions.map(t => ({ id: t, label: t, value: t }))}
+                                    selectedValues={newBillingTicket.billingTerms ? [newBillingTicket.billingTerms] : []}
+                                    onSelect={(val) => {
+                                        setNewBillingTicket(prev => ({ ...prev, billingTerms: val as any }));
+                                        setIsBillingTermsOpen(false);
+                                    }}
+                                    placeholder="Select Terms"
+                                    width="w-full"
+                                />
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">File Name</label>
+                            <Input 
+                                type="text"
+                                placeholder="Enter file name"
+                                value={newBillingTicket.fileName}
+                                onChange={e => setNewBillingTicket(prev => ({ ...prev, fileName: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Other Billing Terms (visible only when Other is selected) */}
+                    {newBillingTicket.billingTerms === 'Other' && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Other Billing Terms</label>
+                            <Input 
+                                type="text"
+                                placeholder="Specify billing terms"
+                                value={newBillingTicket.otherBillingTerms}
+                                onChange={e => setNewBillingTicket(prev => ({ ...prev, otherBillingTerms: e.target.value }))}
+                            />
+                        </div>
+                    )}
+
+                    {/* Lump Sum */}
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Lump Sum ($)</label>
+                        <Input 
+                            type="number"
+                            placeholder="0.00"
+                            value={newBillingTicket.lumpSum}
+                            onChange={e => setNewBillingTicket(prev => ({ ...prev, lumpSum: e.target.value }))}
+                        />
+                    </div>
+
+                    {/* File Uploads */}
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                                Uploads (Images/Documents)
+                            </label>
+                            <label className="text-[10px] text-indigo-600 font-bold cursor-pointer hover:underline">
+                                + Add Files
+                                <input 
+                                    type="file" 
+                                    multiple 
+                                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                                    className="hidden" 
+                                    onChange={handleBillingTicketFileUpload} 
+                                />
+                            </label>
+                        </div>
+                        {isBillingTicketUploading && (
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                                <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
+                            </div>
+                        )}
+                        {newBillingTicket.uploads.length > 0 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {newBillingTicket.uploads.map((file, i) => (
+                                    <div key={i} className="relative group">
+                                        {file.type?.startsWith('image') ? (
+                                            <img 
+                                                src={file.thumbnailUrl || file.url} 
+                                                alt={file.name}
+                                                className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                                            />
+                                        ) : (
+                                            <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
+                                                <FileText className="w-6 h-6 text-slate-400" />
+                                            </div>
+                                        )}
+                                        <button 
+                                            onClick={() => removeBillingTicketUpload(i)}
+                                            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                        <span className="text-[8px] text-slate-500 truncate block max-w-[64px] text-center">{file.name}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-[10px] text-slate-400 italic">No files uploaded</p>
+                        )}
+                    </div>
+
+                    {/* Links */}
+                    <div className="space-y-2 pt-3 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Links</label>
+                            <button 
+                                onClick={addBillingLink}
+                                className="text-[10px] text-indigo-600 font-bold hover:underline"
+                            >
+                                + Add Link
+                            </button>
+                        </div>
+                        {newBillingTicket.links.map((link, i) => (
+                            <div key={i} className="flex gap-2">
+                                <Input 
+                                    type="url"
+                                    placeholder="https://..."
+                                    value={link}
+                                    onChange={e => updateBillingLink(i, e.target.value)}
+                                />
+                                {newBillingTicket.links.length > 1 && (
+                                    <button 
+                                        onClick={() => removeBillingLink(i)} 
+                                        className="p-2 text-red-400 hover:text-red-500"
+                                    >
+                                        <X size={16}/>
+                                    </button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Title & Descriptions */}
+                    <div className="space-y-3 pt-3 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                                Titles & Descriptions
+                            </label>
+                            <button 
+                                onClick={addTitleDescription}
+                                className="text-[10px] text-indigo-600 font-bold hover:underline"
+                            >
+                                + Add Title
+                            </button>
+                        </div>
+                        {newBillingTicket.titleDescriptions.map((td, i) => (
+                            <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative group">
+                                {newBillingTicket.titleDescriptions.length > 1 && (
+                                    <button 
+                                        onClick={() => removeTitleDescription(i)}
+                                        className="absolute top-2 right-2 p-1 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X size={14}/>
+                                    </button>
+                                )}
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase">Title</label>
+                                    <Input 
+                                        type="text"
+                                        placeholder="Enter title"
+                                        value={td.title}
+                                        onChange={e => updateTitleDescription(i, 'title', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase">Description</label>
+                                    <textarea 
+                                        placeholder="Enter description..."
+                                        value={td.description}
+                                        onChange={e => updateTitleDescription(i, 'description', e.target.value)}
+                                        rows={3}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </Modal>
+
+            <ConfirmModal
+                isOpen={billingTicketToDelete !== null}
+                onClose={() => setBillingTicketToDelete(null)}
+                onConfirm={confirmRemoveBillingTicket}
+                title="Remove Billing Ticket"
+                message="Are you sure you want to remove this billing ticket?"
                 confirmText="Remove"
                 variant="danger"
             />

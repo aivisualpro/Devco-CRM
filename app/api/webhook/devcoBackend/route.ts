@@ -2647,6 +2647,99 @@ export async function POST(request: NextRequest) {
             }
 
 
+            case 'importBillingTickets': {
+                const { records } = payload || {};
+                if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid records' }, { status: 400 });
+
+                // 1. Group records by Estimate key
+                const groups = records.reduce((acc: Record<string, any[]>, r: any) => {
+                    const key = String(r.estimate || r['Estimate #'] || r['Proposal Number'] || r.Proposal_Number || '').trim();
+                    if (key) {
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(r);
+                    }
+                    return acc;
+                }, {});
+
+                let modifiedCount = 0;
+
+                for (const [estKey, entries] of Object.entries(groups)) {
+                    // Find the latest version of this estimate
+                    const targetDoc = await Estimate.findOne({ 
+                        $or: [{ _id: estKey }, { estimate: estKey }]
+                    }).sort({ versionNumber: -1 });
+
+                    if (targetDoc) {
+                        const existing = (targetDoc as any).billingTickets || [];
+                        
+                        for (const r of entries) {
+                            const recordId = String(r._id || r.Record_ID || new Types.ObjectId().toString());
+                            
+                            // Parse links array
+                            let links: string[] = [];
+                            if (r.links || r.Links) {
+                                links = String(r.links || r.Links).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+                            }
+
+                            // Parse titleDescriptions (format: "title1:desc1|title2:desc2" or JSON)
+                            let titleDescriptions: { title: string; description: string }[] = [];
+                            const tdRaw = r.titleDescriptions || r.TitleDescriptions || r['Title Descriptions'];
+                            if (tdRaw) {
+                                try {
+                                    // Try JSON first
+                                    titleDescriptions = JSON.parse(tdRaw);
+                                } catch {
+                                    // Fallback: pipe-separated "title:desc" pairs
+                                    titleDescriptions = String(tdRaw).split('|').map(pair => {
+                                        const [title, ...descParts] = pair.split(':');
+                                        return { title: title?.trim() || '', description: descParts.join(':').trim() };
+                                    }).filter(td => td.title || td.description);
+                                }
+                            }
+
+                            const cleanRecord: any = {
+                                _id: recordId,
+                                estimate: estKey,
+                                date: String(r.date || r.Date || ''),
+                                billingTerms: String(r.billingTerms || r.BillingTerms || r['Billing Terms'] || ''),
+                                otherBillingTerms: String(r.otherBillingTerms || r.OtherBillingTerms || ''),
+                                fileName: String(r.fileName || r.FileName || r['File Name'] || ''),
+                                links,
+                                titleDescriptions,
+                                lumpSum: String(r.lumpSum || r.LumpSum || r['Lump Sum'] || ''),
+                                createdBy: String(r.createdBy || r.CreatedBy || ''),
+                                createdAt: r.createdAt ? new Date(r.createdAt) : new Date(),
+                                uploads: [] as any[]
+                            };
+
+                            // Parse uploads if present
+                            if (r.uploads || r.Uploads) {
+                                const urls = String(r.uploads || r.Uploads).split(/[,;]/).map(s => s.trim()).filter(Boolean);
+                                cleanRecord.uploads = urls.map(url => ({
+                                    name: url.split('/').pop() || 'file',
+                                    url: url,
+                                    type: url.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg'
+                                }));
+                            }
+
+                            // Update or Add
+                            const idx = existing.findIndex((eb: any) => String(eb._id) === recordId);
+                            if (idx === -1) {
+                                existing.push(cleanRecord);
+                            } else {
+                                const existingItem = existing[idx];
+                                Object.assign(existingItem, cleanRecord);
+                            }
+                        }
+
+                        (targetDoc as any).billingTickets = existing;
+                        await targetDoc.save();
+                        modifiedCount++;
+                    }
+                }
+                return NextResponse.json({ success: true, count: records.length, modified: modifiedCount });
+            }
+
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
         }

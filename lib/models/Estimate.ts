@@ -150,6 +150,28 @@ export interface IEstimate extends Document {
         createdAt?: Date;
         updatedAt?: Date;
     }>;
+    billingTickets?: Array<{
+        _id?: string;
+        estimate?: string;
+        date?: string;
+        billingTerms?: 'COD' | 'Net 30' | 'Net 45' | 'Net 60' | 'Other' | '';
+        otherBillingTerms?: string;
+        fileName?: string;
+        uploads?: Array<{
+            name: string;
+            url: string;
+            type: string;
+            thumbnailUrl?: string;
+        }>;
+        links?: string[];
+        titleDescriptions?: Array<{
+            title: string;
+            description: string;
+        }>;
+        lumpSum?: string;
+        createdBy?: string;
+        createdAt?: Date;
+    }>;
 }
 
 const EstimateSchema = new Schema({
@@ -314,6 +336,28 @@ const EstimateSchema = new Schema({
         }],
         createdAt: { type: Date, default: Date.now },
         updatedAt: { type: Date, default: Date.now }
+    }],
+    billingTickets: [{
+        _id: { type: String },
+        estimate: { type: String },
+        date: { type: String },
+        billingTerms: { type: String, enum: ['COD', 'Net 30', 'Net 45', 'Net 60', 'Other', ''], default: '' },
+        otherBillingTerms: { type: String },
+        fileName: { type: String },
+        uploads: [{
+            name: { type: String },
+            url: { type: String },
+            type: { type: String },
+            thumbnailUrl: { type: String }
+        }],
+        links: { type: [String], default: [] },
+        titleDescriptions: [{
+            title: { type: String },
+            description: { type: String }
+        }],
+        lumpSum: { type: String },
+        createdBy: { type: String },
+        createdAt: { type: Date, default: Date.now }
     }]
 }, {
     timestamps: true,
