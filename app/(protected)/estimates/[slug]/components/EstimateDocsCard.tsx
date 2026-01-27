@@ -60,9 +60,10 @@ interface EstimateDocsCardProps {
     employees?: Employee[];
     onUpdate?: (field: string, value: any) => void;
     planningOptions?: { id: string; label: string; value: string; color?: string }[];
+    activeClient?: any;
 }
 
-export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [] }) => {
+export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient }) => {
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [isSignedContractModalOpen, setIsSignedContractModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
@@ -158,7 +159,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         amountOfCheck: '',
         DatesOfWaiverRelease: [] as string[],
         amountsOfUnpaidProgressPayment: [] as string[],
-        receivedProgressPayment: '',
+        receivedProgressPayments: [] as string[],
         disputedClaims: '',
         documentId: '' // For linking later
     });
@@ -417,7 +418,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             amountOfCheck: '',
             DatesOfWaiverRelease: [],
             amountsOfUnpaidProgressPayment: [],
-            receivedProgressPayment: '',
+            receivedProgressPayments: [],
             disputedClaims: '',
             documentId: ''
         });
@@ -434,7 +435,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             amountOfCheck: item.amountOfCheck || '',
             DatesOfWaiverRelease: item.DatesOfWaiverRelease || [],
             amountsOfUnpaidProgressPayment: item.amountsOfUnpaidProgressPayment || [],
-            receivedProgressPayment: item.receivedProgressPayment || '',
+            receivedProgressPayments: item.receivedProgressPayments || [],
             disputedClaims: item.disputedClaims || '',
             documentId: item.documentId || ''
         });
@@ -1023,7 +1024,25 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 
                 // Customer ID should be the client name
                 customerId: formData.customerName || formData.customer || '',
-                customerAddress: formData.contactAddress || '',
+                
+                // Robust Customer Info - Prioritize official record from CRM over estimate's job-site contact info
+                customerAddress: (() => {
+                    if (activeClient) {
+                        const primary = (activeClient.addresses || []).find((a: any) => typeof a === 'object' && a.primary);
+                        const addr = (typeof primary === 'object' ? primary.address : primary) || activeClient.businessAddress;
+                        if (addr) return addr;
+                    }
+                    return formData.contactAddress || '';
+                })(),
+                
+                customerPhone: (() => {
+                    if (activeClient) {
+                        const primary = (activeClient.contacts || []).find((c: any) => c.primary);
+                        if (primary?.phone) return primary.phone;
+                        if (activeClient.phone) return activeClient.phone;
+                    }
+                    return formData.contactPhone || '';
+                })(),
                 
                 // Get proposalWriter employee details
                 createdBy: (() => {
@@ -1049,6 +1068,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     if (proposalWriterEmail && employees.length > 0) {
                         const emp = employees.find(e => e._id === proposalWriterEmail);
                         return emp?.signature || '';
+                    }
+                    return '';
+                })(),
+                cfoSignature: (() => {
+                    if (employees.length > 0) {
+                        const cfo = employees.find(e => 
+                            (e.email || e._id || '').toLowerCase() === 'dt@devco-inc.com'
+                        );
+                        return cfo?.signature || '';
                     }
                     return '';
                 })(),
@@ -1096,12 +1124,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 
                 if (releaseItem.DatesOfWaiverRelease && Array.isArray(releaseItem.DatesOfWaiverRelease)) {
                     // Format dates?
-                    variables.receivedProgressPayment = releaseItem.DatesOfWaiverRelease.map((d: string) => new Date(d).toLocaleDateString()).join(', ');
+                    variables.DatesOfWaiverRelease = releaseItem.DatesOfWaiverRelease.map((d: string) => new Date(d).toLocaleDateString()).join(', ');
                 }
                 
-                // Override simple 'receivedProgressPayment' field if it's text
-                if (releaseItem.receivedProgressPayment) {
-                     variables.receivedProgressPayment = releaseItem.receivedProgressPayment;
+                // Received Progress Payments array (for UP)
+                if (releaseItem.receivedProgressPayments && Array.isArray(releaseItem.receivedProgressPayments)) {
+                     variables.receivedProgressPayment = releaseItem.receivedProgressPayments.join(', ');
                 }
             }
 
@@ -2679,14 +2707,33 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     onChange={e => setNewRelease(prev => ({ ...prev, date: e.target.value }))}
                                 />
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Received Progress Payment(s)</label>
-                                <Input 
-                                    type="text"
-                                    placeholder="Amount or Description"
-                                    value={newRelease.receivedProgressPayment}
-                                    onChange={e => setNewRelease(prev => ({ ...prev, receivedProgressPayment: e.target.value }))}
-                                />
+                            
+                            {/* receivedProgressPayments Array */}
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Received Progress Payment(s)</label>
+                                    <button 
+                                        onClick={() => setNewRelease(prev => ({ ...prev, receivedProgressPayments: [...prev.receivedProgressPayments, ''] }))}
+                                        className="text-[10px] text-blue-600 font-bold hover:underline"
+                                    >
+                                        + Add Amount
+                                    </button>
+                                </div>
+                                {newRelease.receivedProgressPayments.length > 0 ? newRelease.receivedProgressPayments.map((amt, i) => (
+                                    <div key={i} className="flex gap-2">
+                                        <Input 
+                                            type="text"
+                                            placeholder="Amount or Description"
+                                            value={amt}
+                                            onChange={e => {
+                                                const updated = [...newRelease.receivedProgressPayments];
+                                                updated[i] = e.target.value;
+                                                setNewRelease(prev => ({ ...prev, receivedProgressPayments: updated }));
+                                            }}
+                                        />
+                                        <button onClick={() => setNewRelease(prev => ({ ...prev, receivedProgressPayments: prev.receivedProgressPayments.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16}/></button>
+                                    </div>
+                                )) : <span className="text-xs text-slate-400 italic pl-1">No payments added</span>}
                             </div>
                         </div>
                     )}
@@ -2810,7 +2857,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Address</label>
                                 <Input
-                                    value={formData?.contactAddress || ''}
+                                    value={(() => {
+                                        if (activeClient) {
+                                            const primary = (activeClient.addresses || []).find((a: any) => typeof a === 'object' && a.primary);
+                                            const addr = (typeof primary === 'object' ? primary.address : primary) || activeClient.businessAddress;
+                                            if (addr) return addr;
+                                        }
+                                        return formData?.contactAddress || '';
+                                    })()}
                                     disabled
                                     className="bg-slate-100 cursor-not-allowed"
                                 />
@@ -2818,7 +2872,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Phone</label>
                                 <Input
-                                    value={formData?.contactPhone || ''}
+                                    value={(() => {
+                                        if (activeClient) {
+                                            const primary = (activeClient.contacts || []).find((c: any) => c.primary);
+                                            if (primary?.phone) return primary.phone;
+                                            if (activeClient.phone) return activeClient.phone;
+                                        }
+                                        return formData?.contactPhone || '';
+                                    })()}
                                     disabled
                                     className="bg-slate-100 cursor-not-allowed"
                                 />

@@ -13,6 +13,173 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.83',
+        date: 'January 28, 2026',
+        time: '03:30 PKT',
+        type: 'Legal & Documentation',
+        color: 'from-amber-600 to-orange-700',
+        highlights: [
+            'Intent to Lien Module',
+            'Legal Docs Multi-Upload',
+            'COI Upload System',
+            'Dynamic Template Variables'
+        ],
+        changes: [
+            {
+                category: 'Intent to Lien System (Jan 28)',
+                items: [
+                    "Intent to Lien Array: Full CRUD operations with modal interface organized by sections.",
+                    "Owner/Hiring Party: Editable owner fields with read-only customer info from estimate.",
+                    "Lender & Surety Bond: Complete fields for liName, liAddress, scName, scAddress, bondNumber.",
+                    "Project Reference: Editable projectId with read-only projectName and jobAddress.",
+                    "PDF Generation: Dynamic template (1WGKasNMJNAjO62xVBdipNg9wOeSyNA-zRAeZeGI3WM8) with all variables."
+                ]
+            },
+            {
+                category: 'Document Uploads (Jan 28)',
+                items: [
+                    "COI Upload: Single file upload with checkmark, date, and download button.",
+                    "Legal Docs: Multi-file upload capability with individual file management.",
+                    "Cloudinary Integration: Secure cloud storage for all uploaded documents.",
+                    "Prelims Rename: Section renamed to 'Prelims / Legal / Lien' for clarity."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.82',
+        date: 'January 27, 2026',
+        time: '20:30 PKT',
+        type: 'Scheduling & Data',
+        color: 'from-sky-600 to-blue-700',
+        highlights: [
+            'Day Off Filter',
+            'Profitability Fixes',
+            'Build Optimization',
+            'Timesheet Improvements'
+        ],
+        changes: [
+            {
+                category: 'Time Management (Jan 27)',
+                items: [
+                    "Schedule Filter: Excluded 'Day Off' schedules from timesheet dropdown to prevent duplicates.",
+                    "Profitability API: Fixed Equipment Cost and Overhead Cost calculations.",
+                    "DJT Modal: Clicking DJT records now opens the correct, existing modal."
+                ]
+            },
+            {
+                category: 'Build & Deploy (Jan 27)',
+                items: [
+                    "Peer Dependencies: Resolved react-image-gallery conflicts for Vercel deployment.",
+                    "Suspense Boundary: Fixed useSearchParams SSR issues with proper Suspense wrapping.",
+                    "Font Loading: Resolved Lovelo font not applying on live Vercel environment."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.81',
+        date: 'January 26, 2026',
+        time: '17:00 PKT',
+        type: 'Email & Settings',
+        color: 'from-violet-600 to-purple-700',
+        highlights: [
+            'Email Filter Fix',
+            'Dropdown UX',
+            'Planning Imports',
+            'Clock In/Out Display'
+        ],
+        changes: [
+            {
+                category: 'Email System (Jan 26)',
+                items: [
+                    "Filter Persistence: Fixed 'Filter Emails by Clients/Leads' setting not saving in production.",
+                    "AppPassword Auth: Resolved SMTP authentication using Gmail App Password.",
+                    "User-Friendly Errors: Enhanced API error messages for forgot password flow."
+                ]
+            },
+            {
+                category: 'UI/UX Improvements (Jan 26)',
+                items: [
+                    "MyDropDown: Fixed dropdown not closing when clicking outside without selection.",
+                    "Planning Imports: Added 'importPlanningDocs' action to backend API.",
+                    "Timesheet Display: Clock In/Out times now visible in time card records."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.80',
+        date: 'January 25, 2026',
+        time: '16:00 PKT',
+        type: 'Authentication & Fonts',
+        color: 'from-rose-600 to-pink-700',
+        highlights: [
+            'Forgot Password Flow',
+            'Font Deployment',
+            'Sidebar Logout',
+            'Module Fixes'
+        ],
+        changes: [
+            {
+                category: 'Authentication (Jan 25)',
+                items: [
+                    "Forgot Password: Complete email-based password reset functionality.",
+                    "SMTP Fix: Implemented Gmail App Password authentication for reliability.",
+                    "Sidebar Logout: Replaced user info with clean 'Logout' button."
+                ]
+            },
+            {
+                category: 'Font & Styling (Jan 25)',
+                items: [
+                    "Lovelo Font: Fixed deployment issues with custom font loading on Vercel.",
+                    "Module Paths: Resolved 'Cannot find module' errors for hooks and views.",
+                    "TypeScript: Fixed property type mismatches in navigation items."
+                ]
+            }
+        ]
+    },
+    {
+        version: 'V.0.79',
+        date: 'January 24, 2026',
+        time: '14:00 PKT',
+        type: 'Billing & Releases',
+        color: 'from-emerald-600 to-teal-700',
+        highlights: [
+            'Billing Tickets Module',
+            'Release Enhancements',
+            'Status Button Text',
+            'Template Variables'
+        ],
+        changes: [
+            {
+                category: 'Billing Tickets (Jan 24)',
+                items: [
+                    "Full CRUD: Add, edit, delete billing tickets with modal interface.",
+                    "Billing Terms: Support for COD, Net 30, Net 45, Net 60, Other with custom input.",
+                    "File Attachments: Multi-file upload with Cloudinary storage.",
+                    "CSV Import: Bulk import billing tickets via settings/imports page."
+                ]
+            },
+            {
+                category: 'Release Documents (Jan 24)',
+                items: [
+                    "Through Date: Renamed 'Date' to 'Through Date' for CP and UP release types.",
+                    "{{today}} Variable: Now uses release createdAt date, not current download date.",
+                    "Prelims Cleanup: Removed CP, COI, CF, UP from prelims (now in Releases section)."
+                ]
+            },
+            {
+                category: 'UI Enhancements (Jan 24)',
+                items: [
+                    "Status Button: Circular button now displays status text instead of icon.",
+                    "Dynamic Sizing: Text automatically scales based on status length.",
+                    "Color Coding: Status button background matches status color."
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.78',
         date: 'January 23, 2026',
         time: '16:45 PKT',

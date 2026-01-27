@@ -191,6 +191,18 @@ export interface IEstimate extends Document {
         dueDate?: string;
         createdAt?: Date;
     }>;
+    releases?: Array<{
+        _id?: string;
+        documentType?: string;
+        date?: string;
+        amountOfCheck?: string;
+        DatesOfWaiverRelease?: string[];
+        amountsOfUnpaidProgressPayment?: string[];
+        receivedProgressPayments?: string[];
+        disputedClaims?: string;
+        documentId?: string;
+        createdAt?: string;
+    }>;
 }
 
 const EstimateSchema = new Schema({
@@ -396,6 +408,18 @@ const EstimateSchema = new Schema({
         toDate: { type: String },
         dueDate: { type: String },
         createdAt: { type: Date, default: Date.now }
+    }],
+    releases: [{
+        _id: { type: String },
+        documentType: { type: String },
+        date: { type: String },
+        amountOfCheck: { type: String },
+        DatesOfWaiverRelease: { type: [String], default: [] },
+        amountsOfUnpaidProgressPayment: { type: [String], default: [] },
+        receivedProgressPayments: { type: [String], default: [] },
+        disputedClaims: { type: String },
+        documentId: { type: String },
+        createdAt: { type: String }
     }]
 }, {
     timestamps: true,

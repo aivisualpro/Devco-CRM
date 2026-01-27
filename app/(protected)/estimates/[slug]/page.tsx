@@ -242,6 +242,7 @@ export default function EstimateViewPage() {
     const [showPdfPreview, setShowPdfPreview] = useState(false);
     const [generatingProposal, setGeneratingProposal] = useState(false);
     const [formData, setFormData] = useState<Estimate | null>(null);
+    const [activeClient, setActiveClient] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [unsavedChanges, setUnsavedChanges] = useState(false);
@@ -828,6 +829,7 @@ export default function EstimateViewPage() {
                 const res = await apiCall('getClientById', { id: cid });
                 if (res.success && res.result) {
                     const client = res.result;
+                    setActiveClient(client);
                     
                     // Update Contacts
                     const contacts = (client.contacts || []).map((c: any) => ({
@@ -864,9 +866,12 @@ export default function EstimateViewPage() {
                         .filter(a => a.value !== client.businessAddress); // Also filter out business address string match
                     
                     setAddressOptions(addresses.sort((a: any, b: any) => a.label.localeCompare(b.label)));
+                } else {
+                    setActiveClient(null);
                 }
             } catch (err) {
                 console.error('Error syncing client options:', err);
+                setActiveClient(null);
             }
         };
 
@@ -1396,7 +1401,7 @@ export default function EstimateViewPage() {
                     setFormData(prev => prev ? {
                         ...prev,
                         jobAddress: defaultJobAddress,
-                        contactAddress: defaultJobAddress,
+                        contactAddress: primaryAddress || defaultJobAddress,
                         contactName: primaryContact.name || '',
                         contactId: primaryContact.name || '',
                         contactEmail: primaryContact.email || '',
@@ -2102,6 +2107,7 @@ export default function EstimateViewPage() {
                                 employees={employeesData} 
                                 onUpdate={handleHeaderUpdate}
                                 planningOptions={planningOptions}
+                                activeClient={activeClient}
                             />
                         </div>
                     )}
