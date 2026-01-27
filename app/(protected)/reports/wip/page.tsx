@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Header from '@/components/ui/Header';
 import { BadgeTabs } from '@/components/ui/Tabs';
@@ -45,7 +45,7 @@ interface Project {
     jobTickets?: any[];
 }
 
-export default function WIPReportPage() {
+function WIPReportContent() {
     const [activeTab, setActiveTab] = useState('wip');
     const [selectedProject, setSelectedProject] = useState<Project | null>(null);
     const [activeDetailTab, setActiveDetailTab] = useState('Summary');
@@ -1560,6 +1560,14 @@ export default function WIPReportPage() {
                 )}
             </TooltipProvider>
         </div>
+    );
+}
+
+export default function WIPReportPage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <WIPReportContent />
+        </Suspense>
     );
 }
 
