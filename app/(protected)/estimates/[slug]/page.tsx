@@ -19,7 +19,8 @@ import {
     TemplateSelector,
     EstimateDetailsModal,
     EstimateLineItemsCard,
-    EstimateDocsCard
+    EstimateDocsCard,
+    EstimateScheduleCard
 } from './components';
 import {
     getLaborBreakdown,
@@ -34,6 +35,9 @@ import {
     type LaborBreakdown,
     type FringeConstant
 } from '@/lib/estimateCalculations';
+import { CalendarClock } from 'lucide-react';
+import { ScheduleItem } from '@/app/(protected)/jobs/schedules/components/ScheduleCard';
+
 
 const DRAFT_KEY_PREFIX = 'estimate_draft_';
 
@@ -256,9 +260,20 @@ export default function EstimateViewPage() {
     const [visibleSections, setVisibleSections] = useState({
         estimateDocs: false,
         lineItems: true,
-        proposal: true
+        proposal: true,
+        schedules: true
     });
     const [showSectionMenu, setShowSectionMenu] = useState(false);
+    
+    // Schedules State
+    const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
+    const [schedulesLoaded, setSchedulesLoaded] = useState(false);
+    const [allConstants, setAllConstants] = useState<any[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+
+
+
 
 
 
@@ -373,7 +388,7 @@ export default function EstimateViewPage() {
     const [fringeOptions, setFringeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [planningOptions, setPlanningOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
     const [certifiedPayrollOptions, setCertifiedPayrollOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
-    const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string }[]>([]);
+    const [employeeOptions, setEmployeeOptions] = useState<{ id: string; label: string; value: string; color?: string; profilePicture?: string }[]>([]);
     const [employeesData, setEmployeesData] = useState<any[]>([]); // Full employee data for signature/position lookup
     const [clientOptions, setClientOptions] = useState<{ id: string; label: string; value: string }[]>([]);
     const [contactOptions, setContactOptions] = useState<{ id: string; label: string; value: string; email?: string; phone?: string }[]>([]);
@@ -387,6 +402,8 @@ export default function EstimateViewPage() {
             try {
                 const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
                 const userEmail = user.email;
+                if (user) setCurrentUser(user);
+
                 if (userEmail) {
                      const emp = employeesData.find((e: any) => e._id === userEmail || e.email === userEmail);
                      // If settings exist, apply them. If not, we stick with defaults.
@@ -394,7 +411,8 @@ export default function EstimateViewPage() {
                              setVisibleSections({
                                  estimateDocs: emp.estimateSettings.includes('Job Docs'),
                                  lineItems: emp.estimateSettings.includes('Line Items'),
-                                 proposal: emp.estimateSettings.includes('Proposal')
+                                 proposal: emp.estimateSettings.includes('Proposal'),
+                                 schedules: emp.estimateSettings.includes('Schedules')
                              });
                      }
                 }
@@ -419,6 +437,7 @@ export default function EstimateViewPage() {
              if (visibleSections.estimateDocs) settings.push('Job Docs');
              if (visibleSections.lineItems) settings.push('Line Items');
              if (visibleSections.proposal) settings.push('Proposal');
+             if (visibleSections.schedules) settings.push('Schedules');
 
              try {
                  await fetch('/api/webhook/devcoBackend', {
@@ -623,7 +642,10 @@ export default function EstimateViewPage() {
                 setMiscellaneousCatalog(miscellaneous || []);
                 setToolsCatalog(tools || []);
                 setMiscellaneousCatalog(miscellaneous || []);
+                setToolsCatalog(tools || []);
+                setMiscellaneousCatalog(miscellaneous || []);
                 setFringeConstants((constant || []) as unknown as FringeConstant[]);
+                setAllConstants(constant || []);
 
                 // Process Status Options
                 const statuses = (constant || [])
@@ -860,6 +882,40 @@ export default function EstimateViewPage() {
             }
         }
     }, [formData?.customerId, formData?.customerName, clientOptions]);
+
+    // Fetch Schedules
+    useEffect(() => {
+        // Use the estimate number (e.g. 26-0027) to find related schedules
+        const estimateNumber = estimate?.estimate || estimate?.proposalNo;
+        if (!estimateNumber) return;
+        
+        async function fetchSchedules() {
+            try {
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getSchedulesPage',
+                        payload: { 
+                            filters: { estimate: estimateNumber },
+                            limit: 100 
+                        }
+                    })
+                });
+                const data = await res.json();
+                if (data.success && data.result?.schedules) {
+                    setSchedules(data.result.schedules);
+                }
+            } catch (err) {
+                console.error('Error loading schedules', err);
+            } finally {
+                setSchedulesLoaded(true);
+            }
+        }
+        
+        // Only fetch once or if estimate number changes
+        if (!schedulesLoaded) fetchSchedules();
+    }, [estimate?.estimate, estimate?.proposalNo, schedulesLoaded]);
 
 
 
@@ -1931,6 +1987,7 @@ export default function EstimateViewPage() {
                                 positionMode="bottom"
                                 options={[
                                     { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
+                                    { id: 'schedules', label: 'Schedules', value: 'schedules' },
                                     { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
                                     { id: 'proposal', label: 'Proposal', value: 'proposal' }
                                 ]}
@@ -2046,6 +2103,23 @@ export default function EstimateViewPage() {
                                 onUpdate={handleHeaderUpdate}
                                 planningOptions={planningOptions}
                             />
+                        </div>
+                    )}
+
+                    {/* Schedules Section */}
+                    {visibleSections.schedules && (
+                        <div className="mt-6 mb-2 animation-fade-in relative z-0">
+                            <EstimateScheduleCard
+                                schedules={schedules}
+                                setSchedules={setSchedules}
+                                estimate={estimate}
+                                employees={employeesData}
+                                currentUser={currentUser}
+                                clientOptions={clientOptions}
+                                allConstants={allConstants}
+                                equipmentCatalog={equipmentCatalog}
+                                overheadCatalog={overheadCatalog}
+                             />
                         </div>
                     )}
                 </div>
@@ -2443,6 +2517,8 @@ export default function EstimateViewPage() {
                     email: e.email
                 }))}
             />
+
+
 
         </div>
     );

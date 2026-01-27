@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem } from '@/lib/models';
+import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem } from '@/lib/models';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -677,7 +677,8 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color image').lean() : Promise.resolve([]),
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([]),
-                    !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([])
+                    !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([]),
+                    !skipInitialData ? OverheadItem.find().sort({ overhead: 1 }).lean() : Promise.resolve([])
                 ]);
 
                 const resultDocs = aggResult[0].data;
@@ -698,7 +699,7 @@ export async function POST(request: NextRequest) {
                 const capacity = (totalActiveEmployees > 0 && days > 0) ? Math.round((totalAssignees / (totalActiveEmployees * days)) * 100) : 0;
 
                 // Process initial data... (Same as before)
-                const [clients, employees, constants, estimates, equipmentItems] = metadata;
+                const [clients, employees, constants, estimates, equipmentItems, overheadItems] = metadata;
 
                 const schedulesWithMetaData = resultDocs.map((s: any) => ({
                     ...s,
@@ -829,7 +830,8 @@ export async function POST(request: NextRequest) {
                             label: e.equipmentMachine,
                             dailyCost: e.dailyCost,
                             uom: e.uom
-                        }))
+                        })),
+                        overheadItems: overheadItems || []
                     };
                 }
 
@@ -837,12 +839,13 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getInitialData': {
-                const [clients, employees, constants, estimates, equipmentItems] = await Promise.all([
+                const [clients, employees, constants, estimates, equipmentItems, overheadItems] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().lean(),
                     Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean(),
-                    EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean()
+                    EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean(),
+                    OverheadItem.find().sort({ overhead: 1 }).lean()
                 ]);
 
                 // Process estimates to keep unique estimate numbers but preserve customerId (from latest version)
@@ -887,7 +890,8 @@ export async function POST(request: NextRequest) {
                             label: e.equipmentMachine,
                             dailyCost: e.dailyCost,
                             uom: e.uom
-                        }))
+                        })),
+                        overheadItems: overheadItems || []
                     }
                 });
             }

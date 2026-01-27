@@ -12,3 +12,4 @@ export { TemplateSelector } from './TemplateSelector';
 export { EstimateDetailsModal } from './EstimateDetailsModal';
 export { EstimateLineItemsCard } from './EstimateLineItemsCard';
 export { EstimateDocsCard } from './EstimateDocsCard';
+export { EstimateScheduleCard } from './EstimateScheduleCard';

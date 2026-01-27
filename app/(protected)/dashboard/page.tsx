@@ -17,9 +17,11 @@ import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ScheduleDetailModal } from './components/ScheduleDetailModal';
 import { ScheduleCard, ScheduleItem } from '../jobs/schedules/components/ScheduleCard';
+import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModal';
 import { JHAModal } from '../jobs/schedules/components/JHAModal';
 import { DJTModal } from '../jobs/schedules/components/DJTModal';
 import { TimesheetModal } from '../jobs/schedules/components/TimesheetModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 // Week utilities
 const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label: string } => {
@@ -326,6 +328,12 @@ function DashboardContent() {
     const [selectedTimesheet, setSelectedTimesheet] = useState<any>(null);
     const [isTimesheetEditMode, setIsTimesheetEditMode] = useState(false);
 
+    // Schedule Edit/Delete States
+    const [editScheduleOpen, setEditScheduleOpen] = useState(false);
+    const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
+    const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
     // Chat States
     const [messages, setMessages] = useState<any[]>([]);
     const [isChatLoading, setIsChatLoading] = useState(false);
@@ -357,6 +365,29 @@ function DashboardContent() {
     }, [user]);
 
     // Helper functions for timesheet actions
+    const handleDeleteSchedule = async () => {
+        if (!deleteScheduleId) return;
+        
+        try {
+            const res = await fetch(`/api/schedules?id=${deleteScheduleId}`, {
+                method: 'DELETE',
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                setSchedules(prev => prev.filter(s => s._id !== deleteScheduleId));
+                success('Schedule deleted successfully');
+                setIsDeleteConfirmOpen(false);
+                setDeleteScheduleId(null);
+            } else {
+                showError(data.error || 'Failed to delete schedule');
+            }
+        } catch (err) {
+            console.error('Error deleting schedule:', err);
+            showError('Failed to delete schedule');
+        }
+    };
+
     const handleQuickTimesheet = async (schedule: Schedule, type: string) => {
         if (!currentUser) return;
         
@@ -1266,9 +1297,51 @@ function DashboardContent() {
                                                         setSelectedDetailSchedule(schedule);
                                                         setIsDetailModalOpen(true);
                                                     }}
-                                                    onEdit={() => router.push(`/jobs/schedules?id=${schedule._id}&edit=true`)}
-                                                    onCopy={() => router.push(`/jobs/schedules?id=${schedule._id}&copy=true`)}
-                                                    onDelete={() => router.push(`/jobs/schedules?id=${schedule._id}&delete=true`)}
+                                                    onEdit={() => {
+                                                        setEditingSchedule(schedule);
+                                                        setEditScheduleOpen(true);
+                                                    }}
+                                                    onCopy={() => {
+                                                        // Deep clone and shift dates
+                                                        const addOneDay = (dateStr: string) => {
+                                                            if (!dateStr) return '';
+                                                            try {
+                                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                                                                if (!match) return dateStr;
+                                                                const [, year, month, day, hours, minutes] = match;
+                                                                const utcDate = new Date(Date.UTC(
+                                                                    parseInt(year),
+                                                                    parseInt(month) - 1,
+                                                                    parseInt(day) + 1
+                                                                ));
+                                                                const newYear = utcDate.getUTCFullYear();
+                                                                const newMonth = String(utcDate.getUTCMonth() + 1).padStart(2, '0');
+                                                                const newDay = String(utcDate.getUTCDate()).padStart(2, '0');
+                                                                return `${newYear}-${newMonth}-${newDay}T${hours}:${minutes}`;
+                                                            } catch { return dateStr; }
+                                                        };
+
+                                                        const cloned = { ...schedule };
+                                                        // Reset ID and signatures
+                                                        (cloned as any)._id = undefined;
+                                                        cloned.fromDate = addOneDay(cloned.fromDate);
+                                                        cloned.toDate = addOneDay(cloned.toDate);
+                                                        cloned.timesheet = [];
+                                                        cloned.hasJHA = false;
+                                                        (cloned as any).jha = undefined;
+                                                        (cloned as any).JHASignatures = [];
+                                                        cloned.hasDJT = false;
+                                                        (cloned as any).djt = undefined;
+                                                        (cloned as any).DJTSignatures = [];
+                                                        cloned.syncedToAppSheet = false;
+
+                                                        setEditingSchedule(cloned);
+                                                        setEditScheduleOpen(true);
+                                                    }}
+                                                    onDelete={() => {
+                                                        setDeleteScheduleId(schedule._id);
+                                                        setIsDeleteConfirmOpen(true);
+                                                    }}
                                                     onViewJHA={(item) => {
                                                         const jhaWithSigs = { 
                                                             ...item.jha, 
@@ -1830,6 +1903,36 @@ function DashboardContent() {
                 isEditMode={isTimesheetEditMode}
                 setIsEditMode={setIsTimesheetEditMode}
                 handleSave={handleSaveTimesheetEdit}
+            />
+
+            {/* Schedule Edit/Create Form Modal */}
+            <ScheduleFormModal
+                isOpen={editScheduleOpen}
+                onClose={() => {
+                    setEditScheduleOpen(false);
+                    setEditingSchedule(null);
+                }}
+                schedule={editingSchedule}
+                initialData={initialData}
+                onSave={(savedSchedule, isNew) => {
+                    if (isNew) {
+                        setSchedules(prev => [...prev, savedSchedule]);
+                    } else {
+                        setSchedules(prev => prev.map(s => s._id === savedSchedule._id ? savedSchedule : s));
+                    }
+                }}
+            />
+
+            {/* Confirm Delete Schedule */}
+            <ConfirmModal
+                isOpen={isDeleteConfirmOpen}
+                onClose={() => setIsDeleteConfirmOpen(false)}
+                onConfirm={handleDeleteSchedule}
+                title="Delete Schedule"
+                message="Are you sure you want to delete this schedule? This action cannot be undone."
+                confirmText="Delete"
+                cancelText="Cancel"
+                variant="danger"
             />
 
             {/* Email Modal */}

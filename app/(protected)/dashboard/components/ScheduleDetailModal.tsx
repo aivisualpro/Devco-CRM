@@ -66,6 +66,21 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
         return 'Client';
     };
 
+    const getJobLocation = () => {
+        // First check the schedule's direct jobLocation field
+        if (schedule.jobLocation && schedule.jobLocation !== 'Job Location TBD') {
+            return schedule.jobLocation;
+        }
+        // Fallback: check the linked estimate's jobAddress
+        if (schedule.estimate && initialData.estimates) {
+            const est = initialData.estimates.find((e: any) => e.value === schedule.estimate);
+            if (est?.jobAddress) {
+                return est.jobAddress;
+            }
+        }
+        return 'Job Location TBD';
+    };
+
     const formatTimeOnly = (dateStr?: string) => {
         if (!dateStr) return '--:--';
         try {
@@ -126,7 +141,7 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                             <h2 className="text-2xl font-black text-[#0F4C75] leading-tight">{getCustomerName()}</h2>
                             <p className="text-sm font-bold text-slate-500 flex items-center gap-1.5 mt-1">
                                 <MapPin size={14} className="text-rose-500" />
-                                {schedule.jobLocation || 'Job Location TBD'}
+                                {getJobLocation()}
                             </p>
                         </div>
                     </div>
@@ -151,7 +166,6 @@ export const ScheduleDetailModal = ({ isOpen, onClose, schedule, initialData, on
                                 <span>{formatTimeOnly(schedule.fromDate)}</span>
                                 <span className="text-slate-300">~</span>
                                 <span>{formatTimeOnly(schedule.toDate)}</span>
-                                <span className="ml-auto text-[10px] text-slate-300 uppercase letter-spacing-widest">UTC Time</span>
                             </div>
                         </div>
 

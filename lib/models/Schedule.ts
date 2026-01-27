@@ -46,6 +46,7 @@ export interface IDJT {
     emailCounter?: number;
     signatures?: any[]; // For frontend convenience
     schedule_id?: string;
+    djtCost?: number;
 }
 
 export interface IEquipmentUsed {
@@ -161,7 +162,8 @@ const ScheduleSchema = new Schema({
             createdAt: { type: Date },
             updatedAt: { type: Date },
             clientEmail: { type: String },
-            emailCounter: { type: Number }
+            emailCounter: { type: Number },
+            djtCost: { type: Number, default: 0 }
         }, 
         default: null 
     },

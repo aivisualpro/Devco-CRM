@@ -610,14 +610,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             return `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
                         }
                     }
-                    return formData.proposalWriter || '';
-                })(),
-                position: (() => {
-                    const proposalWriterEmail = formData.proposalWriter;
-                    if (proposalWriterEmail && employees.length > 0) {
-                        const emp = employees.find(e => e._id === proposalWriterEmail);
-                        return emp?.companyPosition || '';
-                    }
                     return '';
                 })(),
                 signature: (() => {
@@ -629,6 +621,35 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     return '';
                 })(),
             };
+
+            // Inject Release specific fields if this doc is a Release type
+            const releaseItem = releases?.find((r: any) => r.documentType === docName);
+            if (releaseItem) {
+                // Ensure date formatting consistency
+                if (releaseItem.date) {
+                   variables.date = new Date(releaseItem.date).toLocaleDateString(); 
+                }
+                
+                if (releaseItem.amountOfCheck) variables.amountOfCheck = releaseItem.amountOfCheck;
+                if (releaseItem.disputedClaims) variables.disputedClaims = releaseItem.disputedClaims;
+                
+                // For array fields like un-paid amounts, we might need to join them or just take the first one or sum them?
+                // Based on template {{amountsOfUnpaidProgressPayment}} (singular/plural ambiguous but usually string in template)
+                // Let's join with commas or newlines if multiple
+                if (releaseItem.amountsOfUnpaidProgressPayment && Array.isArray(releaseItem.amountsOfUnpaidProgressPayment)) {
+                    variables.amountsOfUnpaidProgressPayment = releaseItem.amountsOfUnpaidProgressPayment.join(', ');
+                }
+                
+                if (releaseItem.DatesOfWaiverRelease && Array.isArray(releaseItem.DatesOfWaiverRelease)) {
+                    // Format dates?
+                    variables.receivedProgressPayment = releaseItem.DatesOfWaiverRelease.map((d: string) => new Date(d).toLocaleDateString()).join(', ');
+                }
+                
+                // Override simple 'receivedProgressPayment' field if it's text
+                if (releaseItem.receivedProgressPayment) {
+                     variables.receivedProgressPayment = releaseItem.receivedProgressPayment;
+                }
+            }
 
             const response = await fetch('/api/generate-google-pdf', {
                 method: 'POST',

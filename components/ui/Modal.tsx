@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -18,8 +19,14 @@ interface ModalProps {
 let modalStack: string[] = [];
 
 export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4xl', preventClose = false, noBlur = false }: ModalProps) {
-    const [shouldRender, setShouldRender] = React.useState(false);
+    const [shouldRender, setShouldRender] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const instanceId = React.useRef(Math.random().toString(36).substr(2, 9)).current;
+
+    // Ensure we only render portal after mount (for SSR compatibility)
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
@@ -47,7 +54,7 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
         return () => window.removeEventListener('keydown', handleEsc);
     }, [isOpen, onClose, preventClose, instanceId]);
 
-    if (!isOpen) return null;
+    if (!isOpen || !mounted) return null;
 
     const maxWidthClass = {
         'sm': 'max-w-sm',
@@ -63,11 +70,11 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
         'full': 'max-w-full'
     }[maxWidth];
 
-    return (
-        <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-[calc(env(safe-area-inset-top,0px)+2rem)] md:pt-0">
-            {/* Reduced blur from xl to md for better performance */}
+    const modalContent = (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 md:p-4 overflow-hidden">
+            {/* Darker backdrop to fully hide content behind */}
             <div 
-                className={`absolute inset-0 ${noBlur ? 'bg-black/5' : 'bg-black/40 backdrop-blur-md'} transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
+                className={`absolute inset-0 ${noBlur ? 'bg-black/5' : 'bg-black/60 backdrop-blur-lg'} transition-opacity duration-300 ${shouldRender ? 'opacity-100' : 'opacity-0'}`} 
                 onClick={preventClose ? undefined : onClose}
             />
             <div className={`relative bg-white rounded-3xl shadow-2xl w-full ${maxWidthClass} max-h-[96vh] flex flex-col overflow-hidden transition-all duration-300 transform ${
@@ -95,6 +102,9 @@ export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '4x
             </div>
         </div>
     );
+
+    // Use portal to render modal at document.body level, breaking out of any stacking context
+    return createPortal(modalContent, document.body);
 }
 
 export default Modal;

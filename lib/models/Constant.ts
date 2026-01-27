@@ -7,6 +7,7 @@ export interface IConstant extends Document {
     value?: string;
     color?: string;
     image?: string;
+    dailyCost?: number;
     templateId?: string;
     createdAt?: Date;
     updatedAt?: Date;
@@ -19,6 +20,7 @@ const ConstantSchema = new Schema<IConstant>({
     value: { type: String },
     color: { type: String },
     image: { type: String },
+    dailyCost: { type: Number },
     templateId: { type: String },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now }

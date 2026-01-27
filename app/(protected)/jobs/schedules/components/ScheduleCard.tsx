@@ -304,9 +304,33 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                 );
                             })}
                             {(item.assignees || []).filter(Boolean).length > 3 && (
-                                <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[8px] font-bold text-slate-500 shadow-sm">
-                                    +{(item.assignees?.filter(Boolean).length || 0) - 3}
-                                </div>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="w-6 h-6 rounded-full bg-slate-100 border border-white flex items-center justify-center text-[8px] font-bold text-slate-500 shadow-sm cursor-help">
+                                            +{(item.assignees?.filter(Boolean).length || 0) - 3}
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <div className="flex flex-col gap-1 text-xs">
+                                            <p className="font-bold border-b border-slate-700/50 pb-1 mb-1 text-slate-300">More Assignees</p>
+                                            {(item.assignees || []).filter(Boolean).slice(3).map((email: string, i: number) => {
+                                                const emp = initialData.employees.find(e => e.value === email);
+                                                return (
+                                                    <div key={i} className="flex items-center gap-2">
+                                                        <div className="w-4 h-4 rounded-full bg-slate-700 flex items-center justify-center text-[8px] overflow-hidden">
+                                                            {emp?.image ? (
+                                                                <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                <span>{emp?.label?.[0] || email?.[0] || '?'}</span>
+                                                            )}
+                                                        </div>
+                                                        <span>{emp?.label || email}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </TooltipContent>
+                                </Tooltip>
                             )}
                         </div>
                     </div>

@@ -364,7 +364,7 @@ export async function POST(request: NextRequest) {
                             from: 'devcoschedules',
                             let: { schedId: "$schedule_id" },
                             pipeline: [
-                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$schedId" }] } } }
+                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$schedId", "000000000000000000000000"] } }] } } }
                             ],
                             as: 'scheduleDocs'
                         }
@@ -375,7 +375,7 @@ export async function POST(request: NextRequest) {
                             from: 'clients',
                             let: { cid: "$scheduleDocs.customerId" },
                             pipeline: [
-                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: "$$cid" }] } } }
+                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$cid", "000000000000000000000000"] } }] } } }
                             ],
                             as: 'clientDocs'
                         }
