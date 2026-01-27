@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send } from 'lucide-react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { format } from 'date-fns';
@@ -15,7 +15,7 @@ const DOC_TEMPLATES: Record<string, string> = {
     'UP - Unconditional Release (Progress)': '1UDSOXcvBirMqQGN1v6Q1lJOBFfO6p2V0r-KRF8OGs-A',
     'UF - Unconditional Release (Final)': '',
     'Mechanics Lien': '',
-    'Intent to Lien': '',
+    'Intent to Lien': '1WGKasNMJNAjO62xVBdipNg9wOeSyNA-zRAeZeGI3WM8',
     'Fringe Benefit Statement': '',
     'DAS 140': '',
     'Certified Payroll Report': '',
@@ -76,11 +76,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const prelimDocs = [
         '20 Day Prelim',
-        'CP - Conditional Release (Progress)',
         'COI - Certificate of Insurance',
-        'CF - Conditional Release (Final)',
-        'UP - Unconditional Release (Progress)',
-        'UF - Unconditional Release (Final)',
+        'Legal Docs',
         'Mechanics Lien',
         'Intent to Lien'
     ];
@@ -167,6 +164,233 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     });
 
     const releases = formData?.releases || []; // Extract from formData
+
+    // COI (Certificate of Insurance) Upload State
+    const coiInputRef = React.useRef<HTMLInputElement>(null);
+    const [isCoiUploading, setIsCoiUploading] = useState(false);
+    const coiDocument = formData?.coiDocument as { url: string; name: string; uploadedAt: string } | undefined;
+
+    const handleCoiUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !onUpdate) return;
+
+        setIsCoiUploading(true);
+        try {
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve) => {
+                reader.onload = (ev) => resolve(ev.target?.result as string);
+                reader.readAsDataURL(file);
+            });
+            const base64 = await base64Promise;
+
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'uploadRawToCloudinary',
+                    payload: {
+                        file: base64,
+                        fileName: `COI_${formData?.estimate || 'doc'}_${file.name}`,
+                        contentType: file.type
+                    }
+                })
+            });
+
+            const data = await res.json();
+            if (data.success && data.result) {
+                onUpdate('coiDocument', {
+                    url: data.result.url,
+                    name: file.name,
+                    uploadedAt: new Date().toISOString()
+                });
+                toast.success('COI uploaded successfully');
+            } else {
+                toast.error('Failed to upload COI');
+            }
+        } catch (err) {
+            console.error('COI Upload Error:', err);
+            toast.error('Error uploading COI');
+        } finally {
+            setIsCoiUploading(false);
+            if (coiInputRef.current) coiInputRef.current.value = '';
+        }
+    };
+
+    // Legal Docs Upload State (Multiple Files)
+    const legalDocsInputRef = React.useRef<HTMLInputElement>(null);
+    const [isLegalDocsUploading, setIsLegalDocsUploading] = useState(false);
+    const legalDocs = (formData?.legalDocs || []) as { url: string; name: string; type: string; uploadedAt: string }[];
+
+    const handleLegalDocsUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !onUpdate) return;
+
+        setIsLegalDocsUploading(true);
+        const uploaded: { url: string; name: string; type: string; uploadedAt: string }[] = [...legalDocs];
+
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                const base64Promise = new Promise<string>((resolve) => {
+                    reader.onload = (ev) => resolve(ev.target?.result as string);
+                    reader.readAsDataURL(file);
+                });
+                const base64 = await base64Promise;
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'uploadRawToCloudinary',
+                        payload: {
+                            file: base64,
+                            fileName: `Legal_${formData?.estimate || 'doc'}_${file.name}`,
+                            contentType: file.type
+                        }
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success && data.result) {
+                    uploaded.push({
+                        url: data.result.url,
+                        name: file.name,
+                        type: file.type,
+                        uploadedAt: new Date().toISOString()
+                    });
+                }
+            }
+
+            onUpdate('legalDocs', uploaded);
+            toast.success(`${files.length} file(s) uploaded successfully`);
+        } catch (err) {
+            console.error('Legal Docs Upload Error:', err);
+            toast.error('Error uploading legal documents');
+        } finally {
+            setIsLegalDocsUploading(false);
+            if (legalDocsInputRef.current) legalDocsInputRef.current.value = '';
+        }
+    };
+
+    const removeLegalDoc = (index: number) => {
+        if (!onUpdate) return;
+        const updated = legalDocs.filter((_, i) => i !== index);
+        onUpdate('legalDocs', updated);
+        toast.success('Document removed');
+    };
+
+    // Intent to Lien State (Array of Objects like Releases)
+    const [isIntentToLienModalOpen, setIsIntentToLienModalOpen] = useState(false);
+    const [editingIntentToLienIndex, setEditingIntentToLienIndex] = useState<number | null>(null);
+    const [intentToLienToDelete, setIntentToLienToDelete] = useState<number | null>(null);
+    const [newIntentToLien, setNewIntentToLien] = useState({
+        arBalance: '',
+        fromDate: format(new Date(), 'yyyy-MM-dd'),
+        toDate: format(new Date(), 'yyyy-MM-dd'),
+        dueDate: format(new Date(), 'yyyy-MM-dd'),
+        // Parent fields (editable, will update parent estimate)
+        poName: '',
+        PoAddress: '',
+        liName: '',
+        liAddress: '',
+        scName: '',
+        scAddress: '',
+        bondNumber: '',
+        projectId: ''
+    });
+
+    const intentToLienItems = (formData?.intentToLien || []) as any[];
+
+    const handleAddIntentToLien = () => {
+        setNewIntentToLien({
+            arBalance: '',
+            fromDate: format(new Date(), 'yyyy-MM-dd'),
+            toDate: format(new Date(), 'yyyy-MM-dd'),
+            dueDate: format(new Date(), 'yyyy-MM-dd'),
+            // Pre-fill from parent estimate
+            poName: formData?.poName || '',
+            PoAddress: formData?.PoAddress || '',
+            liName: formData?.liName || '',
+            liAddress: formData?.liAddress || '',
+            scName: formData?.scName || '',
+            scAddress: formData?.scAddress || '',
+            bondNumber: formData?.bondNumber || '',
+            projectId: formData?.projectId || ''
+        });
+        setEditingIntentToLienIndex(null);
+        setIsIntentToLienModalOpen(true);
+    };
+
+    const handleEditIntentToLien = (index: number) => {
+        const item = intentToLienItems[index];
+        setNewIntentToLien({
+            arBalance: item.arBalance || '',
+            fromDate: item.fromDate || format(new Date(), 'yyyy-MM-dd'),
+            toDate: item.toDate || format(new Date(), 'yyyy-MM-dd'),
+            dueDate: item.dueDate || format(new Date(), 'yyyy-MM-dd'),
+            // Pull from parent if not stored in item
+            poName: formData?.poName || '',
+            PoAddress: formData?.PoAddress || '',
+            liName: formData?.liName || '',
+            liAddress: formData?.liAddress || '',
+            scName: formData?.scName || '',
+            scAddress: formData?.scAddress || '',
+            bondNumber: formData?.bondNumber || '',
+            projectId: formData?.projectId || ''
+        });
+        setEditingIntentToLienIndex(index);
+        setIsIntentToLienModalOpen(true);
+    };
+
+    const handleSaveIntentToLien = () => {
+        if (!onUpdate) return;
+
+        // Update parent estimate fields
+        onUpdate('poName', newIntentToLien.poName);
+        onUpdate('PoAddress', newIntentToLien.PoAddress);
+        onUpdate('liName', newIntentToLien.liName);
+        onUpdate('liAddress', newIntentToLien.liAddress);
+        onUpdate('scName', newIntentToLien.scName);
+        onUpdate('scAddress', newIntentToLien.scAddress);
+        onUpdate('bondNumber', newIntentToLien.bondNumber);
+        onUpdate('projectId', newIntentToLien.projectId);
+
+        // Create intent to lien item (only the specific fields)
+        const intentItem = {
+            _id: editingIntentToLienIndex !== null 
+                ? intentToLienItems[editingIntentToLienIndex]._id 
+                : `itl_${Date.now()}`,
+            arBalance: newIntentToLien.arBalance,
+            fromDate: newIntentToLien.fromDate,
+            toDate: newIntentToLien.toDate,
+            dueDate: newIntentToLien.dueDate,
+            createdAt: editingIntentToLienIndex !== null 
+                ? intentToLienItems[editingIntentToLienIndex].createdAt 
+                : new Date().toISOString()
+        };
+
+        let updatedItems;
+        if (editingIntentToLienIndex !== null) {
+            updatedItems = [...intentToLienItems];
+            updatedItems[editingIntentToLienIndex] = intentItem;
+        } else {
+            updatedItems = [...intentToLienItems, intentItem];
+        }
+
+        onUpdate('intentToLien', updatedItems);
+        setIsIntentToLienModalOpen(false);
+        setEditingIntentToLienIndex(null);
+        toast.success(editingIntentToLienIndex !== null ? 'Intent to Lien updated' : 'Intent to Lien added');
+    };
+
+    const confirmRemoveIntentToLien = () => {
+        if (intentToLienToDelete === null || !onUpdate) return;
+        const updated = intentToLienItems.filter((_: any, i: number) => i !== intentToLienToDelete);
+        onUpdate('intentToLien', updated);
+        setIntentToLienToDelete(null);
+        toast.success('Intent to Lien removed');
+    };
 
     // Fetch Release Constants
     React.useEffect(() => {
@@ -720,7 +944,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         toast.success('Planning document removed');
     };
 
-    const handleDocClick = async (docName: string) => {
+    const handleDocClick = async (docName: string, itemIndex?: number) => {
         // 1. Try to find ID in fetched release constants (dynamic)
         const dbConstant = releasesConstants.find(r => r.value === docName);
         let templateId = dbConstant?.templateId;
@@ -750,6 +974,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 projectDescription: formData.projectDescription || '',
                 prelimAmount: formData.prelimAmount || '',
                 date: formData.date || new Date().toLocaleDateString(),
+                today: new Date().toLocaleDateString(),
                 
                 // Property Owner / Public Agency
                 poName: formData.poName || '',
@@ -794,9 +1019,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 projectName: formData.projectName || '',
                 estimate: formData.estimate || '',
                 usaNumber: formData.usaNumber || '',
+                projectId: formData.projectId || '',
                 
                 // Customer ID should be the client name
                 customerId: formData.customerName || formData.customer || '',
+                customerAddress: formData.contactAddress || '',
                 
                 // Get proposalWriter employee details
                 createdBy: (() => {
@@ -827,9 +1054,31 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 })(),
             };
 
+            // Inject Intent to Lien specific fields
+            if (docName === 'Intent to Lien' && itemIndex !== undefined) {
+                const intentItem = intentToLienItems[itemIndex];
+                if (intentItem) {
+                    // Set {{today}} to the intent to lien's createdAt date
+                    if (intentItem.createdAt) {
+                        variables.today = new Date(intentItem.createdAt).toLocaleDateString();
+                    }
+                    
+                    // Intent to Lien specific fields
+                    variables.arBalance = intentItem.arBalance || '';
+                    variables.fromDate = intentItem.fromDate ? new Date(intentItem.fromDate).toLocaleDateString() : '';
+                    variables.toDate = intentItem.toDate ? new Date(intentItem.toDate).toLocaleDateString() : '';
+                    variables.dueDate = intentItem.dueDate ? new Date(intentItem.dueDate).toLocaleDateString() : '';
+                }
+            }
+
             // Inject Release specific fields if this doc is a Release type
             const releaseItem = releases?.find((r: any) => r.documentType === docName);
             if (releaseItem) {
+                // Set {{today}} to the release's createdAt date (when the release was created)
+                if (releaseItem.createdAt) {
+                    variables.today = new Date(releaseItem.createdAt).toLocaleDateString();
+                }
+                
                 // Ensure date formatting consistency
                 if (releaseItem.date) {
                    variables.date = new Date(releaseItem.date).toLocaleDateString(); 
@@ -1303,7 +1552,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shadow-md">
                             <FileText className="w-4 h-4" />
                         </div>
-                        <h4 className="text-sm font-bold text-[#0F4C75]">Prelims</h4>
+                        <h4 className="text-sm font-bold text-[#0F4C75]">Prelims / Legal / Lien</h4>
                         <span className="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full font-bold">
                             {prelimDocs.length}
                         </span>
@@ -1311,17 +1560,262 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     
                     
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[500px] overflow-y-auto">
+                        {/* Hidden file inputs for COI and Legal Docs */}
+                        <input 
+                            type="file" 
+                            ref={coiInputRef} 
+                            onChange={handleCoiUpload} 
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            className="hidden" 
+                        />
+                        <input 
+                            type="file" 
+                            ref={legalDocsInputRef} 
+                            onChange={handleLegalDocsUpload} 
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            multiple
+                            className="hidden" 
+                        />
 
                         <div className="grid grid-cols-1 gap-3">
-                            {prelimDocs.length > 0 ? prelimDocs.map((docName, idx) => (
-                                <DocCard 
-                                    key={idx} 
-                                    label={docName}
-                                    isLoading={generatingDoc === docName}
-                                    hasTemplate={!!DOC_TEMPLATES[docName]}
-                                    onClick={() => handleDocClick(docName)}
-                                />
-                            )) : (
+                            {prelimDocs.length > 0 ? prelimDocs.map((docName, idx) => {
+                                // Special handling for COI
+                                if (docName === 'COI - Certificate of Insurance') {
+                                    return (
+                                        <div key={idx} className="group">
+                                            <div 
+                                                className={`
+                                                    flex items-center justify-between p-3 rounded-xl cursor-pointer
+                                                    ${coiDocument 
+                                                        ? 'bg-emerald-50 border border-emerald-200' 
+                                                        : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
+                                                    shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
+                                                `}
+                                            >
+                                                <div className="flex items-center gap-3 flex-1" onClick={() => !coiDocument && coiInputRef.current?.click()}>
+                                                    {coiDocument ? (
+                                                        <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center">
+                                                            <Check className="w-3.5 h-3.5 text-white" />
+                                                        </div>
+                                                    ) : isCoiUploading ? (
+                                                        <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+                                                    ) : (
+                                                        <Upload className="w-5 h-5 text-slate-400" />
+                                                    )}
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-xs font-bold ${coiDocument ? 'text-emerald-700' : 'text-slate-600'}`}>
+                                                            {docName}
+                                                        </span>
+                                                        {coiDocument && (
+                                                            <span className="text-[10px] text-emerald-600">
+                                                                Uploaded {new Date(coiDocument.uploadedAt).toLocaleDateString()}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {coiDocument && (
+                                                    <div className="flex items-center gap-1">
+                                                        <a 
+                                                            href={coiDocument.url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                        >
+                                                            <Download className="w-4 h-4" />
+                                                        </a>
+                                                        <button 
+                                                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onUpdate?.('coiDocument', null);
+                                                                toast.success('COI removed');
+                                                            }}
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                }
+
+                                // Special handling for Legal Docs
+                                if (docName === 'Legal Docs') {
+                                    return (
+                                        <div key={idx} className="group">
+                                            <div 
+                                                onClick={() => legalDocsInputRef.current?.click()}
+                                                className={`
+                                                    flex items-center justify-between p-3 rounded-xl cursor-pointer
+                                                    ${legalDocs.length > 0 
+                                                        ? 'bg-violet-50 border border-violet-200' 
+                                                        : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
+                                                    shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
+                                                `}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {isLegalDocsUploading ? (
+                                                        <Loader2 className="w-5 h-5 text-violet-500 animate-spin" />
+                                                    ) : legalDocs.length > 0 ? (
+                                                        <div className="w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center text-white text-[10px] font-bold">
+                                                            {legalDocs.length}
+                                                        </div>
+                                                    ) : (
+                                                        <Upload className="w-5 h-5 text-slate-400" />
+                                                    )}
+                                                    <span className={`text-xs font-bold ${legalDocs.length > 0 ? 'text-violet-700' : 'text-slate-600'}`}>
+                                                        {docName}
+                                                    </span>
+                                                </div>
+                                                <Plus className="w-4 h-4 text-violet-500" />
+                                            </div>
+                                            
+                                            {/* List of uploaded legal docs */}
+                                            {legalDocs.length > 0 && (
+                                                <div className="mt-2 ml-4 space-y-1">
+                                                    {legalDocs.map((doc, docIdx) => (
+                                                        <div key={docIdx} className="flex items-center justify-between p-2 bg-violet-50/50 rounded-lg border border-violet-100">
+                                                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                                                                <Paperclip className="w-3 h-3 text-violet-400 flex-shrink-0" />
+                                                                <span className="text-[10px] text-violet-700 font-medium truncate">{doc.name}</span>
+                                                                <span className="text-[9px] text-violet-400 flex-shrink-0">
+                                                                    {new Date(doc.uploadedAt).toLocaleDateString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 flex-shrink-0">
+                                                                <a 
+                                                                    href={doc.url} 
+                                                                    target="_blank" 
+                                                                    rel="noopener noreferrer"
+                                                                    className="p-1 text-violet-500 hover:bg-violet-100 rounded transition-colors"
+                                                                    onClick={(e) => e.stopPropagation()}
+                                                                >
+                                                                    <Download className="w-3 h-3" />
+                                                                </a>
+                                                                <button 
+                                                                    className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        removeLegalDoc(docIdx);
+                                                                    }}
+                                                                >
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                // Special handling for Intent to Lien
+                                if (docName === 'Intent to Lien') {
+                                    return (
+                                        <div key={idx} className="group">
+                                            <div 
+                                                className={`
+                                                    flex items-center justify-between p-3 rounded-xl
+                                                    ${intentToLienItems.length > 0 
+                                                        ? 'bg-amber-50 border border-amber-200' 
+                                                        : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
+                                                    shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
+                                                `}
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    {intentToLienItems.length > 0 ? (
+                                                        <div className="w-6 h-6 rounded-full bg-amber-500 flex items-center justify-center text-white text-[10px] font-bold">
+                                                            {intentToLienItems.length}
+                                                        </div>
+                                                    ) : (
+                                                        <FileText className="w-5 h-5 text-slate-400" />
+                                                    )}
+                                                    <span className={`text-xs font-bold ${intentToLienItems.length > 0 ? 'text-amber-700' : 'text-slate-600'}`}>
+                                                        {docName}
+                                                    </span>
+                                                </div>
+                                                <button 
+                                                    onClick={handleAddIntentToLien}
+                                                    className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            
+                                            {/* List of Intent to Lien items */}
+                                            {intentToLienItems.length > 0 && (
+                                                <div className="mt-2 ml-4 space-y-2">
+                                                    {intentToLienItems.map((item: any, itemIdx: number) => (
+                                                        <div 
+                                                            key={item._id || itemIdx} 
+                                                            className="group/item flex items-center justify-between p-2.5 bg-amber-50/50 rounded-lg border border-amber-100 hover:bg-amber-100/50 transition-colors"
+                                                        >
+                                                            <div className="flex flex-col gap-0.5 flex-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-[10px] text-amber-700 font-bold">
+                                                                        AR Balance: ${item.arBalance || '0'}
+                                                                    </span>
+                                                                </div>
+                                                                <span className="text-[9px] text-amber-600">
+                                                                    {item.fromDate && item.toDate 
+                                                                        ? `${new Date(item.fromDate).toLocaleDateString()} - ${new Date(item.toDate).toLocaleDateString()}`
+                                                                        : 'No date range'
+                                                                    }
+                                                                </span>
+                                                                <span className="text-[9px] text-amber-500">
+                                                                    Due: {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '-'}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        // Generate PDF for this intent to lien
+                                                                        handleDocClick('Intent to Lien', itemIdx);
+                                                                    }}
+                                                                    disabled={generatingDoc === 'Intent to Lien'}
+                                                                    className="p-1.5 text-amber-600 hover:bg-amber-200 rounded-lg transition-colors"
+                                                                >
+                                                                    {generatingDoc === 'Intent to Lien' ? (
+                                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                                    ) : (
+                                                                        <Download className="w-3.5 h-3.5" />
+                                                                    )}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleEditIntentToLien(itemIdx)}
+                                                                    className="p-1.5 text-slate-500 hover:bg-amber-200 rounded-lg transition-colors"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setIntentToLienToDelete(itemIdx)}
+                                                                    className="p-1.5 text-red-400 hover:bg-red-100 rounded-lg transition-colors"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                // Normal DocCard for other documents
+                                return (
+                                    <DocCard 
+                                        key={idx} 
+                                        label={docName}
+                                        isLoading={generatingDoc === docName}
+                                        hasTemplate={!!DOC_TEMPLATES[docName]}
+                                        onClick={() => handleDocClick(docName)}
+                                    />
+                                );
+                            }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
                             )}
                         </div>
@@ -2099,7 +2593,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Through Date</label>
                                     <Input 
                                         type="date"
                                         value={newRelease.date}
@@ -2178,7 +2672,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     {getReleaseCode(newRelease.documentType) === 'UP' && (
                         <div className="space-y-4">
                             <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Through Date</label>
                                 <Input 
                                     type="date"
                                     value={newRelease.date}
@@ -2245,6 +2739,221 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 confirmText="Remove"
                 variant="danger"
             />
+
+            {/* Intent to Lien Delete Confirm Modal */}
+            <ConfirmModal
+                isOpen={intentToLienToDelete !== null}
+                onClose={() => setIntentToLienToDelete(null)}
+                onConfirm={confirmRemoveIntentToLien}
+                title="Remove Intent to Lien"
+                message="Are you sure you want to remove this intent to lien document?"
+                confirmText="Remove"
+                variant="danger"
+            />
+
+            {/* Add/Edit Intent to Lien Modal */}
+            <Modal
+                isOpen={isIntentToLienModalOpen}
+                onClose={() => setIsIntentToLienModalOpen(false)}
+                title={editingIntentToLienIndex !== null ? "Edit Intent to Lien" : "Add Intent to Lien"}
+                maxWidth="2xl"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setIsIntentToLienModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleSaveIntentToLien}>Save Intent to Lien</Button>
+                    </div>
+                }
+            >
+                <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
+                    {/* Section: Owner or Reputed Owner */}
+                    <div className="p-4 rounded-xl bg-blue-50/50 border border-blue-100">
+                        <h4 className="text-xs font-bold text-blue-700 mb-3 flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            Owner or Reputed Owner
+                        </h4>
+                        <div className="grid grid-cols-1 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Name</label>
+                                <Input
+                                    value={newIntentToLien.poName}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, poName: e.target.value })}
+                                    placeholder="Property Owner Name"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address</label>
+                                <Input
+                                    value={newIntentToLien.PoAddress}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, PoAddress: e.target.value })}
+                                    placeholder="Property Owner Address"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Hiring Party (Read-only) */}
+                    <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
+                        <h4 className="text-xs font-bold text-slate-600 mb-3 flex items-center gap-2">
+                            <User className="w-4 h-4" />
+                            Hiring Party
+                            <span className="text-[9px] text-slate-400 font-normal">(from estimate)</span>
+                        </h4>
+                        <div className="grid grid-cols-1 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer ID</label>
+                                <Input
+                                    value={formData?.customerName || ''}
+                                    disabled
+                                    className="bg-slate-100 cursor-not-allowed"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Address</label>
+                                <Input
+                                    value={formData?.contactAddress || ''}
+                                    disabled
+                                    className="bg-slate-100 cursor-not-allowed"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Phone</label>
+                                <Input
+                                    value={formData?.contactPhone || ''}
+                                    disabled
+                                    className="bg-slate-100 cursor-not-allowed"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Lender and/or Surety Bond */}
+                    <div className="p-4 rounded-xl bg-violet-50/50 border border-violet-100">
+                        <h4 className="text-xs font-bold text-violet-700 mb-3 flex items-center gap-2">
+                            <Shield className="w-4 h-4" />
+                            Lender and/or Surety Bond
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lender Name</label>
+                                <Input
+                                    value={newIntentToLien.liName}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, liName: e.target.value })}
+                                    placeholder="Lending Institution Name"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lender Address</label>
+                                <Input
+                                    value={newIntentToLien.liAddress}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, liAddress: e.target.value })}
+                                    placeholder="Lending Institution Address"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Surety Company Name</label>
+                                <Input
+                                    value={newIntentToLien.scName}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, scName: e.target.value })}
+                                    placeholder="Surety Company Name"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Surety Company Address</label>
+                                <Input
+                                    value={newIntentToLien.scAddress}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, scAddress: e.target.value })}
+                                    placeholder="Surety Company Address"
+                                />
+                            </div>
+                            <div className="col-span-2 space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bond Number</label>
+                                <Input
+                                    value={newIntentToLien.bondNumber}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, bondNumber: e.target.value })}
+                                    placeholder="Bond Number"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Project Name and Address */}
+                    <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                        <h4 className="text-xs font-bold text-emerald-700 mb-3 flex items-center gap-2">
+                            <FileText className="w-4 h-4" />
+                            Re: Project Name and Address
+                        </h4>
+                        <div className="grid grid-cols-1 gap-3">
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Project ID</label>
+                                <Input
+                                    value={newIntentToLien.projectId}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, projectId: e.target.value })}
+                                    placeholder="Project ID"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Project Name <span className="text-slate-400">(from estimate)</span></label>
+                                <Input
+                                    value={formData?.projectName || ''}
+                                    disabled
+                                    className="bg-slate-100 cursor-not-allowed"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Address <span className="text-slate-400">(from estimate)</span></label>
+                                <Input
+                                    value={formData?.jobAddress || ''}
+                                    disabled
+                                    className="bg-slate-100 cursor-not-allowed"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Section: Intent to Lien Details */}
+                    <div className="p-4 rounded-xl bg-amber-50/50 border border-amber-100">
+                        <h4 className="text-xs font-bold text-amber-700 mb-3 flex items-center gap-2">
+                            <DollarSign className="w-4 h-4" />
+                            Intent to Lien Details
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2 space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">AR Balance</label>
+                                <Input
+                                    type="text"
+                                    value={newIntentToLien.arBalance}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, arBalance: e.target.value })}
+                                    placeholder="$0.00"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">From Date</label>
+                                <Input
+                                    type="date"
+                                    value={newIntentToLien.fromDate}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, fromDate: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">To Date</label>
+                                <Input
+                                    type="date"
+                                    value={newIntentToLien.toDate}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, toDate: e.target.value })}
+                                />
+                            </div>
+                            <div className="col-span-2 space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Due Date</label>
+                                <Input
+                                    type="date"
+                                    value={newIntentToLien.dueDate}
+                                    onChange={(e) => setNewIntentToLien({ ...newIntentToLien, dueDate: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Add/Edit Billing Ticket Modal */}
             <Modal

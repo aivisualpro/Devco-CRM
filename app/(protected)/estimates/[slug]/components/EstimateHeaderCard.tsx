@@ -969,7 +969,28 @@ export function EstimateHeaderCard({
                                     `}
                                             style={hasValue ? { backgroundColor: activeColor } : {}}
                                         >
-                                            <Activity className="w-5 h-5" />
+                                            {hasValue ? (
+                                                <span 
+                                                    className={`font-black uppercase leading-none text-center px-0.5 ${
+                                                        (formData.status?.length || 0) <= 4 
+                                                            ? 'text-[9px]' 
+                                                            : (formData.status?.length || 0) <= 7 
+                                                                ? 'text-[7px]' 
+                                                                : 'text-[6px]'
+                                                    }`}
+                                                    style={{ 
+                                                        wordBreak: 'break-word',
+                                                        maxWidth: '40px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    {formData.status}
+                                                </span>
+                                            ) : (
+                                                <Activity className="w-5 h-5" />
+                                            )}
                                         </div>
                                     );
                                 })()}

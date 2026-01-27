@@ -172,6 +172,25 @@ export interface IEstimate extends Document {
         createdBy?: string;
         createdAt?: Date;
     }>;
+    coiDocument?: {
+        url: string;
+        name: string;
+        uploadedAt: string;
+    };
+    legalDocs?: Array<{
+        url: string;
+        name: string;
+        type: string;
+        uploadedAt: string;
+    }>;
+    intentToLien?: Array<{
+        _id?: string;
+        arBalance?: string;
+        fromDate?: string;
+        toDate?: string;
+        dueDate?: string;
+        createdAt?: Date;
+    }>;
 }
 
 const EstimateSchema = new Schema({
@@ -357,6 +376,25 @@ const EstimateSchema = new Schema({
         }],
         lumpSum: { type: String },
         createdBy: { type: String },
+        createdAt: { type: Date, default: Date.now }
+    }],
+    coiDocument: {
+        url: { type: String },
+        name: { type: String },
+        uploadedAt: { type: String }
+    },
+    legalDocs: [{
+        url: { type: String },
+        name: { type: String },
+        type: { type: String },
+        uploadedAt: { type: String }
+    }],
+    intentToLien: [{
+        _id: { type: String },
+        arBalance: { type: String },
+        fromDate: { type: String },
+        toDate: { type: String },
+        dueDate: { type: String },
         createdAt: { type: Date, default: Date.now }
     }]
 }, {
