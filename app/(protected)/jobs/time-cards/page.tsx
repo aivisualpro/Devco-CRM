@@ -330,9 +330,10 @@ export default function TimeCardPage() {
     const [filType, setFilType] = useState('');
 
     // Tree Selection
-    // nodeType: 'ROOT' | 'YEAR' | 'WEEK' | 'EMPLOYEE'
-    // nodeValue: identifying string (e.g. '2025', '2025-52', '2025-52-email@co.com')
+    // nodeType: 'ROOT' | 'YEAR' | 'WEEK' | 'EMPLOYEE' | 'DATE'
+    // nodeValue: identifying string (e.g. '2025', '2025-52', '2025-52-email@co.com', 'D-2025-52-email@co.com-01/23/2026')
     const [selectedNode, setSelectedNode] = useState<{ type: string, value: string }>({ type: 'ROOT', value: 'All' });
+    const [selectedEmployeeEmail, setSelectedEmployeeEmail] = useState<string>(''); // Track selected employee for Add modal
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
     const [isMobile, setIsMobile] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
@@ -528,11 +529,22 @@ export default function TimeCardPage() {
             
             if (!root.years[year].weeks[weekKey].employees[empKey]) {
                 root.years[year].weeks[weekKey].employees[empKey] = {
-                    id: `E-${weekKey}-${empKey}`, label: empLabel, totalHours: 0, records: []
+                    id: `E-${weekKey}-${empKey}`, label: empLabel, email: empKey, totalHours: 0, dates: {}, records: []
                 };
             }
             root.years[year].weeks[weekKey].employees[empKey].totalHours += (r.hoursVal || 0);
             root.years[year].weeks[weekKey].employees[empKey].records.push(r);
+
+            // Date Node under Employee
+            const dateStr = formatDateOnly(r.clockIn); // MM/DD/YYYY format
+            const dateKey = `${empKey}-${dateStr}`;
+            if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
+                root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
+                    id: `D-${weekKey}-${dateKey}`, label: dateStr, totalHours: 0, records: []
+                };
+            }
+            root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours += (r.hoursVal || 0);
+            root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].records.push(r);
         });
 
         return root;
@@ -554,6 +566,11 @@ export default function TimeCardPage() {
             if (selectedNode.type === 'YEAR') return `Y-${year}` === selectedNode.value;
             if (selectedNode.type === 'WEEK') return `W-${weekKey}` === selectedNode.value;
             if (selectedNode.type === 'EMPLOYEE') return `E-${weekKey}-${r.employee}` === selectedNode.value;
+            if (selectedNode.type === 'DATE') {
+                const dateStr = formatDateOnly(r.clockIn);
+                const dateKey = `${r.employee}-${dateStr}`;
+                return `D-${weekKey}-${dateKey}` === selectedNode.value;
+            }
             return true;
         });
     }, [filteredRecords, selectedNode]);
@@ -888,7 +905,8 @@ export default function TimeCardPage() {
 
     const openAddModal = () => {
         setAddForm({
-            type: 'Drive Time'
+            type: 'Drive Time',
+            employee: selectedEmployeeEmail || '' // Auto-fill employee if selected in tree
         });
         setIsAddModalOpen(true);
     };
@@ -1054,8 +1072,14 @@ export default function TimeCardPage() {
         });
     };
 
-    const selectNode = (type: string, value: string) => {
+    const selectNode = (type: string, value: string, employeeEmail?: string) => {
         setSelectedNode({ type, value });
+        // Track employee email for auto-fill when adding new records
+        if (type === 'EMPLOYEE' || type === 'DATE') {
+            setSelectedEmployeeEmail(employeeEmail || '');
+        } else {
+            setSelectedEmployeeEmail('');
+        }
     };
 
     // Lists for Filters
@@ -1321,23 +1345,66 @@ export default function TimeCardPage() {
                                                             {/* Employees */}
                                                             {isWeekExpanded && (
                                                                 <div className="pl-6 mt-1 space-y-0.5 border-l border-slate-200 ml-2">
-                                                                    {Object.values(week.employees).sort((a: any, b: any) => a.label.localeCompare(b.label)).map((emp: any) => (
-                                                                        <div 
-                                                                            key={emp.id}
-                                                                            onClick={() => selectNode('EMPLOYEE', emp.id)}
-                                                                            className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors
-                                                                                ${selectedNode.value === emp.id ? 'bg-[#0F4C75] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}
-                                                                            `}
-                                                                        >
-                                                                             <div className="flex items-center gap-2 min-w-0">
-                                                                                <User size={12} className={selectedNode.value === emp.id ? 'text-white' : 'text-slate-400'} />
-                                                                                <span className="text-[11px] font-bold truncate">{emp.label}</span>
-                                                                             </div>
-                                                                             <span className={`text-[9px] font-mono font-bold px-1.5 rounded ${selectedNode.value === emp.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                                                {emp.totalHours.toFixed(2)}
-                                                                             </span>
-                                                                        </div>
-                                                                    ))}
+                                                                    {Object.values(week.employees).sort((a: any, b: any) => a.label.localeCompare(b.label)).map((emp: any) => {
+                                                                        const isEmpExpanded = expandedNodes.has(emp.id);
+                                                                        const isEmpSelected = selectedNode.value === emp.id;
+                                                                        
+                                                                        return (
+                                                                            <div key={emp.id}>
+                                                                                <div 
+                                                                                    onClick={() => selectNode('EMPLOYEE', emp.id, emp.email)}
+                                                                                    className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors
+                                                                                        ${isEmpSelected ? 'bg-[#0F4C75] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}
+                                                                                    `}
+                                                                                >
+                                                                                    <div className="flex items-center gap-1.5 min-w-0">
+                                                                                        <button 
+                                                                                            onClick={(e) => toggleNode(emp.id, e)}
+                                                                                            className={`p-0.5 hover:bg-black/5 rounded shrink-0 ${isEmpSelected ? 'text-white/70' : 'text-slate-400'}`}
+                                                                                        >
+                                                                                            {isEmpExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                                                                        </button>
+                                                                                        <User size={12} className={isEmpSelected ? 'text-white' : 'text-slate-400'} />
+                                                                                        <span className="text-[11px] font-bold truncate">{emp.label}</span>
+                                                                                    </div>
+                                                                                    <span className={`text-[9px] font-mono font-bold px-1.5 rounded ${isEmpSelected ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                                                                        {emp.totalHours.toFixed(2)}
+                                                                                    </span>
+                                                                                </div>
+                                                                                
+                                                                                {/* Dates under Employee */}
+                                                                                {isEmpExpanded && (
+                                                                                    <div className="pl-6 mt-1 space-y-0.5 border-l border-slate-100 ml-2">
+                                                                                        {Object.values(emp.dates).sort((a: any, b: any) => {
+                                                                                            // Sort dates descending (newest first)
+                                                                                            const dateA = new Date(a.label.split('/').reverse().join('-'));
+                                                                                            const dateB = new Date(b.label.split('/').reverse().join('-'));
+                                                                                            return dateB.getTime() - dateA.getTime();
+                                                                                        }).map((dateNode: any) => {
+                                                                                            const isDateSelected = selectedNode.value === dateNode.id;
+                                                                                            return (
+                                                                                                <div 
+                                                                                                    key={dateNode.id}
+                                                                                                    onClick={() => selectNode('DATE', dateNode.id, emp.email)}
+                                                                                                    className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors
+                                                                                                        ${isDateSelected ? 'bg-green-600 text-white shadow-sm' : 'text-slate-400 hover:bg-slate-50'}
+                                                                                                    `}
+                                                                                                >
+                                                                                                    <div className="flex items-center gap-2 min-w-0">
+                                                                                                        <CalendarIcon size={10} className={isDateSelected ? 'text-white' : 'text-slate-300'} />
+                                                                                                        <span className="text-[10px] font-bold">{dateNode.label}</span>
+                                                                                                    </div>
+                                                                                                    <span className={`text-[8px] font-mono font-bold px-1 rounded ${isDateSelected ? 'bg-white/20 text-white' : 'bg-slate-50 text-slate-400'}`}>
+                                                                                                        {dateNode.totalHours.toFixed(2)}
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                            );
+                                                                                        })}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             )}
                                                         </div>

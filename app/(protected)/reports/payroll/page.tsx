@@ -1373,7 +1373,7 @@ function PayrollReportContent() {
                                     if (!editForm.estimate) return [];
                                     const estNorm = normalizeEst(editForm.estimate);
                                     return rawSchedules
-                                        .filter(s => normalizeEst(s.estimate) === estNorm)
+                                        .filter(s => normalizeEst(s.estimate) === estNorm && s.item !== 'Day Off')
                                         .sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime())
                                         .map(s => ({
                                             value: s._id,
