@@ -369,6 +369,23 @@ function DashboardContent() {
     const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
+    // Action Confirmation State (for Drive Time, Dump Washout, Shop Time)
+    const [actionConfirm, setActionConfirm] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        confirmText: string;
+        variant: 'danger' | 'primary' | 'dark';
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Confirm',
+        variant: 'primary',
+        onConfirm: () => {}
+    });
+
     // Chat States
     const [messages, setMessages] = useState<any[]>([]);
     const [isChatLoading, setIsChatLoading] = useState(false);
@@ -423,7 +440,7 @@ function DashboardContent() {
         }
     };
 
-    const handleQuickTimesheet = async (schedule: Schedule, type: string) => {
+    const executeQuickTimesheet = async (schedule: Schedule, type: string) => {
         if (!currentUser) return;
         
         const unitHours = type === 'Dump Washout' ? 0.50 : 0.25;
@@ -830,7 +847,7 @@ function DashboardContent() {
         }
     };
 
-    const handleDriveTimeToggle = async (schedule: Schedule, activeTs?: any, e?: React.MouseEvent) => {
+    const executeDriveTimeToggle = async (schedule: Schedule, activeTs?: any, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (!currentUser) return;
 
@@ -896,6 +913,41 @@ function DashboardContent() {
             showError('Network error');
             fetchDashboardData(); // Revert on failure
         }
+    };
+
+    // Wrapper functions with confirmation dialogs
+    const handleDriveTimeToggle = (schedule: Schedule, activeTs?: any, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        const isStopping = !!activeTs;
+        setActionConfirm({
+            isOpen: true,
+            title: isStopping ? 'Stop Drive Time' : 'Start Drive Time',
+            message: `Are you sure you want to ${isStopping ? 'STOP' : 'START'} Drive Time?`,
+            confirmText: isStopping ? 'Stop' : 'Start',
+            variant: isStopping ? 'danger' : 'primary',
+            onConfirm: () => executeDriveTimeToggle(schedule, activeTs, e)
+        });
+    };
+
+    const handleQuickTimesheet = (schedule: Schedule, type: string, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        
+        const isIncrement = (schedule.timesheet || []).some((ts: any) => 
+            ts.employee?.toLowerCase() === (currentUser?.email?.toLowerCase() || '') &&
+            ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
+             (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
+        );
+        
+        const actionWord = isIncrement ? 'INCREMENT' : 'REGISTER';
+
+        setActionConfirm({
+            isOpen: true,
+            title: `${type}`,
+            message: `Are you sure you want to ${actionWord} ${type}?`,
+            confirmText: 'Confirm',
+            variant: 'primary',
+            onConfirm: () => executeQuickTimesheet(schedule, type)
+        });
     };
 
     // Chat Functions
@@ -1444,7 +1496,7 @@ function DashboardContent() {
                                                         setDjtModalOpen(true);
                                                     }}
                                                     onToggleDriveTime={(item, activeTs, e) => handleDriveTimeToggle(item, activeTs, e)}
-                                                    onQuickTimesheet={handleQuickTimesheet}
+                                                    onQuickTimesheet={(item, type, e) => handleQuickTimesheet(item, type, e)}
                                                     onViewTimesheet={(item, ts, e) => {
                                                         if (e) e.stopPropagation();
                                                         setSelectedTimesheet(ts);
@@ -2056,6 +2108,18 @@ function DashboardContent() {
                 confirmText="Delete"
                 cancelText="Cancel"
                 variant="danger"
+            />
+
+            {/* Action Confirmation Modal (Drive Time, Dump Washout, Shop Time) */}
+            <ConfirmModal
+                isOpen={actionConfirm.isOpen}
+                onClose={() => setActionConfirm(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={actionConfirm.onConfirm}
+                title={actionConfirm.title}
+                message={actionConfirm.message}
+                confirmText={actionConfirm.confirmText}
+                cancelText="Cancel"
+                variant={actionConfirm.variant}
             />
 
             {/* Email Modal */}

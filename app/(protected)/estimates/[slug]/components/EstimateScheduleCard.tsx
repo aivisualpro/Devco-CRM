@@ -66,6 +66,23 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
     // Email State (for JHA/DJT PDF emailing if needed)
     const [emailModalOpen, setEmailModalOpen] = useState(false);
 
+    // Action Confirmation State (for Drive Time, Dump Washout, Shop Time)
+    const [actionConfirm, setActionConfirm] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        confirmText: string;
+        variant: 'danger' | 'primary' | 'dark';
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Confirm',
+        variant: 'primary',
+        onConfirm: () => {}
+    });
+
     // Delete Schedule Handler
     const handleDeleteSchedule = async () => {
         if (!deleteId) return;
@@ -375,71 +392,86 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                                 setIsDjtEditMode(true);
                                 setDjtModalOpen(true);
                             }}
-                            onToggleDriveTime={async (item, activeTs, e) => {
+                            onToggleDriveTime={(item, activeTs, e) => {
                                 if (e) e.stopPropagation();
-                                if (!currentUser) return;
-                                const now = new Date().toISOString();
-                                const employeeEmail = currentUser.email; // Fallback?
-
-                                // Optimistic
-                                if (activeTs) {
-                                    setSchedules(prev => prev.map(s => {
-                                        if (s._id !== item._id) return s;
-                                        return { ...s, timesheet: (s.timesheet || []).map(ts => ts._id === activeTs._id ? { ...ts, clockOut: now } : ts) };
-                                    }));
-                                } else {
-                                     // Clock In Logic (Simplified for optimistic update or handled by API primarily?)
-                                     // The page.tsx logic had a more complex optimistic update, let's try to replicate if possible or rely on API refresh.
-                                     // For now, let's keep it simple or copy what was there if we have it fully viewing.
-                                     // Since I didn't copy the full complex logic from page.tsx (it was cut off in previous views), 
-                                     // I will implement the API call and basic optimistic update.
-                                }
-
-                                try {
-                                    const res = await fetch('/api/schedules', {
-                                        method: 'POST',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ 
-                                            action: 'toggleDriveTime', 
-                                            scheduleId: item._id,
-                                            employee: currentUser.email
-                                        })
-                                    });
-                                    const data = await res.json();
-                                    if (data.success) {
-                                        // Update with server data
-                                        setSchedules(prev => prev.map(s => s._id === item._id ? { ...s, timesheet: data.timesheet } : s));
-                                        success(activeTs ? 'Clocked Out' : 'Clocked In');
-                                    } else {
-                                        toastError(data.error);
+                                const isStopping = !!activeTs;
+                                setActionConfirm({
+                                    isOpen: true,
+                                    title: isStopping ? 'Stop Drive Time' : 'Start Drive Time',
+                                    message: `Are you sure you want to ${isStopping ? 'STOP' : 'START'} Drive Time?`,
+                                    confirmText: isStopping ? 'Stop' : 'Start',
+                                    variant: isStopping ? 'danger' : 'primary',
+                                    onConfirm: async () => {
+                                        if (!currentUser) return;
+                                        const now = new Date().toISOString();
+                                        // Optimistic
+                                        if (activeTs) {
+                                            setSchedules(prev => prev.map(s => {
+                                                if (s._id !== item._id) return s;
+                                                return { ...s, timesheet: (s.timesheet || []).map(ts => ts._id === activeTs._id ? { ...ts, clockOut: now } : ts) };
+                                            }));
+                                        }
+                                        try {
+                                            const res = await fetch('/api/schedules', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ 
+                                                    action: 'toggleDriveTime', 
+                                                    scheduleId: item._id,
+                                                    employee: currentUser.email
+                                                })
+                                            });
+                                            const data = await res.json();
+                                            if (data.success) {
+                                                setSchedules(prev => prev.map(s => s._id === item._id ? { ...s, timesheet: data.timesheet } : s));
+                                                success(activeTs ? 'Clocked Out' : 'Clocked In');
+                                            } else {
+                                                toastError(data.error);
+                                            }
+                                        } catch (e) { console.error(e); }
                                     }
-                                } catch (e) { console.error(e); }
+                                });
                             }}
-                            onQuickTimesheet={async (item, type, e) => {
+                            onQuickTimesheet={(item, type, e) => {
                                 if (e) e.stopPropagation();
-                                if (!currentUser) return;
-                                try {
-                                    const res = await fetch('/api/schedules', {
-                                        method: 'POST',
-                                        headers: {'Content-Type': 'application/json'},
-                                        body: JSON.stringify({
-                                            action: 'quickTimesheet',
-                                            scheduleId: item._id,
-                                            employee: currentUser.email,
-                                            type
-                                        })
-                                    });
-                                    const data = await res.json();
-                                    if (data.success) {
-                                        setSchedules(prev => prev.map(s => s._id === item._id ? { ...s, timesheet: data.timesheet } : s));
-                                        success(`${type} Recorded`);
-                                    } else {
-                                        toastError(data.error);
+                                const isIncrement = (item.timesheet || []).some((ts: any) => 
+                                    ts.employee?.toLowerCase() === (currentUser?.email?.toLowerCase() || '') &&
+                                    ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
+                                     (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
+                                );
+                                const actionWord = isIncrement ? 'INCREMENT' : 'REGISTER';
+                                setActionConfirm({
+                                    isOpen: true,
+                                    title: `${type}`,
+                                    message: `Are you sure you want to ${actionWord} ${type}?`,
+                                    confirmText: 'Confirm',
+                                    variant: 'primary',
+                                    onConfirm: async () => {
+                                        if (!currentUser) return;
+                                        try {
+                                            const res = await fetch('/api/schedules', {
+                                                method: 'POST',
+                                                headers: {'Content-Type': 'application/json'},
+                                                body: JSON.stringify({
+                                                    action: 'quickTimesheet',
+                                                    scheduleId: item._id,
+                                                    employee: currentUser.email,
+                                                    type
+                                                })
+                                            });
+                                            const data = await res.json();
+                                            if (data.success) {
+                                                setSchedules(prev => prev.map(s => s._id === item._id ? { ...s, timesheet: data.timesheet } : s));
+                                                success(`${type} Recorded`);
+                                            } else {
+                                                toastError(data.error);
+                                            }
+                                        } catch (e) {
+                                            console.error(e);
+                                            toastError('Failed to update timesheet');
+                                        }
                                     }
-                                } catch (e) {
-                                    console.error(e);
-                                    toastError('Failed to update timesheet');
-                                }
+                                });
                             }}
                         />
                     ))}
@@ -562,6 +594,18 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                 title="Delete Schedule"
                 message="Are you sure you want to delete this schedule? This action cannot be undone."
                 onConfirm={handleDeleteSchedule}
+            />
+
+            {/* Action Confirmation Modal (Drive Time, Dump Washout, Shop Time) */}
+            <ConfirmModal
+                isOpen={actionConfirm.isOpen}
+                onClose={() => setActionConfirm(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={actionConfirm.onConfirm}
+                title={actionConfirm.title}
+                message={actionConfirm.message}
+                confirmText={actionConfirm.confirmText}
+                cancelText="Cancel"
+                variant={actionConfirm.variant}
             />
 
             {/* Schedule Detail Modal - Reusing dashboard component */}

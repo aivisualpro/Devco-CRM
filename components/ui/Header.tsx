@@ -468,8 +468,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
             {isMobileMenuOpen && (
                 <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 md:hidden">
                     <div className="flex flex-col h-full">
-                         <div className="flex items-center justify-between p-4 border-b border-slate-100">
-                            <span className="text-xl font-black text-[#0F4C75] tracking-tighter">MENU</span>
+                         <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
+                            <span className="text-xl font-black text-slate-800 tracking-tight uppercase">Menu</span>
                             <button 
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
@@ -477,57 +477,46 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 <X size={24} className="text-slate-600" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                            {menuStructure.map((section, idx) => (
-                                <div key={idx}>
-                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-2">{section.label}</h3>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {section.items?.map((item, i) => {
-                                            const Icon = item.icon as any;
-                                            // Handle ReactNode icon vs standard rendering if needed, 
-                                            // but for now relying on existing structure where icon is ReactNode
-                                            // effectively we might just want to clone it or render it.
-                                            // The header structure has `icon: <Users .../>` (ReactElement)
-                                            return (
-                                                <button
-                                                    key={i}
-                                                    onClick={() => {
-                                                        router.push(item.href);
-                                                        setIsMobileMenuOpen(false);
-                                                    }}
-                                                    className="flex flex-col items-center justify-center p-3 bg-slate-50 rounded-2xl border border-slate-100 active:scale-95 transition-all"
-                                                >
-                                                    <div className={`w-10 h-10 rounded-xl mb-2 flex items-center justify-center bg-slate-100`}>
-                                                        {item.icon}
-                                                    </div>
-                                                    <span className="text-xs font-bold text-slate-700 text-center leading-tight">{item.label}</span>
-                                                </button>
-                                            )
-                                        })}
-                                        {/* Direct Href */}
-                                        {section.href && (
-                                            <button
-                                                onClick={() => {
-                                                    router.push(section.href as string);
-                                                    setIsMobileMenuOpen(false);
-                                                }}
-                                                className="col-span-2 flex items-center gap-4 p-4 bg-[#0F4C75] text-white rounded-2xl shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
-                                            >
-                                                <MessageSquare size={24} className="text-white" />
-                                                <span className="text-lg font-black tracking-tight">{section.label}</span>
-                                            </button>
-                                        )}
-                                    </div>
+                        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                            <div>
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 pl-1">Settings</h3>
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => {
+                                            router.push('/settings/knowledgebase');
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
+                                            pathname.startsWith('/settings/knowledgebase') 
+                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
+                                                : 'bg-slate-50/80 border-slate-100 hover:bg-slate-100/80 hover:border-slate-200'
+                                        }`}
+                                    >
+                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-50 text-blue-500 shadow-sm">
+                                            <BookOpen size={24} />
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <span className={`text-base font-bold block ${pathname.startsWith('/settings/knowledgebase') ? 'text-[#0F4C75]' : 'text-slate-700'}`}>
+                                                Knowledgebase
+                                            </span>
+                                            <span className="text-xs text-slate-500 mt-0.5 block">
+                                                Help articles & guides
+                                            </span>
+                                        </div>
+                                        <div className={`w-2 h-2 rounded-full ${pathname.startsWith('/settings/knowledgebase') ? 'bg-[#0F4C75]' : 'bg-slate-200'}`} />
+                                    </button>
                                 </div>
-                            ))}
+                            </div>
                             
-                            <div className="pt-4 border-t border-slate-100">
+                            <div className="pt-6 border-t border-slate-100">
                                 <button 
                                     onClick={() => {
                                          handleLogout();
+                                         setIsMobileMenuOpen(false);
                                     }}
-                                    className="w-full flex items-center justify-center gap-2 p-4 bg-rose-50 text-rose-600 rounded-2xl font-bold"
+                                    className="w-full flex items-center justify-center gap-3 p-4 bg-rose-50 text-rose-600 rounded-2xl font-bold border border-rose-100/50 active:scale-95 transition-all"
                                 >
+                                    <LogOut size={20} />
                                     Log Out
                                 </button>
                             </div>
