@@ -1512,7 +1512,7 @@ export default function EstimateViewPage() {
     };
 
     const handleGlobalSave = async (options: { silent?: boolean } = {}) => {
-        if (!estimate || !formData) return;
+        if (!estimate || !formData || !catalogsLoaded) return;
         if (!options.silent) setSaving(true);
         try {
             const payload = {

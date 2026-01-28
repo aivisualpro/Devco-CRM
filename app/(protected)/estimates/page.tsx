@@ -25,6 +25,7 @@ interface Estimate {
     subTotal?: number;
     margin?: number;
     versionNumber?: number;
+    projectName?: string;
     services?: string[];
     fringe?: string;
     certifiedPayroll?: string;
@@ -330,7 +331,8 @@ export default function EstimatesPage() {
             filtered = filtered.filter((e) =>
                 (e.estimate || '').toLowerCase().includes(s) ||
                 (e.customerName || '').toLowerCase().includes(s) ||
-                (e.proposalNo || '').toLowerCase().includes(s)
+                (e.proposalNo || '').toLowerCase().includes(s) ||
+                (e.projectName || '').toLowerCase().includes(s)
             );
         }
 
@@ -697,47 +699,52 @@ export default function EstimatesPage() {
                         >
                             <TableHead>
                                 <TableRow>
-                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
-                                        <div className="flex items-center">Estimate<SortIcon column="estimate" /></div>
+                                    <TableHeader onClick={() => handleSort('estimate')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-20">
+                                        <div className="flex items-center">Est.<SortIcon column="estimate" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-16 text-[10px]">
-                                        <div className="flex items-center">V.<SortIcon column="versionNumber" /></div>
+                                    {!showFinals && (
+                                        <TableHeader onClick={() => handleSort('versionNumber')} className="cursor-pointer hover:bg-gray-100 w-12 text-[10px]">
+                                            <div className="flex items-center">V.<SortIcon column="versionNumber" /></div>
+                                        </TableHeader>
+                                    )}
+                                    <TableHeader onClick={() => handleSort('projectName')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-32">
+                                        <div className="flex items-center">Project<SortIcon column="projectName" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader onClick={() => handleSort('date')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-20">
                                         <div className="flex items-center">Date<SortIcon column="date" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-50">
+                                    <TableHeader onClick={() => handleSort('customerName')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-40">
                                         <div className="flex items-center">Customer<SortIcon column="customerName" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader onClick={() => handleSort('proposalWriter')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-12 text-center">
                                         Writer
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader onClick={() => handleSort('fringe')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-16">
                                         Fringe
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader onClick={() => handleSort('certifiedPayroll')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-10">
                                         CP
                                     </TableHeader>
-                                    <TableHeader className="text-[10px]">Services</TableHeader>
-                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader className="text-[10px] w-20">Services</TableHeader>
+                                    <TableHeader onClick={() => handleSort('subTotal')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-20">
                                         <div className="flex items-center">Sub<SortIcon column="subTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader onClick={() => handleSort('bidMarkUp')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-10">
                                         <div className="flex items-center">%<SortIcon column="bidMarkUp" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader onClick={() => handleSort('margin')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-20">
                                         <div className="flex items-center">Margin<SortIcon column="margin" /></div>
                                     </TableHeader>
-                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-[9px] whitespace-nowrap">
+                                    <TableHeader onClick={() => handleSort('grandTotal')} className="cursor-pointer hover:bg-gray-100 text-[9px] w-24 whitespace-nowrap">
                                         <div className="flex items-center">Org. Cont<SortIcon column="grandTotal" /></div>
                                     </TableHeader>
-                                    <TableHeader className="text-[9px] whitespace-nowrap">Chg. Order</TableHeader>
-                                    <TableHeader className="text-[9px] whitespace-nowrap">Upd. Contract</TableHeader>
-                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-[10px]">
+                                    <TableHeader className="text-[9px] w-20 whitespace-nowrap">Chg. Order</TableHeader>
+                                    <TableHeader className="text-[9px] w-24 whitespace-nowrap">Upd. Contract</TableHeader>
+                                    <TableHeader onClick={() => handleSort('status')} className="cursor-pointer hover:bg-gray-100 text-[10px] w-20">
                                         <div className="flex items-center">Status<SortIcon column="status" /></div>
                                     </TableHeader>
                                     {currentUserEmail === 'adeel@devco-inc.com' && (
-                                        <TableHeader className="w-10">
+                                        <TableHeader className="w-8">
                                             <span className="sr-only">Sync</span>
                                         </TableHeader>
                                     )}
@@ -747,7 +754,7 @@ export default function EstimatesPage() {
                             <TableBody>
                                 {paginatedEstimates.length === 0 ? (
                                     <TableRow>
-                                        <TableCell className="text-center py-8 text-gray-500" colSpan={14}>
+                                        <TableCell className="text-center py-8 text-gray-500" colSpan={20}>
                                             <div className="flex flex-col items-center justify-center">
                                                 <p className="text-base font-medium text-gray-900">No estimates found</p>
                                                 <p className="text-sm text-gray-500 mt-1">Create your first estimate to get started.</p>
@@ -774,20 +781,32 @@ export default function EstimatesPage() {
                                                     router.push(`/estimates/${slug}`);
                                                 }}
                                             >
-                                                <TableCell className="font-medium text-gray-900 text-[10px]">
+                                                <TableCell className="font-medium text-gray-900 text-[10px] whitespace-nowrap">
                                                     {est.estimate || '-'}
                                                 </TableCell>
-                                                <TableCell>
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
-                                                        V.{est.versionNumber || 1}
-                                                    </span>
+                                                {!showFinals && (
+                                                    <TableCell>
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
+                                                            V.{est.versionNumber || 1}
+                                                        </span>
+                                                    </TableCell>
+                                                )}
+                                                <TableCell className="text-[10px] max-w-[120px]">
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <div className="truncate font-medium text-[#0F4C75]">{est.projectName || '-'}</div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{est.projectName || 'No Project Name'}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <div className="text-gray-500 text-[10px]">
+                                                    <div className="text-gray-500 text-[10px] whitespace-nowrap">
                                                         {est.date || '-'}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="text-[10px] max-w-[150px]">
+                                                <TableCell className="text-[10px] max-w-[140px]">
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <div className="truncate">{getCustomerName(est)}</div>
@@ -867,7 +886,7 @@ export default function EstimatesPage() {
                                                         )) : <span className="text-gray-400 text-[10px]">-</span>}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-[10px]">
+                                                <TableCell className="font-medium text-[10px] whitespace-nowrap">
                                                     {formatCurrency(est.subTotal)}
                                                 </TableCell>
                                                 <TableCell>
@@ -875,13 +894,13 @@ export default function EstimatesPage() {
                                                         {est.bidMarkUp ? String(est.bidMarkUp).replace('%', '') : '-'}
                                                     </span>
                                                 </TableCell>
-                                                <TableCell className="font-medium text-green-600 text-[10px]">
+                                                <TableCell className="font-medium text-green-600 text-[10px] whitespace-nowrap">
                                                     {formatCurrency(est.margin)}
                                                 </TableCell>
-                                                <TableCell className="font-bold text-gray-900 text-[9px]">
+                                                <TableCell className="font-bold text-gray-900 text-[9px] whitespace-nowrap">
                                                     {formatCurrency(est.grandTotal)}
                                                 </TableCell>
-                                                <TableCell className="font-medium text-amber-600 text-[9px]">
+                                                <TableCell className="font-medium text-amber-600 text-[9px] whitespace-nowrap">
                                                     {(() => {
                                                         const coTotal = estimates
                                                             .filter(e => e.estimate === est.estimate && e.isChangeOrder)
@@ -889,7 +908,7 @@ export default function EstimatesPage() {
                                                         return formatCurrency(coTotal);
                                                     })()}
                                                 </TableCell>
-                                                <TableCell className="font-bold text-blue-900 text-[9px]">
+                                                <TableCell className="font-bold text-blue-900 text-[9px] whitespace-nowrap">
                                                     {(() => {
                                                         const coTotal = estimates
                                                             .filter(e => e.estimate === est.estimate && e.isChangeOrder)
@@ -950,7 +969,7 @@ export default function EstimatesPage() {
                                 )}
                                 {visibleCount < filteredEstimates.length && (
                                      <TableRow>
-                                        <TableCell colSpan={16} className="p-0 border-none">
+                                        <TableCell colSpan={20} className="p-0 border-none">
                                             <div ref={observerTarget} className="h-4 w-full" />
                                         </TableCell>
                                      </TableRow>

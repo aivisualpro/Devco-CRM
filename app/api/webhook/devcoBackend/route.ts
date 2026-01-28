@@ -1416,15 +1416,29 @@ export async function POST(request: NextRequest) {
                     if (e['billingTerms']) cleanData.billingTerms = e['billingTerms'];
                     if (e['otherBilling Terms']) cleanData.otherBillingTerms = e['otherBilling Terms'];
 
-                    // Header Mapping for Totals
-                    if (cleanData['Grand Total']) cleanData.grandTotal = cleanData['Grand Total'];
-                    if (cleanData['Sub Total']) cleanData.subTotal = cleanData['Sub Total'];
-                    if (cleanData['Margin']) cleanData.margin = cleanData['Margin'];
+                    // Header Mapping for Totals (More robust aliases)
+                    const grandTotalVal = getValue(e, ['Grand Total', 'grandTotal', 'Org. Cont', 'Total', 'Contract Amount', 'Amount']);
+                    const subTotalVal = getValue(e, ['Sub Total', 'subTotal', 'Sub', 'Subtotal', 'Cost Amount']);
+                    const marginVal = getValue(e, ['Margin', 'margin', 'Profit', 'Profit Amount']);
+                    const markUpVal = getValue(e, ['Markup', 'markup', 'bidMarkUp', 'MarkUp', '%']);
+
+                    if (grandTotalVal !== undefined) cleanData.grandTotal = grandTotalVal;
+                    if (subTotalVal !== undefined) cleanData.subTotal = subTotalVal;
+                    if (marginVal !== undefined) cleanData.margin = marginVal;
+                    if (markUpVal !== undefined) cleanData.bidMarkUp = markUpVal;
 
                     // Parse Numbers
                     if (cleanData.grandTotal !== undefined) cleanData.grandTotal = parseVal(cleanData.grandTotal);
                     if (cleanData.subTotal !== undefined) cleanData.subTotal = parseVal(cleanData.subTotal);
                     if (cleanData.margin !== undefined) cleanData.margin = parseVal(cleanData.margin);
+                    
+                    // If Margin is present but Grand Total is 0, attempt a reconstruction 
+                    // (This helps with imports where only partial totals were provided)
+                    if ((cleanData.grandTotal === 0 || !cleanData.grandTotal) && cleanData.margin > 0 && cleanData.subTotal > 0) {
+                        cleanData.grandTotal = cleanData.subTotal + cleanData.margin;
+                    } else if ((cleanData.margin === 0 || !cleanData.margin) && cleanData.grandTotal > 0 && cleanData.subTotal > 0) {
+                        cleanData.margin = cleanData.grandTotal - cleanData.subTotal;
+                    }
 
                     // Ensure versionNumber is correct in cleanData
                     cleanData.versionNumber = vn;

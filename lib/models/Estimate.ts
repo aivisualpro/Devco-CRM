@@ -207,6 +207,16 @@ export interface IEstimate extends Document {
         createdBy?: string;
         createdAt?: string;
     }>;
+
+    // Line Items
+    labor?: any[];
+    equipment?: any[];
+    material?: any[];
+    tools?: any[];
+    overhead?: any[];
+    subcontractor?: any[];
+    disposal?: any[];
+    miscellaneous?: any[];
 }
 
 const EstimateSchema = new Schema({
