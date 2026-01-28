@@ -1074,32 +1074,27 @@ function TimeCardContent() {
             <div className="flex flex-col h-full bg-slate-50">
                     <Header 
                         hideLogo={false}
-                        rightContent={
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-slate-200">
-                                    <button 
-                                        onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
-                                        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
-                                    >
-                                        <ChevronLeft className="w-4 h-4 text-slate-600" />
-                                    </button>
-                                    <div className="flex items-center gap-2 px-2">
-                                        <CalendarIcon className="w-4 h-4 text-blue-600" />
-                                        <span className="font-semibold text-sm text-slate-800">{weekRange.label}</span>
-                                    </div>
-                                    <button 
-                                        onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
-                                        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
-                                    >
-                                        <ChevronRight className="w-4 h-4 text-slate-600" />
-                                    </button>
-                                    <button 
-                                        onClick={() => setCurrentWeekDate(new Date())}
-                                        className="text-xs font-medium text-blue-600 hover:text-blue-700 ml-2"
-                                    >
-                                        Today
-                                    </button>
-                                </div>
+                        centerContent={
+                            <div className="flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
+                                <button 
+                                    onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
+                                    className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={() => setCurrentWeekDate(new Date())}
+                                    className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors"
+                                    title="Go to Today"
+                                >
+                                    <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                                </button>
+                                <button 
+                                    onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
+                                    className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
                             </div>
                         }
                     />

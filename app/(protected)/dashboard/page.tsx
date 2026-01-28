@@ -323,6 +323,20 @@ function DashboardContent() {
         // Sort by clockIn date descending
         return allUserTimesheets.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
     }, [schedules, currentUser]);
+
+    // Computed Totals for Dashboard Widget
+    const timeCardTotals = useMemo(() => {
+        let drive = 0;
+        let site = 0;
+        dashboardTimeCards.forEach(ts => {
+            if (ts.type?.toLowerCase().includes('drive')) {
+                drive += (ts.hoursVal || 0);
+            } else {
+                site += (ts.hoursVal || 0);
+            }
+        });
+        return { drive, site };
+    }, [dashboardTimeCards]);
     
     // UI States
     const [loading, setLoading] = useState(true);
@@ -1651,13 +1665,27 @@ function DashboardContent() {
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
-                                        <Clock className="w-5 h-5 text-teal-600" />
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
+                                            <Clock className="w-5 h-5 text-teal-600" />
+                                        </div>
+                                        <div>
+                                            <h2 className="font-bold text-slate-900">Time Cards</h2>
+                                            <p className="md:hidden text-xs text-slate-500">Your recent activity</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h2 className="font-bold text-slate-900">Time Cards</h2>
-                                        <p className="md:hidden text-xs text-slate-500">Your recent activity</p>
+
+                                    <div className="flex items-center gap-2 md:gap-4 ml-1 md:ml-0">
+                                        <div className="flex flex-col md:items-end">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
+                                            <span className="text-sm font-black text-blue-600">{timeCardTotals.drive.toFixed(2)} hrs</span>
+                                        </div>
+                                        <div className="w-px h-8 bg-slate-100 hidden md:block" />
+                                        <div className="flex flex-col md:items-end">
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
+                                            <span className="text-sm font-black text-emerald-600">{timeCardTotals.site.toFixed(2)} hrs</span>
+                                        </div>
                                     </div>
                                 </div>
                                 
