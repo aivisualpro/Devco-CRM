@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Calendar, Clock, Menu, X, BookOpen, Settings } from 'lucide-react';
+import { Calendar, Clock, Menu, X, BookOpen, Settings, MessageSquare } from 'lucide-react';
 
 const MobileNav = () => {
     const pathname = usePathname();
@@ -12,12 +12,19 @@ const MobileNav = () => {
 
     const tabs = [
         { label: 'SCHEDULES', href: '/dashboard', icon: Calendar },
+        { label: 'Chat', href: '/dashboard?view=chat', icon: MessageSquare },
         { label: 'Time Cards', href: '/jobs/time-cards', icon: Clock },
     ];
 
-    const isTabActive = (href: string) => {
-        if (href === '/dashboard') return pathname === '/dashboard';
-        return pathname.startsWith(href);
+    const isTabActive = (tabHref: string) => {
+        const view = searchParams.get('view');
+        if (tabHref === '/dashboard') {
+            return pathname === '/dashboard' && !view;
+        }
+        if (tabHref === '/dashboard?view=chat') {
+            return pathname === '/dashboard' && view === 'chat';
+        }
+        return pathname.startsWith(tabHref);
     };
 
     // Close modal on escape key
@@ -62,7 +69,10 @@ const MobileNav = () => {
                                 key={tab.label} 
                                 onClick={() => {
                                     const weekParam = searchParams.get('week');
-                                    const url = weekParam ? `${tab.href}?week=${weekParam}` : tab.href;
+                                    let url = tab.href;
+                                    if (weekParam) {
+                                        url += (url.includes('?') ? '&' : '?') + `week=${weekParam}`;
+                                    }
                                     router.push(url);
                                 }}
                                 onContextMenu={(e) => e.preventDefault()}

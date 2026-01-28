@@ -1355,7 +1355,7 @@ function DashboardContent() {
                     <div className="grid grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* Left Column - Main Content */}
-                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6">
+                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') === 'chat' ? 'hidden md:block' : ''}`}>
                             
                             {/* Upcoming Schedules */}
                             <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden">
@@ -1775,10 +1775,10 @@ function DashboardContent() {
                         </div>
 
                         {/* Right Sidebar - Chat & Activity */}
-                        <div className="hidden md:block col-span-12 xl:col-span-3 space-y-4 lg:space-y-6">
+                        <div className={`col-span-12 xl:col-span-3 space-y-4 lg:space-y-6 ${searchParams.get('view') === 'chat' ? 'block' : 'hidden md:block'}`}>
                             
                             {/* Recent Activity */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 overflow-hidden">
+                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 overflow-hidden ${searchParams.get('view') === 'chat' ? 'hidden md:block' : ''}`}>
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isSuperAdmin ? 'bg-indigo-100' : 'bg-emerald-100'}`}>
                                         {isSuperAdmin ? <Users className="w-5 h-5 text-indigo-600" /> : <ActivityIcon className="w-5 h-5 text-emerald-600" />}
@@ -1857,7 +1857,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Chat */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[500px]">
+                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col ${searchParams.get('view') === 'chat' ? 'h-[calc(100vh-160px)] md:h-[500px]' : 'h-[500px]'}`}>
                                 <div className="flex items-center justify-between p-4 border-b border-slate-100">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
@@ -1866,7 +1866,7 @@ function DashboardContent() {
                                         <div>
                                             <h2 className="font-bold text-slate-900">Chat</h2>
                                             <p className="text-xs text-slate-500">
-                                                {tagFilters.length > 0 ? `Filtered by: ${tagFilters.map(t => t.label).join(', ')}` : 'Team messages'}
+                                                {tagFilters.length > 0 ? `Filtered by: ${tagFilters.map(t => t.label).join(', ')}` : ''}
                                             </p>
                                         </div>
                                     </div>
