@@ -1243,7 +1243,10 @@ function DashboardContent() {
                                             <Calendar className="w-5 h-5 text-blue-600" />
                                         </div>
                                         <div>
-                                            <h2 className="font-bold text-slate-900">Upcoming Schedules</h2>
+                                            <h2 className="font-bold text-slate-900">
+                                                <span className="md:hidden">Schedules</span>
+                                                <span className="hidden md:inline">Upcoming Schedules</span>
+                                            </h2>
                                             <p className="text-xs text-slate-500">{schedules.length} jobs this week</p>
                                         </div>
                                     </div>
@@ -1257,7 +1260,7 @@ function DashboardContent() {
                                                         : 'text-slate-600 hover:text-slate-800'
                                                 }`}
                                             >
-                                                My Jobs
+                                                Self
                                             </button>
                                             <button 
                                                 onClick={() => setScheduleView('all')}
@@ -1267,7 +1270,7 @@ function DashboardContent() {
                                                         : 'text-slate-600 hover:text-slate-800'
                                                 }`}
                                             >
-                                                All Jobs
+                                                All
                                             </button>
                                         </div>
                                     </div>
