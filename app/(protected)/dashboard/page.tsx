@@ -159,6 +159,7 @@ const TodoColumn = ({
     onDragOver,
     onDrop,
     onEdit,
+    onCopy,
     onDelete
 }: { 
     title: string; 
@@ -168,6 +169,7 @@ const TodoColumn = ({
     onDragOver: (e: React.DragEvent) => void;
     onDrop: (e: React.DragEvent, status: string) => void;
     onEdit: (item: TodoItem) => void;
+    onCopy: (item: TodoItem, e: React.MouseEvent) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
 }) => (
     <div 
@@ -197,13 +199,46 @@ const TodoColumn = ({
                                 <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
                             )}
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                            <button 
-                                onClick={(e) => onDelete(item._id, e)}
-                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded transition-all"
-                            >
-                                <Trash2 size={12} />
-                            </button>
+                        <div className="flex flex-col items-end gap-1.5">
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                                                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                            >
+                                                <Edit size={12} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p className="text-[10px]">Edit Task</p></TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button 
+                                                onClick={(e) => onCopy(item, e)}
+                                                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                            >
+                                                <Copy size={12} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p className="text-[10px]">Copy Task</p></TooltipContent>
+                                    </Tooltip>
+
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button 
+                                                onClick={(e) => onDelete(item._id, e)}
+                                                className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
+                                            >
+                                                <Trash2 size={12} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p className="text-[10px]">Delete Task</p></TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
+                            </div>
                             {item.assignees && item.assignees.length > 0 && (
                                 <div className="flex -space-x-2">
                                     {item.assignees.slice(0, 3).map((a, i) => (
@@ -1461,6 +1496,13 @@ function DashboardContent() {
         setIsTaskModalOpen(true);
     };
 
+    const handleCopyTask = (task: TodoItem, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const { _id, createdAt, ...rest } = task;
+        setEditingTask(rest as any);
+        setIsTaskModalOpen(true);
+    };
+
     const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!confirm('Are you sure you want to delete this task?')) return;
@@ -1889,6 +1931,7 @@ function DashboardContent() {
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
                                         onEdit={handleOpenTaskModal}
+                                        onCopy={handleCopyTask}
                                         onDelete={handleDeleteTask}
                                     />
                                     <TodoColumn 
@@ -1899,6 +1942,7 @@ function DashboardContent() {
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
                                         onEdit={handleOpenTaskModal}
+                                        onCopy={handleCopyTask}
                                         onDelete={handleDeleteTask}
                                     />
                                     <TodoColumn 
@@ -1909,6 +1953,7 @@ function DashboardContent() {
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
                                         onEdit={handleOpenTaskModal}
+                                        onCopy={handleCopyTask}
                                         onDelete={handleDeleteTask}
                                     />
                                 </div>
