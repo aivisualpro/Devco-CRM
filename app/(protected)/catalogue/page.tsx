@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Search, Package, Briefcase, Layers, Settings, Wrench, Truck, DollarSign, User, ShieldCheck, Mail, Phone, MapPin, MessageSquare } from 'lucide-react';
@@ -63,7 +63,7 @@ import { AddMiscellaneousCatalogueDialogue } from './components/AddMiscellaneous
 
 // ... existing imports
 
-export default function CataloguePage() {
+function CatalogueContent() {
     const router = useRouter();
     const pathname = usePathname();
     const { toasts, success, error: toastError, removeToast } = useToast();
@@ -870,5 +870,13 @@ export default function CataloguePage() {
                 )}
             </div>
         </div>
+    );
+}
+
+export default function CataloguePage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <CatalogueContent />
+        </Suspense>
     );
 }
