@@ -2,30 +2,26 @@ import mongoose, { Schema, Model, Document } from 'mongoose';
 
 export interface IChat extends Document {
     sender: string; // email
-    senderName: string;
-    senderImage?: string;
     message: string;
-    mentions: string[]; // emails of mentioned users
-    references: string[]; // estimate numbers
+    estimate?: string; // estimate number reference
+    assignee?: string; // assigned user email
     createdAt: Date;
     updatedAt: Date;
 }
 
 const ChatSchema = new Schema({
     sender: { type: String, required: true },
-    senderName: { type: String, required: true },
-    senderImage: { type: String },
     message: { type: String, required: true },
-    mentions: [{ type: String }],
-    references: [{ type: String }],
+    estimate: { type: String },
+    assignee: { type: String },
 }, {
     timestamps: true,
     collection: 'devcoChats'
 });
 
-// Index for efficient querying by reference or mention
-ChatSchema.index({ references: 1 });
-ChatSchema.index({ mentions: 1 });
+// Index for efficient querying
+ChatSchema.index({ estimate: 1 });
+ChatSchema.index({ assignee: 1 });
 ChatSchema.index({ createdAt: -1 });
 
 // Prevent model overwrite in development

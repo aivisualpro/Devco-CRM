@@ -105,10 +105,10 @@ interface EstimateStats {
 interface ChatMessage {
     _id: string;
     sender: string;
-    senderName: string;
     message: string;
-    timestamp: string;
-    proposalNo?: string;
+    estimate?: string;
+    assignee?: string;
+    createdAt: string;
 }
 
 interface ActivityItem {
@@ -118,6 +118,7 @@ interface ActivityItem {
     createdAt: string;
     action: string;
 }
+
 
 // ScheduleCard moved to reusable component
 
@@ -581,7 +582,7 @@ function DashboardContent() {
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
 
-    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]); // Keep for type safety if needed, but we use 'messages' state now
+    const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
     
     // Company Docs State
     const [companyDocs, setCompanyDocs] = useState<any[]>([]);
@@ -647,11 +648,11 @@ function DashboardContent() {
     }, [isSuperAdmin]);
     // const [chatFilter, setChatFilter] = useState(''); // Removed, using tagFilters and local state
 
-    const [newMessage, setNewMessage] = useState('');
     const [selectedDetailSchedule, setSelectedDetailSchedule] = useState<Schedule | null>(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [mediaModalContent, setMediaModalContent] = useState<{ type: 'image' | 'map', url: string, title: string }>({ type: 'image', url: '', title: '' });
     const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+    const [newMessage, setNewMessage] = useState('');
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
     
     // JHA States
@@ -708,8 +709,8 @@ function DashboardContent() {
     const [referenceQuery, setReferenceQuery] = useState('');
     const [showMentions, setShowMentions] = useState(false);
     const [showReferences, setShowReferences] = useState(false);
-    const [cursorPosition, setCursorPosition] = useState(0); // for tracking where to insert
-    const [chatFilterValue, setChatFilterValue] = useState(''); // For the UI filter input
+    const [cursorPosition, setCursorPosition] = useState(0); 
+    const [chatFilterValue, setChatFilterValue] = useState(''); 
     const [tagFilters, setTagFilters] = useState<{type: 'user'|'estimate', value: string, label: string}[]>([]);
     
     const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -1273,7 +1274,6 @@ function DashboardContent() {
                 url += `&filter=${encodeURIComponent(chatFilterValue)}`;
             }
             if (tagFilters.length > 0) {
-                 // Prioritize estimate tags for filtering if available
                  const estTag = tagFilters.find(t => t.type === 'estimate');
                  if (estTag) {
                      url += `&estimate=${encodeURIComponent(estTag.value)}`;
@@ -1284,7 +1284,6 @@ function DashboardContent() {
             const data = await res.json();
             if (data.success) {
                 setMessages(data.messages);
-                // Scroll to bottom on initial load
                 setTimeout(() => {
                     if (chatScrollRef.current) {
                         chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -1310,7 +1309,6 @@ function DashboardContent() {
         const cursor = e.target.selectionStart || 0;
         setCursorPosition(cursor);
         
-        // Check for trigger at cursor
         const textBefore = val.slice(0, cursor);
         const words = textBefore.split(/\s+/);
         const lastWord = words[words.length - 1];
@@ -1341,12 +1339,8 @@ function DashboardContent() {
         if (lastWordStart >= 0) {
             const newTextBefore = textBefore.slice(0, lastWordStart) + tag + ' ';
             setNewMessage(newTextBefore + textAfter);
-            
-            // Close popups
             setShowMentions(false);
             setShowReferences(false);
-            
-            // Restore focus
             chatInputRef.current.focus();
         }
     };
@@ -1355,25 +1349,22 @@ function DashboardContent() {
         if (e) e.preventDefault();
         if (!newMessage.trim()) return;
 
-        // Parse mentions and references explicitly from final text to ensure sync
-        const extractedMentions = (newMessage.match(/@([\w.@]+)/g) || []).map(s => s.slice(1)); // Simple email/name extraction
-        const extractedReferences = (newMessage.match(/#(\d+[-A-Za-z0-9]*)/g) || []).map(s => s.slice(1));
+        const estimateMatch = newMessage.match(/#(\d+[-A-Za-z0-9]*)/);
+        const extractedEstimate = estimateMatch ? estimateMatch[1] : undefined;
+        const mentionMatch = newMessage.match(/@([\w.@]+)/);
+        const extractedAssignee = mentionMatch ? mentionMatch[1] : undefined;
 
-        // Optimistic UI
         const optimisticMsg: any = {
             _id: `temp-${Date.now()}`,
             sender: userEmail,
-            senderName: currentUser?.firstName || userEmail,
             message: newMessage,
-            timestamp: new Date().toISOString(),
+            estimate: extractedEstimate,
+            assignee: extractedAssignee,
             createdAt: new Date().toISOString(),
-            mentions: extractedMentions,
-            references: extractedReferences
         };
         setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
         
-        // Scroll
         setTimeout(() => {
             if (chatScrollRef.current) {
                 chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -1386,19 +1377,17 @@ function DashboardContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: optimisticMsg.message,
-                    mentions: extractedMentions,
-                    references: extractedReferences,
-                    senderName: optimisticMsg.senderName
+                    estimate: extractedEstimate,
+                    assignee: extractedAssignee,
                 })
             });
-            fetchChatMessages(); // Sync real ID
+            fetchChatMessages();
         } catch (error) {
             console.error('Failed to send', error);
             showError('Failed to send message');
         }
     };
 
-    // Filter Helpers
     const filteredEmployees = useMemo(() => {
         if (!mentionQuery) return initialData.employees.slice(0, 5);
         return initialData.employees.filter((e: any) => 
@@ -2102,13 +2091,16 @@ function DashboardContent() {
                                                         </div>
                                                         <div className="flex items-center gap-1">
                                                             <a 
-                                                                href={doc.url} 
+                                                                href={doc.url?.toLowerCase().endsWith('.pdf') 
+                                                                    ? `https://docs.google.com/viewer?url=${encodeURIComponent(doc.url)}&embedded=true`
+                                                                    : doc.url
+                                                                } 
                                                                 target="_blank" 
                                                                 rel="noopener noreferrer"
                                                                 className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                                title="Download"
+                                                                title="View"
                                                             >
-                                                                <Download size={16} />
+                                                                <Eye size={16} />
                                                             </a>
                                                             {/* CRUD for Desktop */}
                                                             <button 
@@ -2386,7 +2378,7 @@ function DashboardContent() {
                                             </button>
                                         )}
                                         <button 
-                                            onClick={() => setChatFilterValue(prev => prev ? '' : ' ')} // Minimal toggle to trigger re-fetch or show input
+                                            onClick={() => setChatFilterValue(prev => prev ? '' : ' ')} 
                                             className="p-2 hover:bg-slate-100 rounded-lg transition-colors relative"
                                         >
                                             <Filter className={`w-4 h-4 ${tagFilters.length > 0 ? 'text-blue-500' : 'text-slate-500'}`} />
@@ -2406,7 +2398,6 @@ function DashboardContent() {
                                     ) : (
                                         messages.map((msg, idx) => {
                                             const isMe = msg.sender === userEmail;
-                                            // Handle mentions highlighting
                                             const renderMessage = (text: string) => {
                                                 const parts = text.split(/(@[\w.@]+|#\d+[-A-Za-z0-9]*)/g);
                                                 return parts.map((part, i) => {
@@ -2423,7 +2414,7 @@ function DashboardContent() {
                                                 <div key={idx} className={`flex gap-2 ${isMe ? 'justify-end' : ''}`}>
                                                     {!isMe && (
                                                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
-                                                            {msg.senderName?.[0] || 'U'}
+                                                            {(msg.sender?.split('@')[0]?.[0] || 'U').toUpperCase()}
                                                         </div>
                                                     )}
                                                     <div className={`rounded-2xl px-3 py-2 max-w-[85%] ${
@@ -2435,8 +2426,8 @@ function DashboardContent() {
                                                             {renderMessage(msg.message)}
                                                         </p>
                                                         <p className={`text-[10px] mt-1 ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
-                                                            {!isMe && <span className="font-bold mr-1">{msg.senderName}</span>}
-                                                            {new Date(msg.createdAt || msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                            {!isMe && <span className="font-bold mr-1">{msg.sender?.split('@')[0]}</span>}
+                                                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                                         </p>
                                                     </div>
                                                     {isMe && (
@@ -2451,7 +2442,6 @@ function DashboardContent() {
                                 </div>
 
                                 <div className="p-3 border-t border-slate-100 relative">
-                                    {/* Mention Popup */}
                                     {showMentions && (
                                         <div className="absolute bottom-full left-4 mb-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
                                             <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
@@ -2474,7 +2464,6 @@ function DashboardContent() {
                                         </div>
                                     )}
 
-                                    {/* Reference Popup */}
                                     {showReferences && (
                                         <div className="absolute bottom-full left-4 mb-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
                                             <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
@@ -2519,27 +2508,26 @@ function DashboardContent() {
                                     </form>
                                 </div>
                             </div>
+
                         </div>
                 </div>
 
                 {/* Full Width Tasks Kanban */}
                 <div className="mt-6">
                     <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-4 lg:p-6`}>
-                        <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center">
-                                    <CheckCircle2 className="w-6 h-6 text-rose-600" />
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 rounded-xl bg-rose-100 flex items-center justify-center">
+                                    <CheckCircle2 className="w-4 h-4 text-rose-600" />
                                 </div>
-                                <div>
-                                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">Tasks</h2>
-                                </div>
+                                <h2 className="text-sm font-bold text-slate-900">Tasks</h2>
                             </div>
                             <button 
                                 onClick={() => handleOpenTaskModal()}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
+                                className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
+                                title="New Task"
                             >
                                 <Plus className="w-4 h-4" />
-                                <span className="font-bold text-sm">New Task</span>
                             </button>
                         </div>
                         <div className="hidden md:flex gap-6 overflow-x-auto pb-4">

@@ -15,8 +15,6 @@ export { default as Client } from './Client';
 export { default as Employee } from './Employee';
 export { default as Template } from './Template';
 export { default as GlobalCustomVariable } from './GlobalCustomVariable';
-export { default as Message } from './Communication';
-export { default as Channel } from './Channel';
 export { default as Schedule } from './Schedule';
 export { default as Role, UserPermissionOverride, PermissionAuditLog, Department } from './Role';
 export { default as JHA } from './JHA';
