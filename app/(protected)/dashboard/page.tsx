@@ -1405,7 +1405,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Middle Row - Stats & Charts */}
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                            <div className="hidden md:grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                                 
                                 {/* Estimate Stats Pie Chart */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
@@ -1496,7 +1496,7 @@ function DashboardContent() {
                             </div>
 
                             {/* To Do Kanban */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
@@ -1540,7 +1540,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Time Cards - Weekly */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
                                         <Clock className="w-5 h-5 text-teal-600" />
@@ -1570,7 +1570,7 @@ function DashboardContent() {
                         </div>
 
                         {/* Right Sidebar - Chat & Activity */}
-                        <div className="col-span-12 xl:col-span-3 space-y-4 lg:space-y-6">
+                        <div className="hidden md:block col-span-12 xl:col-span-3 space-y-4 lg:space-y-6">
                             
                             {/* Recent Activity */}
                             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 overflow-hidden">
