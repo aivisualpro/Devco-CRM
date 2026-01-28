@@ -12,7 +12,7 @@ import {
     Car, StopCircle, Droplets, Warehouse, Circle, ClipboardList,
     Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck
 } from 'lucide-react';
-import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui';
+import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ScheduleDetailModal } from './components/ScheduleDetailModal';
@@ -157,7 +157,9 @@ const TodoColumn = ({
     status, 
     color,
     onDragOver,
-    onDrop 
+    onDrop,
+    onEdit,
+    onDelete
 }: { 
     title: string; 
     items: TodoItem[]; 
@@ -165,6 +167,8 @@ const TodoColumn = ({
     color: string;
     onDragOver: (e: React.DragEvent) => void;
     onDrop: (e: React.DragEvent, status: string) => void;
+    onEdit: (item: TodoItem) => void;
+    onDelete: (id: string, e: React.MouseEvent) => void;
 }) => (
     <div 
         className="flex-1 min-w-[200px] bg-slate-100 rounded-xl p-3"
@@ -182,7 +186,8 @@ const TodoColumn = ({
                     key={item._id}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData('todoId', item._id)}
-                    className="bg-white p-3 rounded-lg border border-slate-200 cursor-grab hover:shadow-md transition-shadow"
+                    onClick={() => onEdit(item)}
+                    className="bg-white p-3 rounded-lg border border-slate-200 cursor-grab hover:shadow-md transition-shadow group"
                 >
                     <div className="flex items-start gap-2">
                         <GripVertical className="w-4 h-4 text-slate-300 mt-0.5" />
@@ -192,15 +197,23 @@ const TodoColumn = ({
                                 <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
                             )}
                         </div>
-                        {item.assignees && item.assignees.length > 0 && (
-                            <div className="flex -space-x-2">
-                                {item.assignees.slice(0, 3).map((a, i) => (
-                                    <div key={i} className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[8px] font-bold">
-                                        {a.charAt(0).toUpperCase()}
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <div className="flex flex-col items-end gap-2">
+                            <button 
+                                onClick={(e) => onDelete(item._id, e)}
+                                className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded transition-all"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                            {item.assignees && item.assignees.length > 0 && (
+                                <div className="flex -space-x-2">
+                                    {item.assignees.slice(0, 3).map((a, i) => (
+                                        <div key={i} className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[8px] font-bold">
+                                            {a.charAt(0).toUpperCase()}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             ))}
@@ -247,6 +260,160 @@ const PieChart = ({ data }: { data: EstimateStats[] }) => {
                 ))}
             </div>
         </div>
+    );
+};
+
+// Task Form Modal
+const TaskFormModal = ({ 
+    isOpen, 
+    onClose, 
+    onSave, 
+    editingTask,
+    employees
+}: { 
+    isOpen: boolean; 
+    onClose: () => void; 
+    onSave: (data: Partial<TodoItem>) => void;
+    editingTask?: TodoItem | null;
+    employees: any[];
+}) => {
+    const [formData, setFormData] = useState<Partial<TodoItem>>({
+        task: '',
+        dueDate: '',
+        status: 'todo',
+        assignees: []
+    });
+    const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
+
+    const employeeOptions = useMemo(() => employees.map(emp => ({
+        id: emp.value,
+        label: emp.label,
+        value: emp.value,
+        profilePicture: emp.image
+    })), [employees]);
+
+    useEffect(() => {
+        if (editingTask) {
+            setFormData({
+                task: editingTask.task || '',
+                dueDate: editingTask.dueDate ? (editingTask.dueDate.includes('T') ? editingTask.dueDate.slice(0, 10) : editingTask.dueDate) : '',
+                status: editingTask.status || 'todo',
+                assignees: editingTask.assignees || []
+            });
+        } else {
+            setFormData({
+                task: '',
+                dueDate: '',
+                status: 'todo',
+                assignees: []
+            });
+        }
+    }, [editingTask, isOpen]);
+
+    if (!isOpen) return null;
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={editingTask ? 'Edit Task' : 'Add New Task'}>
+            <div className="space-y-4 p-4">
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Task Description</label>
+                    <textarea 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none min-h-[100px]"
+                        placeholder="What needs to be done?"
+                        value={formData.task}
+                        onChange={(e) => setFormData({ ...formData, task: e.target.value })}
+                    />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Due Date</label>
+                        <input 
+                            type="date"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                            value={formData.dueDate}
+                            onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Status</label>
+                        <select 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                            value={formData.status}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                        >
+                            <option value="todo">To Do</option>
+                            <option value="in progress">In Progress</option>
+                            <option value="done">Done</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="relative">
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Assign To</label>
+                    <div 
+                        id="assignee-trigger"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm flex items-center justify-between cursor-pointer hover:border-blue-300 transition-all min-h-[50px]"
+                        onClick={() => setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
+                    >
+                        <div className="flex -space-x-2 overflow-hidden py-0.5">
+                            {(formData.assignees || []).length > 0 ? (
+                                formData.assignees?.map(email => {
+                                    const emp = employees.find(e => e.value === email);
+                                    return (
+                                        <div 
+                                            key={email} 
+                                            className="w-8 h-8 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-600 overflow-hidden shadow-sm ring-1 ring-slate-100"
+                                            title={emp?.label || email}
+                                        >
+                                            {emp?.image ? (
+                                                <img src={emp.image} className="w-full h-full object-cover" alt="" />
+                                            ) : (
+                                                (emp?.label || email)?.[0].toUpperCase()
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <span className="text-slate-400 ml-1">Select team members...</span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                             {(formData.assignees || []).length > 0 && (
+                                 <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                                     {(formData.assignees || []).length}
+                                 </span>
+                             )}
+                            <ChevronDown size={14} className={`text-slate-400 transition-transform ${isAssigneeDropdownOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                    </div>
+                    
+                    <MyDropDown
+                        isOpen={isAssigneeDropdownOpen}
+                        onClose={() => setIsAssigneeDropdownOpen(false)}
+                        anchorId="assignee-trigger"
+                        options={employeeOptions}
+                        selectedValues={formData.assignees || []}
+                        multiSelect={true}
+                        onSelect={(val) => {
+                            const current = formData.assignees || [];
+                            const next = current.includes(val) 
+                                ? current.filter(v => v !== val)
+                                : [...current, val];
+                            setFormData({ ...formData, assignees: next });
+                        }}
+                    />
+                </div>
+                <div className="flex justify-end gap-3 mt-6">
+                    <Button variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button 
+                        onClick={() => onSave(formData)}
+                        disabled={!formData.task?.trim()}
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                        {editingTask ? 'Update Task' : 'Create Task'}
+                    </Button>
+                </div>
+            </div>
+        </Modal>
     );
 };
 
@@ -297,6 +464,8 @@ function DashboardContent() {
     const [todos, setTodos] = useState<TodoItem[]>([]);
     const [estimateStats, setEstimateStats] = useState<EstimateStats[]>([]);
     const [activities, setActivities] = useState<ActivityItem[]>([]);
+    const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+    const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]); // Keep for type safety if needed, but we use 'messages' state now
 
     // Estimate Filter State
@@ -1284,7 +1453,63 @@ function DashboardContent() {
             });
         } catch (err) {
             console.error('Error updating task status:', err);
-            // Revert on error if needed, but keeping it simple for now
+        }
+    };
+
+    const handleOpenTaskModal = (task?: TodoItem) => {
+        setEditingTask(task || null);
+        setIsTaskModalOpen(true);
+    };
+
+    const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm('Are you sure you want to delete this task?')) return;
+        
+        try {
+            const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                setTodos(prev => prev.filter(t => t._id !== id));
+                success('Task deleted successfully');
+            }
+        } catch (err) {
+            showError('Failed to delete task');
+        }
+    };
+
+    const handleSaveTask = async (taskData: Partial<TodoItem>) => {
+        try {
+            const method = editingTask ? 'PATCH' : 'POST';
+            
+            // Clean up the data to avoid 500 errors (e.g. empty strings for Dates)
+            const cleanedData = { ...taskData };
+            if (!cleanedData.dueDate || cleanedData.dueDate.trim() === '') {
+                delete cleanedData.dueDate;
+            }
+            if (!cleanedData.assignees) cleanedData.assignees = [];
+
+            const body = editingTask 
+                ? { ...cleanedData, id: editingTask._id, lastUpdatedBy: userEmail || 'System' } 
+                : { ...cleanedData, createdBy: userEmail || 'System' };
+            
+            const res = await fetch('/api/tasks', {
+                method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                if (editingTask) {
+                    setTodos(prev => prev.map(t => t._id === editingTask._id ? data.task : t));
+                    success('Task updated');
+                } else {
+                    setTodos(prev => [data.task, ...prev]);
+                    success('Task created');
+                }
+                setIsTaskModalOpen(false);
+            }
+        } catch (err) {
+            showError('Failed to save task');
         }
     };
 
@@ -1376,7 +1601,7 @@ function DashboardContent() {
                         <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && searchParams.get('view') !== 'tasks' ? 'hidden md:block' : ''}`}>
                             
                             {/* Upcoming Schedules */}
-                            <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden">
+                            <div className={`${searchParams.get('view') ? 'hidden md:block' : 'block'} bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden`}>
                                 <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:px-4 md:py-3 md:border-slate-100 shrink-0">
                                     <div className="flex items-center gap-3">
                                         <div className="hidden md:flex w-8 h-8 rounded-lg bg-blue-100 items-center justify-center">
@@ -1646,21 +1871,25 @@ function DashboardContent() {
                                         </div>
                                         <div>
                                             <h2 className="font-bold text-slate-900">Tasks</h2>
-                                            {searchParams.get('view') !== 'tasks' && <p className="text-xs text-slate-500">Manage your work</p>}
                                         </div>
                                     </div>
-                                    <button className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors">
+                                    <button 
+                                        onClick={() => handleOpenTaskModal()}
+                                        className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
+                                    >
                                         <Plus className="w-4 h-4" />
                                     </button>
                                 </div>
                                 <div className="flex gap-4 overflow-x-auto pb-2">
                                     <TodoColumn 
-                                        title="Tasks" 
+                                        title="To Do" 
                                         items={todosByStatus.todo} 
                                         status="todo" 
                                         color="bg-slate-400"
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
+                                        onEdit={handleOpenTaskModal}
+                                        onDelete={handleDeleteTask}
                                     />
                                     <TodoColumn 
                                         title="In Progress" 
@@ -1669,6 +1898,8 @@ function DashboardContent() {
                                         color="bg-blue-500"
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
+                                        onEdit={handleOpenTaskModal}
+                                        onDelete={handleDeleteTask}
                                     />
                                     <TodoColumn 
                                         title="Done" 
@@ -1677,9 +1908,19 @@ function DashboardContent() {
                                         color="bg-emerald-500"
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
+                                        onEdit={handleOpenTaskModal}
+                                        onDelete={handleDeleteTask}
                                     />
                                 </div>
                             </div>
+
+                            <TaskFormModal 
+                                isOpen={isTaskModalOpen}
+                                onClose={() => setIsTaskModalOpen(false)}
+                                onSave={handleSaveTask}
+                                editingTask={editingTask}
+                                employees={initialData.employees}
+                            />
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
                             <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden">
