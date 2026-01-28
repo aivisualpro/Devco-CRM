@@ -104,6 +104,23 @@ function SchedulePageContent() {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Partial<ScheduleItem> | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    
+    // Action Confirmation State
+    const [actionConfirm, setActionConfirm] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        confirmText: string;
+        variant: 'danger' | 'primary' | 'dark';
+        onConfirm: () => void;
+    }>({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Confirm',
+        variant: 'primary',
+        onConfirm: () => {}
+    });
 
     
     // JHA Modal State
@@ -1869,7 +1886,7 @@ function SchedulePageContent() {
 
 
 
-    const handleDriveTimeToggle = async (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {
+    const executeDriveTimeToggle = async (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {
        e.stopPropagation();
        
        let employeeEmail = currentUser?.email;
@@ -2026,7 +2043,7 @@ function SchedulePageContent() {
         }
     };
     
-    const handleQuickTimesheet = async (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
+    const executeQuickTimesheet = async (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
         e.stopPropagation();
         
         let employeeEmail = currentUser?.email;
@@ -2159,6 +2176,41 @@ function SchedulePageContent() {
         }
     };
 
+
+    // Wrappers for confirmation
+    const handleDriveTimeToggle = (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const isStopping = !!activeDriveTime;
+        setActionConfirm({
+            isOpen: true,
+            title: isStopping ? 'Stop Drive Time' : 'Start Drive Time',
+            message: `Are you sure you want to ${isStopping ? 'STOP' : 'START'} Drive Time?`,
+            confirmText: isStopping ? 'Stop' : 'Start',
+            variant: isStopping ? 'danger' : 'primary',
+            onConfirm: () => executeDriveTimeToggle(schedule, activeDriveTime, e)
+        });
+    };
+
+    const handleQuickTimesheet = (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
+        e.stopPropagation();
+        
+        const isIncrement = (schedule.timesheet || []).some((ts: any) => 
+            ts.employee?.toLowerCase() === (currentUser?.email?.toLowerCase() || '') &&
+            ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
+             (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
+        );
+        
+        const actionWord = isIncrement ? 'INCREMENT' : 'REGISTER';
+
+        setActionConfirm({
+            isOpen: true,
+            title: `${type}`,
+            message: `Are you sure you want to ${actionWord} ${type}?`,
+            confirmText: 'Confirm',
+            variant: 'primary',
+            onConfirm: () => executeQuickTimesheet(schedule, type, e)
+        });
+    };
 
     return (
         <div className="flex flex-col h-full bg-[#F8FAFC]">
@@ -4206,6 +4258,16 @@ function SchedulePageContent() {
                     </div>
                 </div>
             </Modal>
+            
+            <ConfirmModal
+                isOpen={actionConfirm.isOpen}
+                onClose={() => setActionConfirm(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={actionConfirm.onConfirm}
+                title={actionConfirm.title}
+                message={actionConfirm.message}
+                confirmText={actionConfirm.confirmText}
+                variant={actionConfirm.variant}
+            />
         </div>
     );
 }
