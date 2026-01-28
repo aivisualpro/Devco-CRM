@@ -85,10 +85,12 @@ interface Training {
 
 interface TodoItem {
     _id: string;
-    title: string;
-    status: 'todo' | 'in-progress' | 'done';
-    priority: 'low' | 'medium' | 'high';
+    task: string;
     dueDate?: string;
+    assignees?: string[];
+    status: 'todo' | 'in progress' | 'done';
+    createdBy?: string;
+    createdAt?: string;
 }
 
 interface EstimateStats {
@@ -185,15 +187,20 @@ const TodoColumn = ({
                     <div className="flex items-start gap-2">
                         <GripVertical className="w-4 h-4 text-slate-300 mt-0.5" />
                         <div className="flex-1">
-                            <p className="text-sm font-medium text-slate-800">{item.title}</p>
+                            <p className="text-sm font-medium text-slate-800">{item.task}</p>
                             {item.dueDate && (
                                 <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
                             )}
                         </div>
-                        <div className={`w-2 h-2 rounded-full ${
-                            item.priority === 'high' ? 'bg-red-500' : 
-                            item.priority === 'medium' ? 'bg-amber-500' : 'bg-green-500'
-                        }`} />
+                        {item.assignees && item.assignees.length > 0 && (
+                            <div className="flex -space-x-2">
+                                {item.assignees.slice(0, 3).map((a, i) => (
+                                    <div key={i} className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[8px] font-bold">
+                                        {a.charAt(0).toUpperCase()}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 </div>
             ))}
@@ -1221,19 +1228,13 @@ function DashboardContent() {
                 ]);
             }
             
-            // Mock other data for now
-            setTrainings([
-                { _id: '1', name: 'OSHA 10-Hour', completedDate: '2025-11-15', renewalDate: '2026-11-15', status: 'completed', type: 'Safety' },
-                { _id: '2', name: 'Forklift Certification', completedDate: '2025-08-20', renewalDate: '2026-08-20', status: 'completed', type: 'Equipment' },
-                { _id: '3', name: 'First Aid/CPR', renewalDate: '2026-02-15', status: 'upcoming', type: 'Safety' },
-            ]);
-            
-            setTodos([
-                { _id: '1', title: 'Review bid for Main St project', status: 'todo', priority: 'high', dueDate: '2026-01-27' },
-                { _id: '2', title: 'Submit timesheet corrections', status: 'in-progress', priority: 'medium' },
-                { _id: '3', title: 'Schedule equipment maintenance', status: 'done', priority: 'low' },
-                { _id: '4', title: 'Update project photos', status: 'todo', priority: 'medium' },
-            ]);
+            // Fetch tasks from API
+            const tasksRes = await fetch('/api/tasks');
+            const tasksData = await tasksRes.json();
+            if (tasksData.success) {
+                setTodos(tasksData.tasks);
+            }
+
             
             // Fetch activities from API
             const activityRes = await fetch('/api/activity?days=7');
@@ -1262,18 +1263,35 @@ function DashboardContent() {
         e.preventDefault();
     };
 
-    const handleDrop = (e: React.DragEvent, newStatus: string) => {
+    const handleDrop = async (e: React.DragEvent, newStatus: string) => {
         e.preventDefault();
         const todoId = e.dataTransfer.getData('todoId');
+        
+        // Optimistic update
         setTodos(prev => prev.map(t => 
             t._id === todoId ? { ...t, status: newStatus as TodoItem['status'] } : t
         ));
+
+        try {
+            await fetch('/api/tasks', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    id: todoId, 
+                    status: newStatus,
+                    lastUpdatedBy: userEmail 
+                })
+            });
+        } catch (err) {
+            console.error('Error updating task status:', err);
+            // Revert on error if needed, but keeping it simple for now
+        }
     };
 
     // Filtered todos by status
     const todosByStatus = useMemo(() => ({
         todo: todos.filter(t => t.status === 'todo'),
-        'in-progress': todos.filter(t => t.status === 'in-progress'),
+        'in progress': todos.filter(t => t.status === 'in progress' || t.status === ('in-progress' as any)),
         done: todos.filter(t => t.status === 'done'),
     }), [todos]);
 
@@ -1646,8 +1664,8 @@ function DashboardContent() {
                                     />
                                     <TodoColumn 
                                         title="In Progress" 
-                                        items={todosByStatus['in-progress']} 
-                                        status="in-progress" 
+                                        items={todosByStatus['in progress']} 
+                                        status="in progress" 
                                         color="bg-blue-500"
                                         onDragOver={handleDragOver}
                                         onDrop={handleDrop}
