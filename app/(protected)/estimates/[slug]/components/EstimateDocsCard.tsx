@@ -5,6 +5,7 @@ import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, File
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { format } from 'date-fns';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // Google Doc Template IDs
 const DOC_TEMPLATES: Record<string, string> = {
@@ -65,6 +66,7 @@ interface EstimateDocsCardProps {
 }
 
 export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient }) => {
+    const { user: currentUser } = usePermissions();
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
     const [generatingProgress, setGeneratingProgress] = useState(0);
@@ -462,6 +464,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             updated = [...releases, { 
                 ...newRelease, 
                 _id: Math.random().toString(36).substr(2, 9),
+                createdBy: currentUser?.userId,
                 createdAt: new Date().toISOString()
             }];
         }
@@ -1103,7 +1106,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                    variables.date = new Date(releaseItem.date).toLocaleDateString(); 
                 }
                 
-                // Format currency amounts with $ and 2 decimals
                 if (releaseItem.amountOfCheck) {
                     const rawVal = String(releaseItem.amountOfCheck).replace(/[^0-9.-]+/g, '');
                     const num = parseFloat(rawVal);
@@ -1121,6 +1123,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     }
                 } else {
                     variables.disputedClaims = '';
+                }
+
+                // Inject Creator (Signer) details
+                const creatorId = releaseItem.createdBy;
+                const creatorEmployee = employees.find(e => e._id === creatorId);
+                if (creatorEmployee) {
+                    variables.createdBy = `${creatorEmployee.firstName || ''} ${creatorEmployee.lastName || ''}`.trim();
+                    variables.companyPosition = creatorEmployee.companyPosition || '';
+                    variables.signature = creatorEmployee.signature || '';
                 }
                 
                 // For array fields like un-paid amounts, format them if they are numbers
@@ -2114,13 +2125,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         {['CP', 'CF'].includes(getReleaseCode(item.documentType)) && item.amountOfCheck && (
                                             <div>
                                                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">Check Amt</span>
-                                                <span className="text-[10px] font-black text-slate-700">${item.amountOfCheck}</span>
+                                                <span className="text-[10px] font-black text-green-600">
+                                                    ${parseFloat(String(item.amountOfCheck || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
                                             </div>
                                         )}
                                         {['UF', 'CF'].includes(getReleaseCode(item.documentType)) && item.disputedClaims && (
                                             <div>
                                                 <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest block">Disputed</span>
-                                                <span className="text-[10px] font-black text-red-600">${item.disputedClaims}</span>
+                                                <span className="text-[10px] font-black text-red-600">
+                                                    ${parseFloat(String(item.disputedClaims || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </span>
                                             </div>
                                         )}
                                     </div>

@@ -204,6 +204,7 @@ export interface IEstimate extends Document {
         receivedProgressPayments?: string[];
         disputedClaims?: string;
         documentId?: string;
+        createdBy?: string;
         createdAt?: string;
     }>;
 }
@@ -425,6 +426,7 @@ const EstimateSchema = new Schema({
         receivedProgressPayments: { type: [String], default: [] },
         disputedClaims: { type: String },
         documentId: { type: String },
+        createdBy: { type: String },
         createdAt: { type: String }
     }]
 }, {
