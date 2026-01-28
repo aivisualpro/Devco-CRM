@@ -66,6 +66,7 @@ interface EstimateDocsCardProps {
 
 export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient }) => {
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
+    const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
     const [isSignedContractModalOpen, setIsSignedContractModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [newContract, setNewContract] = useState<{ date: string; amount: string; attachments: any[] }>({
@@ -941,6 +942,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }
 
         setGeneratingDoc(docName);
+        if (itemIndex !== undefined) setGeneratingIndex(itemIndex);
 
         try {
             // Build variables from formData
@@ -1122,7 +1124,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.billingTerms = billingItem.billingTerms || '';
                     variables.otherBillingTerms = billingItem.otherBillingTerms || '';
                     const rawLumpSum = String(billingItem.lumpSum || '').replace(/[^0-9.-]+/g, '');
-                    variables.lumpSum = rawLumpSum ? parseFloat(rawLumpSum).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+                    variables.lumpSum = rawLumpSum ? `$${parseFloat(rawLumpSum).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
                     
                     // Support for repeating section
                     if (billingItem.titleDescriptions && billingItem.titleDescriptions.length > 0) {
@@ -1182,6 +1184,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             toast.error(error.message || 'Failed to generate PDF');
         } finally {
             setGeneratingDoc(null);
+            setGeneratingIndex(null);
         }
     };
 
@@ -1895,7 +1898,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <div 
                                     key={idx}
                                     onClick={(e) => handleEditBillingTicket(idx, e)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
+                                    className={`bg-white/60 p-3 rounded-xl border-2 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 ${
+                                        generatingDoc === 'Billing Ticket' && generatingIndex === idx 
+                                        ? 'border-transparent ring-2 ring-blue-400 ring-offset-1 animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.5)]' 
+                                        : 'border-white/40'
+                                    }`}
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
@@ -2000,7 +2007,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <div 
                                     key={idx}
                                     onClick={(e) => handleEditRelease(idx, e)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
+                                    className={`bg-white/60 p-3 rounded-xl border-2 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 ${
+                                        generatingDoc === item.documentType && generatingIndex === idx 
+                                        ? 'border-transparent ring-2 ring-blue-400 ring-offset-1 animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.5)]' 
+                                        : 'border-white/40'
+                                    }`}
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
@@ -2023,7 +2034,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <button 
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                handleDocClick(item.documentType);
+                                                handleDocClick(item.documentType, idx);
                                             }}
                                             className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-8"
                                             title="Download PDF"
@@ -3093,8 +3104,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 />
                             </div>
                         </div>
-                        <div className="space-y-1.5 flex flex-col justify-end">
-                            {/* Empty space for grid alignment */}
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Lump Sum ($)</label>
+                            <Input 
+                                type="number"
+                                placeholder="0.00"
+                                value={newBillingTicket.lumpSum}
+                                onChange={e => setNewBillingTicket(prev => ({ ...prev, lumpSum: e.target.value }))}
+                            />
                         </div>
                     </div>
 
@@ -3111,15 +3128,51 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                     )}
 
-                    {/* Lump Sum */}
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Lump Sum ($)</label>
-                        <Input 
-                            type="number"
-                            placeholder="0.00"
-                            value={newBillingTicket.lumpSum}
-                            onChange={e => setNewBillingTicket(prev => ({ ...prev, lumpSum: e.target.value }))}
-                        />
+
+                    {/* Title & Descriptions */}
+                    <div className="space-y-3 pt-3 border-t border-slate-100">
+                        <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                                Titles & Descriptions
+                            </label>
+                            <button 
+                                onClick={addTitleDescription}
+                                className="text-[10px] text-indigo-600 font-bold hover:underline"
+                            >
+                                + Add Title
+                            </button>
+                        </div>
+                        {newBillingTicket.titleDescriptions.map((td, i) => (
+                            <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative group">
+                                {newBillingTicket.titleDescriptions.length > 1 && (
+                                    <button 
+                                        onClick={() => removeTitleDescription(i)}
+                                        className="absolute top-2 right-2 p-1 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X size={14}/>
+                                    </button>
+                                )}
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase">Title</label>
+                                    <Input 
+                                        type="text"
+                                        placeholder="Enter title"
+                                        value={td.title}
+                                        onChange={e => updateTitleDescription(i, 'title', e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase">Description</label>
+                                    <textarea 
+                                        placeholder="Enter description..."
+                                        value={td.description}
+                                        onChange={e => updateTitleDescription(i, 'description', e.target.value)}
+                                        rows={6}
+                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none min-h-[120px]"
+                                    />
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                     {/* File Uploads */}
@@ -3172,53 +3225,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         ) : (
                             <p className="text-[10px] text-slate-400 italic">No files uploaded</p>
                         )}
-                    </div>
-
-
-                    {/* Title & Descriptions */}
-                    <div className="space-y-3 pt-3 border-t border-slate-100">
-                        <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
-                                Titles & Descriptions
-                            </label>
-                            <button 
-                                onClick={addTitleDescription}
-                                className="text-[10px] text-indigo-600 font-bold hover:underline"
-                            >
-                                + Add Title
-                            </button>
-                        </div>
-                        {newBillingTicket.titleDescriptions.map((td, i) => (
-                            <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative group">
-                                {newBillingTicket.titleDescriptions.length > 1 && (
-                                    <button 
-                                        onClick={() => removeTitleDescription(i)}
-                                        className="absolute top-2 right-2 p-1 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                    >
-                                        <X size={14}/>
-                                    </button>
-                                )}
-                                <div className="space-y-1">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase">Title</label>
-                                    <Input 
-                                        type="text"
-                                        placeholder="Enter title"
-                                        value={td.title}
-                                        onChange={e => updateTitleDescription(i, 'title', e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase">Description</label>
-                                    <textarea 
-                                        placeholder="Enter description..."
-                                        value={td.description}
-                                        onChange={e => updateTitleDescription(i, 'description', e.target.value)}
-                                        rows={3}
-                                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                                    />
-                                </div>
-                            </div>
-                        ))}
                     </div>
                 </div>
             </Modal>
