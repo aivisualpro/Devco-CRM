@@ -73,11 +73,11 @@ const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label:
     start.setHours(0, 0, 0, 0);
     
     const end = new Date(start);
-    start.setDate(start.getDate() + 6);
+    end.setDate(start.getDate() + 6);
     end.setHours(23, 59, 59, 999);
     
     const fmt = (dt: Date) => `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
-    return { start, end, label: `${fmt(start)} ~ ${fmt(end)}` };
+    return { start, end, label: `${fmt(start)}-${fmt(end)}` };
 };
 
 const shiftWeek = (current: Date, direction: number): Date => {
@@ -138,9 +138,9 @@ const getWeekRangeString = (dateObj: Date) => {
     const sunday = new Date(monday);
     sunday.setUTCDate(monday.getUTCDate() + 6);
 
-    // Format as MM/DD ~ MM/DD using UTC components
+    // Format as MM/DD-MM/DD using UTC components
     const fmt = (d: Date) => `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}`;
-    return `${fmt(monday)} ~ ${fmt(sunday)}`;
+    return `${fmt(monday)}-${fmt(sunday)}`;
 };
 
 

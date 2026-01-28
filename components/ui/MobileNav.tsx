@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Calendar, Clock, Menu, X, BookOpen, Settings, MessageSquare } from 'lucide-react';
+import { Calendar, Clock, Menu, X, BookOpen, Settings, MessageSquare, ClipboardList } from 'lucide-react';
 
 const MobileNav = () => {
     const pathname = usePathname();
@@ -12,14 +12,18 @@ const MobileNav = () => {
 
     const tabs = [
         { label: 'SCHEDULES', href: '/dashboard', icon: Calendar },
-        { label: 'Chat', href: '/dashboard?view=chat', icon: MessageSquare },
         { label: 'Time Cards', href: '/jobs/time-cards', icon: Clock },
+        { label: 'Tasks', href: '/dashboard?view=tasks', icon: ClipboardList },
+        { label: 'Chat', href: '/dashboard?view=chat', icon: MessageSquare },
     ];
 
     const isTabActive = (tabHref: string) => {
         const view = searchParams.get('view');
         if (tabHref === '/dashboard') {
             return pathname === '/dashboard' && !view;
+        }
+        if (tabHref === '/dashboard?view=tasks') {
+            return pathname === '/dashboard' && view === 'tasks';
         }
         if (tabHref === '/dashboard?view=chat') {
             return pathname === '/dashboard' && view === 'chat';

@@ -1355,7 +1355,7 @@ function DashboardContent() {
                     <div className="grid grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* Left Column - Main Content */}
-                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') === 'chat' ? 'hidden md:block' : ''}`}>
+                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && searchParams.get('view') !== 'tasks' ? 'hidden md:block' : ''}`}>
                             
                             {/* Upcoming Schedules */}
                             <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden">
@@ -1619,16 +1619,16 @@ function DashboardContent() {
                                 </div>
                             </div>
 
-                            {/* To Do Kanban */}
-                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            {/* Tasks Kanban */}
+                            <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-4`}>
                                 <div className="flex items-center justify-between mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
                                             <CheckCircle2 className="w-5 h-5 text-rose-600" />
                                         </div>
                                         <div>
-                                            <h2 className="font-bold text-slate-900">To Do</h2>
-                                            <p className="text-xs text-slate-500">Drag and drop to update status</p>
+                                            <h2 className="font-bold text-slate-900">Tasks</h2>
+                                            {searchParams.get('view') !== 'tasks' && <p className="text-xs text-slate-500">Manage your work</p>}
                                         </div>
                                     </div>
                                     <button className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors">
@@ -1637,7 +1637,7 @@ function DashboardContent() {
                                 </div>
                                 <div className="flex gap-4 overflow-x-auto pb-2">
                                     <TodoColumn 
-                                        title="To Do" 
+                                        title="Tasks" 
                                         items={todosByStatus.todo} 
                                         status="todo" 
                                         color="bg-slate-400"
