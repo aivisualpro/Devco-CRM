@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 
 interface SubItem {
@@ -483,27 +483,35 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 <div className="space-y-3">
                                     <button
                                         onClick={() => {
-                                            router.push('/settings/knowledgebase');
+                                            router.push('/dashboard?view=training');
                                             setIsMobileMenuOpen(false);
                                         }}
                                         className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
-                                            pathname.startsWith('/settings/knowledgebase') 
+                                            pathname === '/dashboard' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('view') === 'training'
                                                 ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
-                                                : 'bg-slate-50/80 border-slate-100 hover:bg-slate-100/80 hover:border-slate-200'
+                                                : 'bg-amber-50/80 border-amber-100 hover:bg-amber-100/80 hover:border-amber-200'
                                         }`}
                                     >
-                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-50 text-blue-500 shadow-sm">
-                                            <BookOpen size={24} />
+                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 shadow-sm">
+                                            <GraduationCap size={24} />
                                         </div>
                                         <div className="flex-1 text-left">
-                                            <span className={`text-base font-bold block ${pathname.startsWith('/settings/knowledgebase') ? 'text-[#0F4C75]' : 'text-slate-700'}`}>
-                                                Knowledgebase
+                                            <span className={`text-base font-bold block ${
+                                                pathname === '/dashboard' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('view') === 'training'
+                                                    ? 'text-[#0F4C75]' 
+                                                    : 'text-slate-700'
+                                            }`}>
+                                                Training & Certifications
                                             </span>
                                             <span className="text-xs text-slate-500 mt-0.5 block">
-                                                Help articles & guides
+                                                Your compliance status
                                             </span>
                                         </div>
-                                        <div className={`w-2 h-2 rounded-full ${pathname.startsWith('/settings/knowledgebase') ? 'bg-[#0F4C75]' : 'bg-slate-200'}`} />
+                                        <div className={`w-2 h-2 rounded-full ${
+                                            pathname === '/dashboard' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('view') === 'training'
+                                                ? 'bg-[#0F4C75]' 
+                                                : 'bg-amber-200'
+                                        }`} />
                                     </button>
                                 </div>
                             </div>

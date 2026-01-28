@@ -1732,7 +1732,7 @@ function DashboardContent() {
                     <div className="grid grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* Left Column - Main Content */}
-                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && searchParams.get('view') !== 'tasks' ? 'hidden md:block' : ''}`}>
+                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && !['tasks', 'training'].includes(searchParams.get('view')!) ? 'hidden md:block' : ''}`}>
                             
                             {/* Upcoming Schedules */}
                             <div className={`${searchParams.get('view') ? 'hidden md:block' : 'block'} bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden`}>
@@ -1906,10 +1906,10 @@ function DashboardContent() {
                             </div>
 
                             {/* Middle Row - Stats & Charts */}
-                            <div className="hidden md:grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                            <div className={`${searchParams.get('view') === 'training' ? 'grid' : 'hidden md:grid'} grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6`}>
                                 
                                 {/* Estimate Stats Pie Chart */}
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden md:block' : ''}`}>
                                     <div className="flex items-center gap-3 mb-4 justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
