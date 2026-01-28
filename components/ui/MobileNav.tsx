@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+// import Link from 'next/link'; // Unused
+import { usePathname, useRouter } from 'next/navigation';
 import { Home, Users, Briefcase, FileText, X, ChevronRight, Package, Calculator, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, FileCheck, AlertTriangle, Truck, Wrench, MessageSquare, Clock, BarChart3 } from 'lucide-react';
 import ChatModal from '../Chat/ChatModal';
 
@@ -47,6 +47,7 @@ const menuStructure = [
 
 const MobileNav = () => {
     const pathname = usePathname();
+    const router = useRouter();
     const [activeMenu, setActiveMenu] = useState<string | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
 
@@ -71,10 +72,12 @@ const MobileNav = () => {
                     const Icon = tab.icon;
 
                     return (
-                        <Link 
+                        <button 
                             key={tab.label} 
-                            href={tab.href as string} 
-                            className={`flex flex-col items-center justify-center flex-1 transition-all duration-300 relative ${Active ? 'text-[#0F4C75]' : 'text-slate-400'}`}
+                            onClick={() => router.push(tab.href)}
+                            onContextMenu={(e) => e.preventDefault()}
+                            className={`flex flex-col items-center justify-center flex-1 transition-all duration-300 relative select-none ${Active ? 'text-[#0F4C75]' : 'text-slate-400'}`}
+                            style={{ WebkitTouchCallout: 'none' }}
                         >
                             <div className={`relative p-2 rounded-xl transition-all duration-500 ${Active ? 'bg-[#0F4C75]/10 scale-110 shadow-inner' : 'hover:bg-slate-100'}`}>
                                 <Icon size={20} strokeWidth={Active ? 2.5 : 2} />
@@ -88,7 +91,7 @@ const MobileNav = () => {
                             >
                                 {tab.label}
                             </span>
-                        </Link>
+                        </button>
                     );
                 })}
             </div>
