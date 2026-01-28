@@ -125,15 +125,49 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
         const imageMarkers = new Set(imageResults.map(ir => ir.key));
 
         for (const [key, value] of Object.entries(variables)) {
-            if (typeof value === 'boolean' || Array.isArray(value)) continue;
-            
+            // Handle image markers
             if (imageMarkers.has(key)) {
                 const ir = imageResults.find(r => r.key === key);
                 if (ir) {
                     requests.push({ replaceAllText: { containsText: { text: `{{${key}}}`, matchCase: false }, replaceText: ir.marker } });
                 }
-            } else {
-                requests.push({ replaceAllText: { containsText: { text: `{{${key}}}`, matchCase: false }, replaceText: String(value ?? '') } });
+                continue;
+            }
+
+            // Handle arrays (specifically for repeating sections like titleDescriptions)
+            if (Array.isArray(value)) {
+                // If it's an array of objects, we support {{key}}{{property}} syntax
+                if (value.length > 0 && typeof value[0] === 'object') {
+                    const properties = Object.keys(value[0]);
+                    for (const prop of properties) {
+                        const flattenedValue = value.map(item => item[prop] || '').join('\n');
+                        requests.push({ 
+                            replaceAllText: { 
+                                containsText: { text: `{{${key}}}{{${prop}}}`, matchCase: false }, 
+                                replaceText: flattenedValue 
+                            } 
+                        });
+                    }
+                } else {
+                    // Simple array of strings/numbers
+                    requests.push({ 
+                        replaceAllText: { 
+                            containsText: { text: `{{${key}}}`, matchCase: false }, 
+                            replaceText: value.join('\n') 
+                        } 
+                    });
+                }
+                continue;
+            }
+
+            // Standard flat variables
+            if (typeof value !== 'boolean') {
+                requests.push({ 
+                    replaceAllText: { 
+                        containsText: { text: `{{${key}}}`, matchCase: false }, 
+                        replaceText: String(value ?? '') 
+                    } 
+                });
             }
         }
 

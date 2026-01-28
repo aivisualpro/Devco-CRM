@@ -68,6 +68,11 @@ interface Estimate {
     bidMarkUp?: string | number;
     status?: string;
     fringe?: string;
+    customerPONo?: string;
+    workRequestNo?: string;
+    subContractAgreementNo?: string;
+    customerJobNo?: string;
+    DIRProjectNo?: string;
 
     services?: string[];
     proposalWriter?: string | string[];

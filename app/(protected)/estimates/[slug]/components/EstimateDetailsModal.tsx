@@ -38,12 +38,7 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
         { key: 'accountingContact', label: 'Accounting Contact' },
         { key: 'accountingEmail', label: 'Accounting Email', type: 'email', readOnly: true },
         { key: 'accountingPhone', label: 'Accounting Phone', readOnly: true },
-        { key: 'projectId', label: 'Project ID' },
-        { key: 'customerPONumber', label: 'Customer PO#' },
-        { key: 'workRequestNumber', label: 'Work Request#' },
-        { key: 'subContractAgreementNumber', label: 'Sub Contract Agreement #' },
-        { key: 'customerJobNumber', label: 'Customer Job#' },
-        { key: 'dirNumber', label: 'DIR#' }
+        { key: 'projectId', label: 'Project ID' }
     ],
     owner: [
         { key: 'poName', label: 'Owner / Agency Name', span: 2 },
@@ -52,8 +47,13 @@ const FIELDS_BY_TAB: Record<string, { key: string; label: string; type?: string;
     ],
     contractor: [
         { key: 'ocName', label: 'Contractor Name', span: 2 },
-        { key: 'ocAddress', label: 'Address', span: 2 },
-        { key: 'ocPhone', label: 'Phone' }
+        { key: 'ocPhone', label: 'Phone' },
+        { key: 'ocAddress', label: 'Address', span: 3 },
+        { key: 'customerPONo', label: 'Customer PO#' },
+        { key: 'workRequestNo', label: 'Work Request#' },
+        { key: 'subContractAgreementNo', label: 'Sub Contract Agreement #' },
+        { key: 'customerJobNo', label: 'Customer Job#' },
+        { key: 'DIRProjectNo', label: 'DIR Project#' }
     ],
     subcontractor: [
         { key: 'subCName', label: 'Sub-Contractor Name', span: 2 },
@@ -181,7 +181,7 @@ export function EstimateDetailsModal({ isOpen, onClose, formData, customerId, on
                             {currentFields.map((field, idx) => (
                                 <div 
                                     key={field.key} 
-                                    className={`space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300 ${field.span === 2 ? 'col-span-2' : ''}`}
+                                    className={`space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300 ${field.span === 2 ? 'col-span-2' : field.span === 3 ? 'col-span-3' : ''}`}
                                     style={{ animationDelay: `${idx * 50}ms` }}
                                 >
                                     <label className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">

@@ -58,6 +58,11 @@ export interface IEstimate extends Document {
     fbName?: string;
     fbAddress?: string;
     eCPRSystem?: string;
+    customerPONo?: string;
+    workRequestNo?: string;
+    subContractAgreementNo?: string;
+    customerJobNo?: string;
+    DIRProjectNo?: string;
 
     wetUtilities?: string;
     dryUtilities?: string;
@@ -266,6 +271,11 @@ const EstimateSchema = new Schema({
     fbName: { type: String },
     fbAddress: { type: String },
     eCPRSystem: { type: String },
+    customerPONo: { type: String },
+    workRequestNo: { type: String },
+    subContractAgreementNo: { type: String },
+    customerJobNo: { type: String },
+    DIRProjectNo: { type: String },
 
     wetUtilities: { type: String },
     dryUtilities: { type: String },

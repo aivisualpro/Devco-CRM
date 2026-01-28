@@ -23,6 +23,7 @@ const DOC_TEMPLATES: Record<string, string> = {
     'DAS 142': '',
     'Fringe Benefits Report': '',
     'Union Status Letter': '',
+    'Billing Ticket': '10I-srE4jryX1mGOEeTRsRPxyWTmmyIl_p51olERbctQ',
     // Add more templates here as needed
 };
 
@@ -1021,6 +1022,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 estimate: formData.estimate || '',
                 usaNumber: formData.usaNumber || '',
                 projectId: formData.projectId || '',
+                customerPONo: formData.customerPONo || '',
+                workRequestNo: formData.workRequestNo || '',
+                subContractAgreementNo: formData.subContractAgreementNo || '',
+                customerJobNo: formData.customerJobNo || '',
+                DIRProjectNo: formData.DIRProjectNo || '',
                 
                 // Customer ID should be the client name
                 customerId: formData.customerName || formData.customer || '',
@@ -1130,6 +1136,38 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 // Received Progress Payments array (for UP)
                 if (releaseItem.receivedProgressPayments && Array.isArray(releaseItem.receivedProgressPayments)) {
                      variables.receivedProgressPayment = releaseItem.receivedProgressPayments.join(', ');
+                }
+            }
+
+            // Inject Billing Ticket specific fields
+            if (docName === 'Billing Ticket' && itemIndex !== undefined) {
+                const billingItem = billingTickets[itemIndex];
+                if (billingItem) {
+                    variables.date = billingItem.date ? new Date(billingItem.date).toLocaleDateString() : variables.date;
+                    variables.day = billingItem.date ? format(new Date(billingItem.date), 'EEEE') : format(new Date(), 'EEEE');
+                    variables.billingTerms = billingItem.billingTerms || '';
+                    variables.otherBillingTerms = billingItem.otherBillingTerms || '';
+                    variables.lumpSum = billingItem.lumpSum ? `$${parseFloat(billingItem.lumpSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
+                    
+                    // Support for repeating section
+                    if (billingItem.titleDescriptions && billingItem.titleDescriptions.length > 0) {
+                        // Pass as array - the backend needs to handle this specifically
+                        (variables as any).titleDescriptions = (billingItem.titleDescriptions as any[]).map((td: any) => ({
+                            title: td.title || '',
+                            description: td.description || ''
+                        }));
+
+                        // NEW: Also provide a pre-interleaved string for simplified templates
+                        variables.billingTicketDetails = (billingItem.titleDescriptions as any[]).map((td: any) => {
+                            let itemStr = `● ${td.title || ''}`;
+                            if (td.description) {
+                                // Add indentation for description lines
+                                const indentedDesc = (td.description as string).split('\n').map((line: string) => `   ○ ${line}`).join('\n');
+                                itemStr += `\n${indentedDesc}`;
+                            }
+                            return itemStr;
+                        }).join('\n\n');
+                    }
                 }
             }
 
@@ -1902,6 +1940,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                         <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDocClick('Billing Ticket', idx);
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-12"
+                                            title="Download PDF"
+                                        >
+                                            {generatingDoc === 'Billing Ticket' ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                                            ) : (
+                                                <Download className="w-3.5 h-3.5" />
+                                            )}
+                                        </button>
+                                        <button 
                                             onClick={(e) => handleEditBillingTicket(idx, e)}
                                             className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
                                         >
@@ -1912,19 +1964,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     {item.lumpSum && (
                                         <div className="mt-2 flex items-center gap-2">
                                             <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
-                                            <span className="text-xs font-black text-green-600">${parseFloat(item.lumpSum).toLocaleString()}</span>
+                                            <span className="text-xs font-black text-green-600">
+                                                ${parseFloat(item.lumpSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
                                         </div>
                                     )}
 
                                     {item.titleDescriptions?.length > 0 && (
-                                        <div className="mt-2 space-y-1">
-                                            {item.titleDescriptions.slice(0, 2).map((td: any, tIdx: number) => (
-                                                <div key={tIdx} className="text-[9px] text-slate-600 truncate">
-                                                    <strong>{td.title}</strong>{td.description ? `: ${td.description.substring(0, 50)}...` : ''}
+                                        <div className="mt-2 space-y-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                                            {item.titleDescriptions.slice(0, 3).map((td: any, tIdx: number) => (
+                                                <div key={tIdx} className="text-[9px] text-slate-600 leading-tight">
+                                                    <span className="font-bold text-slate-800">{td.title}:</span> {td.description ? `${td.description.substring(0, 80)}${td.description.length > 80 ? '...' : ''}` : ''}
                                                 </div>
                                             ))}
-                                            {item.titleDescriptions.length > 2 && (
-                                                <p className="text-[8px] text-slate-400">+{item.titleDescriptions.length - 2} more</p>
+                                            {item.titleDescriptions.length > 3 && (
+                                                <p className="text-[8px] text-slate-400 font-bold ml-1">+{item.titleDescriptions.length - 3} more items...</p>
                                             )}
                                         </div>
                                     )}
