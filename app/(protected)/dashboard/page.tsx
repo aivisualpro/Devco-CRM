@@ -1329,7 +1329,7 @@ function DashboardContent() {
                                     </div>
                                 </div>
                                     {/* Scrollable Card Area - max 2 rows visible before scroll */}
-                                    <div className="overflow-y-auto p-2 md:p-3 bg-slate-50 md:bg-white max-h-[calc(100vh-400px)] md:max-h-[400px]">
+                                    <div className="overflow-y-auto p-2 md:p-3 bg-slate-50 md:bg-white max-h-none md:max-h-[400px]">
                                         {loading ? (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {[1,2,3].map(i => (
