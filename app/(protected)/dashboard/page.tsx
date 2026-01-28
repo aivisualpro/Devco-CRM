@@ -516,26 +516,36 @@ function DashboardContent() {
     
     // Week Navigation
     const [currentWeekDate, setCurrentWeekDate] = useState(() => {
-        const week = searchParams.get('week');
-        if (week && week.includes('-')) {
-            try {
-                const [startPart] = week.split('-');
-                const [m, d] = startPart.split('/').map(Number);
-                const date = new Date();
-                date.setMonth(m - 1);
-                date.setDate(d);
-                if (!isNaN(date.getTime())) return date;
-            } catch (e) {}
+        if (typeof window !== 'undefined') {
+            const week = searchParams.get('week');
+            const storedWeek = localStorage.getItem('selected_week');
+            const weekToUse = week || storedWeek;
+
+            if (weekToUse && weekToUse.includes('-')) {
+                try {
+                    const [startPart] = weekToUse.split('-');
+                    const [m, d] = startPart.split('/').map(Number);
+                    const date = new Date();
+                    date.setMonth(m - 1);
+                    date.setDate(d);
+                    if (!isNaN(date.getTime())) return date;
+                } catch (e) {}
+            }
         }
         return new Date();
     });
     const weekRange = useMemo(() => getWeekRange(currentWeekDate), [currentWeekDate]);
 
-    // Update URL when currentWeekDate changes
+    // Update URL and localStorage when weekRange.label changes
     useEffect(() => {
         const newLabel = weekRange.label;
         const currentWeekParam = searchParams.get('week');
         
+        // Sync with localStorage
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('selected_week', newLabel);
+        }
+
         if (newLabel !== currentWeekParam) {
             const params = new URLSearchParams(searchParams.toString());
             params.set('week', newLabel);
@@ -1996,7 +2006,7 @@ function DashboardContent() {
                             />
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
-                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : (searchParams.get('view') ? 'hidden md:block' : 'block')} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden`}>
+                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden`}>
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">

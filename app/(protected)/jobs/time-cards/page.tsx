@@ -304,26 +304,42 @@ function TimeCardContent() {
     const searchParams = useSearchParams();
 
     const [currentWeekDate, setCurrentWeekDate] = useState(() => {
-        const week = searchParams.get('week');
-        if (week) {
-            const d = new Date(week);
-            if (!isNaN(d.getTime())) return d;
+        if (typeof window !== 'undefined') {
+            const week = searchParams.get('week');
+            const storedWeek = localStorage.getItem('selected_week');
+            const weekToUse = week || storedWeek;
+
+            if (weekToUse && weekToUse.includes('-')) {
+                try {
+                    const [startPart] = weekToUse.split('-');
+                    const [m, d] = startPart.split('/').map(Number);
+                    const date = new Date();
+                    date.setMonth(m - 1);
+                    date.setDate(d);
+                    if (!isNaN(date.getTime())) return date;
+                } catch (e) {}
+            }
         }
         return new Date();
     });
     const weekRange = useMemo(() => getWeekRange(currentWeekDate), [currentWeekDate]);
 
-    // Update URL when currentWeekDate changes
+    // Update URL and localStorage when weekRange.label changes
     useEffect(() => {
-        const dateStr = currentWeekDate.toISOString().split('T')[0];
+        const newLabel = weekRange.label;
         const currentWeekParam = searchParams.get('week');
         
-        if (dateStr !== currentWeekParam) {
+        // Sync with localStorage
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('selected_week', newLabel);
+        }
+
+        if (newLabel !== currentWeekParam) {
             const params = new URLSearchParams(searchParams.toString());
-            params.set('week', dateStr);
+            params.set('week', newLabel);
             router.replace(`?${params.toString()}`, { scroll: false });
         }
-    }, [currentWeekDate, router, searchParams]);
+    }, [weekRange.label, router, searchParams]);
 
     const dateInputRef = useRef<HTMLInputElement>(null);
 
