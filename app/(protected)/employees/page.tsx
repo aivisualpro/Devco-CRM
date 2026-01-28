@@ -389,7 +389,7 @@ export default function EmployeesPage() {
 
     const appRoleOptions = getOptions('appRole');
     const positionOptions = getOptions('companyPosition');
-    const designationOptions = Array.from(new Set(['Foreman', 'Project Manager', 'SITE Coordinator', ...getSplitOptions('designation')]));
+    const designationOptions = Array.from(new Set(['Foreman', 'Project Manager', ...getSplitOptions('designation')]));
     const cityOptions = getOptions('city');
     const stateOptions = getOptions('state');
 

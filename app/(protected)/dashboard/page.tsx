@@ -2032,14 +2032,20 @@ function DashboardContent() {
 
                                 {/* Training Card */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                                            <GraduationCap className="w-5 h-5 text-amber-600" />
-                                        </div>
-                                        <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
+                                                <GraduationCap className="w-5 h-5 text-amber-600" />
+                                            </div>
                                             <h2 className="font-bold text-slate-900">Training & Certifications</h2>
-                                            <p className="text-xs text-slate-500">Your compliance status</p>
                                         </div>
+                                        <button
+                                            onClick={() => setIsDocModalOpen(true)}
+                                            className="w-8 h-8 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors"
+                                            title="Add New"
+                                        >
+                                            <Plus size={18} />
+                                        </button>
                                     </div>
                                     <div className="space-y-3">
                                         {trainings.map(t => (
@@ -2080,20 +2086,6 @@ function DashboardContent() {
                                     
                                     {/* Company Docs Section */}
                                     <div className="pt-4 mt-4 border-t border-slate-100">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h3 className="font-bold text-slate-800 text-sm">Company Documents</h3>
-                                            <div className="hidden md:block">
-                                                <Button 
-                                                    size="sm" 
-                                                    variant="ghost" 
-                                                    className="h-7 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100"
-                                                    onClick={() => setIsDocModalOpen(true)}
-                                                >
-                                                    <Plus size={14} className="mr-1" />
-                                                    Add New
-                                                </Button>
-                                            </div>
-                                        </div>
 
                                         <div className="space-y-2">
                                             {companyDocs.length > 0 ? (
@@ -2940,7 +2932,6 @@ function DashboardContent() {
                                         folder="docs"
                                         label="Click to Upload"
                                     />
-                                    <p className="text-xs text-slate-400 mt-2">Support: PDF, Images</p>
                                 </div>
                             )}
                         </div>

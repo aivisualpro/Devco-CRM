@@ -77,7 +77,7 @@ export function UploadButton({
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 className="hidden"
-                accept="image/*" 
+                
                 multiple={multiple}
                 disabled={uploading || disabled}
             />
