@@ -7,11 +7,15 @@ import Header from '@/components/ui/Header';
 import { BadgeTabs } from '@/components/ui/Tabs';
 import { Card } from '@/components/ui/Card';
 import { Loading } from '@/components/ui/Loading';
-import { DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, Calendar, User, Search, Filter, Star, MoreVertical, Settings, Printer, Share2, ChevronDown, Clock, Rocket, X } from 'lucide-react';
+import { 
+    DollarSign, LayoutDashboard, Briefcase, RefreshCw, ExternalLink, 
+    Calendar, User, Users, Search, Filter, Star, MoreVertical, 
+    Settings, Printer, Share2, ChevronDown, Clock, Rocket, X,
+    FileText, Target, TrendingUp, Zap, HelpCircle, PieChart as PieChartIcon, Info 
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Skeleton, SkeletonTableRow, SkeletonTable } from '@/components/ui';
-import { HelpCircle, PieChart as PieChartIcon, Info } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 
@@ -793,7 +797,207 @@ function WIPReportContent() {
                                             )}
 
                                             {activeDetailTab === 'Summary' && (
-                                                <div className="p-4 space-y-10 animate-fade-in w-full">
+                                                <div className="p-4 space-y-12 animate-fade-in w-full">
+                                                    {(() => {
+                                                        const originalContractValue = selectedProject.originalContract || 0;
+                                                        const changeOrdersValue = selectedProject.changeOrders || 0;
+                                                        const updatedContractValue = originalContractValue + changeOrdersValue;
+                                                        const originalContractCostValue = (selectedProject as any).originalContractCost || 0;
+                                                        const changeOrderCostValue = 0;
+                                                        const totalEstimatedCostValue = originalContractCostValue + changeOrderCostValue;
+                                                        const estimatedGPValue = updatedContractValue - totalEstimatedCostValue;
+                                                        
+                                                        const revenueToDateValue = selectedProject.income || 0;
+                                                        const costOfRevenueValue = selectedProject.cost || 0;
+                                                        const grossProfitValue = revenueToDateValue - costOfRevenueValue;
+                                                        const grossProfitPctValue = revenueToDateValue > 0 ? (grossProfitValue / revenueToDateValue) * 100 : 0;
+                                                        const grossMarkupPctValue = costOfRevenueValue > 0 ? (grossProfitValue / costOfRevenueValue) * 100 : 0;
+                                                        const percentageCompleteValue = updatedContractValue > 0 ? (revenueToDateValue / updatedContractValue) * 100 : 0;
+
+                                                        const fmtDetail = (val: number) => new Intl.NumberFormat('en-US', { 
+                                                            style: 'currency', 
+                                                            currency: 'USD', 
+                                                            minimumFractionDigits: 0, 
+                                                            maximumFractionDigits: 0 
+                                                        }).format(val);
+
+                                                        return (
+                                                            <div className="space-y-8">
+                                                                {/* Interactive Project Identity Header */}
+                                                                <div className="relative group">
+                                                                    <div className="absolute -inset-1 bg-gradient-to-r from-[#0F4C75] via-[#3282B8] to-emerald-500 rounded-[2rem] blur opacity-25 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
+                                                                    <div className="relative flex flex-wrap items-center gap-6 bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl overflow-hidden">
+                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100 max-w-[200px]">
+                                                                            <div className="p-2 bg-blue-500 rounded-lg text-white">
+                                                                                <Briefcase size={18} />
+                                                                            </div>
+                                                                            <div className="flex flex-col truncate">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</span>
+                                                                                <span className="text-sm font-black text-slate-700 truncate">{selectedProject.CompanyName || selectedProject.DisplayName.split(':')?.[0] || '---'}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
+                                                                            <div className="p-2 bg-[#0F4C75] rounded-lg text-white">
+                                                                                <FileText size={18} />
+                                                                            </div>
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proposal ID</span>
+                                                                                <span className="text-sm font-black text-[#0F4C75]">{selectedProject.proposalNumber || '---'}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
+                                                                            <div className="p-2 bg-emerald-500 rounded-lg text-white">
+                                                                                <Users size={18} />
+                                                                            </div>
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proposal Writers</span>
+                                                                                <span className="text-sm font-black text-slate-700 max-w-[150px] truncate">{selectedProject.proposalWriters?.join(', ') || '---'}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex items-center gap-4 bg-slate-50 px-5 py-3 rounded-2xl border border-slate-100">
+                                                                            <div className="p-2 bg-amber-500 rounded-lg text-white">
+                                                                                <Calendar size={18} />
+                                                                            </div>
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Start Date</span>
+                                                                                <span className="text-sm font-black text-slate-700">{selectedProject.startDate || '---'}</span>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        <div className="flex-1 flex justify-end items-center gap-6 min-w-[300px]">
+                                                                            <div className="text-right">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Contract Status</span>
+                                                                                <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                                                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                                                                    <span className="text-[10px] font-bold uppercase">{selectedProject.status || 'Active'}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                            <div className="h-12 w-[2px] bg-slate-100 mx-2"></div>
+                                                                            <div className="flex flex-col items-center">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">% COMPLETE</span>
+                                                                                <div className="relative w-16 h-16 flex items-center justify-center">
+                                                                                    <svg className="w-full h-full transform -rotate-90">
+                                                                                        <circle
+                                                                                            cx="32" cy="32" r="28"
+                                                                                            stroke="currentColor"
+                                                                                            strokeWidth="4"
+                                                                                            fill="transparent"
+                                                                                            className="text-slate-100"
+                                                                                        />
+                                                                                        <circle
+                                                                                            cx="32" cy="32" r="28"
+                                                                                            stroke="currentColor"
+                                                                                            strokeWidth="4"
+                                                                                            fill="transparent"
+                                                                                            strokeDasharray={2 * Math.PI * 28}
+                                                                                            strokeDashoffset={2 * Math.PI * 28 * (1 - percentageCompleteValue / 100)}
+                                                                                            strokeLinecap="round"
+                                                                                            className="text-emerald-500 transition-all duration-1000"
+                                                                                        />
+                                                                                    </svg>
+                                                                                    <span className="absolute text-[11px] font-black text-slate-700">{Math.round(percentageCompleteValue)}%</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Financial Metrics Grid */}
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                                                    {/* Column 1: Contract Analysis */}
+                                                                    <div className="space-y-4">
+                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+                                                                            <Briefcase size={12} /> Contract Matrix
+                                                                        </h4>
+                                                                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition-all">
+                                                                            <div className="flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">ORIGINAL</span>
+                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(originalContractValue)}</span>
+                                                                            </div>
+                                                                            <div className="flex justify-between items-center bg-amber-50/50 px-3 py-2 rounded-xl border border-amber-100/50 group cursor-help">
+                                                                                <span className="text-[11px] font-bold text-amber-700">CHANGE ORDERS</span>
+                                                                                <span className="text-sm font-black text-amber-600">+{fmtDetail(changeOrdersValue)}</span>
+                                                                            </div>
+                                                                            <div className="pt-2 border-t border-slate-50 flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-black text-[#0F4C75]">UPDATED TOTAL</span>
+                                                                                <span className="text-lg font-black text-[#0F4C75]">{fmtDetail(updatedContractValue)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Column 2: Estimation & Costing */}
+                                                                    <div className="space-y-4">
+                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+                                                                            <Target size={12} /> Projected Costs
+                                                                        </h4>
+                                                                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition-all">
+                                                                            <div className="flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">ESTIMATED COST</span>
+                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(originalContractCostValue)}</span>
+                                                                            </div>
+                                                                            <div className="flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">CO EST. COST</span>
+                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(changeOrderCostValue)}</span>
+                                                                            </div>
+                                                                            <div className="pt-2 border-t border-slate-50 flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-black text-[#0F4C75]">TOTAL ESTIMATED</span>
+                                                                                <span className="text-lg font-black text-[#0F4C75]">{fmtDetail(totalEstimatedCostValue)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Column 3: Gross Profit DNA */}
+                                                                    <div className="space-y-4">
+                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+                                                                            <TrendingUp size={12} /> Profit Analysis
+                                                                        </h4>
+                                                                        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4 hover:shadow-md transition-all">
+                                                                            <div className="flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">CONTRACT GP</span>
+                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(originalContractValue - originalContractCostValue)}</span>
+                                                                            </div>
+                                                                            <div className="flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-bold text-slate-400 group-hover:text-slate-600 transition-colors">ESTIMATED CO GP</span>
+                                                                                <span className="text-sm font-black text-slate-900">{fmtDetail(0)}</span>
+                                                                            </div>
+                                                                            <div className="pt-2 border-t border-slate-50 flex justify-between items-center group cursor-help">
+                                                                                <span className="text-[11px] font-black text-emerald-600">TOTAL EST. GP</span>
+                                                                                <span className="text-lg font-black text-emerald-600">{fmtDetail(estimatedGPValue)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Column 4: Efficiency Specs */}
+                                                                    <div className="space-y-4">
+                                                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+                                                                            <Zap size={12} /> Efficiency Specs
+                                                                        </h4>
+                                                                        <div className="bg-[#D8E983] p-5 rounded-2xl border border-[#D8E983] shadow-sm space-y-3 relative overflow-hidden group hover:shadow-[#D8E983]/30 transition-all">
+                                                                            <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:scale-125 transition-transform">
+                                                                                <Zap size={60} className="fill-[#0F4C75]" />
+                                                                            </div>
+                                                                            <div className="flex justify-between items-center relative z-10">
+                                                                                <span className="text-[10px] font-black text-[#0F4C75] uppercase tracking-tighter">Gross Profit %</span>
+                                                                                <span className="text-xl font-black text-[#0F4C75]">{grossProfitPctValue.toFixed(1)}%</span>
+                                                                            </div>
+                                                                            <div className="flex justify-between items-center relative z-10">
+                                                                                <span className="text-[10px] font-black text-[#0F4C75] uppercase tracking-tighter">Markup on Cost</span>
+                                                                                <span className="text-xl font-black text-[#0F4C75]">{grossMarkupPctValue.toFixed(1)}%</span>
+                                                                            </div>
+                                                                            <div className="pt-2 border-t border-[#0F4C75]/10 flex justify-between items-center relative z-10">
+                                                                                <span className="text-[10px] font-black text-[#0F4C75] uppercase">Actual GP</span>
+                                                                                <span className="text-sm font-black text-[#0F4C75]">{fmtDetail(grossProfitValue)}</span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    
                                                     {/* Project Balance Summary Section */}
                                                     <div className="space-y-6">
                                                         <div className="flex flex-col lg:flex-row items-stretch gap-4">

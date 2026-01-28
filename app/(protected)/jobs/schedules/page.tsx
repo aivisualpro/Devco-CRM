@@ -3234,7 +3234,7 @@ function SchedulePageContent() {
                                             {dayOffStats.length > 0 && (
                                                 <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden w-full">
                                                     <div className="px-4 py-3 border-b border-slate-50">
-                                                        <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-left">Upcoming Time Off</h5>
+                                                        <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Upcoming Time Off</h5>
                                                     </div>
                                                     <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
                                                         {dayOffStats.map((stat, idx) => {
@@ -3269,11 +3269,10 @@ function SchedulePageContent() {
                                                                     const d = new Date(current);
                                                                     const dayOfWeek = d.getUTCDay();
                                                                     
-                                                                    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-                                                                        count++;
-                                                                        const name = dayNames[dayOfWeek];
-                                                                        if (!daysFound.includes(name)) daysFound.push(name);
-                                                                    }
+                                                                    count++;
+                                                                    const name = dayNames[dayOfWeek];
+                                                                    if (!daysFound.includes(name)) daysFound.push(name);
+                                                                    
                                                                     current += 86400000; // Step by 1 day in ms
                                                                 }
                                                                 
@@ -3283,7 +3282,41 @@ function SchedulePageContent() {
                                                             const { count, days } = getWorkDays(stat.fromDate, stat.toDate);
 
                                                             return (
-                                                                <div key={idx} className="px-4 py-3 hover:bg-slate-50/50 transition-colors text-left group">
+                                                                <div 
+                                                                    key={idx} 
+                                                                    onClick={() => {
+                                                                        const assignee = stat.assignees?.[0];
+                                                                        if (assignee) setFilterEmployee(assignee);
+                                                                        setFilterTag('Day Off');
+                                                                        
+                                                                        // Create a range of dates for this specific time off
+                                                                        const s = new Date(stat.fromDate);
+                                                                        const e = new Date(stat.toDate);
+                                                                        const sUTC = Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
+                                                                        const eUTC = Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
+                                                                        
+                                                                        const range = [];
+                                                                        let cur = sUTC;
+                                                                        while (cur <= eUTC) {
+                                                                            const d = new Date(cur);
+                                                                            range.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`);
+                                                                            cur += 86400000;
+                                                                        }
+                                                                        setSelectedDates(range);
+                                                                        
+                                                                        // Reset page and refetch
+                                                                        setPage(1);
+                                                                        // Scroll to top of schedule
+                                                                        if (scrollContainerRef.current) {
+                                                                            scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                        }
+                                                                        
+                                                                        // Close mobile filters if open
+                                                                        setShowMobileFilters(false);
+                                                                        success(`Showing Time Off for ${person?.label || assignee}`);
+                                                                    }}
+                                                                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors text-left group"
+                                                                >
                                                                     <p className="text-[11px] font-bold text-slate-700 truncate leading-tight flex items-center gap-1.5">
                                                                         {person?.label || stat.assignees?.[0] || 'Unknown'}
                                                                         {stat.isDayOffApproved && <CheckCircle2 size={13} className="text-green-600 shrink-0" />}
