@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 
 interface SubItem {
@@ -120,6 +120,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const [user, setUser] = useState<User | null>(null);
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [openMenu, setOpenMenu] = useState<string | null>(null);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -287,6 +288,13 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                         {/* Right Actions - Default Header Actions */}
                         <div className="flex items-center gap-3">
+                             {/* Mobile Burger Menu Button */}
+                             <button
+                                onClick={() => setIsMobileMenuOpen(true)}
+                                className="md:hidden p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <Menu size={24} />
+                            </button>
                             {wipReportFilters && (
                                 <div className="flex items-center gap-3 mr-4">
                                     {/* Toggle WIP/QuickBooks */}
@@ -453,7 +461,80 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                         </div>
                     </div>
                 </div>
+
             </header>
+
+            {/* Mobile Menu Drawer */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 md:hidden">
+                    <div className="flex flex-col h-full">
+                         <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                            <span className="text-xl font-black text-[#0F4C75] tracking-tighter">MENU</span>
+                            <button 
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
+                            >
+                                <X size={24} className="text-slate-600" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                            {menuStructure.map((section, idx) => (
+                                <div key={idx}>
+                                    <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-2">{section.label}</h3>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {section.items?.map((item, i) => {
+                                            const Icon = item.icon as any;
+                                            // Handle ReactNode icon vs standard rendering if needed, 
+                                            // but for now relying on existing structure where icon is ReactNode
+                                            // effectively we might just want to clone it or render it.
+                                            // The header structure has `icon: <Users .../>` (ReactElement)
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    onClick={() => {
+                                                        router.push(item.href);
+                                                        setIsMobileMenuOpen(false);
+                                                    }}
+                                                    className="flex flex-col items-center justify-center p-3 bg-slate-50 rounded-2xl border border-slate-100 active:scale-95 transition-all"
+                                                >
+                                                    <div className={`w-10 h-10 rounded-xl mb-2 flex items-center justify-center bg-slate-100`}>
+                                                        {item.icon}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-700 text-center leading-tight">{item.label}</span>
+                                                </button>
+                                            )
+                                        })}
+                                        {/* Direct Href */}
+                                        {section.href && (
+                                            <button
+                                                onClick={() => {
+                                                    router.push(section.href as string);
+                                                    setIsMobileMenuOpen(false);
+                                                }}
+                                                className="col-span-2 flex items-center gap-4 p-4 bg-[#0F4C75] text-white rounded-2xl shadow-lg shadow-blue-900/20 active:scale-95 transition-all"
+                                            >
+                                                <MessageSquare size={24} className="text-white" />
+                                                <span className="text-lg font-black tracking-tight">{section.label}</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            
+                            <div className="pt-4 border-t border-slate-100">
+                                <button 
+                                    onClick={() => {
+                                         handleLogout();
+                                    }}
+                                    className="w-full flex items-center justify-center gap-2 p-4 bg-rose-50 text-rose-600 rounded-2xl font-bold"
+                                >
+                                    Log Out
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Search Modal Overlay */}
             {searchOpen && (

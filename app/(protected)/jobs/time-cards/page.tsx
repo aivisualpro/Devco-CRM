@@ -6,6 +6,7 @@ import {
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Header, Loading, Modal,
     SearchableSelect, Card, Pagination,
@@ -299,8 +300,30 @@ export default function TimeCardPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
     
     // Week Selection (Dashboard Style)
-    const [currentWeekDate, setCurrentWeekDate] = useState(new Date());
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    const [currentWeekDate, setCurrentWeekDate] = useState(() => {
+        const week = searchParams.get('week');
+        if (week) {
+            const d = new Date(week);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return new Date();
+    });
     const weekRange = useMemo(() => getWeekRange(currentWeekDate), [currentWeekDate]);
+
+    // Update URL when currentWeekDate changes
+    useEffect(() => {
+        const dateStr = currentWeekDate.toISOString().split('T')[0];
+        const currentWeekParam = searchParams.get('week');
+        
+        if (dateStr !== currentWeekParam) {
+            const params = new URLSearchParams(searchParams.toString());
+            params.set('week', dateStr);
+            router.replace(`?${params.toString()}`, { scroll: false });
+        }
+    }, [currentWeekDate, router, searchParams]);
 
     const dateInputRef = useRef<HTMLInputElement>(null);
 
