@@ -67,6 +67,7 @@ interface EstimateDocsCardProps {
 export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient }) => {
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
+    const [generatingProgress, setGeneratingProgress] = useState(0);
     const [isSignedContractModalOpen, setIsSignedContractModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [newContract, setNewContract] = useState<{ date: string; amount: string; attachments: any[] }>({
@@ -943,6 +944,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         setGeneratingDoc(docName);
         if (itemIndex !== undefined) setGeneratingIndex(itemIndex);
+        setGeneratingProgress(5);
+
+        const intervalId = setInterval(() => {
+            setGeneratingProgress(prev => {
+                if (prev >= 95) return prev;
+                return prev + Math.floor(Math.random() * 8) + 1;
+            });
+        }, 400);
 
         try {
             // Build variables from formData
@@ -1178,13 +1187,19 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             window.URL.revokeObjectURL(url);
             a.remove();
 
+            setGeneratingProgress(100);
             toast.success(`${docName} downloaded successfully!`);
         } catch (error: any) {
             console.error('PDF Generation Error:', error);
             toast.error(error.message || 'Failed to generate PDF');
         } finally {
-            setGeneratingDoc(null);
-            setGeneratingIndex(null);
+            clearInterval(intervalId);
+            // Wait a bit to show 100%
+            setTimeout(() => {
+                setGeneratingDoc(null);
+                setGeneratingIndex(null);
+                setGeneratingProgress(0);
+            }, 600);
         }
     };
 
@@ -1898,12 +1913,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <div 
                                     key={idx}
                                     onClick={(e) => handleEditBillingTicket(idx, e)}
-                                    className={`bg-white/60 p-3 rounded-xl border-2 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 ${
-                                        generatingDoc === 'Billing Ticket' && generatingIndex === idx 
-                                        ? 'border-transparent ring-2 ring-blue-400 ring-offset-1 animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.5)]' 
-                                        : 'border-white/40'
-                                    }`}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 overflow-hidden"
                                 >
+                                    {generatingDoc === 'Billing Ticket' && generatingIndex === idx && (
+                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600 transition-all duration-300 relative"
+                                                style={{ width: `${generatingProgress}%` }}
+                                            >
+                                                <span className="absolute -top-3 right-0 text-[7px] font-black text-indigo-600 bg-white/80 px-1 rounded-sm">
+                                                    {generatingProgress}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
                                             {item.billingTerms && (
@@ -2007,12 +2030,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <div 
                                     key={idx}
                                     onClick={(e) => handleEditRelease(idx, e)}
-                                    className={`bg-white/60 p-3 rounded-xl border-2 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 ${
-                                        generatingDoc === item.documentType && generatingIndex === idx 
-                                        ? 'border-transparent ring-2 ring-blue-400 ring-offset-1 animate-pulse shadow-[0_0_15px_rgba(59,130,246,0.5)]' 
-                                        : 'border-white/40'
-                                    }`}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 overflow-hidden"
                                 >
+                                    {generatingDoc === item.documentType && generatingIndex === idx && (
+                                        <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
+                                            <div 
+                                                className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 transition-all duration-300 relative"
+                                                style={{ width: `${generatingProgress}%` }}
+                                            >
+                                                <span className="absolute -top-3 right-0 text-[7px] font-black text-blue-600 bg-white/80 px-1 rounded-sm">
+                                                    {generatingProgress}%
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
                                             <span className="inline-block text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-cyan-100 text-cyan-600 mb-1.5 truncate max-w-full">
