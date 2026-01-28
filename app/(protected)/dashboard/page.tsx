@@ -13,6 +13,7 @@ import {
     Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck
 } from 'lucide-react';
 import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ScheduleDetailModal } from './components/ScheduleDetailModal';
@@ -151,6 +152,12 @@ const TimeCardMini = ({ card }: { card: TimeCard }) => {
     );
 };
 
+interface DashboardEmployee {
+    value: string;
+    label: string;
+    image?: string;
+}
+
 // Todo Kanban Column
 const TodoColumn = ({ 
     title, 
@@ -162,7 +169,8 @@ const TodoColumn = ({
     onEdit,
     onCopy,
     onStatusChange,
-    onDelete
+    onDelete,
+    employees
 }: { 
     title: string; 
     items: TodoItem[]; 
@@ -174,6 +182,7 @@ const TodoColumn = ({
     onCopy: (item: TodoItem, e: React.MouseEvent) => void;
     onStatusChange: (item: TodoItem, newStatus: TodoItem['status']) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
+    employees: DashboardEmployee[];
 }) => (
     <div 
         className="flex-1 min-w-[200px] bg-slate-100 rounded-xl p-3"
@@ -196,15 +205,40 @@ const TodoColumn = ({
                 >
                     <div className="flex items-start gap-2">
                         <GripVertical className="w-4 h-4 text-slate-300 mt-0.5" />
-                        <div className="flex-1">
-                            <p className={`text-sm font-medium ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
+                        <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium truncate ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
                                 {item.task}
                             </p>
                             {item.dueDate && (
                                 <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
                             )}
                         </div>
-                        <div className="flex flex-col items-end gap-1.5">
+                        
+                        <div className="flex items-start gap-2 shrink-0">
+                            {/* Assignee Stack */}
+                            <div className="flex -space-x-1.5 overflow-hidden items-center pt-0.5">
+                                {item.assignees?.map((email, idx) => {
+                                    const emp = employees.find(e => e.value === email);
+                                    const name = emp?.label || email;
+                                    const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+                                    return (
+                                        <TooltipProvider key={idx}>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Avatar className="w-6 h-6 border-2 border-white ring-1 ring-slate-100 cursor-default">
+                                                        <AvatarImage src={emp?.image} />
+                                                        <AvatarFallback className="text-[9px] bg-slate-50 font-black text-slate-600 italic">{initials}</AvatarFallback>
+                                                    </Avatar>
+                                                </TooltipTrigger>
+                                                <TooltipContent><p className="text-[10px]">{name}</p></TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex flex-col items-end gap-1.5">
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
@@ -267,15 +301,7 @@ const TodoColumn = ({
                                     </Tooltip>
                                 </TooltipProvider>
                             </div>
-                            {item.assignees && item.assignees.length > 0 && (
-                                <div className="flex -space-x-2">
-                                    {item.assignees.slice(0, 3).map((a, i) => (
-                                        <div key={i} className="w-5 h-5 rounded-full bg-slate-200 border border-white flex items-center justify-center text-[8px] font-bold">
-                                            {a.charAt(0).toUpperCase()}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                        </div>
                     </div>
                 </div>
             ))}
@@ -2383,6 +2409,7 @@ function DashboardContent() {
                                 onCopy={handleCopyTask}
                                 onStatusChange={handleStatusChange}
                                 onDelete={handleDeleteTask}
+                                employees={initialData.employees}
                             />
                             <TodoColumn 
                                 title="In Progress" 
@@ -2395,6 +2422,7 @@ function DashboardContent() {
                                 onCopy={handleCopyTask}
                                 onStatusChange={handleStatusChange}
                                 onDelete={handleDeleteTask}
+                                employees={initialData.employees}
                             />
                             <TodoColumn 
                                 title="Done" 
@@ -2407,6 +2435,7 @@ function DashboardContent() {
                                 onCopy={handleCopyTask}
                                 onStatusChange={handleStatusChange}
                                 onDelete={handleDeleteTask}
+                                employees={initialData.employees}
                             />
                         </div>
                         
@@ -2429,21 +2458,36 @@ function DashboardContent() {
                                                         <div className="flex justify-between items-start gap-3">
                                                             <div className="flex-1">
                                                                 <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
-                                                                {item.dueDate && (
-                                                                    <div className="flex items-center gap-1.5 mt-2">
-                                                                        <Clock size={10} className="text-slate-400" />
-                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                    {item.dueDate && (
+                                                                        <div className="flex items-center gap-1.5 mt-2">
+                                                                            <Clock size={10} className="text-slate-400" />
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-3 shrink-0">
+                                                                    <div className="flex -space-x-1.5">
+                                                                        {item.assignees?.map((email, idx) => {
+                                                                            const emp = initialData.employees.find((e: any) => e.value === email);
+                                                                            const name = emp?.label || email;
+                                                                            const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+                                                                            return (
+                                                                                <Avatar key={idx} className="w-6 h-6 border-2 border-white ring-1 ring-slate-100">
+                                                                                    <AvatarImage src={emp?.image} />
+                                                                                    <AvatarFallback className="text-[8px] bg-slate-50 font-bold">{initials}</AvatarFallback>
+                                                                                </Avatar>
+                                                                            );
+                                                                        })}
                                                                     </div>
-                                                                )}
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'in progress'); }}
+                                                                        className="p-2 bg-white border border-slate-200 rounded-xl text-blue-500 shadow-sm active:scale-90 transition-transform"
+                                                                    >
+                                                                        <ActivityIcon size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'in progress'); }}
-                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-blue-500 shadow-sm active:scale-90 transition-transform"
-                                                            >
-                                                                <ActivityIcon size={14} />
-                                                            </button>
                                                         </div>
-                                                    </div>
                                                 ))
                                             ) : (
                                                 <p className="text-center py-6 text-xs text-slate-400 font-medium italic">No pending tasks</p>
@@ -2468,21 +2512,36 @@ function DashboardContent() {
                                                         <div className="flex justify-between items-start gap-3">
                                                             <div className="flex-1">
                                                                 <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
-                                                                {item.dueDate && (
-                                                                    <div className="flex items-center gap-1.5 mt-2">
-                                                                        <Clock size={10} className="text-slate-400" />
-                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                    {item.dueDate && (
+                                                                        <div className="flex items-center gap-1.5 mt-2">
+                                                                            <Clock size={10} className="text-slate-400" />
+                                                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-3 shrink-0">
+                                                                    <div className="flex -space-x-1.5">
+                                                                        {item.assignees?.map((email, idx) => {
+                                                                            const emp = initialData.employees.find((e: any) => e.value === email);
+                                                                            const name = emp?.label || email;
+                                                                            const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+                                                                            return (
+                                                                                <Avatar key={idx} className="w-6 h-6 border-2 border-white ring-1 ring-slate-100">
+                                                                                    <AvatarImage src={emp?.image} />
+                                                                                    <AvatarFallback className="text-[8px] bg-slate-50 font-bold">{initials}</AvatarFallback>
+                                                                                </Avatar>
+                                                                            );
+                                                                        })}
                                                                     </div>
-                                                                )}
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'done'); }}
+                                                                        className="p-2 bg-white border border-slate-200 rounded-xl text-emerald-500 shadow-sm active:scale-90 transition-transform"
+                                                                    >
+                                                                        <ActivityIcon size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'done'); }}
-                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-emerald-500 shadow-sm active:scale-90 transition-transform"
-                                                            >
-                                                                <ActivityIcon size={14} />
-                                                            </button>
                                                         </div>
-                                                    </div>
                                                 ))
                                             ) : (
                                                 <p className="text-center py-6 text-xs text-slate-400 font-medium italic">Nothing in progress</p>
@@ -2507,18 +2566,33 @@ function DashboardContent() {
                                                         <div className="flex justify-between items-start gap-3">
                                                             <div className="flex-1">
                                                                 <p className="text-sm font-bold text-slate-800 leading-tight line-through decoration-slate-300 decoration-2">{item.task}</p>
-                                                                {item.dueDate && (
-                                                                    <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter mt-2">Completed</p>
-                                                                )}
+                                                                    {item.dueDate && (
+                                                                        <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter mt-2">Completed</p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-3 shrink-0">
+                                                                    <div className="flex -space-x-1.5">
+                                                                        {item.assignees?.map((email, idx) => {
+                                                                            const emp = initialData.employees.find((e: any) => e.value === email);
+                                                                            const name = emp?.label || email;
+                                                                            const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+                                                                            return (
+                                                                                <Avatar key={idx} className="w-6 h-6 border-2 border-white ring-1 ring-slate-100">
+                                                                                    <AvatarImage src={emp?.image} alt={name} />
+                                                                                    <AvatarFallback className="text-[8px] bg-slate-50 font-bold">{initials}</AvatarFallback>
+                                                                                </Avatar>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'todo'); }}
+                                                                        className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 shadow-sm active:scale-90 transition-transform"
+                                                                    >
+                                                                        <ActivityIcon size={14} />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                            <button 
-                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'todo'); }}
-                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 shadow-sm active:scale-90 transition-transform"
-                                                            >
-                                                                <ActivityIcon size={14} />
-                                                            </button>
                                                         </div>
-                                                    </div>
                                                 ))
                                             ) : (
                                                 <p className="text-center py-6 text-xs text-slate-400 font-medium italic">No items completed this week</p>
