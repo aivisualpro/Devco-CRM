@@ -1575,7 +1575,6 @@ function DashboardContent() {
                                     </div>
                                     <div>
                                         <h2 className="font-bold text-slate-900">Time Cards</h2>
-                                        <p className="text-xs text-slate-500">Your recent activity</p>
                                     </div>
                                 </div>
                                 

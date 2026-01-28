@@ -56,59 +56,57 @@ interface ScheduleDoc {
 }
 
 // --- Constants ---
-const SPEED_MPH = 55;
-const ROAD_ADJUSTMENT_FACTOR = 1.0; // No longer needed as we're following spreadsheet logic
-const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
+import { calculateTimesheetData, formatDateOnly, formatTimeOnly, robustNormalizeISO, SPEED_MPH, EARTH_RADIUS_MI, DRIVING_FACTOR } from '@/lib/timeCardUtils';
+
+// --- Constants ---
 const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00.000Z');
-const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
 
-const robustNormalizeISO = (str?: string) => {
-    if (!str) return '';
-    // If it's already standard ISO-Z, return it
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/.test(str)) return str;
+// Week utilities
+const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label: string } => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // Monday start
+    
+    const start = new Date(d);
+    start.setDate(d.getDate() + diff);
+    start.setHours(0, 0, 0, 0);
+    
+    const end = new Date(start);
+    start.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    
+    const fmt = (dt: Date) => `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
+    return { start, end, label: `${fmt(start)} ~ ${fmt(end)}` };
+};
 
-    // Handle M/D/YYYY H:mm:ss AM/PM
-    const mdMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(:(\d{2}))?(\s+(AM|PM))?/i);
-    if (mdMatch) {
-        const m = mdMatch[1].padStart(2, '0');
-        const d = mdMatch[2].padStart(2, '0');
-        const y = mdMatch[3];
-        let h = parseInt(mdMatch[4]);
-        const min = mdMatch[5].padStart(2, '0');
-        const sec = mdMatch[7] ? mdMatch[7].padStart(2, '0') : '00';
-        const ampm = mdMatch[9] ? mdMatch[9].toUpperCase() : null;
-        
-        if (ampm === 'PM' && h < 12) h += 12;
-        if (ampm === 'AM' && h === 12) h = 0;
-        
-        const hStr = String(h).padStart(2, '0');
-        return `${y}-${m}-${d}T${hStr}:${min}:${sec}.000Z`;
-    }
-
-    // Handle YYYY-MM-DDTHH:mm
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
-        const base = str.slice(0, 16);
-        return `${base}:00.000Z`;
-    }
-
-    // Last resort: Date object as UTC
-    try {
-        const date = new Date(str.includes('Z') || str.includes('UTC') ? str : str + ' UTC');
-        if (!isNaN(date.getTime())) return date.toISOString();
-    } catch {}
-
-    return str;
+const shiftWeek = (current: Date, direction: number): Date => {
+    const newDate = new Date(current);
+    newDate.setDate(newDate.getDate() + (direction * 7));
+    return newDate;
 };
 
 const getDayName = (dateStr?: string) => {
     if (!dateStr) return '';
-    // Use strictly the date part
-    const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-    const [y, m, d] = datePart.split('-').map(Number);
-    // Force UTC for day name lookup
-    const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return days[date.getUTCDay()];
+    try {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('en-US', { weekday: 'short' });
+    } catch { return ''; }
+};
+
+const toLocalISO = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+        // Assume dateStr is UTC/ISO. We want to display it as is in local time inputs, locally adjusted or just sliced
+        if (dateStr.endsWith('Z')) {
+             return dateStr.slice(0, 16);
+        }
+        return new Date(dateStr).toISOString().slice(0, 16);
+    } catch { return ''; }
+};
+
+const normalizeEst = (val: string | undefined) => {
+    if (!val) return '';
+    return val.split('-V')[0].split('-v')[0].trim();
 };
 
 // --- Helpers ---
@@ -144,175 +142,137 @@ const getWeekRangeString = (dateObj: Date) => {
     return `${fmt(monday)} ~ ${fmt(sunday)}`;
 };
 
-const formatTimeOnly = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    const normalized = robustNormalizeISO(dateStr);
-    const match = normalized.match(/T(\d{2}):(\d{2})/);
-    if (match) {
-        let [ , hStr, mStr] = match;
-        let h = parseInt(hStr);
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        h = h % 12;
-        if (h === 0) h = 12;
-        return `${h}:${mStr} ${ampm}`;
-    }
-    return dateStr;
-};
 
-const formatDateOnly = (dateStr?: string) => {
-    if (!dateStr) return '-';
-    const normalized = robustNormalizeISO(dateStr);
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (match) {
-        const [ , y, m, d] = match;
-        return `${m}/${d}/${y}`;
-    }
-    return dateStr;
-};
-
-const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = EARTH_RADIUS_MI; 
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c; // Matches spreadsheet result (e.g. 276 for the test coords)
-};
 
 // Timezone-agnostic: Parse ISO string directly without Date object conversion
 // This preserves the exact date/time values regardless of user's timezone
-const toLocalISO = (iso?: string) => {
-    if (!iso) return "";
-    const normalized = robustNormalizeISO(iso);
-    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-    if (match) {
-        return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
-    }
-    return "";
-};
+// const toLocalISO = (iso?: string) => {
+//     if (!iso) return "";
+//     const normalized = robustNormalizeISO(iso);
+//     const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+//     if (match) {
+//         return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
+//     }
+//     return "";
+// };
 
-const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
-    const typeLower = (ts.type || '').toLowerCase();
-    const isDrive = typeLower.includes('drive');
+// const calculateTimesheetData = (ts: TimesheetEntry, scheduleDate?: string) => {
+//     const typeLower = (ts.type || '').toLowerCase();
+//     const isDrive = typeLower.includes('drive');
 
-    // Parse location coordinates for distance calculation
-    const parseLoc = (val: any) => {
-        const str = String(val || '').trim();
-        if (str.includes(',')) {
-            const parts = str.split(',').map(p => parseFloat(p.trim()));
-            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                return { lat: parts[0], lon: parts[1] };
-            }
-        }
-        return null;
-    };
+//     // Parse location coordinates for distance calculation
+//     const parseLoc = (val: any) => {
+//         const str = String(val || '').trim();
+//         if (str.includes(',')) {
+//             const parts = str.split(',').map(p => parseFloat(p.trim()));
+//             if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+//                 return { lat: parts[0], lon: parts[1] };
+//             }
+//         }
+//         return null;
+//     };
 
-    const locIn = parseLoc(ts.locationIn);
-    const locOut = parseLoc(ts.locationOut);
-    let calculatedDistance = 0;
-    if (locIn && locOut) {
-        // Haversine gives straight-line distance; multiply by DRIVING_FACTOR (1.19) for approximate driving distance
-        calculatedDistance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
-    }
+//     const locIn = parseLoc(ts.locationIn);
+//     const locOut = parseLoc(ts.locationOut);
+//     let calculatedDistance = 0;
+//     if (locIn && locOut) {
+//         // Haversine gives straight-line distance; multiply by DRIVING_FACTOR (1.19) for approximate driving distance
+//         calculatedDistance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
+//     }
 
-    let distance = 0;
-    let hours = 0;
+//     let distance = 0;
+//     let hours = 0;
 
-    if (isDrive) {
-        // ========== DRIVE TIME CALCULATION ==========
-        // Ignores clock in/out completely
-        // Uses: Manual Distance (priority) OR Calculated Distance + Washout + Shop
+//     if (isDrive) {
+//         // ========== DRIVE TIME CALCULATION ==========
+//         // Ignores clock in/out completely
+//         // Uses: Manual Distance (priority) OR Calculated Distance + Washout + Shop
 
-        // Helper to extract qty from "0.50 hrs (2 qty)" format
-        const getQty = (val: any) => {
-            const str = String(val || '');
-            const match = str.match(/\((\d+)\s+qty\)/);
-            if (match) return parseFloat(match[1]);
-            if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
-            return 0;
-        };
+//         // Helper to extract qty from "0.50 hrs (2 qty)" format
+//         const getQty = (val: any) => {
+//             const str = String(val || '');
+//             const match = str.match(/\((\d+)\s+qty\)/);
+//             if (match) return parseFloat(match[1]);
+//             if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
+//             return 0;
+//         };
 
-        const washoutQty = getQty(ts.dumpWashout);
-        const shopQty = getQty(ts.shopTime);
-        const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
+//         const washoutQty = getQty(ts.dumpWashout);
+//         const shopQty = getQty(ts.shopTime);
+//         const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
 
-        // Priority 1: Manual Distance (ignores calculated if set)
-        const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
-        if (manualDist > 0) {
-            distance = manualDist;
-        } else {
-            // Priority 2: Calculated Distance from Location In/Out
-            distance = calculatedDistance;
-        }
+//         // Priority 1: Manual Distance (ignores calculated if set)
+//         const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
+//         if (manualDist > 0) {
+//             distance = manualDist;
+//         } else {
+//             // Priority 2: Calculated Distance from Location In/Out
+//             distance = calculatedDistance;
+//         }
 
-        // Manual Hours override
-        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
-        if (manualHrs > 0) {
-            hours = manualHrs;
-        } else {
-            // Formula: (Distance / Speed) + Washout Hours + Shop Hours
-            hours = (distance / SPEED_MPH) + specialHrs;
-        }
-    } else {
-        // ========== SITE TIME CALCULATION ==========
-        // Ignores: distance, washout qty, shop qty
-        // Uses: Clock In/Out with optional Manual Duration Override
+//         // Manual Hours override
+//         const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+//         if (manualHrs > 0) {
+//             hours = manualHrs;
+//         } else {
+//             // Formula: (Distance / Speed) + Washout Hours + Shop Hours
+//             hours = (distance / SPEED_MPH) + specialHrs;
+//         }
+//     } else {
+//         // ========== SITE TIME CALCULATION ==========
+//         // Ignores: distance, washout qty, shop qty
+//         // Uses: Clock In/Out with optional Manual Duration Override
 
-        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
-        if (manualHrs > 0) {
-            hours = manualHrs;
-        } else {
-            const calcTimeHours = () => {
-                if (!ts.clockIn || !ts.clockOut) return 0;
+//         const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+//         if (manualHrs > 0) {
+//             hours = manualHrs;
+//         } else {
+//             const calcTimeHours = () => {
+//                 if (!ts.clockIn || !ts.clockOut) return 0;
                 
-                // Use robust normalization to anchor to UTC Nominal
-                const startStr = robustNormalizeISO(ts.clockIn);
-                const endStr = robustNormalizeISO(ts.clockOut);
+//                 // Use robust normalization to anchor to UTC Nominal
+//                 const startStr = robustNormalizeISO(ts.clockIn);
+//                 const endStr = robustNormalizeISO(ts.clockOut);
                 
-                const start = new Date(startStr).getTime();
-                const end = new Date(endStr).getTime();
-                let durationMs = end - start;
+//                 const start = new Date(startStr).getTime();
+//                 const end = new Date(endStr).getTime();
+//                 let durationMs = end - start;
 
-                if (ts.lunchStart && ts.lunchEnd) {
-                    const lStartStr = robustNormalizeISO(ts.lunchStart);
-                    const lEndStr = robustNormalizeISO(ts.lunchEnd);
-                    const lStart = new Date(lStartStr).getTime();
-                    const lEnd = new Date(lEndStr).getTime();
-                    if (lEnd > lStart) durationMs -= (lEnd - lStart);
-                }
-                if (durationMs <= 0) return 0;
+//                 if (ts.lunchStart && ts.lunchEnd) {
+//                     const lStartStr = robustNormalizeISO(ts.lunchStart);
+//                     const lEndStr = robustNormalizeISO(ts.lunchEnd);
+//                     const lStart = new Date(lStartStr).getTime();
+//                     const lEnd = new Date(lEndStr).getTime();
+//                     if (lEnd > lStart) durationMs -= (lEnd - lStart);
+//                 }
+//                 if (durationMs <= 0) return 0;
                 
-                const totalHoursRaw = durationMs / (1000 * 60 * 60);
+//                 const totalHoursRaw = durationMs / (1000 * 60 * 60);
 
-                // Cutoff rounding logic - Ensure UTC comparison
-                const cutoff2025 = new Date('2025-10-26T00:00:00.000Z');
-                if (new Date(robustNormalizeISO(ts.clockIn)) < cutoff2025) return totalHoursRaw;
-                if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
+//                 // Cutoff rounding logic - Ensure UTC comparison
+//                 const cutoff2025 = new Date('2025-10-26T00:00:00.000Z');
+//                 if (new Date(robustNormalizeISO(ts.clockIn)) < cutoff2025) return totalHoursRaw;
+//                 if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
 
-                const h = Math.floor(totalHoursRaw);
-                const m = Math.round((totalHoursRaw - h) * 60);
-                let roundedM = 0;
-                if (m > 1 && m <= 14) roundedM = 0;
-                else if (m > 14 && m <= 29) roundedM = 15;
-                else if (m > 29 && m <= 44) roundedM = 30;
-                else if (m > 44 && m <= 59) roundedM = 45;
-                return h + (roundedM / 60);
-            };
-            hours = calcTimeHours();
-        }
-        // Site time ignores distance
-        distance = 0;
-    }
+//                 const h = Math.floor(totalHoursRaw);
+//                 const m = Math.round((totalHoursRaw - h) * 60);
+//                 let roundedM = 0;
+//                 if (m > 1 && m <= 14) roundedM = 0;
+//                 else if (m > 14 && m <= 29) roundedM = 15;
+//                 else if (m > 29 && m <= 44) roundedM = 30;
+//                 else if (m > 44 && m <= 59) roundedM = 45;
+//                 return h + (roundedM / 60);
+//             };
+//             hours = calcTimeHours();
+//         }
+//         // Site time ignores distance
+//         distance = 0;
+//     }
 
-    return { hours, distance, calculatedDistance };
-};
+//     return { hours, distance, calculatedDistance };
+// };
 
-const normalizeEst = (val: string | undefined) => {
-    if (!val) return '';
-    return val.split('-V')[0].split('-v')[0].trim();
-};
+
 
 // --- Components ---
 
@@ -337,11 +297,11 @@ export default function TimeCardPage() {
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
     const [isMobile, setIsMobile] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    const [mobileSelectedDate, setMobileSelectedDate] = useState(() => {
-        const now = new Date();
-        // Initialize as UTC-aligned date object for the mobile selector
-        return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    });
+    
+    // Week Selection (Dashboard Style)
+    const [currentWeekDate, setCurrentWeekDate] = useState(new Date());
+    const weekRange = useMemo(() => getWeekRange(currentWeekDate), [currentWeekDate]);
+
     const dateInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -467,18 +427,15 @@ export default function TimeCardPage() {
     // 1. Apply Top Filters first
     const filteredRecords = useMemo(() => {
         return allRecords.filter(r => {
-            // Mobile specific filtering: Only show current user's records for the selected date
+            // Mobile specific filtering: Only show current user's records for the selected week
             if (isMobile) {
                 if (currentUser && r.employee !== currentUser.email) return false;
                 
                 if (r.clockIn) {
-                    const recordDateStr = formatDateOnly(r.clockIn);
-                    const selectedDateStr = `${String(mobileSelectedDate.getUTCMonth() + 1).padStart(2, '0')}/${String(mobileSelectedDate.getUTCDate()).padStart(2, '0')}/${mobileSelectedDate.getUTCFullYear()}`;
-                    // Compare simplified date strings (MM/DD/YYYY)
-                    if (recordDateStr !== selectedDateStr) return false;
-                } else {
-                    return false;
+                    const recordDate = new Date(r.clockIn);
+                    return recordDate >= weekRange.start && recordDate <= weekRange.end;
                 }
+                return false;
             } else {
                 // Desktop filters
                 if (filEmployee && r.employee !== filEmployee) return false;
@@ -493,7 +450,7 @@ export default function TimeCardPage() {
             
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, mobileSelectedDate]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange]);
 
     // 2. Build Tree Structure
     const treeData = useMemo(() => {
@@ -1089,13 +1046,147 @@ export default function TimeCardPage() {
 
     const uniqueTypes = ["Drive Time", "Site Time"];
 
-    return (
-        <div className="flex flex-col h-full bg-[#f8fafc]">
-            {!isMobile && (
-                <div className="flex-none">
+    if (isMobile) {
+        return (
+            <div className="flex flex-col h-full bg-slate-50">
                     <Header 
+                        hideLogo={false}
                         rightContent={
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-slate-200">
+                                    <button 
+                                        onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
+                                        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+                                    >
+                                        <ChevronLeft className="w-4 h-4 text-slate-600" />
+                                    </button>
+                                    <div className="flex items-center gap-2 px-2">
+                                        <CalendarIcon className="w-4 h-4 text-blue-600" />
+                                        <span className="font-semibold text-sm text-slate-800">{weekRange.label}</span>
+                                    </div>
+                                    <button 
+                                        onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
+                                        className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+                                    >
+                                        <ChevronRight className="w-4 h-4 text-slate-600" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setCurrentWeekDate(new Date())}
+                                        className="text-xs font-medium text-blue-600 hover:text-blue-700 ml-2"
+                                    >
+                                        Today
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    />
+                    <div className="flex-1 overflow-auto p-4">
+                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 overflow-hidden">
+                             <div className="flex items-center gap-3 mb-4">
+                                <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
+                                    <Clock className="w-5 h-5 text-teal-600" />
+                                </div>
+                                <div>
+                                    <h2 className="font-bold text-slate-900">Time Cards</h2>
+                                    <p className="text-xs text-slate-500">Your recent activity</p>
+                                </div>
+                            </div>
+                            
+                            <div className="overflow-x-auto">
+                                <Table>
+                                    <TableHead>
+                                        <TableRow className="hover:bg-transparent border-slate-100">
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[50px]">Type</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Estimate #</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Dist (Mi)</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {filteredRecords.length > 0 ? filteredRecords.map((ts, idx) => (
+                                            <TableRow key={`${ts._id || idx}`} className="hover:bg-slate-50">
+                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                    {formatDateOnly(ts.clockIn)}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex justify-center">
+                                                        {ts.type?.toLowerCase().includes('drive') ? (
+                                                            <div className="p-1 text-blue-600 bg-blue-50 rounded">
+                                                                <Truck size={14} />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="p-1 text-emerald-600 bg-emerald-50 rounded">
+                                                                <MapPin size={14} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-600">
+                                                        {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {ts.type?.toLowerCase().includes('drive') ? (
+                                                        ts.dumpWashout ? (
+                                                            <span className="text-[9px] font-black uppercase bg-orange-500 text-white px-2 py-0.5 rounded shadow-sm">
+                                                                Washout
+                                                                {String(ts.dumpWashout).includes('qty') && ' ✓'}
+                                                            </span>
+                                                        ) : <span className="text-slate-300">-</span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-medium text-slate-600">
+                                                            {formatTimeOnly(ts.clockIn)}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {ts.type?.toLowerCase().includes('drive') ? (
+                                                        ts.shopTime ? (
+                                                            <span className="text-[9px] font-black uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-sm">
+                                                                Shop
+                                                                {String(ts.shopTime).includes('qty') && ' ✓'}
+                                                            </span>
+                                                        ) : <span className="text-slate-300">-</span>
+                                                    ) : (
+                                                        <span className="text-[10px] font-medium text-slate-600">
+                                                            {formatTimeOnly(ts.clockOut)}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right text-[11px] font-medium text-slate-600">
+                                                    {(ts.distanceVal || 0) > 0 ? (ts.distanceVal || 0).toFixed(1) : '-'}
+                                                </TableCell>
+                                                <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                    {(ts.hoursVal || 0).toFixed(2)}
+                                                </TableCell>
+                                            </TableRow>
+                                        )) : (
+                                            <TableRow>
+                                                <TableCell colSpan={7} className="text-center py-8 text-xs text-slate-400">
+                                                    No time cards found for this week
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-col h-full bg-slate-50">
+            {/* Desktop View */}
+            <Header 
+                hideLogo={false}
+                rightContent={
+                <div className="flex items-center gap-4">
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <button 
@@ -1119,155 +1210,9 @@ export default function TimeCardPage() {
                             </div>
                         }
                     />
-                </div>
-            )}
 
-            <main className={`flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden ${isMobile ? 'pt-8' : 'p-4'}`}>
-                {isMobile ? (
-                    <div className="flex-1 bg-white rounded-t-[48px] shadow-2xl border-t border-slate-100 flex flex-col overflow-hidden">
-                        <div className="flex-1 overflow-y-auto px-6 pt-10 pb-20 space-y-6">
-                            {/* Premium Date Selector */}
-                            <div className="flex items-center justify-between mb-8 px-2">
-                                <button 
-                                    onClick={() => {
-                                        const d = new Date(mobileSelectedDate);
-                                        d.setUTCDate(d.getUTCDate() - 1);
-                                        setMobileSelectedDate(d);
-                                    }}
-                                    className="w-12 h-12 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all active:scale-90"
-                                >
-                                    <ChevronLeft size={24} />
-                                </button>
-                                
-                                <div className="text-center cursor-pointer relative group flex-1" onClick={() => dateInputRef.current?.showPicker()}>
-                                    <h3 className="text-[28px] font-black text-slate-900 mb-1 tracking-tight">
-                                        {mobileSelectedDate.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' })}
-                                    </h3>
-                                    <p className="text-sm font-bold text-slate-400 tracking-wide">
-                                        {mobileSelectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-                                    </p>
-                                    <input 
-                                        type="date"
-                                        ref={dateInputRef}
-                                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
-                                        value={mobileSelectedDate.toISOString().split('T')[0]}
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                const [y, m, d] = e.target.value.split('-').map(Number);
-                                                setMobileSelectedDate(new Date(Date.UTC(y, m - 1, d)));
-                                            }
-                                        }} 
-                                    />
-                                </div>
 
-                                <button 
-                                    onClick={() => {
-                                        const d = new Date(mobileSelectedDate);
-                                        d.setUTCDate(d.getUTCDate() + 1);
-                                        setMobileSelectedDate(d);
-                                    }}
-                                    className="w-12 h-12 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-400 transition-all active:scale-90"
-                                >
-                                    <ChevronRight size={24} />
-                                </button>
-                            </div>
-
-                            {paginatedData.length > 0 ? (
-                            paginatedData.map((ts, idx) => (
-                                <div 
-                                    key={`${ts._id || 'ts'}-${idx}-${ts.clockIn}`}
-                                    className={`relative overflow-hidden rounded-[24px] border shadow-sm transition-all active:scale-[0.98] ${
-                                        ts.type?.toLowerCase().includes('drive') 
-                                            ? 'bg-blue-50/50 border-blue-100' 
-                                            : 'bg-emerald-50/50 border-emerald-100'
-                                    }`}
-                                >
-                                    <div className={`absolute top-0 left-0 bottom-0 w-2 ${
-                                        ts.type?.toLowerCase().includes('drive') ? 'bg-blue-500' : 'bg-emerald-500'
-                                    }`} />
-                                    
-                                    <div className="p-5">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {ts.type?.toLowerCase().includes('drive') ? (
-                                                        <Truck size={16} className="text-blue-600" />
-                                                    ) : (
-                                                        <MapPin size={16} className="text-emerald-600" />
-                                                    )}
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                                        {ts.type}
-                                                    </span>
-                                                </div>
-                                                <h3 className="text-lg font-black text-slate-800 leading-tight">
-                                                    {ts.projectName || 'Internal Work'}
-                                                </h3>
-                                                <p className="text-xs font-bold text-[#0F4C75]">
-                                                    {ts.estimate || 'No Estimate'}
-                                                </p>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-2xl font-black text-slate-900 leading-none">
-                                                    {(ts.hoursVal || 0).toFixed(2)}
-                                                </div>
-                                                <div className="text-[10px] font-bold text-slate-500 uppercase">Hours</div>
-                                            </div>
-                                        </div>
-
-                                        {ts.type?.toLowerCase().includes('drive') ? (
-                                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Washout</span>
-                                                    <button 
-                                                        onClick={() => triggerSpecialFieldModal(ts, 'dumpWashout')}
-                                                        className={`text-left px-2 py-1 rounded text-[10px] font-black ${ts.dumpWashout ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-400'}`}
-                                                    >
-                                                        {ts.dumpWashout ? String(ts.dumpWashout) : 'Set Washout'}
-                                                    </button>
-                                                </div>
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Shop</span>
-                                                    <button 
-                                                        onClick={() => triggerSpecialFieldModal(ts, 'shopTime')}
-                                                        className={`text-left px-2 py-1 rounded text-[10px] font-black ${ts.shopTime ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-400'}`}
-                                                    >
-                                                        {ts.shopTime ? String(ts.shopTime) : 'Set Shop'}
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
-                                                <div>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock In</span>
-                                                    <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockIn)}</span>
-                                                </div>
-                                                <div>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-0.5">Clock Out</span>
-                                                    <span className="text-sm font-black text-slate-700">{formatTimeOnly(ts.clockOut)}</span>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {(ts.distanceVal || 0) > 0 && (
-                                            <div className="mt-4 flex items-center gap-2 px-3 py-1.5 bg-white/60 rounded-xl w-fit border border-white">
-                                                <span className="text-xs font-black text-blue-600">
-                                                    {(ts.distanceVal || 0).toFixed(1)} miles driven
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            ))) : (
-                                <div className="flex flex-col items-center justify-center py-20 text-center">
-                                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                                        <Clock className="text-slate-300" size={32} />
-                                    </div>
-                                    <h4 className="text-slate-400 font-bold">No entries found for this date</h4>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ) : (
+            <main className="flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden p-4">
                     <div className="flex-1 flex gap-4 min-h-0">
                     
                     {/* Left Sidebar - Tree View */}
@@ -1739,7 +1684,6 @@ export default function TimeCardPage() {
                         </div>
                     </div>
                 </div>
-            )}
         </main>
 
             <Modal
@@ -1947,7 +1891,7 @@ export default function TimeCardPage() {
                                         placeholder="0"
                                         value={(() => {
                                             const match = String(editForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
-                                            return match ? match[1] : (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
+                                            return match?.[1] || (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
                                         })()}
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
@@ -1968,7 +1912,7 @@ export default function TimeCardPage() {
                                         placeholder="0"
                                         value={(() => {
                                             const match = String(editForm.shopTime || '').match(/\((\d+)\s+qty\)/);
-                                            return match ? match[1] : (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
+                                            return match?.[1] || (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
                                         })()}
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);

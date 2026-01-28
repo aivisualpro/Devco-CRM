@@ -52,7 +52,7 @@ const MobileNav = () => {
 
     const tabs = [
         { label: 'SCHEDULES', href: '/dashboard', icon: Calendar },
-        { label: 'TIMESHEET', href: '/jobs/time-cards', icon: Clock },
+        { label: 'Time Cards', href: '/jobs/time-cards', icon: Clock },
     ];
 
     const isTabActive = (href: string) => {
