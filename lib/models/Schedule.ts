@@ -29,6 +29,7 @@ export interface ISchedule extends Document {
     DJTSignatures?: any[];
     todayObjectives?: IObjective[];
     syncedToAppSheet?: boolean;
+    isDayOffApproved?: boolean;
 }
 
 export interface IDJT {
@@ -175,7 +176,8 @@ const ScheduleSchema = new Schema({
         completedBy: { type: String },
         completedAt: { type: Date }
     }], default: [] },
-    syncedToAppSheet: { type: Boolean, default: false }
+    syncedToAppSheet: { type: Boolean, default: false },
+    isDayOffApproved: { type: Boolean, default: false }
 }, {
     timestamps: true,
     collection: 'devcoschedules'

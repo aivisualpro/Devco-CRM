@@ -713,6 +713,7 @@ function DashboardContent() {
     const [chatFilterValue, setChatFilterValue] = useState(''); 
     const [tagFilters, setTagFilters] = useState<{type: 'user'|'estimate', value: string, label: string}[]>([]);
     const [chatAssignees, setChatAssignees] = useState<string[]>([]);
+    const [chatEstimate, setChatEstimate] = useState<{value: string, label: string} | null>(null);
     const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
     const [editingMsgText, setEditingMsgText] = useState('');
     
@@ -1383,10 +1384,11 @@ function DashboardContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: optimisticMsg.message,
-                    estimate: extractedEstimate,
+                    estimate: chatEstimate?.value || extractedEstimate,
                     assignees: chatAssignees,
                 })
             });
+            setChatEstimate(null); // Reset after send
             fetchChatMessages();
         } catch (error) {
             console.error('Failed to send', error);
@@ -1451,6 +1453,37 @@ function DashboardContent() {
             (e.projectTitle || '').toLowerCase().includes(referenceQuery.toLowerCase())
         ).slice(0, 5);
     }, [referenceQuery, initialData.estimates]);
+
+    const filteredEmployeeOptions = useMemo(() => {
+        const source = initialData.employees;
+        const filtered = !mentionQuery 
+            ? source.slice(0, 5) 
+            : source.filter((e: any) => (e.label || e.value).toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 50);
+            
+        return filtered.map((emp: any) => ({
+            id: emp.value,
+            label: emp.label,
+            value: emp.value,
+            profilePicture: emp.image
+        }));
+    }, [mentionQuery, initialData.employees]);
+
+    const estimateOptions = useMemo(() => {
+        return initialData.estimates.map((est: any) => ({
+            id: est._id || est.value,
+            label: `${est.value || est.estimate} - ${est.projectTitle || 'Untitled'}`,
+            value: est.value || est.estimate,
+            badge: est.customerName
+        }));
+    }, [initialData.estimates]);
+
+    const filteredEstimateOptions = useMemo(() => {
+        if (!referenceQuery) return estimateOptions.slice(0, 50); // Show more by default
+        return estimateOptions.filter((o: any) => 
+            o.label.toLowerCase().includes(referenceQuery.toLowerCase()) || 
+            (o.badge || '').toLowerCase().includes(referenceQuery.toLowerCase())
+        ).slice(0, 50);
+    }, [referenceQuery, estimateOptions]);
 
 
     // Fetch Data
@@ -2604,6 +2637,15 @@ function DashboardContent() {
                                                             </div>
                                                         )}
                                                     </div>
+                                                    
+                                                    {/* Estimate Tag */}
+                                                    {msg.estimate && (
+                                                        <div className={`flex flex-col justify-end pb-2 ${isMe ? 'pl-2' : 'pr-2'}`}>
+                                                            <div className="bg-purple-100 text-purple-700 text-[10px] font-bold px-2 py-1 rounded-lg border border-purple-200 shadow-sm whitespace-nowrap">
+                                                                #{msg.estimate.value || msg.estimate}
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })
@@ -2614,47 +2656,73 @@ function DashboardContent() {
                                     <MyDropDown
                                         isOpen={showMentions}
                                         onClose={() => setShowMentions(false)}
-                                        options={employeeOptions}
+                                        options={filteredEmployeeOptions}
                                         selectedValues={chatAssignees}
                                         onSelect={(val) => {
-                                            const isSelected = chatAssignees.includes(val);
-                                            if (!isSelected) {
-                                                // Only insert tag if we are adding a new person
-                                                const label = initialData.employees.find((e: any) => e.value === val)?.label || val;
-                                                insertTag(`@${label}`, 'mention');
+                                            if (!chatAssignees.includes(val)) {
                                                 setChatAssignees(prev => [...prev, val]);
                                             } else {
                                                 setChatAssignees(prev => prev.filter(v => v !== val));
+                                            }
+                                            
+                                            // Remove trigger text
+                                            const text = newMessage;
+                                            const before = text.slice(0, cursorPosition);
+                                            const lastAt = before.lastIndexOf('@');
+                                            if (lastAt >= 0) {
+                                                const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
+                                                setNewMessage(newText);
+                                                setShowMentions(false);
+                                                setTimeout(() => {
+                                                    if (chatInputRef.current) {
+                                                        chatInputRef.current.focus();
+                                                        const newPos = lastAt;
+                                                        chatInputRef.current.setSelectionRange(newPos, newPos);
+                                                        setCursorPosition(newPos);
+                                                    }
+                                                }, 0);
                                             }
                                         }}
                                         multiSelect={true}
                                         anchorId="chat-input-container"
                                         width="w-64"
-                                        placeholder="Search teammate..."
+                                        showSearch={false}
                                     />
 
-                                    {showReferences && (
-                                        <div className="absolute bottom-full left-4 mb-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
-                                            <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
-                                                Reference Estimate
-                                            </div>
-                                            <div className="max-h-48 overflow-y-auto">
-                                                {filteredEstimates.map((est: any) => (
-                                                    <div 
-                                                        key={est._id || est.value}
-                                                        className="px-3 py-2 hover:bg-purple-50 cursor-pointer"
-                                                        onClick={() => insertTag(`#${est.value || est.estimate}`, 'reference')}
-                                                    >
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="font-bold text-sm text-[#0F4C75]">{est.value || est.estimate}</span>
-                                                            <span className="text-[10px] text-slate-400">{est.customerName || 'Client'}</span>
-                                                        </div>
-                                                        <p className="text-xs text-slate-600 truncate">{est.projectTitle || 'Untitled Project'}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                    <MyDropDown
+                                        isOpen={showReferences}
+                                        onClose={() => setShowReferences(false)}
+                                        options={estimateOptions}
+                                        selectedValues={chatEstimate ? [chatEstimate.value] : []}
+                                        onSelect={(val) => {
+                                            const selected = estimateOptions.find((o: any) => o.value === val);
+                                            if (selected) {
+                                                setChatEstimate({ value: selected.value, label: selected.label });
+                                            }
+                                            
+                                            // Remove trigger text
+                                            const text = newMessage;
+                                            const before = text.slice(0, cursorPosition);
+                                            const lastHash = before.lastIndexOf('#');
+                                            if (lastHash >= 0) {
+                                                const newText = before.slice(0, lastHash) + text.slice(cursorPosition);
+                                                setNewMessage(newText);
+                                                setShowReferences(false);
+                                                setTimeout(() => {
+                                                    if (chatInputRef.current) {
+                                                        chatInputRef.current.focus();
+                                                        const newPos = lastHash;
+                                                        chatInputRef.current.setSelectionRange(newPos, newPos);
+                                                        setCursorPosition(newPos);
+                                                    }
+                                                }, 0);
+                                            }
+                                        }}
+                                        multiSelect={false}
+                                        anchorId="chat-input-container"
+                                        width="w-80"
+                                        showSearch={true}
+                                    />
 
                                     <form 
                                         onSubmit={handleSendMessage} 
@@ -2695,6 +2763,21 @@ function DashboardContent() {
                                                 >
                                                     Clear All
                                                 </button>
+                                            </div>
+                                        )}
+                                        {chatEstimate && (
+                                             <div className="flex items-center gap-2 mb-1 px-1">
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Linking:</span>
+                                                <div className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                    <span className="text-[10px] font-bold">{chatEstimate.label}</span>
+                                                    <button 
+                                                        type="button"
+                                                        onClick={() => setChatEstimate(null)}
+                                                        className="hover:text-purple-900"
+                                                    >
+                                                        <X size={10} />
+                                                    </button>
+                                                </div>
                                             </div>
                                         )}
                                         <div className="flex items-end gap-2">

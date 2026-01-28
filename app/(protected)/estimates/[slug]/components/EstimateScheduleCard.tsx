@@ -497,9 +497,23 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                         if (data.success) {
                             success('JHA Saved');
                             setJhaModalOpen(false);
-                            // Potentially update schedules state if JHA data changed enough to matter in the card
-                        } else toastError(data.error);
-                    } catch (e) { console.error(e); }
+                            
+                            // Immediately update local schedules state
+                            setSchedules(prev => prev.map(s => {
+                                if (s._id === payload.schedule_id) {
+                                    return {
+                                        ...s,
+                                        hasJHA: true,
+                                        jha: data.result || payload
+                                    };
+                                }
+                                return s;
+                            }));
+                        } else toastError(data.error || 'Failed to save JHA');
+                    } catch (e) { 
+                        console.error(e); 
+                        toastError('Error saving JHA');
+                    }
                 }}
                 initialData={{
                     employees: normalizedEmployees,
@@ -514,6 +528,17 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                              success('Signature Saved');
                              setSelectedJHA((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), data.result] }));
                              setActiveSignatureEmployee(null);
+                             
+                             // Update local schedules to show signature on card
+                             setSchedules(prev => prev.map(s => {
+                                 if (s._id === payload.schedule_id) {
+                                     return {
+                                         ...s,
+                                         JHASignatures: [...(s.JHASignatures || []), data.result]
+                                     };
+                                 }
+                                 return s;
+                             }));
                          } else toastError(data.error);
                      } catch (e) { console.error(e); }
                 }}
@@ -556,8 +581,29 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                     try {
                         const payload = { ...selectedDJT, schedule_id: selectedDJT.schedule_id || selectedDJT._id };
                         const res = await fetch('/api/djt', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ action: 'saveDJT', payload }) });
-                        if ((await res.json()).success) { success('DJT Saved'); setDjtModalOpen(false); }
-                    } catch (e) { console.error(e); }
+                        const data = await res.json();
+                        if (data.success) { 
+                            success('DJT Saved'); 
+                            setDjtModalOpen(false); 
+                            
+                            // Immediately update local schedules state so totals refresh
+                            setSchedules(prev => prev.map(s => {
+                                if (s._id === payload.schedule_id) {
+                                    return {
+                                        ...s,
+                                        hasDJT: true,
+                                        djt: data.result || payload
+                                    };
+                                }
+                                return s;
+                            }));
+                        } else {
+                            toastError(data.error || 'Failed to save DJT');
+                        }
+                    } catch (e) { 
+                        console.error(e); 
+                        toastError('Error saving DJT');
+                    }
                 }}
                 initialData={{
                     employees: normalizedEmployees,
@@ -574,6 +620,17 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                              setSelectedDJT((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), json.result] }));
                              setActiveSignatureEmployee(null);
                              success('Signature Saved');
+                             
+                             // Update local schedules to show signature on card
+                             setSchedules(prev => prev.map(s => {
+                                 if (s._id === payload.schedule_id) {
+                                     return {
+                                         ...s,
+                                         DJTSignatures: [...(s.DJTSignatures || []), json.result]
+                                     };
+                                 }
+                                 return s;
+                             }));
                          }
                     } catch (e) { console.error(e); } finally { setIsSavingSignature(false); }
                 }}

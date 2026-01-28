@@ -185,72 +185,100 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                         />
                     </div>
 
-                    {/* Hide rest if Day Off */}
-                    {editingItem?.item !== 'Day Off' && (
-                    <>
-                        {/* Row 2: Client, Proposal, Title */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                            <div>
-                                <SearchableSelect
-                                    id="schedClient"
-                                    label="Client"
-                                    placeholder="Select client"
-                                    disableBlank={true}
-                                    options={initialData.clients.map((c: any) => ({ label: c.name, value: c._id }))}
-                                    value={editingItem?.customerId || ''}
-                                    onChange={(val) => {
-                                        const client = initialData.clients.find((c: any) => c._id === val);
-                                        setEditingItem((prev: any) => ({
-                                            ...prev,
-                                            customerId: val,
-                                            customerName: client?.name || '',
-                                            estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
-                                        }));
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div>
-                                <SearchableSelect
-                                    id="schedProposal"
-                                    label="Proposal #"
-                                    placeholder="Select proposal"
-                                    disableBlank={true}
-                                    options={initialData.estimates
-                                        .filter((e: any) => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
-                                        .map((e: any) => ({ label: e.label || e.value, value: e.value }))}
-                                    value={editingItem?.estimate || ''}
-                                    onChange={(val) => {
-                                        const est = initialData.estimates.find((e: any) => e.value === val);
-                                        const client = initialData.clients.find((c: any) => c._id === est?.customerId);
-                                        setEditingItem((prev: any) => ({ 
-                                            ...prev, 
-                                            estimate: val,
-                                            customerId: est?.customerId || prev?.customerId, 
-                                            customerName: client?.name || prev?.customerName,
-                                            title: est?.projectTitle || est?.projectName || prev?.title || '', 
-                                            description: est?.scopeOfWork || prev?.description || '',
-                                            service: Array.isArray(est?.services) ? est.services.join(', ') : (est?.services || prev?.service || ''),
-                                            fringe: est?.fringe || prev?.fringe || 'No',
-                                            certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
-                                            jobLocation: est?.jobAddress || prev?.jobLocation || ''
-                                        }));
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Title</label>
-                                <input
-                                    id="schedTitle"
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
-                                    placeholder="Project Main Phase"
-                                    value={editingItem?.title || ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
-                                    onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
-                                />
-                            </div>
+                    {/* Row 2: Client, Proposal, Title/Reason */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                        {editingItem?.item !== 'Day Off' && (
+                            <>
+                                <div>
+                                    <SearchableSelect
+                                        id="schedClient"
+                                        label="Client"
+                                        placeholder="Select client"
+                                        disableBlank={true}
+                                        options={initialData.clients.map((c: any) => ({ label: c.name, value: c._id }))}
+                                        value={editingItem?.customerId || ''}
+                                        onChange={(val) => {
+                                            const client = initialData.clients.find((c: any) => c._id === val);
+                                            setEditingItem((prev: any) => ({
+                                                ...prev,
+                                                customerId: val,
+                                                customerName: client?.name || '',
+                                                estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
+                                            }));
+                                        }}
+                                        onNext={() => {}}
+                                    />
+                                </div>
+                                <div>
+                                    <SearchableSelect
+                                        id="schedProposal"
+                                        label="Proposal #"
+                                        placeholder="Select proposal"
+                                        disableBlank={true}
+                                        options={initialData.estimates
+                                            .filter((e: any) => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
+                                            .map((e: any) => ({ label: e.label || e.value, value: e.value }))}
+                                        value={editingItem?.estimate || ''}
+                                        onChange={(val) => {
+                                            const est = initialData.estimates.find((e: any) => e.value === val);
+                                            const client = initialData.clients.find((c: any) => c._id === est?.customerId);
+                                            setEditingItem((prev: any) => ({ 
+                                                ...prev, 
+                                                estimate: val,
+                                                customerId: est?.customerId || prev?.customerId, 
+                                                customerName: client?.name || prev?.customerName,
+                                                title: est?.projectTitle || est?.projectName || prev?.title || '', 
+                                                description: est?.scopeOfWork || prev?.description || '',
+                                                service: Array.isArray(est?.services) ? est.services.join(', ') : (est?.services || prev?.service || ''),
+                                                fringe: est?.fringe || prev?.fringe || 'No',
+                                                certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
+                                                jobLocation: est?.jobAddress || prev?.jobLocation || ''
+                                            }));
+                                        }}
+                                        onNext={() => {}}
+                                    />
+                                </div>
+                            </>
+                        )}
+                        
+                        <div className={`space-y-2 ${editingItem?.item === 'Day Off' ? 'md:col-span-2' : ''}`}>
+                            <label className="block text-sm font-bold text-slate-900">
+                                {editingItem?.item === 'Day Off' ? 'Reason' : 'Title'}
+                            </label>
+                            <input
+                                id="schedTitle"
+                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
+                                placeholder={editingItem?.item === 'Day Off' ? "Enter reason..." : "Project Main Phase"}
+                                value={editingItem?.title || ''}
+                                onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                            />
                         </div>
+
+                        {editingItem?.item === 'Day Off' && (
+                            <div className="flex items-center h-[42px] mt-7">
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <div className="relative flex items-center">
+                                        <input 
+                                            type="checkbox" 
+                                            className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 hover:border-slate-400 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1"
+                                            checked={editingItem?.isDayOffApproved === true}
+                                            onChange={(e) => setEditingItem({...editingItem, isDayOffApproved: e.target.checked})}
+                                        />
+                                        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <span className="text-sm font-bold text-slate-700">Approved</span>
+                                </label>
+                            </div>
+                        )}
+                    </div>
+
+                    {editingItem?.item !== 'Day Off' && (
+                        <>
 
                         {/* Job Location (read-only from estimate) */}
                         {editingItem?.estimate && (() => {
@@ -598,7 +626,8 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                 </div>
                             </div>
                         </div>
-                    </>)}
+                        </>
+                    )}
 
                     {/* Footer buttons */}
                     <div className="flex items-center gap-3 pt-4 border-t border-slate-100">

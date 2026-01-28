@@ -656,7 +656,7 @@ export async function POST(request: NextRequest) {
                                     certifiedPayroll: 1, notifyAssignees: 1, description: 1, 
                                     jobLocation: 1, aerialImage: 1, siteLayout: 1, 
                                     jha: 1, djt: 1, timesheet: 1, JHASignatures: 1, DJTSignatures: 1,
-                                    todayObjectives: 1, syncedToAppSheet: 1,
+                                    todayObjectives: 1, syncedToAppSheet: 1, isDayOffApproved: 1,
                                     createdAt: 1, updatedAt: 1
                                 }}
                             ],

@@ -48,6 +48,7 @@ export interface ScheduleItem {
     DJTSignatures?: any[];
     todayObjectives?: Objective[];
     syncedToAppSheet?: boolean;
+    isDayOffApproved?: boolean;
 }
 
 interface ScheduleCardProps {

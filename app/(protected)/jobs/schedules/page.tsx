@@ -210,6 +210,46 @@ function SchedulePageContent() {
         title: ''
     });
 
+    // Day Off Stats State
+    const [dayOffStats, setDayOffStats] = useState<any[]>([]);
+
+    const fetchDayOffStats = async () => {
+        try {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0); 
+            const future = new Date(today);
+            future.setFullYear(today.getFullYear() + 5); 
+
+            const payload = {
+                action: 'getSchedulesPage',
+                payload: {
+                    page: 1,
+                    limit: 1000, 
+                    startDate: today.toISOString(),
+                    endDate: future.toISOString(),
+                    filters: { tag: 'Day Off' },
+                    skipInitialData: true
+                }
+            };
+
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                setDayOffStats(data.result.schedules || []);
+            }
+        } catch (error) {
+            console.error("Failed to fetch day off stats", error);
+        }
+    };
+
+    useEffect(() => {
+        fetchDayOffStats();
+    }, []);
+
     // Initial data for dropdowns
     const [initialData, setInitialData] = useState<{
         clients: any[];
@@ -819,6 +859,11 @@ function SchedulePageContent() {
             
             setSchedules(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
             
+            // Also update dayOffStats optimistically if it's a Day Off
+            if (updatedSchedule.item === 'Day Off') {
+                setDayOffStats(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
+            }
+            
             // Background Fetch
             fetch('/api/schedules', {
                 method: 'POST',
@@ -888,6 +933,11 @@ function SchedulePageContent() {
         
         const prevSchedules = [...schedules];
         setSchedules(prev => [...schedulesToCreate, ...prev]);
+        
+        // Also update dayOffStats optimistically
+        if (isDayOff) {
+            setDayOffStats(prev => [...schedulesToCreate, ...prev].sort((a,b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime()));
+        }
 
         // Background Fetch
         fetch('/api/schedules', {
@@ -3179,6 +3229,76 @@ function SchedulePageContent() {
                                                     <p className="text-3xl font-black text-white">{serverCapacity}%</p>
                                                     <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
                                                 </div>
+                                            )}  
+
+                                            {dayOffStats.length > 0 && (
+                                                <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden w-full">
+                                                    <div className="px-4 py-3 border-b border-slate-50">
+                                                        <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-left">Upcoming Time Off</h5>
+                                                    </div>
+                                                    <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
+                                                        {dayOffStats.map((stat, idx) => {
+                                                            const person = stat.assignees?.[0] 
+                                                                ? initialData.employees.find((e: any) => e.value === stat.assignees[0]) 
+                                                                : null;
+                                                            
+                                                            const formatDate = (d: string) => {
+                                                                if (!d) return '';
+                                                                const date = new Date(d);
+                                                                date.setMinutes(date.getMinutes() + date.getTimezoneOffset()); // Adjust to display date as is
+                                                                return date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+                                                            };
+
+                                                            const getWorkDays = (start: string, end: string) => {
+                                                                if (!start || !end) return { count: 0, days: '' };
+                                                                
+                                                                // Use UTC dates because handleSave anchors to "Z" (nominal time)
+                                                                const s = new Date(start);
+                                                                const e = new Date(end);
+                                                                
+                                                                // Normalize to UTC midnight
+                                                                const sUTC = Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
+                                                                const eUTC = Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
+
+                                                                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                                                                const daysFound: string[] = [];
+                                                                let count = 0;
+                                                                
+                                                                let current = sUTC;
+                                                                while (current <= eUTC) {
+                                                                    const d = new Date(current);
+                                                                    const dayOfWeek = d.getUTCDay();
+                                                                    
+                                                                    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                                                                        count++;
+                                                                        const name = dayNames[dayOfWeek];
+                                                                        if (!daysFound.includes(name)) daysFound.push(name);
+                                                                    }
+                                                                    current += 86400000; // Step by 1 day in ms
+                                                                }
+                                                                
+                                                                return { count, days: daysFound.join(', ') };
+                                                            };
+                                                            
+                                                            const { count, days } = getWorkDays(stat.fromDate, stat.toDate);
+
+                                                            return (
+                                                                <div key={idx} className="px-4 py-3 hover:bg-slate-50/50 transition-colors text-left group">
+                                                                    <p className="text-[11px] font-bold text-slate-700 truncate leading-tight flex items-center gap-1.5">
+                                                                        {person?.label || stat.assignees?.[0] || 'Unknown'}
+                                                                        {stat.isDayOffApproved && <CheckCircle2 size={13} className="text-green-600 shrink-0" />}
+                                                                    </p>
+                                                                    <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                                                        {formatDate(stat.fromDate)} - {formatDate(stat.toDate)}
+                                                                    </p>
+                                                                    <p className="text-[10px] font-bold text-slate-500 mt-1">
+                                                                        {count} {count === 1 ? 'Day' : 'Days'} ({days || 'Weekend'})
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -3322,75 +3442,79 @@ function SchedulePageContent() {
                             />
                         </div>
 
-                        {/* Rest of the form - Hidden when Tag is "Day Off" */}
-                        {editingItem?.item !== 'Day Off' && (
-                        <>
-                        {/* Row 2: Client, Proposal, Title */}
+                        {/* Row 2: Client, Proposal, Title/Reason */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                            <div>
-                                <SearchableSelect
-                                    id="schedClient"
-                                    label="Client"
-                                    placeholder="Select client"
-                                    disableBlank={true}
-                                    options={initialData.clients.map(c => ({ label: c.name, value: c._id }))}
-                                    value={editingItem?.customerId || ''}
-                                    onChange={(val) => {
-                                        const client = initialData.clients.find(c => c._id === val);
-                                        setEditingItem(prev => ({
-                                            ...prev,
-                                            customerId: val,
-                                            customerName: client?.name || '',
-                                            // Clear proposal if client changes
-                                            estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
-                                        }));
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div>
-                                 <SearchableSelect
-                                    id="schedProposal"
-                                    label="Proposal #"
-                                    placeholder="Select proposal"
-                                    disableBlank={true}
-                                    options={initialData.estimates
-                                        .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
-                                        .map(e => ({ label: e.label, value: e.value }))}
-                                    value={editingItem?.estimate || ''}
-                                    onChange={(val) => {
-                                        const est = initialData.estimates.find(e => e.value === val);
-                                        const client = initialData.clients.find(c => c._id === est?.customerId);
-                                        
-                                        // Smart Auto-fill
-                                        setEditingItem(prev => ({ 
-                                            ...prev, 
-                                            estimate: val,
-                                            // Auto-select client if not set or mismatch
-                                            customerId: est?.customerId || prev?.customerId, 
-                                            customerName: client?.name || prev?.customerName,
-                                            // Auto-fill title if empty or user wants override (we prioritize estimate data if selected explicitly)
-                                            title: est?.projectTitle || est?.projectName || prev?.title || '', 
-                                            // Auto-fill description from Scope of Work/Proposal
-                                            description: est?.scopeOfWork || prev?.description || '',
-                                            // Auto-fill services (multi-select capable)
-                                            service: Array.isArray(est?.services) ? est.services.join(', ') : (est?.services || prev?.service || ''),
-                                            // Auto-fill Fringe & CP
-                                            fringe: est?.fringe || prev?.fringe || 'No',
-                                            certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
-                                            // Store jobLocation for display
-                                            jobLocation: est?.jobAddress || prev?.jobLocation || ''
-                                        }));
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Title</label>
+                            {editingItem?.item !== 'Day Off' && (
+                                <>
+                                    <div>
+                                        <SearchableSelect
+                                            id="schedClient"
+                                            label="Client"
+                                            placeholder="Select client"
+                                            disableBlank={true}
+                                            options={initialData.clients.map(c => ({ label: c.name, value: c._id }))}
+                                            value={editingItem?.customerId || ''}
+                                            onChange={(val) => {
+                                                const client = initialData.clients.find(c => c._id === val);
+                                                setEditingItem(prev => ({
+                                                    ...prev,
+                                                    customerId: val,
+                                                    customerName: client?.name || '',
+                                                    // Clear proposal if client changes
+                                                    estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
+                                                }));
+                                            }}
+                                            onNext={() => {}}
+                                        />
+                                    </div>
+                                    <div>
+                                        <SearchableSelect
+                                            id="schedProposal"
+                                            label="Proposal #"
+                                            placeholder="Select proposal"
+                                            disableBlank={true}
+                                            options={initialData.estimates
+                                                .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
+                                                .map(e => ({ label: e.label, value: e.value }))}
+                                            value={editingItem?.estimate || ''}
+                                            onChange={(val) => {
+                                                const est = initialData.estimates.find(e => e.value === val);
+                                                const client = initialData.clients.find(c => c._id === est?.customerId);
+                                                
+                                                // Smart Auto-fill
+                                                setEditingItem(prev => ({ 
+                                                    ...prev, 
+                                                    estimate: val,
+                                                    // Auto-select client if not set or mismatch
+                                                    customerId: est?.customerId || prev?.customerId, 
+                                                    customerName: client?.name || prev?.customerName,
+                                                    // Auto-fill title if empty or user wants override (we prioritize estimate data if selected explicitly)
+                                                    title: est?.projectTitle || est?.projectName || prev?.title || '', 
+                                                    // Auto-fill description from Scope of Work/Proposal
+                                                    description: est?.scopeOfWork || prev?.description || '',
+                                                    // Auto-fill services (multi-select capable)
+                                                    service: Array.isArray(est?.services) ? est.services.join(', ') : (est?.services || prev?.service || ''),
+                                                    // Auto-fill Fringe & CP
+                                                    fringe: est?.fringe || prev?.fringe || 'No',
+                                                    certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
+                                                    // Store jobLocation for display
+                                                    jobLocation: est?.jobAddress || prev?.jobLocation || ''
+                                                }));
+                                            }}
+                                            onNext={() => {}}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                            
+                            <div className={`space-y-2 ${editingItem?.item === 'Day Off' ? 'md:col-span-2' : ''}`}>
+                                <label className="block text-sm font-bold text-slate-900">
+                                    {editingItem?.item === 'Day Off' ? 'Reason' : 'Title'}
+                                </label>
                                 <input
                                     id="schedTitle"
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
-                                    placeholder="Project Main Phase"
+                                    placeholder={editingItem?.item === 'Day Off' ? "Enter reason..." : "Project Main Phase"}
                                     value={editingItem?.title || ''}
                                     onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
                                     onKeyDown={(e) => {
@@ -3400,7 +3524,31 @@ function SchedulePageContent() {
                                     }}
                                 />
                             </div>
+
+                            {editingItem?.item === 'Day Off' && (
+                                <div className="flex items-center h-[42px] mt-7">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <div className="relative flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 hover:border-slate-400 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1"
+                                                checked={editingItem?.isDayOffApproved === true}
+                                                onChange={(e) => setEditingItem({...editingItem, isDayOffApproved: e.target.checked})}
+                                            />
+                                            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <span className="text-sm font-bold text-slate-700">Approved</span>
+                                    </label>
+                                </div>
+                            )}
                         </div>
+
+                        {editingItem?.item !== 'Day Off' && (
+                        <>
 
                         {/* Job Location - Read Only (shown when estimate is selected) */}
                         {editingItem?.estimate && (() => {
@@ -3766,7 +3914,8 @@ function SchedulePageContent() {
                                 </div>
                             </div>
                         </div>
-                        </>)}
+                        </>
+                        )}
 
                         <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
                             <button
