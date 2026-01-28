@@ -328,7 +328,7 @@ function TimeCardContent() {
     const dateInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        const checkMobile = () => setIsMobile(window.innerWidth < 1024);
         checkMobile();
         window.addEventListener('resize', checkMobile);
         
@@ -1141,8 +1141,8 @@ function TimeCardContent() {
                                         <TableRow className="hover:bg-transparent border-slate-100">
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">In (Washout)</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Out (Shop)</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Washout</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Shop</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[80px]">Dist</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
                                         </TableRow>

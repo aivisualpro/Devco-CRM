@@ -91,6 +91,7 @@ interface TodoItem {
     status: 'todo' | 'in progress' | 'done';
     createdBy?: string;
     createdAt?: string;
+    lastUpdatedAt?: string;
 }
 
 interface EstimateStats {
@@ -179,12 +180,12 @@ const TodoColumn = ({
         onDragOver={onDragOver}
         onDrop={(e) => onDrop(e, status)}
     >
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 px-1">
             <div className={`w-2 h-2 rounded-full ${color}`} />
-            <span className="font-semibold text-sm text-slate-700">{title}</span>
-            <Badge variant="default" className="ml-auto text-[10px]">{items.length}</Badge>
+            <span className="font-bold text-xs uppercase tracking-wider text-slate-600">{title}</span>
+            <Badge variant="default" className="ml-auto text-[10px] font-bold">{items.length}</Badge>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 overflow-y-auto pr-1 max-h-[350px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
             {items.map(item => (
                 <div 
                     key={item._id}
@@ -196,7 +197,9 @@ const TodoColumn = ({
                     <div className="flex items-start gap-2">
                         <GripVertical className="w-4 h-4 text-slate-300 mt-0.5" />
                         <div className="flex-1">
-                            <p className="text-sm font-medium text-slate-800">{item.task}</p>
+                            <p className={`text-sm font-medium ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
+                                {item.task}
+                            </p>
                             {item.dueDate && (
                                 <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
                             )}
@@ -1497,7 +1500,7 @@ function DashboardContent() {
         
         // Optimistic update
         setTodos(prev => prev.map(t => 
-            t._id === todoId ? { ...t, status: newStatus as TodoItem['status'] } : t
+            t._id === todoId ? { ...t, status: newStatus as TodoItem['status'], lastUpdatedAt: new Date().toISOString() } : t
         ));
 
         try {
@@ -1517,7 +1520,7 @@ function DashboardContent() {
 
     const handleStatusChange = async (item: TodoItem, newStatus: TodoItem['status']) => {
         // Optimistic update
-        setTodos(prev => prev.map(t => t._id === item._id ? { ...t, status: newStatus } : t));
+        setTodos(prev => prev.map(t => t._id === item._id ? { ...t, status: newStatus, lastUpdatedAt: new Date().toISOString() } : t));
         
         try {
             const res = await fetch('/api/tasks', {
@@ -1607,8 +1610,13 @@ function DashboardContent() {
     const todosByStatus = useMemo(() => ({
         todo: todos.filter(t => t.status === 'todo'),
         'in progress': todos.filter(t => t.status === 'in progress' || t.status === ('in-progress' as any)),
-        done: todos.filter(t => t.status === 'done'),
-    }), [todos]);
+        done: todos.filter(t => {
+            if (t.status !== 'done') return false;
+            if (!t.lastUpdatedAt) return true; // Show if no timestamp info
+            const doneDate = new Date(t.lastUpdatedAt);
+            return doneDate >= weekRange.start && doneDate <= weekRange.end;
+        }),
+    }), [todos, weekRange]);
 
     // Group activities by user (sorted by most recent)
     const groupedActivities = useMemo(() => {
@@ -1952,176 +1960,6 @@ function DashboardContent() {
                                 </div>
                             </div>
 
-                            {/* Tasks Kanban */}
-                            <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-4`}>
-                                <div className="flex items-center justify-between mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-rose-100 flex items-center justify-center">
-                                            <CheckCircle2 className="w-5 h-5 text-rose-600" />
-                                        </div>
-                                        <div>
-                                            <h2 className="font-bold text-slate-900">Tasks</h2>
-                                        </div>
-                                    </div>
-                                    <button 
-                                        onClick={() => handleOpenTaskModal()}
-                                        className="w-8 h-8 bg-blue-500 text-white rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </button>
-                                </div>
-                                <div className="hidden md:flex gap-4 overflow-x-auto pb-2">
-                                    <TodoColumn 
-                                        title="To Do" 
-                                        items={todosByStatus.todo} 
-                                        status="todo" 
-                                        color="bg-slate-400"
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onEdit={handleOpenTaskModal}
-                                        onCopy={handleCopyTask}
-                                        onStatusChange={handleStatusChange}
-                                        onDelete={handleDeleteTask}
-                                    />
-                                    <TodoColumn 
-                                        title="In Progress" 
-                                        items={todosByStatus['in progress']} 
-                                        status="in progress" 
-                                        color="bg-blue-500"
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onEdit={handleOpenTaskModal}
-                                        onCopy={handleCopyTask}
-                                        onStatusChange={handleStatusChange}
-                                        onDelete={handleDeleteTask}
-                                    />
-                                    <TodoColumn 
-                                        title="Done" 
-                                        items={todosByStatus.done} 
-                                        status="done" 
-                                        color="bg-emerald-500"
-                                        onDragOver={handleDragOver}
-                                        onDrop={handleDrop}
-                                        onEdit={handleOpenTaskModal}
-                                        onCopy={handleCopyTask}
-                                        onStatusChange={handleStatusChange}
-                                        onDelete={handleDeleteTask}
-                                    />
-                                </div>
-                                
-                                {/* Mobile Accordion View */}
-                                <div className="md:hidden mt-2">
-                                    <Accordion type="multiple" className="space-y-3">
-                                        <AccordionItem value="todo" className="border border-slate-200 rounded-xl overflow-hidden px-1">
-                                            <AccordionTrigger className="hover:no-underline py-3 px-3 bg-slate-50/50">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-slate-400" />
-                                                    <span className="font-bold text-slate-700">To Do</span>
-                                                    <Badge variant="default" className="ml-2 text-[10px]">{todosByStatus.todo.length}</Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 px-1 pb-2 bg-white">
-                                                <div className="space-y-2">
-                                                    {todosByStatus.todo.length > 0 ? (
-                                                        todosByStatus.todo.map(item => (
-                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
-                                                                <div className="flex justify-between items-start gap-2">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-medium text-slate-800">{item.task}</p>
-                                                                        {item.dueDate && (
-                                                                            <p className="text-[10px] text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
-                                                                        )}
-                                                                    </div>
-                                                                    <button 
-                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'in progress'); }}
-                                                                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-blue-500 shadow-sm"
-                                                                    >
-                                                                        <ActivityIcon size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-center py-4 text-xs text-slate-400 italic">No tasks in this list</p>
-                                                    )}
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-
-                                        <AccordionItem value="in-progress" className="border border-slate-200 rounded-xl overflow-hidden px-1">
-                                            <AccordionTrigger className="hover:no-underline py-3 px-3 bg-blue-50/30">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-blue-500" />
-                                                    <span className="font-bold text-slate-700">In Progress</span>
-                                                    <Badge variant="default" className="ml-2 text-[10px]">{todosByStatus['in progress'].length}</Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 px-1 pb-2 bg-white">
-                                                <div className="space-y-2">
-                                                    {todosByStatus['in progress'].length > 0 ? (
-                                                        todosByStatus['in progress'].map(item => (
-                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
-                                                                <div className="flex justify-between items-start gap-2">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-medium text-slate-800">{item.task}</p>
-                                                                        {item.dueDate && (
-                                                                            <p className="text-[10px] text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
-                                                                        )}
-                                                                    </div>
-                                                                    <button 
-                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'done'); }}
-                                                                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-emerald-500 shadow-sm"
-                                                                    >
-                                                                        <ActivityIcon size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-center py-4 text-xs text-slate-400 italic">No tasks in progress</p>
-                                                    )}
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-
-                                        <AccordionItem value="done" className="border border-slate-200 rounded-xl overflow-hidden px-1">
-                                            <AccordionTrigger className="hover:no-underline py-3 px-3 bg-emerald-50/30">
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
-                                                    <span className="font-bold text-slate-700">Done</span>
-                                                    <Badge variant="default" className="ml-2 text-[10px]">{todosByStatus.done.length}</Badge>
-                                                </div>
-                                            </AccordionTrigger>
-                                            <AccordionContent className="pt-2 px-1 pb-2 bg-white">
-                                                <div className="space-y-2">
-                                                    {todosByStatus.done.length > 0 ? (
-                                                        todosByStatus.done.map(item => (
-                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
-                                                                <div className="flex justify-between items-start gap-2">
-                                                                    <div className="flex-1">
-                                                                        <p className="text-sm font-medium text-slate-800">{item.task}</p>
-                                                                        {item.dueDate && (
-                                                                            <p className="text-[10px] text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
-                                                                        )}
-                                                                    </div>
-                                                                    <button 
-                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'todo'); }}
-                                                                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 shadow-sm"
-                                                                    >
-                                                                        <ActivityIcon size={12} />
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        <p className="text-center py-4 text-xs text-slate-400 italic">No completed tasks</p>
-                                                    )}
-                                                </div>
-                                            </AccordionContent>
-                                        </AccordionItem>
-                                    </Accordion>
-                                </div>
-                            </div>
 
                             <TaskFormModal 
                                 isOpen={isTaskModalOpen}
@@ -2132,7 +1970,7 @@ function DashboardContent() {
                             />
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
-                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden">
+                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : (searchParams.get('view') ? 'hidden md:block' : 'block')} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden`}>
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
@@ -2140,7 +1978,7 @@ function DashboardContent() {
                                         </div>
                                         <div>
                                             <h2 className="font-bold text-slate-900">Time Cards</h2>
-                                            <p className="md:hidden text-xs text-slate-500">Your recent activity</p>
+                                            <p className="text-xs text-slate-500">Your recent activity</p>
                                         </div>
                                     </div>
 
@@ -2157,87 +1995,116 @@ function DashboardContent() {
                                     </div>
                                 </div>
                                 
-                                <div className="overflow-x-auto">
-                                    <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
-                                        <TableHead>
-                                            <TableRow className="hover:bg-transparent border-slate-100">
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[60px]">Type</TableHeader>
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">In</TableHeader>
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Out</TableHeader>
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[80px]">Dist (Mi)</TableHeader>
-                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
-                                            </TableRow>
-                                        </TableHead>
-                                        <TableBody>
-                                            {dashboardTimeCards.length > 0 ? dashboardTimeCards.slice(0, 10).map((ts, idx) => (
-                                                <TableRow key={idx} className="hover:bg-slate-50">
-                                                    <TableCell className="text-center text-[11px] font-medium text-slate-600">
-                                                        {formatDateOnly(ts.clockIn)}
-                                                    </TableCell>
-                                                     <TableCell className="text-center">
-                                                         <div className="flex justify-center">
-                                                             {ts.type?.toLowerCase().includes('drive') ? (
-                                                                 <div className="p-1.5 text-blue-600 bg-blue-50 rounded-lg">
-                                                                     <Truck size={14} />
-                                                                 </div>
-                                                             ) : (
-                                                                 <div className="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg">
-                                                                     <MapPin size={14} />
-                                                                 </div>
-                                                             )}
-                                                         </div>
-                                                     </TableCell>
-                                                     <TableCell className="text-center">
-                                                         <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
-                                                             {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
-                                                         </span>
-                                                     </TableCell>
-                                                     <TableCell className="text-center text-xs text-slate-500">
-                                                         {ts.type?.toLowerCase().includes('drive') ? (
-                                                             ts.dumpWashout ? (
-                                                                 <span className="text-[10px] font-black uppercase bg-orange-500 text-white px-2 py-1 rounded shadow-sm inline-flex items-center gap-1 min-w-[70px] justify-center">
-                                                                     <span>Washout</span>
-                                                                     {String(ts.dumpWashout).includes('qty') && <CheckCircle2 size={10} />}
-                                                                 </span>
-                                                             ) : <span className="text-slate-300">-</span>
-                                                         ) : (
-                                                             <span className="text-[11px] font-medium text-slate-600 tracking-tight">
-                                                                 {formatTimeOnly(ts.clockIn)}
-                                                             </span>
-                                                         )}
-                                                     </TableCell>
-                                                     <TableCell className="text-center text-xs text-slate-500">
-                                                         {ts.type?.toLowerCase().includes('drive') ? (
-                                                             ts.shopTime ? (
-                                                                 <span className="text-[10px] font-black uppercase bg-blue-500 text-white px-2 py-1 rounded shadow-sm inline-flex items-center gap-1 min-w-[70px] justify-center">
-                                                                     <span>Shop</span>
-                                                                     {String(ts.shopTime).includes('qty') && <CheckCircle2 size={10} />}
-                                                                 </span>
-                                                             ) : <span className="text-slate-300">-</span>
-                                                         ) : (
-                                                             <span className="text-[11px] font-medium text-slate-600 tracking-tight">
-                                                                 {formatTimeOnly(ts.clockOut)}
-                                                             </span>
-                                                         )}
-                                                     </TableCell>
-                                                    <TableCell className="text-right text-[11px] font-medium text-slate-600">
-                                                        {(ts.distanceVal || 0) > 0 ? (ts.distanceVal).toFixed(1) : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="text-right text-[11px] font-black text-slate-800">
-                                                        {(ts.hoursVal || 0).toFixed(2)}
-                                                    </TableCell>
-                                                </TableRow>
-                                            )) : (
-                                                <TableRow>
-                                                    <TableCell colSpan={7} className="text-center py-8 text-xs text-slate-400">
-                                                        No time cards found
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                <div className="space-y-6">
+                                    {/* Drive Time Section */}
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2 px-1">
+                                            <Truck size={14} className="text-blue-500" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drive Time</span>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                                <TableHead>
+                                                    <TableRow className="hover:bg-transparent border-slate-100">
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Washout</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Shop</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Dist</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {dashboardTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).length > 0 ? 
+                                                        dashboardTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
+                                                        <TableRow key={idx} className="hover:bg-slate-50">
+                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                {formatDateOnly(ts.clockIn)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                    {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                {ts.dumpWashout ? (
+                                                                    <span className="text-[9px] font-black uppercase bg-orange-500 text-white px-2 py-0.5 rounded shadow-sm inline-flex items-center gap-1 justify-center">
+                                                                        <span>Washout</span>
+                                                                    </span>
+                                                                ) : <span className="text-slate-300">-</span>}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                {ts.shopTime ? (
+                                                                    <span className="text-[9px] font-black uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-sm inline-flex items-center gap-1 justify-center">
+                                                                        <span>Shop</span>
+                                                                    </span>
+                                                                ) : <span className="text-slate-300">-</span>}
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-[11px] font-medium text-slate-600">
+                                                                {(ts.distanceVal || 0) > 0 ? (ts.distanceVal).toFixed(1) : '-'}
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                                {(ts.hoursVal || 0).toFixed(2)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={6} className="text-center py-4 text-xs text-slate-300 italic">No drive records</TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+
+                                    {/* Site Time Section */}
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-2 px-1">
+                                            <MapPin size={14} className="text-emerald-500" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Time</span>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                                <TableHead>
+                                                    <TableRow className="hover:bg-transparent border-slate-100">
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {dashboardTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).length > 0 ? 
+                                                        dashboardTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
+                                                        <TableRow key={idx} className="hover:bg-slate-50">
+                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                {formatDateOnly(ts.clockIn)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center">
+                                                                <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                    {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                {formatTimeOnly(ts.clockIn)}
+                                                            </TableCell>
+                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                {formatTimeOnly(ts.clockOut)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                                {(ts.hoursVal || 0).toFixed(2)}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={5} className="text-center py-4 text-xs text-slate-300 italic">No site records</TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2482,6 +2349,186 @@ function DashboardContent() {
                                 </div>
                             </div>
                         </div>
+                </div>
+
+                {/* Full Width Tasks Kanban */}
+                <div className="mt-6">
+                    <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-4 lg:p-6`}>
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-2xl bg-rose-100 flex items-center justify-center">
+                                    <CheckCircle2 className="w-6 h-6 text-rose-600" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">Tasks</h2>
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => handleOpenTaskModal()}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-xl flex items-center gap-2 hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span className="font-bold text-sm">New Task</span>
+                            </button>
+                        </div>
+                        <div className="hidden md:flex gap-6 overflow-x-auto pb-4">
+                            <TodoColumn 
+                                title="To Do" 
+                                items={todosByStatus.todo} 
+                                status="todo" 
+                                color="bg-slate-400"
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                onEdit={handleOpenTaskModal}
+                                onCopy={handleCopyTask}
+                                onStatusChange={handleStatusChange}
+                                onDelete={handleDeleteTask}
+                            />
+                            <TodoColumn 
+                                title="In Progress" 
+                                items={todosByStatus['in progress']} 
+                                status="in progress" 
+                                color="bg-blue-500"
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                onEdit={handleOpenTaskModal}
+                                onCopy={handleCopyTask}
+                                onStatusChange={handleStatusChange}
+                                onDelete={handleDeleteTask}
+                            />
+                            <TodoColumn 
+                                title="Done" 
+                                items={todosByStatus.done} 
+                                status="done" 
+                                color="bg-emerald-500"
+                                onDragOver={handleDragOver}
+                                onDrop={handleDrop}
+                                onEdit={handleOpenTaskModal}
+                                onCopy={handleCopyTask}
+                                onStatusChange={handleStatusChange}
+                                onDelete={handleDeleteTask}
+                            />
+                        </div>
+                        
+                        {/* Mobile Accordion View */}
+                        <div className="md:hidden mt-2">
+                            <Accordion type="multiple" className="space-y-4">
+                                <AccordionItem value="todo" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                                    <AccordionTrigger className="hover:no-underline py-4 px-4 bg-slate-50/50">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-slate-400 shadow-sm" />
+                                            <span className="font-bold text-slate-800">To Do</span>
+                                            <Badge variant="default" className="ml-2 text-[11px] font-black">{todosByStatus.todo.length}</Badge>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pt-2 px-2 pb-3 bg-white">
+                                        <div className="space-y-2">
+                                            {todosByStatus.todo.length > 0 ? (
+                                                todosByStatus.todo.map(item => (
+                                                    <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                                        <div className="flex justify-between items-start gap-3">
+                                                            <div className="flex-1">
+                                                                <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
+                                                                {item.dueDate && (
+                                                                    <div className="flex items-center gap-1.5 mt-2">
+                                                                        <Clock size={10} className="text-slate-400" />
+                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'in progress'); }}
+                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-blue-500 shadow-sm active:scale-90 transition-transform"
+                                                            >
+                                                                <ActivityIcon size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-center py-6 text-xs text-slate-400 font-medium italic">No pending tasks</p>
+                                            )}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="in-progress" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                                    <AccordionTrigger className="hover:no-underline py-4 px-4 bg-blue-50/30">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm" />
+                                            <span className="font-bold text-slate-800">In Progress</span>
+                                            <Badge variant="default" className="ml-2 text-[11px] font-black">{todosByStatus['in progress'].length}</Badge>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pt-2 px-2 pb-3 bg-white">
+                                        <div className="space-y-2">
+                                            {todosByStatus['in progress'].length > 0 ? (
+                                                todosByStatus['in progress'].map(item => (
+                                                    <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors">
+                                                        <div className="flex justify-between items-start gap-3">
+                                                            <div className="flex-1">
+                                                                <p className="text-sm font-bold text-slate-800 leading-tight">{item.task}</p>
+                                                                {item.dueDate && (
+                                                                    <div className="flex items-center gap-1.5 mt-2">
+                                                                        <Clock size={10} className="text-slate-400" />
+                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Due {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'done'); }}
+                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-emerald-500 shadow-sm active:scale-90 transition-transform"
+                                                            >
+                                                                <ActivityIcon size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-center py-6 text-xs text-slate-400 font-medium italic">Nothing in progress</p>
+                                            )}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+
+                                <AccordionItem value="done" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
+                                    <AccordionTrigger className="hover:no-underline py-4 px-4 bg-emerald-50/30">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" />
+                                            <span className="font-bold text-slate-800">Done</span>
+                                            <Badge variant="default" className="ml-2 text-[11px] font-black">{todosByStatus.done.length}</Badge>
+                                        </div>
+                                    </AccordionTrigger>
+                                    <AccordionContent className="pt-2 px-2 pb-3 bg-white">
+                                        <div className="space-y-2">
+                                            {todosByStatus.done.length > 0 ? (
+                                                todosByStatus.done.map(item => (
+                                                    <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors">
+                                                        <div className="flex justify-between items-start gap-3">
+                                                            <div className="flex-1">
+                                                                <p className="text-sm font-bold text-slate-800 leading-tight line-through decoration-slate-300 decoration-2">{item.task}</p>
+                                                                {item.dueDate && (
+                                                                    <p className="text-[10px] font-bold text-emerald-500 uppercase tracking-tighter mt-2">Completed</p>
+                                                                )}
+                                                            </div>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'todo'); }}
+                                                                className="p-2 bg-white border border-slate-200 rounded-xl text-slate-400 shadow-sm active:scale-90 transition-transform"
+                                                            >
+                                                                <ActivityIcon size={14} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p className="text-center py-6 text-xs text-slate-400 font-medium italic">No items completed this week</p>
+                                            )}
+                                        </div>
+                                    </AccordionContent>
+                                </AccordionItem>
+                            </Accordion>
+                        </div>
+                    </div>
                 </div>
             </div>
 
