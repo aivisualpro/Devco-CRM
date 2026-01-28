@@ -29,6 +29,11 @@ export async function GET(request: NextRequest) {
             success: true,
             permissions,
             cached,
+            user: {
+                userId: user.userId,
+                email: user.email,
+                role: user.role
+            }
         });
     } catch (error) {
         console.error('Error fetching permissions:', error);

@@ -512,7 +512,8 @@ function DashboardContent() {
     const router = useRouter();
     const { success, error: showError } = useToast();
     const { user, isSuperAdmin } = usePermissions();
-    const userEmail = user?.email || '';
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const userEmail = user?.email || currentUser?.email || '';
     
     const searchParams = useSearchParams();
     
@@ -573,7 +574,6 @@ function DashboardContent() {
     // Data States
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [initialData, setInitialData] = useState<any>({ employees: [], clients: [], constants: [], estimates: [] });
-    const [currentUser, setCurrentUser] = useState<any>(null);
     const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
     const [trainings, setTrainings] = useState<Training[]>([]);
     const [todos, setTodos] = useState<TodoItem[]>([]);
@@ -712,6 +712,9 @@ function DashboardContent() {
     const [cursorPosition, setCursorPosition] = useState(0); 
     const [chatFilterValue, setChatFilterValue] = useState(''); 
     const [tagFilters, setTagFilters] = useState<{type: 'user'|'estimate', value: string, label: string}[]>([]);
+    const [chatAssignees, setChatAssignees] = useState<string[]>([]);
+    const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+    const [editingMsgText, setEditingMsgText] = useState('');
     
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
@@ -1302,7 +1305,7 @@ function DashboardContent() {
         return () => clearInterval(interval);
     }, [fetchChatMessages]);
 
-    const handleChatInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChatInput = (e: React.ChangeEvent<any>) => {
         const val = e.target.value;
         setNewMessage(val);
         
@@ -1351,19 +1354,22 @@ function DashboardContent() {
 
         const estimateMatch = newMessage.match(/#(\d+[-A-Za-z0-9]*)/);
         const extractedEstimate = estimateMatch ? estimateMatch[1] : undefined;
-        const mentionMatch = newMessage.match(/@([\w.@]+)/);
-        const extractedAssignee = mentionMatch ? mentionMatch[1] : undefined;
 
         const optimisticMsg: any = {
             _id: `temp-${Date.now()}`,
             sender: userEmail,
             message: newMessage,
             estimate: extractedEstimate,
-            assignee: extractedAssignee,
+            assignees: chatAssignees,
             createdAt: new Date().toISOString(),
         };
         setMessages(prev => [...prev, optimisticMsg]);
         setNewMessage('');
+        setChatAssignees([]);
+        
+        if (chatInputRef.current) {
+            (chatInputRef.current as any).style.height = '42px';
+        }
         
         setTimeout(() => {
             if (chatScrollRef.current) {
@@ -1378,7 +1384,7 @@ function DashboardContent() {
                 body: JSON.stringify({
                     message: optimisticMsg.message,
                     estimate: extractedEstimate,
-                    assignee: extractedAssignee,
+                    assignees: chatAssignees,
                 })
             });
             fetchChatMessages();
@@ -1388,12 +1394,55 @@ function DashboardContent() {
         }
     };
 
+    const handleUpdateMessage = async (id: string, text: string) => {
+        if (!text.trim()) return;
+        try {
+            const res = await fetch(`/api/chat/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setMessages(prev => prev.map(m => m._id === id ? { ...m, message: text } : m));
+                setEditingMsgId(null);
+                setEditingMsgText('');
+            } else {
+                showError(data.error || 'Failed to update');
+            }
+        } catch (error) {
+            showError('Operation failed');
+        }
+    };
+
+    const handleDeleteMessage = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this message?')) return;
+        try {
+            const res = await fetch(`/api/chat/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                setMessages(prev => prev.filter(m => m._id !== id));
+            } else {
+                showError(data.error || 'Failed to delete');
+            }
+        } catch (error) {
+            showError('Operation failed');
+        }
+    };
+
     const filteredEmployees = useMemo(() => {
         if (!mentionQuery) return initialData.employees.slice(0, 5);
         return initialData.employees.filter((e: any) => 
             (e.label || e.value).toLowerCase().includes(mentionQuery.toLowerCase())
         ).slice(0, 5);
     }, [mentionQuery, initialData.employees]);
+
+    const employeeOptions = useMemo(() => initialData.employees.map((emp: any) => ({
+        id: emp.value,
+        label: emp.label,
+        value: emp.value,
+        profilePicture: emp.image
+    })), [initialData.employees]);
 
     const filteredEstimates = useMemo(() => {
         if (!referenceQuery) return initialData.estimates.slice(0, 5);
@@ -2355,7 +2404,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Chat */}
-                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col ${searchParams.get('view') === 'chat' ? 'h-[calc(100vh-160px)] md:h-[500px]' : 'h-[500px]'}`}>
+                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col ${searchParams.get('view') === 'chat' ? 'h-[calc(100vh-160px)] md:h-[650px]' : 'h-[650px]'}`}>
                                 <div className="flex items-center justify-between p-4 border-b border-slate-100">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-cyan-100 flex items-center justify-center">
@@ -2397,11 +2446,25 @@ function DashboardContent() {
                                         </div>
                                     ) : (
                                         messages.map((msg, idx) => {
-                                            const isMe = msg.sender === userEmail;
+                                            const isMe = msg.sender?.toLowerCase() === userEmail?.toLowerCase() && !!userEmail;
+                                            const isEditing = editingMsgId === msg._id;
+                                            const senderEmp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === msg.sender?.toLowerCase());
+                                            const senderInitials = (senderEmp?.label || msg.sender || 'U').split(' ').map((n: string) => n[0]).join('').toUpperCase();
+
                                             const renderMessage = (text: string) => {
                                                 const parts = text.split(/(@[\w.@]+|#\d+[-A-Za-z0-9]*)/g);
                                                 return parts.map((part, i) => {
-                                                    if (part.startsWith('@')) return <span key={i} className="text-blue-600 font-bold">{part}</span>;
+                                                    if (part.startsWith('@')) {
+                                                        const label = part.slice(1);
+                                                        // Check if this person is already an assignee (hide them from text if they are)
+                                                        const isAssignee = msg.assignees?.some((email: string) => {
+                                                            const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === email?.toLowerCase());
+                                                            return emp?.label === label || email === label;
+                                                        });
+                                                        
+                                                        if (isAssignee) return null;
+                                                        return <span key={i} className="text-blue-600 font-bold">{part}</span>;
+                                                    }
                                                     if (part.startsWith('#')) return <span key={i} className="text-purple-600 font-bold cursor-pointer hover:underline" onClick={() => {
                                                         const estVal = part.slice(1);
                                                         setTagFilters([{ type: 'estimate', value: estVal, label: part }]);
@@ -2410,31 +2473,137 @@ function DashboardContent() {
                                                 });
                                             };
 
-                                            return (
-                                                <div key={idx} className={`flex gap-2 ${isMe ? 'justify-end' : ''}`}>
-                                                    {!isMe && (
-                                                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
-                                                            {(msg.sender?.split('@')[0]?.[0] || 'U').toUpperCase()}
-                                                        </div>
-                                                    )}
-                                                    <div className={`rounded-2xl px-3 py-2 max-w-[85%] ${
-                                                        isMe 
-                                                            ? 'bg-blue-600 text-white rounded-tr-none' 
-                                                            : 'bg-slate-100 text-slate-800 rounded-tl-none'
-                                                    }`}>
-                                                        <p className="text-sm cursor-text selection:bg-white/30">
-                                                            {renderMessage(msg.message)}
-                                                        </p>
-                                                        <p className={`text-[10px] mt-1 ${isMe ? 'text-blue-200' : 'text-slate-400'}`}>
-                                                            {!isMe && <span className="font-bold mr-1">{msg.sender?.split('@')[0]}</span>}
-                                                            {new Date(msg.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                                        </p>
+                                            const HeaderContent = () => {
+                                                const AssigneesAvatars = (
+                                                    <div className="flex -space-x-1.5 overflow-hidden">
+                                                        {msg.assignees && msg.assignees.length > 0 ? (
+                                                            msg.assignees.map((email: string, aIdx: number) => {
+                                                                const assEmp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === email?.toLowerCase());
+                                                                return (
+                                                                    <Tooltip key={aIdx}>
+                                                                        <TooltipTrigger asChild>
+                                                                            <Avatar className="w-6 h-6 border-2 border-white/20 shrink-0">
+                                                                                <AvatarImage src={assEmp?.image} />
+                                                                                <AvatarFallback className="text-[9px] bg-slate-200 font-extrabold text-[#0F4C75]">
+                                                                                    {(assEmp?.label || email || 'U')[0].toUpperCase()}
+                                                                                </AvatarFallback>
+                                                                            </Avatar>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent>
+                                                                            <p className="text-[10px] font-bold">{assEmp?.label || email}</p>
+                                                                        </TooltipContent>
+                                                                    </Tooltip>
+                                                                );
+                                                            })
+                                                        ) : null}
                                                     </div>
-                                                    {isMe && (
-                                                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                                                            ME
+                                                );
+
+                                                const SenderAvatar = (
+                                                    <Tooltip>
+                                                        <TooltipTrigger asChild>
+                                                            <Avatar className={`w-7 h-7 border-2 shrink-0 ${isMe ? 'border-white/20' : 'border-white'}`}>
+                                                                <AvatarImage src={senderEmp?.image} />
+                                                                <AvatarFallback className={`text-[10px] font-black ${isMe ? 'bg-[#112D4E] text-white' : 'bg-slate-300 text-slate-700'}`}>
+                                                                    {isMe ? 'ME' : senderInitials}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p className="text-[10px] font-bold">{isMe ? 'You' : (senderEmp?.label || msg.sender)}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                );
+
+                                                if (isMe) {
+                                                    return (
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            {AssigneesAvatars}
+                                                            {SenderAvatar}
                                                         </div>
-                                                    )}
+                                                    );
+                                                } else {
+                                                    return (
+                                                        <div className="flex items-center justify-between mb-2 flex-row-reverse">
+                                                            {AssigneesAvatars}
+                                                            {SenderAvatar}
+                                                        </div>
+                                                    );
+                                                }
+                                            };
+
+                                            return (
+                                                <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1`}>
+                                                    <div className={`rounded-3xl p-3 pb-2 min-w-[160px] max-w-[85%] shadow-sm relative ${
+                                                        isMe 
+                                                            ? 'bg-[#3F72AF] text-white rounded-tr-none' 
+                                                            : 'bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200'
+                                                    }`}>
+                                                        <HeaderContent />
+
+                                                        {/* Message Content */}
+                                                        <div className="px-1">
+                                                            {isEditing ? (
+                                                                <div className="space-y-2">
+                                                                    <textarea 
+                                                                        autoFocus
+                                                                        className="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/50"
+                                                                        value={editingMsgText}
+                                                                        onChange={(e) => setEditingMsgText(e.target.value)}
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                                                e.preventDefault();
+                                                                                handleUpdateMessage(msg._id, editingMsgText);
+                                                                            } else if (e.key === 'Escape') {
+                                                                                setEditingMsgId(null);
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                    <div className="flex justify-end gap-2">
+                                                                        <button onClick={() => setEditingMsgId(null)} className="text-[10px] font-bold uppercase hover:underline">Cancel</button>
+                                                                        <button onClick={() => handleUpdateMessage(msg._id, editingMsgText)} className="text-[10px] font-bold uppercase hover:underline">Save</button>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <p className="text-sm cursor-text selection:bg-white/30 whitespace-pre-wrap leading-relaxed">
+                                                                    {renderMessage(msg.message)}
+                                                                </p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Footer: Timestamp & Actions */}
+                                                        {!isEditing && (
+                                                            <div className={`flex items-center justify-between mt-2 px-1 gap-2 ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
+                                                                {isMe ? (
+                                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button 
+                                                                            onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
+                                                                            className="p-1 hover:bg-white/10 rounded-md text-white/50 hover:text-white transition-colors"
+                                                                        >
+                                                                            <Edit size={10} />
+                                                                        </button>
+                                                                        <button 
+                                                                            onClick={() => handleDeleteMessage(msg._id)}
+                                                                            className="p-1 hover:bg-red-500/20 rounded-md text-white/50 hover:text-red-200 transition-colors"
+                                                                        >
+                                                                            <Trash2 size={10} />
+                                                                        </button>
+                                                                    </div>
+                                                                ) : <div />}
+                                                                
+                                                                <span className={`text-[8px] uppercase tracking-widest font-black opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
+                                                                    {new Date(msg.createdAt).toLocaleString([], { 
+                                                                        month: 'short', 
+                                                                        day: 'numeric', 
+                                                                        year: 'numeric', 
+                                                                        hour: '2-digit', 
+                                                                        minute: '2-digit', 
+                                                                        hour12: true 
+                                                                    })}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })
@@ -2442,27 +2611,27 @@ function DashboardContent() {
                                 </div>
 
                                 <div className="p-3 border-t border-slate-100 relative">
-                                    {showMentions && (
-                                        <div className="absolute bottom-full left-4 mb-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
-                                            <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-xs font-bold text-slate-500">
-                                                Mention Teammate
-                                            </div>
-                                            <div className="max-h-48 overflow-y-auto">
-                                                {filteredEmployees.map((emp: any) => (
-                                                    <div 
-                                                        key={emp.value}
-                                                        className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2"
-                                                        onClick={() => insertTag(`@${emp.label || emp.value}`, 'mention')}
-                                                    >
-                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-xs">
-                                                            {(emp.label || emp.value)[0]}
-                                                        </div>
-                                                        <span className="text-sm text-slate-700">{emp.label || emp.value}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                                    <MyDropDown
+                                        isOpen={showMentions}
+                                        onClose={() => setShowMentions(false)}
+                                        options={employeeOptions}
+                                        selectedValues={chatAssignees}
+                                        onSelect={(val) => {
+                                            const isSelected = chatAssignees.includes(val);
+                                            if (!isSelected) {
+                                                // Only insert tag if we are adding a new person
+                                                const label = initialData.employees.find((e: any) => e.value === val)?.label || val;
+                                                insertTag(`@${label}`, 'mention');
+                                                setChatAssignees(prev => [...prev, val]);
+                                            } else {
+                                                setChatAssignees(prev => prev.filter(v => v !== val));
+                                            }
+                                        }}
+                                        multiSelect={true}
+                                        anchorId="chat-input-container"
+                                        width="w-64"
+                                        placeholder="Search teammate..."
+                                    />
 
                                     {showReferences && (
                                         <div className="absolute bottom-full left-4 mb-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
@@ -2472,7 +2641,7 @@ function DashboardContent() {
                                             <div className="max-h-48 overflow-y-auto">
                                                 {filteredEstimates.map((est: any) => (
                                                     <div 
-                                                        key={est.value}
+                                                        key={est._id || est.value}
                                                         className="px-3 py-2 hover:bg-purple-50 cursor-pointer"
                                                         onClick={() => insertTag(`#${est.value || est.estimate}`, 'reference')}
                                                     >
@@ -2487,24 +2656,71 @@ function DashboardContent() {
                                         </div>
                                     )}
 
-                                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                                        <div className="relative flex-1">
-                                            <input 
-                                                ref={chatInputRef}
-                                                type="text"
-                                                placeholder="Type @ for team or # for jobs..."
-                                                className="w-full px-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
-                                                value={newMessage}
-                                                onChange={handleChatInput}
-                                            />
+                                    <form 
+                                        onSubmit={handleSendMessage} 
+                                        className="flex flex-col gap-2"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && !e.shiftKey) {
+                                                e.preventDefault();
+                                                handleSendMessage();
+                                            }
+                                        }}
+                                    >
+                                        {chatAssignees.length > 0 && (
+                                            <div className="flex items-center gap-2 mb-1 px-1">
+                                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Assigning:</span>
+                                                <div className="flex -space-x-1.5 overflow-hidden">
+                                                    {chatAssignees.map((email: string, i: number) => {
+                                                        const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === email?.toLowerCase());
+                                                        return (
+                                                            <div 
+                                                                key={i} 
+                                                                className="cursor-pointer hover:scale-110 transition-transform"
+                                                                onClick={() => setChatAssignees(prev => prev.filter(v => v !== email))}
+                                                            >
+                                                                <Avatar className="w-5 h-5 border border-white shrink-0 shadow-sm">
+                                                                    <AvatarImage src={emp?.image} />
+                                                                    <AvatarFallback className="text-[8px] bg-slate-200">
+                                                                        {(emp?.label || email)[0].toUpperCase()}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => setChatAssignees([])}
+                                                    className="text-[9px] text-red-500 font-bold hover:underline ml-1"
+                                                >
+                                                    Clear All
+                                                </button>
+                                            </div>
+                                        )}
+                                        <div className="flex items-end gap-2">
+                                            <div className="relative flex-1" id="chat-input-container">
+                                                <textarea 
+                                                    ref={chatInputRef as any}
+                                                    placeholder="Type @ for team or # for jobs..."
+                                                    className="w-full px-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 resize-none min-h-[42px] max-h-32 overflow-y-auto"
+                                                    rows={1}
+                                                    value={newMessage}
+                                                    onInput={(e: any) => {
+                                                        const target = e.target;
+                                                        target.style.height = 'auto';
+                                                        target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+                                                    }}
+                                                    onChange={handleChatInput}
+                                                />
+                                            </div>
+                                            <button 
+                                                type="submit"
+                                                disabled={!newMessage.trim()}
+                                                className="w-10 h-10 bg-[#3F72AF] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md shrink-0 mb-0.5"
+                                            >
+                                                <Send className="w-4 h-4" />
+                                            </button>
                                         </div>
-                                        <button 
-                                            type="submit"
-                                            disabled={!newMessage.trim()}
-                                            className="w-10 h-10 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
-                                        >
-                                            <Send className="w-4 h-4" />
-                                        </button>
                                     </form>
                                 </div>
                             </div>

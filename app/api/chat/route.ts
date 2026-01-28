@@ -23,10 +23,10 @@ export async function GET(request: NextRequest) {
             query.estimate = estimateFilter;
         }
 
-        // Filter by assignee if provided
+        // Filter by assignee if provided (check if email is in assignees array)
         const assigneeFilter = searchParams.get('assignee');
         if (assigneeFilter) {
-            query.assignee = assigneeFilter;
+            query.assignees = assigneeFilter;
         }
 
         // General text search filter
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
 
         await connectToDatabase();
         const body = await request.json();
-        const { message, estimate, assignee } = body;
+        const { message, estimate, assignees } = body;
 
         if (!message) {
             return NextResponse.json({ success: false, error: 'Message is required' }, { status: 400 });
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
             sender: user.email,
             message,
             estimate: estimate || undefined,
-            assignee: assignee || undefined,
+            assignees: assignees || [],
         });
 
         return NextResponse.json({ success: true, message: newChat });
