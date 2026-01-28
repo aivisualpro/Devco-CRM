@@ -197,111 +197,111 @@ const TodoColumn = ({
         </div>
         <div className="space-y-2 overflow-y-auto pr-1 max-h-[350px] scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
             {items.map(item => (
-                <div 
+                <div
                     key={item._id}
                     draggable
                     onDragStart={(e) => e.dataTransfer.setData('todoId', item._id)}
                     onClick={() => onEdit(item)}
-                    className="bg-white p-3 rounded-lg border border-slate-200 cursor-grab hover:shadow-md transition-shadow group"
+                    className="bg-white p-3 rounded-lg border border-slate-200 cursor-grab hover:shadow-md transition-shadow group flex flex-col gap-3"
                 >
                     <div className="flex items-start gap-2">
-                        <GripVertical className="w-4 h-4 text-slate-300 mt-0.5" />
+                        <GripVertical className="w-4 h-4 text-slate-300 mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
-                            <p className={`text-sm font-medium truncate ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
+                            <p className={`text-sm font-medium whitespace-pre-wrap break-words ${item.status === 'done' ? 'text-slate-400 line-through decoration-slate-300 decoration-2' : 'text-slate-800'}`}>
                                 {item.task}
                             </p>
                             {item.dueDate && (
                                 <p className="text-xs text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
                             )}
                         </div>
-                        
-                        <div className="flex items-start gap-2 shrink-0">
-                            {/* Assignee Stack */}
-                            <div className="flex -space-x-1.5 overflow-hidden items-center pt-0.5">
-                                {item.assignees?.map((email, idx) => {
-                                    const emp = employees.find(e => e.value === email);
-                                    const name = emp?.label || email;
-                                    const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
-                                    return (
-                                        <TooltipProvider key={idx}>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Avatar className="w-6 h-6 border-2 border-white ring-1 ring-slate-100 cursor-default">
-                                                        <AvatarImage src={emp?.image} />
-                                                        <AvatarFallback className="text-[9px] bg-slate-50 font-black text-slate-600 italic">{initials}</AvatarFallback>
-                                                    </Avatar>
-                                                </TooltipTrigger>
-                                                <TooltipContent><p className="text-[10px]">{name}</p></TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    );
-                                })}
-                            </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-50 mt-1">
+                        {/* Assignee Stack - Bottom Left */}
+                        <div className="flex -space-x-1.5 overflow-hidden items-center">
+                            {item.assignees?.map((email, idx) => {
+                                const emp = employees.find(e => e.value === email);
+                                const name = emp?.label || email;
+                                const initials = name.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+                                return (
+                                    <TooltipProvider key={idx}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Avatar className="w-6 h-6 border-2 border-white ring-1 ring-slate-100 cursor-default">
+                                                    <AvatarImage src={emp?.image} />
+                                                    <AvatarFallback className="text-[9px] bg-slate-50 font-black text-slate-600 italic">{initials}</AvatarFallback>
+                                                </Avatar>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p className="text-[10px]">{name}</p></TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                );
+                            })}
+                        </div>
 
-                            {/* Actions */}
-                            <div className="flex flex-col items-end gap-1.5">
-                                <TooltipProvider>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button 
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const statusMap: Record<string, TodoItem['status']> = {
-                                                        'todo': 'in progress',
-                                                        'in progress': 'done',
-                                                        'done': 'todo'
-                                                    };
-                                                    onStatusChange(item, statusMap[item.status] || 'todo');
-                                                }}
-                                                className={`p-1.5 rounded-lg transition-colors border ${
-                                                    item.status === 'todo' ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600' :
-                                                    item.status === 'in progress' ? 'hover:bg-emerald-50 text-blue-500 hover:text-emerald-600' :
-                                                    'hover:bg-slate-50 text-emerald-500 hover:text-slate-600'
-                                                }`}
-                                            >
-                                                <ActivityIcon size={12} />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p className="text-[10px]">Change Status</p></TooltipContent>
-                                    </Tooltip>
+                        {/* Actions - Bottom Right (Inline) */}
+                        <div className="flex items-center gap-1">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const statusMap: Record<string, TodoItem['status']> = {
+                                                    'todo': 'in progress',
+                                                    'in progress': 'done',
+                                                    'done': 'todo'
+                                                };
+                                                onStatusChange(item, statusMap[item.status] || 'todo');
+                                            }}
+                                            className={`p-1.5 rounded-lg transition-colors border ${
+                                                item.status === 'todo' ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600' :
+                                                item.status === 'in progress' ? 'hover:bg-emerald-50 text-blue-500 hover:text-emerald-600' :
+                                                'hover:bg-slate-50 text-emerald-500 hover:text-slate-600'
+                                            }`}
+                                        >
+                                            <ActivityIcon size={12} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p className="text-[10px]">Change Status</p></TooltipContent>
+                                </Tooltip>
 
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                                                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
-                                            >
-                                                <Edit size={12} />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p className="text-[10px]">Edit Task</p></TooltipContent>
-                                    </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                        >
+                                            <Edit size={12} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p className="text-[10px]">Edit Task</p></TooltipContent>
+                                </Tooltip>
 
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button 
-                                                onClick={(e) => onCopy(item, e)}
-                                                className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
-                                            >
-                                                <Copy size={12} />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p className="text-[10px]">Copy Task</p></TooltipContent>
-                                    </Tooltip>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button 
+                                            onClick={(e) => onCopy(item, e)}
+                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                        >
+                                            <Copy size={12} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p className="text-[10px]">Copy Task</p></TooltipContent>
+                                </Tooltip>
 
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button 
-                                                onClick={(e) => onDelete(item._id, e)}
-                                                className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
-                                            >
-                                                <Trash2 size={12} />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p className="text-[10px]">Delete Task</p></TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
-                            </div>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button 
+                                            onClick={(e) => onDelete(item._id, e)}
+                                            className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
+                                        >
+                                            <Trash2 size={12} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p className="text-[10px]">Delete Task</p></TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
                         </div>
                     </div>
                 </div>
@@ -517,25 +517,42 @@ function DashboardContent() {
     
     // Week Navigation
     const [currentWeekDate, setCurrentWeekDate] = useState(() => {
-        if (typeof window !== 'undefined') {
-            const week = searchParams.get('week');
-            const storedWeek = localStorage.getItem('selected_week');
-            const weekToUse = week || storedWeek;
+        // Only use searchParams for initialization to avoid hydration mismatch
+        const week = searchParams.get('week');
 
-            if (weekToUse && weekToUse.includes('-')) {
-                try {
-                    const [startPart] = weekToUse.split('-');
-                    const [m, d] = startPart.split('/').map(Number);
-                    const date = new Date();
-                    date.setMonth(m - 1);
-                    date.setDate(d);
-                    if (!isNaN(date.getTime())) return date;
-                } catch (e) {}
-            }
+        if (week && week.includes('-')) {
+            try {
+                const [startPart] = week.split('-');
+                const [m, d] = startPart.split('/').map(Number);
+                const date = new Date();
+                date.setMonth(m - 1);
+                date.setDate(d);
+                if (!isNaN(date.getTime())) return date;
+            } catch (e) {}
         }
         return new Date();
     });
     const weekRange = useMemo(() => getWeekRange(currentWeekDate), [currentWeekDate]);
+
+    // Update URL and localStorage when weekRange.label changes
+    // Initialize from localStorage if no URL param exists
+    useEffect(() => {
+        if (!searchParams.get('week')) {
+            const storedWeek = localStorage.getItem('selected_week');
+            if (storedWeek && storedWeek.includes('-')) {
+                try {
+                    const [startPart] = storedWeek.split('-');
+                    const [m, d] = startPart.split('/').map(Number);
+                    const date = new Date();
+                    date.setMonth(m - 1);
+                    date.setDate(d);
+                    if (!isNaN(date.getTime())) {
+                        setCurrentWeekDate(date);
+                    }
+                } catch (e) {}
+            }
+        }
+    }, []);
 
     // Update URL and localStorage when weekRange.label changes
     useEffect(() => {
@@ -543,9 +560,7 @@ function DashboardContent() {
         const currentWeekParam = searchParams.get('week');
         
         // Sync with localStorage
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('selected_week', newLabel);
-        }
+        localStorage.setItem('selected_week', newLabel);
 
         if (newLabel !== currentWeekParam) {
             const params = new URLSearchParams(searchParams.toString());
