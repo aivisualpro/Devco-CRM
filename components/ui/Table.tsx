@@ -74,12 +74,13 @@ interface TableHeaderProps {
 }
 
 export function TableHeader({ children, className = '', onClick, sortable, sortDirection }: TableHeaderProps) {
+    const isCentered = className.includes('text-center');
     return (
         <th
             className={`p-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick || sortable ? 'cursor-pointer hover:bg-white select-none transition-colors group' : ''} ${className}`}
             onClick={onClick}
         >
-            <div className="flex items-center gap-1">
+            <div className={`flex items-center gap-1 ${isCentered ? 'justify-center' : ''}`}>
                 {children}
                 {(sortable || sortDirection) && (
                     <span className="flex flex-col">
