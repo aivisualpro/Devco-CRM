@@ -161,14 +161,12 @@ export interface IEstimate extends Document {
         date?: string;
         billingTerms?: 'COD' | 'Net 30' | 'Net 45' | 'Net 60' | 'Other' | '';
         otherBillingTerms?: string;
-        fileName?: string;
         uploads?: Array<{
             name: string;
             url: string;
             type: string;
             thumbnailUrl?: string;
         }>;
-        links?: string[];
         titleDescriptions?: Array<{
             title: string;
             description: string;
@@ -384,14 +382,12 @@ const EstimateSchema = new Schema({
         date: { type: String },
         billingTerms: { type: String, enum: ['COD', 'Net 30', 'Net 45', 'Net 60', 'Other', ''], default: '' },
         otherBillingTerms: { type: String },
-        fileName: { type: String },
         uploads: [{
             name: { type: String },
             url: { type: String },
             type: { type: String },
             thumbnailUrl: { type: String }
         }],
-        links: { type: [String], default: [] },
         titleDescriptions: [{
             title: { type: String },
             description: { type: String }

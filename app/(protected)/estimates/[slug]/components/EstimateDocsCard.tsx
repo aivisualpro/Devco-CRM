@@ -498,9 +498,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         date: format(new Date(), 'yyyy-MM-dd'),
         billingTerms: '' as 'COD' | 'Net 30' | 'Net 45' | 'Net 60' | 'Other' | '',
         otherBillingTerms: '',
-        fileName: '',
         uploads: [] as any[],
-        links: [] as string[],
         titleDescriptions: [] as { title: string; description: string }[],
         lumpSum: '',
         createdBy: ''
@@ -513,9 +511,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             date: format(new Date(), 'yyyy-MM-dd'),
             billingTerms: '',
             otherBillingTerms: '',
-            fileName: '',
             uploads: [],
-            links: [''],
             titleDescriptions: [{ title: '', description: '' }],
             lumpSum: '',
             createdBy: formData?.proposalWriter || ''
@@ -531,9 +527,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             date: item.date || format(new Date(), 'yyyy-MM-dd'),
             billingTerms: item.billingTerms || '',
             otherBillingTerms: item.otherBillingTerms || '',
-            fileName: item.fileName || '',
             uploads: item.uploads || [],
-            links: item.links?.length ? item.links : [''],
             titleDescriptions: item.titleDescriptions?.length ? item.titleDescriptions : [{ title: '', description: '' }],
             lumpSum: item.lumpSum || '',
             createdBy: item.createdBy || ''
@@ -545,13 +539,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const handleSaveBillingTicket = () => {
         if (!onUpdate) return;
 
-        // Clean up empty links and titleDescriptions
-        const cleanedLinks = newBillingTicket.links.filter(l => l.trim());
         const cleanedTitleDescriptions = newBillingTicket.titleDescriptions.filter(td => td.title.trim() || td.description.trim());
 
         const ticketData = {
             ...newBillingTicket,
-            links: cleanedLinks,
             titleDescriptions: cleanedTitleDescriptions
         };
 
@@ -639,23 +630,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }));
     };
 
-    const addBillingLink = () => {
-        setNewBillingTicket(prev => ({ ...prev, links: [...prev.links, ''] }));
-    };
-
-    const updateBillingLink = (index: number, value: string) => {
-        setNewBillingTicket(prev => ({
-            ...prev,
-            links: prev.links.map((l, i) => i === index ? value : l)
-        }));
-    };
-
-    const removeBillingLink = (index: number) => {
-        setNewBillingTicket(prev => ({
-            ...prev,
-            links: prev.links.filter((_, i) => i !== index)
-        }));
-    };
 
     const addTitleDescription = () => {
         setNewBillingTicket(prev => ({
@@ -1147,7 +1121,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.day = billingItem.date ? format(new Date(billingItem.date), 'EEEE') : format(new Date(), 'EEEE');
                     variables.billingTerms = billingItem.billingTerms || '';
                     variables.otherBillingTerms = billingItem.otherBillingTerms || '';
-                    variables.lumpSum = billingItem.lumpSum ? `$${parseFloat(billingItem.lumpSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
+                    const rawLumpSum = String(billingItem.lumpSum || '').replace(/[^0-9.-]+/g, '');
+                    variables.lumpSum = rawLumpSum ? parseFloat(rawLumpSum).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
                     
                     // Support for repeating section
                     if (billingItem.titleDescriptions && billingItem.titleDescriptions.length > 0) {
@@ -1157,16 +1132,24 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             description: td.description || ''
                         }));
 
-                        // NEW: Also provide a pre-interleaved string for simplified templates
+                        // NEW: Provide a pre-interleaved string for simplified templates with STYLING MARKERS
                         variables.billingTicketDetails = (billingItem.titleDescriptions as any[]).map((td: any) => {
-                            let itemStr = `● ${td.title || ''}`;
-                            if (td.description) {
-                                // Add indentation for description lines
+                            let itemStr = '';
+                            if (td.title && td.title.trim()) {
+                                // Only add title bullet and styling if title exists
+                                itemStr = `● [B][S+]${td.title.trim()}[/S+][/B]`;
+                            }
+                            
+                            if (td.description && td.description.trim()) {
                                 const indentedDesc = (td.description as string).split('\n').map((line: string) => `   ○ ${line}`).join('\n');
-                                itemStr += `\n${indentedDesc}`;
+                                if (itemStr) {
+                                    itemStr += `\n${indentedDesc}`;
+                                } else {
+                                    itemStr = indentedDesc;
+                                }
                             }
                             return itemStr;
-                        }).join('\n\n');
+                        }).filter(str => str !== '').join('\n\n');
                     }
                 }
             }
@@ -1916,11 +1899,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
-                                            {item.fileName && (
-                                                <span className="inline-block text-[8px] font-black uppercase tracking-tighter px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-600 mb-1.5 truncate max-w-full">
-                                                    {item.fileName}
-                                                </span>
-                                            )}
                                             {item.billingTerms && (
                                                 <p className="text-[10px] font-bold text-indigo-500">
                                                     {item.billingTerms === 'Other' ? item.otherBillingTerms : item.billingTerms}
@@ -1983,18 +1961,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         </div>
                                     )}
                                     
-                                    {(item.uploads?.length > 0 || item.links?.length > 0) && (
+                                    {item.uploads?.length > 0 && (
                                         <div className="mt-2 flex items-center gap-2 text-[9px] text-slate-400">
-                                            {item.uploads?.length > 0 && (
-                                                <span className="flex items-center gap-1">
-                                                    <Paperclip className="w-3 h-3" /> {item.uploads.length}
-                                                </span>
-                                            )}
-                                            {item.links?.length > 0 && (
-                                                <span className="flex items-center gap-1">
-                                                    🔗 {item.links.length}
-                                                </span>
-                                            )}
+                                            <span className="flex items-center gap-1">
+                                                <Paperclip className="w-3 h-3" /> {item.uploads.length}
+                                            </span>
                                         </div>
                                     )}
                                 </div>
@@ -3122,14 +3093,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 />
                             </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">File Name</label>
-                            <Input 
-                                type="text"
-                                placeholder="Enter file name"
-                                value={newBillingTicket.fileName}
-                                onChange={e => setNewBillingTicket(prev => ({ ...prev, fileName: e.target.value }))}
-                            />
+                        <div className="space-y-1.5 flex flex-col justify-end">
+                            {/* Empty space for grid alignment */}
                         </div>
                     </div>
 
@@ -3209,36 +3174,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         )}
                     </div>
 
-                    {/* Links */}
-                    <div className="space-y-2 pt-3 border-t border-slate-100">
-                        <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Links</label>
-                            <button 
-                                onClick={addBillingLink}
-                                className="text-[10px] text-indigo-600 font-bold hover:underline"
-                            >
-                                + Add Link
-                            </button>
-                        </div>
-                        {newBillingTicket.links.map((link, i) => (
-                            <div key={i} className="flex gap-2">
-                                <Input 
-                                    type="url"
-                                    placeholder="https://..."
-                                    value={link}
-                                    onChange={e => updateBillingLink(i, e.target.value)}
-                                />
-                                {newBillingTicket.links.length > 1 && (
-                                    <button 
-                                        onClick={() => removeBillingLink(i)} 
-                                        className="p-2 text-red-400 hover:text-red-500"
-                                    >
-                                        <X size={16}/>
-                                    </button>
-                                )}
-                            </div>
-                        ))}
-                    </div>
 
                     {/* Title & Descriptions */}
                     <div className="space-y-3 pt-3 border-t border-slate-100">

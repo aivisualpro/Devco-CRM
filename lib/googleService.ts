@@ -176,7 +176,59 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
             await docs.documents.batchUpdate({ documentId: tempFileId, requestBody: { requests } });
         }
 
-        // Step 3: Handle images (if any)
+        // Step 3: Handle Rich Styling Markers (added after replacement)
+        const richDoc = await docs.documents.get({ documentId: tempFileId });
+        const richRequests: any[] = [];
+        const scanForStyles = (elements: any[]) => {
+            for (const el of elements) {
+                if (el.paragraph?.elements) {
+                    for (const run of el.paragraph.elements) {
+                        const text = run.textRun?.content || '';
+                        if (!text) continue;
+                        const startIdx = run.startIndex || 0;
+                        const currentSize = run.textRun.textStyle?.fontSize?.magnitude || 10;
+
+                        // Bold markers [B]...[/B]
+                        const bRegex = /\[B\]([\s\S]*?)\[\/B\]/g;
+                        let bMatch;
+                        while ((bMatch = bRegex.exec(text)) !== null) {
+                            richRequests.push({ 
+                                updateTextStyle: { 
+                                    range: { startIndex: startIdx + bMatch.index, endIndex: startIdx + bMatch.index + bMatch[0].length },
+                                    textStyle: { bold: true }, fields: 'bold' 
+                                } 
+                            });
+                        }
+
+                        // Size Plus markers [S+]...[/S+]
+                        const sRegex = /\[S\+\]([\s\S]*?)\[\/S\+\]/g;
+                        let sMatch;
+                        while ((sMatch = sRegex.exec(text)) !== null) {
+                            richRequests.push({ 
+                                updateTextStyle: { 
+                                    range: { startIndex: startIdx + sMatch.index, endIndex: startIdx + sMatch.index + sMatch[0].length },
+                                    textStyle: { fontSize: { magnitude: currentSize + 1, unit: 'PT' } }, fields: 'fontSize' 
+                                } 
+                            });
+                        }
+                    }
+                } else if (el.table?.tableRows) {
+                    for (const r of el.table.tableRows) for (const c of r.tableCells || []) if (c.content) scanForStyles(c.content);
+                }
+            }
+        };
+        scanForStyles(richDoc.data.body?.content || []);
+
+        if (richRequests.length > 0) {
+            // Add deletions of markers at the end of the batch (processed last)
+            richRequests.push({ replaceAllText: { containsText: { text: '[B]', matchCase: true }, replaceText: '' } });
+            richRequests.push({ replaceAllText: { containsText: { text: '[/B]', matchCase: true }, replaceText: '' } });
+            richRequests.push({ replaceAllText: { containsText: { text: '[S+]', matchCase: true }, replaceText: '' } });
+            richRequests.push({ replaceAllText: { containsText: { text: '[/S+]', matchCase: true }, replaceText: '' } });
+            await docs.documents.batchUpdate({ documentId: tempFileId, requestBody: { requests: richRequests } });
+        }
+
+        // Step 4: Handle images (if any)
         if (imageResults.length > 0) {
             // Get doc structure to find markers
             const doc = await docs.documents.get({ documentId: tempFileId });
