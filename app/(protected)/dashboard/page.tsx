@@ -1664,7 +1664,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden">
+                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden">
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
