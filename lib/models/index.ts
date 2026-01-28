@@ -26,3 +26,4 @@ export { default as DailyJobTicket } from './DailyJobTicket';
 export { default as DJTSignature } from './DJTSignature';
 export { default as DevcoQuickBooks } from './DevcoQuickBooks';
 export { default as DevcoTask } from './DevcoTask';
+export { default as DevcoCompanyDoc } from './DevcoCompanyDoc';

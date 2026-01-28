@@ -10,9 +10,10 @@ import {
     GraduationCap, Award, CalendarCheck, Play, Pause,
     Trash2, Edit, Copy, Shield, ShieldCheck, FilePlus, FileCheck, 
     Car, StopCircle, Droplets, Warehouse, Circle, ClipboardList,
-    Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck
+    Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck, Download
 } from 'lucide-react';
 import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui';
+import { UploadButton } from '@/components/ui/UploadButton';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -564,7 +565,14 @@ function DashboardContent() {
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
+
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]); // Keep for type safety if needed, but we use 'messages' state now
+    
+    // Company Docs State
+    const [companyDocs, setCompanyDocs] = useState<any[]>([]);
+    const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+    const [docForm, setDocForm] = useState({ title: '', url: '' });
+    const [isSavingDoc, setIsSavingDoc] = useState(false);
 
     // Estimate Filter State
     const [estimateFilter, setEstimateFilter] = useState('all'); // all, this_month, last_month, ytd, last_year
@@ -1513,6 +1521,13 @@ function DashboardContent() {
                 }
                 setActivities(filtered);
             }
+
+            // Fetch Company Docs
+            const docsRes = await fetch('/api/company-docs');
+            const docsData = await docsRes.json();
+            if (docsData.success) {
+                setCompanyDocs(docsData.docs || []);
+            }
             
         } catch (err) {
             console.error('Dashboard fetch error:', err);
@@ -1639,6 +1654,60 @@ function DashboardContent() {
             }
         } catch (err) {
             showError('Failed to save task');
+        }
+    };
+
+    // Company Docs Handlers
+    const handleSaveDoc = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!docForm.title || !docForm.url) {
+            showError('Please provide both title and document');
+            return;
+        }
+
+        setIsSavingDoc(true);
+        try {
+            const res = await fetch('/api/company-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: docForm.title,
+                    url: docForm.url,
+                    uploadedBy: userEmail
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                setCompanyDocs(prev => [data.doc, ...prev]);
+                success('Document added successfully');
+                setIsDocModalOpen(false);
+                setDocForm({ title: '', url: '' });
+            } else {
+                showError(data.error || 'Failed to save document');
+            }
+        } catch (error) {
+            showError('Error saving document');
+        } finally {
+            setIsSavingDoc(false);
+        }
+    };
+
+    const handleDeleteDoc = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this document?')) return;
+        
+        try {
+            const res = await fetch(`/api/company-docs?id=${id}`, {
+                method: 'DELETE',
+            });
+            if (res.ok) {
+                setCompanyDocs(prev => prev.filter(d => d._id !== id));
+                success('Document deleted');
+            } else {
+                showError('Failed to delete document');
+            }
+        } catch (error) {
+            showError('Error deleting document');
         }
     };
 
@@ -1992,6 +2061,65 @@ function DashboardContent() {
                                                 </Badge>
                                             </div>
                                         ))}
+                                    </div>
+                                    
+                                    {/* Company Docs Section */}
+                                    <div className="pt-4 mt-4 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h3 className="font-bold text-slate-800 text-sm">Company Documents</h3>
+                                            <div className="hidden md:block">
+                                                <Button 
+                                                    size="sm" 
+                                                    variant="ghost" 
+                                                    className="h-7 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100"
+                                                    onClick={() => setIsDocModalOpen(true)}
+                                                >
+                                                    <Plus size={14} className="mr-1" />
+                                                    Add New
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {companyDocs.length > 0 ? (
+                                                companyDocs.map(doc => (
+                                                    <div key={doc._id} className="group relative flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-sm transition-all">
+                                                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                                                            <FileText size={16} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-bold text-slate-900 truncate">{doc.title}</p>
+                                                            <p className="text-[10px] text-slate-500">
+                                                                Added {new Date(doc.createdAt).toLocaleDateString()}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1">
+                                                            <a 
+                                                                href={doc.url} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                title="Download"
+                                                            >
+                                                                <Download size={16} />
+                                                            </a>
+                                                            {/* CRUD for Desktop */}
+                                                            <button 
+                                                                onClick={() => handleDeleteDoc(doc._id)}
+                                                                className="hidden md:block p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Delete"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                                    <p className="text-xs text-slate-400">No documents available</p>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -2753,6 +2881,64 @@ function DashboardContent() {
                 cancelText="Cancel"
                 variant={actionConfirm.variant}
             />
+
+            {/* Document Upload Modal */}
+            <Modal
+                isOpen={isDocModalOpen}
+                onClose={() => setIsDocModalOpen(false)}
+                title="Upload Company Document"
+                maxWidth="md"
+            >
+                <form onSubmit={handleSaveDoc} className="space-y-4">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Document Title</label>
+                        <Input 
+                            value={docForm.title}
+                            onChange={(e) => setDocForm(prev => ({ ...prev, title: e.target.value }))}
+                            placeholder="e.g. Employee Handbook 2024"
+                            required
+                        />
+                    </div>
+                    
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Upload Query</label>
+                        <div className="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                            {docForm.url ? (
+                                <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                    <FileCheck className="text-blue-500" size={20} />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-slate-900 truncate">Document Uploaded</p>
+                                        <p className="text-xs text-blue-500 truncate">{docForm.url}</p>
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setDocForm(prev => ({ ...prev, url: '' }))}
+                                        className="text-slate-400 hover:text-red-500"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center justify-center py-6">
+                                    <UploadButton 
+                                        onUpload={(url) => setDocForm(prev => ({ ...prev, url }))} 
+                                        folder="docs"
+                                        label="Click to Upload"
+                                    />
+                                    <p className="text-xs text-slate-400 mt-2">Support: PDF, Images</p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                        <Button type="button" variant="outline" onClick={() => setIsDocModalOpen(false)}>Cancel</Button>
+                        <Button type="submit" disabled={isSavingDoc}>
+                            {isSavingDoc ? 'Saving...' : 'Save Document'}
+                        </Button>
+                    </div>
+                </form>
+            </Modal>
 
             {/* Email Modal */}
             <Modal
