@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
-    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus
+    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -447,7 +447,6 @@ function TimeCardContent() {
 
     // --- Derived Data & Tree Structure ---
 
-    // 1. Apply Top Filters first
     const filteredRecords = useMemo(() => {
         return allRecords.filter(r => {
             // Mobile specific filtering: Only show current user's records for the selected week
@@ -474,6 +473,19 @@ function TimeCardContent() {
             return true;
         });
     }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange]);
+
+    const timeCardTotals = useMemo(() => {
+        let drive = 0;
+        let site = 0;
+        filteredRecords.forEach(ts => {
+            if (ts.type?.toLowerCase().includes('drive')) {
+                drive += (ts.hoursVal || 0);
+            } else {
+                site += (ts.hoursVal || 0);
+            }
+        });
+        return { drive, site };
+    }, [filteredRecords]);
 
     // 2. Build Tree Structure
     const treeData = useMemo(() => {
@@ -1100,27 +1112,43 @@ function TimeCardContent() {
                     />
                     <div className="flex-1 overflow-auto p-4">
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 overflow-hidden">
-                             <div className="flex items-center gap-3 mb-4">
-                                <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
-                                    <Clock className="w-5 h-5 text-teal-600" />
-                                </div>
-                                <div>
-                                    <h2 className="font-bold text-slate-900">Time Cards</h2>
-                                    <p className="text-xs text-slate-500">Your recent activity</p>
-                                </div>
+                             <div className="flex flex-col gap-4 mb-4">
+                                 <div className="flex items-center justify-between">
+                                     <div className="flex items-center gap-3">
+                                         <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
+                                             <Clock className="w-5 h-5 text-teal-600" />
+                                         </div>
+                                         <div>
+                                             <h2 className="font-bold text-slate-900">Time Cards</h2>
+                                             <p className="text-xs text-slate-500">Your recent activity</p>
+                                         </div>
+                                     </div>
+                                 </div>
+
+                                 <div className="flex items-center gap-4 px-1">
+                                     <div className="flex flex-col">
+                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
+                                         <span className="text-sm font-black text-blue-600">{timeCardTotals.drive.toFixed(2)} hrs</span>
+                                     </div>
+                                     <div className="w-px h-8 bg-slate-100" />
+                                     <div className="flex flex-col">
+                                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
+                                         <span className="text-sm font-black text-emerald-600">{timeCardTotals.site.toFixed(2)} hrs</span>
+                                     </div>
+                                 </div>
                             </div>
                             
                             <div className="overflow-x-auto">
-                                <Table>
+                                <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                     <TableHead>
                                         <TableRow className="hover:bg-transparent border-slate-100">
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[50px]">Type</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Estimate #</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Dist (Mi)</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[60px]">Type</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">In</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Out</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[80px]">Dist (Mi)</TableHeader>
+                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -1132,45 +1160,45 @@ function TimeCardContent() {
                                                 <TableCell className="text-center">
                                                     <div className="flex justify-center">
                                                         {ts.type?.toLowerCase().includes('drive') ? (
-                                                            <div className="p-1 text-blue-600 bg-blue-50 rounded">
+                                                            <div className="p-1.5 text-blue-600 bg-blue-50 rounded-lg">
                                                                 <Truck size={14} />
                                                             </div>
                                                         ) : (
-                                                            <div className="p-1 text-emerald-600 bg-emerald-50 rounded">
+                                                            <div className="p-1.5 text-emerald-600 bg-emerald-50 rounded-lg">
                                                                 <MapPin size={14} />
                                                             </div>
                                                         )}
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-center">
-                                                    <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-600">
+                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                         {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                     </span>
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
                                                         ts.dumpWashout ? (
-                                                            <span className="text-[9px] font-black uppercase bg-orange-500 text-white px-2 py-0.5 rounded shadow-sm">
-                                                                Washout
-                                                                {String(ts.dumpWashout).includes('qty') && ' ✓'}
+                                                            <span className="text-[10px] font-black uppercase bg-orange-500 text-white px-2 py-1 rounded shadow-sm inline-flex items-center gap-1 min-w-[70px] justify-center">
+                                                                <span>Washout</span>
+                                                                {String(ts.dumpWashout).includes('qty') && <CheckCircle2 size={10} />}
                                                             </span>
                                                         ) : <span className="text-slate-300">-</span>
                                                     ) : (
-                                                        <span className="text-[10px] font-medium text-slate-600">
+                                                        <span className="text-[11px] font-medium text-slate-600 tracking-tight">
                                                             {formatTimeOnly(ts.clockIn)}
                                                         </span>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className="text-center">
+                                                <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
                                                         ts.shopTime ? (
-                                                            <span className="text-[9px] font-black uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-sm">
-                                                                Shop
-                                                                {String(ts.shopTime).includes('qty') && ' ✓'}
+                                                            <span className="text-[10px] font-black uppercase bg-blue-500 text-white px-2 py-1 rounded shadow-sm inline-flex items-center gap-1 min-w-[70px] justify-center">
+                                                                <span>Shop</span>
+                                                                {String(ts.shopTime).includes('qty') && <CheckCircle2 size={10} />}
                                                             </span>
                                                         ) : <span className="text-slate-300">-</span>
                                                     ) : (
-                                                        <span className="text-[10px] font-medium text-slate-600">
+                                                        <span className="text-[11px] font-medium text-slate-600 tracking-tight">
                                                             {formatTimeOnly(ts.clockOut)}
                                                         </span>
                                                     )}
