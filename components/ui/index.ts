@@ -37,3 +37,4 @@ export * from './select';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
 export { UploadButton } from './UploadButton';
 export { Switch } from './switch';
+export { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './accordion';

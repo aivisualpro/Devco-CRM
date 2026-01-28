@@ -12,7 +12,7 @@ import {
     Car, StopCircle, Droplets, Warehouse, Circle, ClipboardList,
     Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck
 } from 'lucide-react';
-import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown } from '@/components/ui';
+import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ScheduleDetailModal } from './components/ScheduleDetailModal';
@@ -160,6 +160,7 @@ const TodoColumn = ({
     onDrop,
     onEdit,
     onCopy,
+    onStatusChange,
     onDelete
 }: { 
     title: string; 
@@ -170,6 +171,7 @@ const TodoColumn = ({
     onDrop: (e: React.DragEvent, status: string) => void;
     onEdit: (item: TodoItem) => void;
     onCopy: (item: TodoItem, e: React.MouseEvent) => void;
+    onStatusChange: (item: TodoItem, newStatus: TodoItem['status']) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
 }) => (
     <div 
@@ -200,8 +202,31 @@ const TodoColumn = ({
                             )}
                         </div>
                         <div className="flex flex-col items-end gap-1.5">
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                                 <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const statusMap: Record<string, TodoItem['status']> = {
+                                                        'todo': 'in progress',
+                                                        'in progress': 'done',
+                                                        'done': 'todo'
+                                                    };
+                                                    onStatusChange(item, statusMap[item.status] || 'todo');
+                                                }}
+                                                className={`p-1.5 rounded-lg transition-colors border ${
+                                                    item.status === 'todo' ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600' :
+                                                    item.status === 'in progress' ? 'hover:bg-emerald-50 text-blue-500 hover:text-emerald-600' :
+                                                    'hover:bg-slate-50 text-emerald-500 hover:text-slate-600'
+                                                }`}
+                                            >
+                                                <ActivityIcon size={12} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent><p className="text-[10px]">Change Status</p></TooltipContent>
+                                    </Tooltip>
+
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <button 
@@ -248,7 +273,6 @@ const TodoColumn = ({
                                     ))}
                                 </div>
                             )}
-                        </div>
                     </div>
                 </div>
             ))}
@@ -1491,6 +1515,30 @@ function DashboardContent() {
         }
     };
 
+    const handleStatusChange = async (item: TodoItem, newStatus: TodoItem['status']) => {
+        // Optimistic update
+        setTodos(prev => prev.map(t => t._id === item._id ? { ...t, status: newStatus } : t));
+        
+        try {
+            const res = await fetch('/api/tasks', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: item._id, status: newStatus, lastUpdatedBy: userEmail || 'System' })
+            });
+
+            if (!res.ok) {
+                // Revert on error
+                setTodos(prev => prev.map(t => t._id === item._id ? item : t));
+                showError('Failed to update status');
+            } else {
+                success('Status updated');
+            }
+        } catch (err) {
+            setTodos(prev => prev.map(t => t._id === item._id ? item : t));
+            showError('Failed to update status');
+        }
+    };
+
     const handleOpenTaskModal = (task?: TodoItem) => {
         setEditingTask(task || null);
         setIsTaskModalOpen(true);
@@ -1922,7 +1970,7 @@ function DashboardContent() {
                                         <Plus className="w-4 h-4" />
                                     </button>
                                 </div>
-                                <div className="flex gap-4 overflow-x-auto pb-2">
+                                <div className="hidden md:flex gap-4 overflow-x-auto pb-2">
                                     <TodoColumn 
                                         title="To Do" 
                                         items={todosByStatus.todo} 
@@ -1932,6 +1980,7 @@ function DashboardContent() {
                                         onDrop={handleDrop}
                                         onEdit={handleOpenTaskModal}
                                         onCopy={handleCopyTask}
+                                        onStatusChange={handleStatusChange}
                                         onDelete={handleDeleteTask}
                                     />
                                     <TodoColumn 
@@ -1943,6 +1992,7 @@ function DashboardContent() {
                                         onDrop={handleDrop}
                                         onEdit={handleOpenTaskModal}
                                         onCopy={handleCopyTask}
+                                        onStatusChange={handleStatusChange}
                                         onDelete={handleDeleteTask}
                                     />
                                     <TodoColumn 
@@ -1954,8 +2004,122 @@ function DashboardContent() {
                                         onDrop={handleDrop}
                                         onEdit={handleOpenTaskModal}
                                         onCopy={handleCopyTask}
+                                        onStatusChange={handleStatusChange}
                                         onDelete={handleDeleteTask}
                                     />
+                                </div>
+                                
+                                {/* Mobile Accordion View */}
+                                <div className="md:hidden mt-2">
+                                    <Accordion type="multiple" className="space-y-3">
+                                        <AccordionItem value="todo" className="border border-slate-200 rounded-xl overflow-hidden px-1">
+                                            <AccordionTrigger className="hover:no-underline py-3 px-3 bg-slate-50/50">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-slate-400" />
+                                                    <span className="font-bold text-slate-700">To Do</span>
+                                                    <Badge variant="default" className="ml-2 text-[10px]">{todosByStatus.todo.length}</Badge>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="pt-2 px-1 pb-2 bg-white">
+                                                <div className="space-y-2">
+                                                    {todosByStatus.todo.length > 0 ? (
+                                                        todosByStatus.todo.map(item => (
+                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium text-slate-800">{item.task}</p>
+                                                                        {item.dueDate && (
+                                                                            <p className="text-[10px] text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'in progress'); }}
+                                                                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-blue-500 shadow-sm"
+                                                                    >
+                                                                        <ActivityIcon size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-center py-4 text-xs text-slate-400 italic">No tasks in this list</p>
+                                                    )}
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+
+                                        <AccordionItem value="in-progress" className="border border-slate-200 rounded-xl overflow-hidden px-1">
+                                            <AccordionTrigger className="hover:no-underline py-3 px-3 bg-blue-50/30">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                                    <span className="font-bold text-slate-700">In Progress</span>
+                                                    <Badge variant="default" className="ml-2 text-[10px]">{todosByStatus['in progress'].length}</Badge>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="pt-2 px-1 pb-2 bg-white">
+                                                <div className="space-y-2">
+                                                    {todosByStatus['in progress'].length > 0 ? (
+                                                        todosByStatus['in progress'].map(item => (
+                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium text-slate-800">{item.task}</p>
+                                                                        {item.dueDate && (
+                                                                            <p className="text-[10px] text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'done'); }}
+                                                                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-emerald-500 shadow-sm"
+                                                                    >
+                                                                        <ActivityIcon size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-center py-4 text-xs text-slate-400 italic">No tasks in progress</p>
+                                                    )}
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+
+                                        <AccordionItem value="done" className="border border-slate-200 rounded-xl overflow-hidden px-1">
+                                            <AccordionTrigger className="hover:no-underline py-3 px-3 bg-emerald-50/30">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                    <span className="font-bold text-slate-700">Done</span>
+                                                    <Badge variant="default" className="ml-2 text-[10px]">{todosByStatus.done.length}</Badge>
+                                                </div>
+                                            </AccordionTrigger>
+                                            <AccordionContent className="pt-2 px-1 pb-2 bg-white">
+                                                <div className="space-y-2">
+                                                    {todosByStatus.done.length > 0 ? (
+                                                        todosByStatus.done.map(item => (
+                                                            <div key={item._id} onClick={() => handleOpenTaskModal(item)} className="bg-slate-50/50 p-3 rounded-lg border border-slate-100">
+                                                                <div className="flex justify-between items-start gap-2">
+                                                                    <div className="flex-1">
+                                                                        <p className="text-sm font-medium text-slate-800">{item.task}</p>
+                                                                        {item.dueDate && (
+                                                                            <p className="text-[10px] text-slate-400 mt-1">Due: {new Date(item.dueDate).toLocaleDateString()}</p>
+                                                                        )}
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleStatusChange(item, 'todo'); }}
+                                                                        className="p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 shadow-sm"
+                                                                    >
+                                                                        <ActivityIcon size={12} />
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-center py-4 text-xs text-slate-400 italic">No completed tasks</p>
+                                                    )}
+                                                </div>
+                                            </AccordionContent>
+                                        </AccordionItem>
+                                    </Accordion>
                                 </div>
                             </div>
 
