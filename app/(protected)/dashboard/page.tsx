@@ -1223,45 +1223,39 @@ function DashboardContent() {
         <div className="flex flex-col h-full bg-slate-50">
             <Header 
                 hideLogo={false}
-                rightContent={
-                    <div className="flex items-center gap-4">
-                        {/* Week Navigation */}
-                        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2 shadow-sm border border-slate-200">
-                            <button 
-                                onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
-                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <ChevronLeft className="w-4 h-4 text-slate-600" />
-                            </button>
-                            <div className="flex items-center gap-2 px-2">
-                                <Calendar className="w-4 h-4 text-blue-600" />
-                                <span className="font-semibold text-sm text-slate-800">{weekRange.label}</span>
-                            </div>
-                            <button 
-                                onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
-                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
-                            >
-                                <ChevronRight className="w-4 h-4 text-slate-600" />
-                            </button>
-                            <button 
-                                onClick={() => setCurrentWeekDate(new Date())}
-                                className="text-xs font-medium text-blue-600 hover:text-blue-700 ml-2"
-                            >
-                                Today
-                            </button>
-                        </div>
+                centerContent={
+                    <div className="flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
+                        <button 
+                            onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
+                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => setCurrentWeekDate(new Date())}
+                            className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors"
+                            title="Go to Today"
+                        >
+                            <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                        </button>
+                        <button 
+                            onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
+                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
                     </div>
                 }
             />
 
             <div className="flex-1 overflow-hidden flex flex-col md:p-4 lg:p-6 pb-0">
-                <div className="max-w-[1800px] mx-auto h-full w-full flex flex-col">
+                <div className="max-w-[1800px] mx-auto h-full w-full flex flex-col min-h-0">
                     
                     {/* Main Grid */}
-                    <div className="grid grid-cols-12 gap-4 lg:gap-6 h-full">
+                    <div className="grid grid-cols-12 gap-4 lg:gap-6 h-full min-h-0">
                         
                         {/* Left Column - Main Content */}
-                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 flex flex-col h-full">
+                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 flex flex-col h-full min-h-0">
                             
                             {/* Upcoming Schedules */}
                             <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden flex-1 min-h-0 xl:h-auto flex flex-col">
@@ -1304,7 +1298,7 @@ function DashboardContent() {
                                     </div>
                                 </div>
                                     {/* Scrollable Card Area */}
-                                    <div className="flex-1 overflow-y-auto p-2 md:p-4 bg-slate-50 md:bg-white xl:max-h-[600px] xl:pr-2 xl:scrollbar-thin">
+                                    <div className="flex-1 overflow-y-auto p-2 md:p-4 bg-slate-50 md:bg-white xl:pr-2 xl:scrollbar-thin">
                                         {loading ? (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {[1,2,3].map(i => (

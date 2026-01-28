@@ -76,7 +76,7 @@ const MobileNav = () => {
         <>
             <div
                 className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-200 z-[120] px-4 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]"
-                style={{ height: 'calc(4rem + env(safe-area-inset-bottom))' }}
+                style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom))' }}
             >
                 {/* ... existing bottom nav content ... */}
                 {/* ... existing bottom nav content ... */}
