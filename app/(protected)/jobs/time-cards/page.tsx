@@ -277,7 +277,7 @@ const getWeekRangeString = (dateObj: Date) => {
 
 // --- Components ---
 
-export default function TimeCardPage() {
+function TimeCardContent() {
     const { success, error: toastError } = useToast();
     const [loading, setLoading] = useState(true);
     const [rawSchedules, setRawSchedules] = useState<ScheduleDoc[]>([]);
@@ -2377,3 +2377,14 @@ export default function TimeCardPage() {
         </div>
     );
 }
+
+import { Suspense } from 'react';
+
+export default function TimeCardPage() {
+    return (
+        <Suspense fallback={<Loading />}>
+            <TimeCardContent />
+        </Suspense>
+    );
+}
+
