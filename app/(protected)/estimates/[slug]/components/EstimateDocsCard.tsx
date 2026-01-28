@@ -1103,14 +1103,33 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                    variables.date = new Date(releaseItem.date).toLocaleDateString(); 
                 }
                 
-                if (releaseItem.amountOfCheck) variables.amountOfCheck = releaseItem.amountOfCheck;
-                if (releaseItem.disputedClaims) variables.disputedClaims = releaseItem.disputedClaims;
+                // Format currency amounts with $ and 2 decimals
+                if (releaseItem.amountOfCheck) {
+                    const rawVal = String(releaseItem.amountOfCheck).replace(/[^0-9.-]+/g, '');
+                    const num = parseFloat(rawVal);
+                    variables.amountOfCheck = !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : releaseItem.amountOfCheck;
+                }
                 
-                // For array fields like un-paid amounts, we might need to join them or just take the first one or sum them?
-                // Based on template {{amountsOfUnpaidProgressPayment}} (singular/plural ambiguous but usually string in template)
-                // Let's join with commas or newlines if multiple
+                if (releaseItem.disputedClaims) {
+                    const rawVal = String(releaseItem.disputedClaims).replace(/[^0-9.-]+/g, '');
+                    const num = parseFloat(rawVal);
+                    // Only show if it's a non-zero number
+                    if (!isNaN(num) && num > 0) {
+                        variables.disputedClaims = `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    } else {
+                        variables.disputedClaims = ''; // Don't print if empty or 0
+                    }
+                } else {
+                    variables.disputedClaims = '';
+                }
+                
+                // For array fields like un-paid amounts, format them if they are numbers
                 if (releaseItem.amountsOfUnpaidProgressPayment && Array.isArray(releaseItem.amountsOfUnpaidProgressPayment)) {
-                    variables.amountsOfUnpaidProgressPayment = releaseItem.amountsOfUnpaidProgressPayment.join(', ');
+                    variables.amountsOfUnpaidProgressPayment = releaseItem.amountsOfUnpaidProgressPayment.map((val: any) => {
+                        const rawVal = String(val).replace(/[^0-9.-]+/g, '');
+                        const num = parseFloat(rawVal);
+                        return !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : val;
+                    }).join(', ');
                 }
                 
                 if (releaseItem.DatesOfWaiverRelease && Array.isArray(releaseItem.DatesOfWaiverRelease)) {
@@ -1818,8 +1837,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     {intentToLienItems.map((item: any, itemIdx: number) => (
                                                         <div 
                                                             key={item._id || itemIdx} 
-                                                            className="group/item flex items-center justify-between p-2.5 bg-amber-50/50 rounded-lg border border-amber-100 hover:bg-amber-100/50 transition-colors"
+                                                            className="group/item flex items-center justify-between p-2.5 bg-amber-50/50 rounded-lg border border-amber-100 hover:bg-amber-100/50 transition-colors relative overflow-hidden"
                                                         >
+                                                            {generatingDoc === 'Intent to Lien' && generatingIndex === itemIdx && (
+                                                                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-200/50">
+                                                                    <div 
+                                                                        className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-300 relative"
+                                                                        style={{ width: `${generatingProgress}%` }}
+                                                                    >
+                                                                        <span className="absolute -top-3 right-0 text-[6px] font-black text-orange-600 bg-white/80 px-1 rounded-sm">
+                                                                            {generatingProgress}%
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                             <div className="flex flex-col gap-0.5 flex-1">
                                                                 <div className="flex items-center gap-2">
                                                                     <span className="text-[10px] text-amber-700 font-bold">
@@ -1872,16 +1903,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     );
                                 }
 
-                                // Normal DocCard for other documents
-                                return (
-                                    <DocCard 
-                                        key={idx} 
-                                        label={docName}
-                                        isLoading={generatingDoc === docName}
-                                        hasTemplate={!!DOC_TEMPLATES[docName]}
-                                        onClick={() => handleDocClick(docName)}
-                                    />
-                                );
+                                    // Normal DocCard for other documents
+                                    return (
+                                        <DocCard 
+                                            key={idx} 
+                                            label={docName}
+                                            isLoading={generatingDoc === docName}
+                                            progress={generatingProgress}
+                                            hasTemplate={!!DOC_TEMPLATES[docName]}
+                                            onClick={() => handleDocClick(docName)}
+                                        />
+                                    );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
                             )}
@@ -2121,6 +2153,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     label={docName}
                                     isPayroll={true}
                                     isLoading={generatingDoc === docName}
+                                    progress={generatingProgress}
                                     hasTemplate={!!DOC_TEMPLATES[docName]}
                                     onClick={() => handleDocClick(docName)}
                                 />
@@ -3993,11 +4026,12 @@ interface DocCardProps {
     label: string;
     isPayroll?: boolean;
     isLoading?: boolean;
+    progress?: number;
     hasTemplate?: boolean;
     onClick?: () => void;
 }
 
-const DocCard: React.FC<DocCardProps> = ({ label, isPayroll, isLoading, hasTemplate, onClick }) => {
+const DocCard: React.FC<DocCardProps> = ({ label, isPayroll, isLoading, progress, hasTemplate, onClick }) => {
     const [isHovered, setIsHovered] = useState(false);
 
     return (
@@ -4006,7 +4040,7 @@ const DocCard: React.FC<DocCardProps> = ({ label, isPayroll, isLoading, hasTempl
             onMouseLeave={() => setIsHovered(false)}
             onClick={onClick}
             className={`
-                group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-300
+                group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-300 relative overflow-hidden
                 ${isLoading 
                     ? 'bg-blue-50 shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
                     : isHovered 
@@ -4015,6 +4049,20 @@ const DocCard: React.FC<DocCardProps> = ({ label, isPayroll, isLoading, hasTempl
                 }
             `}
         >
+            {/* Progress Bar */}
+            {isLoading && progress !== undefined && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-100/50">
+                    <div 
+                        className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600 transition-all duration-300 relative"
+                        style={{ width: `${progress}%` }}
+                    >
+                        <span className="absolute -top-3 right-0 text-[6px] font-black text-indigo-600 bg-white/80 px-1 rounded-sm">
+                            {progress}%
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* Content */}
             <p className={`flex-1 text-xs font-bold leading-snug transition-colors ${isHovered || isLoading ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
                 {label}
