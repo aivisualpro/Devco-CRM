@@ -1254,18 +1254,18 @@ function DashboardContent() {
                 }
             />
 
-            <div className="flex-1 overflow-auto md:p-4 lg:p-6 pb-20 md:pb-0 scroll-smooth">
-                <div className="max-w-[1800px] mx-auto">
+            <div className="flex-1 overflow-hidden flex flex-col md:p-4 lg:p-6 pb-0">
+                <div className="max-w-[1800px] mx-auto h-full w-full flex flex-col">
                     
                     {/* Main Grid */}
-                    <div className="grid grid-cols-12 gap-4 lg:gap-6">
+                    <div className="grid grid-cols-12 gap-4 lg:gap-6 h-full">
                         
                         {/* Left Column - Main Content */}
-                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6">
+                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 flex flex-col h-full">
                             
                             {/* Upcoming Schedules */}
-                            <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden min-h-screen md:min-h-0">
-                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:p-4 md:border-slate-100">
+                            <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden flex-1 min-h-0 xl:h-auto flex flex-col">
+                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:p-4 md:border-slate-100 shrink-0">
                                     <div className="flex items-center gap-3">
                                         <div className="hidden md:flex w-10 h-10 rounded-xl bg-blue-100 items-center justify-center">
                                             <Calendar className="w-5 h-5 text-blue-600" />
@@ -1303,41 +1303,42 @@ function DashboardContent() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-2 md:p-4 bg-slate-50 md:bg-white">
-                                    {loading ? (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                            {[1,2,3].map(i => (
-                                                <div key={i} className="h-40 bg-slate-100 rounded-xl animate-pulse" />
-                                            ))}
-                                        </div>
-                                    ) : schedules.length === 0 ? (
-                                        <div className="text-center py-12">
-                                            <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                                            <p className="text-slate-500 font-medium">No schedules this week</p>
-                                            <p className="text-sm text-slate-400 mt-1">Check back later or adjust the week filter</p>
-                                        </div>
-                                    ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin">
-                                            {schedules.map(schedule => (
-                                                <ScheduleCard
-                                                    key={schedule._id}
-                                                    item={schedule as any}
-                                                    initialData={initialData}
-                                                    currentUser={currentUser}
-                                                    onClick={() => {
-                                                        setSelectedDetailSchedule(schedule);
-                                                        setIsDetailModalOpen(true);
-                                                    }}
-                                                    onEdit={() => {
-                                                        setEditingSchedule(schedule);
-                                                        setEditScheduleOpen(true);
-                                                    }}
-                                                    onCopy={() => {
-                                                        // Deep clone and shift dates
-                                                        const addOneDay = (dateStr: string) => {
-                                                            if (!dateStr) return '';
-                                                            try {
-                                                                const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                                    {/* Scrollable Card Area */}
+                                    <div className="flex-1 overflow-y-auto p-2 md:p-4 bg-slate-50 md:bg-white xl:max-h-[600px] xl:pr-2 xl:scrollbar-thin">
+                                        {loading ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                {[1,2,3].map(i => (
+                                                    <div key={i} className="h-40 bg-slate-100 rounded-xl animate-pulse" />
+                                                ))}
+                                            </div>
+                                        ) : schedules.length === 0 ? (
+                                            <div className="text-center py-12">
+                                                <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                                <p className="text-slate-500 font-medium">No schedules this week</p>
+                                                <p className="text-sm text-slate-400 mt-1">Check back later or adjust the week filter</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 md:pb-0">
+                                                {schedules.map(schedule => (
+                                                    <ScheduleCard
+                                                        key={schedule._id}
+                                                        item={schedule as any}
+                                                        initialData={initialData}
+                                                        currentUser={currentUser}
+                                                        onClick={() => {
+                                                            setSelectedDetailSchedule(schedule);
+                                                            setIsDetailModalOpen(true);
+                                                        }}
+                                                        onEdit={() => {
+                                                            setEditingSchedule(schedule);
+                                                            setEditScheduleOpen(true);
+                                                        }}
+                                                        onCopy={() => {
+                                                            // Deep clone and shift dates
+                                                            const addOneDay = (dateStr: string) => {
+                                                                if (!dateStr) return '';
+                                                                try {
+                                                                    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
                                                                 if (!match) return dateStr;
                                                                 const [, year, month, day, hours, minutes] = match;
                                                                 const utcDate = new Date(Date.UTC(
