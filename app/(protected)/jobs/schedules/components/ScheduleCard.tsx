@@ -382,7 +382,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                                 <TooltipTrigger asChild>
                                                     <div 
                                                         className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
-                                                        onClick={(e) => { e.stopPropagation(); onToggleDriveTime?.(item, activeDriveTime, e); }}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            if (window.confirm('Are you sure you want to STOP Drive Time?')) {
+                                                                onToggleDriveTime?.(item, activeDriveTime, e); 
+                                                            }
+                                                        }}
                                                     >
                                                         <StopCircle size={14} strokeWidth={2.5} />
                                                     </div>
@@ -394,7 +399,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                                 <TooltipTrigger asChild>
                                                     <div 
                                                         className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
-                                                        onClick={(e) => { e.stopPropagation(); onToggleDriveTime?.(item, null, e); }}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            if (window.confirm('Are you sure you want to START Drive Time?')) {
+                                                                onToggleDriveTime?.(item, null, e); 
+                                                            }
+                                                        }}
                                                     >
                                                         <Car size={14} strokeWidth={2.5} />
                                                     </div>
@@ -408,7 +418,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                                 <TooltipTrigger asChild>
                                                     <div 
                                                         className={`relative z-10 flex items-center gap-1.5 px-2 h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${dwTs ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600'}`} 
-                                                        onClick={(e) => { e.stopPropagation(); onQuickTimesheet?.(item, 'Dump Washout', e); }}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            if (window.confirm(`Are you sure you want to ${dwTs ? 'INCREMENT' : 'REGISTER'} Dump Washout?`)) {
+                                                                onQuickTimesheet?.(item, 'Dump Washout', e); 
+                                                            }
+                                                        }}
                                                     >
                                                         <Droplets size={14} strokeWidth={2.5} />
                                                         {(dwTs?.qty || 1) > 1 && (
@@ -427,7 +442,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                                 <TooltipTrigger asChild>
                                                     <div 
                                                         className={`relative z-10 flex items-center gap-1.5 px-2 h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${stTs ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600'}`} 
-                                                        onClick={(e) => { e.stopPropagation(); onQuickTimesheet?.(item, 'Shop Time', e); }}
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            if (window.confirm(`Are you sure you want to ${stTs ? 'INCREMENT' : 'REGISTER'} Shop Time?`)) {
+                                                                onQuickTimesheet?.(item, 'Shop Time', e); 
+                                                            }
+                                                        }}
                                                     >
                                                         <Warehouse size={14} strokeWidth={2.5} />
                                                         {(stTs?.qty || 1) > 1 && (

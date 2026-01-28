@@ -6,7 +6,16 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Home, Users, Briefcase, FileText, X, ChevronRight, Package, Calculator, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, FileCheck, AlertTriangle, Truck, Wrench, MessageSquare, Clock, BarChart3, Menu } from 'lucide-react';
 import ChatModal from '../Chat/ChatModal';
 
-const menuStructure = [
+const menuStructure: {
+    label: string;
+    href?: string;
+    items?: {
+        label: string;
+        href: string;
+        icon: any;
+        colorClass: string;
+    }[];
+}[] = [
     {
         label: 'CRM',
         items: [
