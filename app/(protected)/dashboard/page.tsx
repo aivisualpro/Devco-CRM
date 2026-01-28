@@ -1254,7 +1254,7 @@ function DashboardContent() {
                 }
             />
 
-            <div className="flex-1 overflow-auto p-4 lg:p-6">
+            <div className="flex-1 overflow-auto md:p-4 lg:p-6 pb-20 md:pb-0 scroll-smooth">
                 <div className="max-w-[1800px] mx-auto">
                     
                     {/* Main Grid */}
@@ -1264,38 +1264,38 @@ function DashboardContent() {
                         <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6">
                             
                             {/* Upcoming Schedules */}
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                <div className="flex items-center justify-between p-4 border-b border-slate-100">
+                            <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden min-h-screen md:min-h-0">
+                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:p-4 md:border-slate-100">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                                        <div className="hidden md:flex w-10 h-10 rounded-xl bg-blue-100 items-center justify-center">
                                             <Calendar className="w-5 h-5 text-blue-600" />
                                         </div>
                                         <div>
-                                            <h2 className="font-bold text-slate-900">
-                                                <span className="md:hidden">Schedules</span>
+                                            <h2 className="font-bold text-slate-900 flex items-center gap-2">
+                                                <span className="md:hidden text-sm font-black uppercase tracking-widest text-slate-700">Schedules ({schedules.length})</span>
                                                 <span className="hidden md:inline">Upcoming Schedules</span>
                                             </h2>
-                                            <p className="text-xs text-slate-500">{schedules.length} jobs this week</p>
+                                            <p className="hidden md:block text-xs text-slate-500">{schedules.length} jobs this week</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex bg-slate-100 rounded-lg p-0.5">
+                                        <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
                                             <button 
                                                 onClick={() => setScheduleView('self')}
-                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                                className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
                                                     scheduleView === 'self' 
                                                         ? 'bg-white text-blue-600 shadow-sm' 
-                                                        : 'text-slate-600 hover:text-slate-800'
+                                                        : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                             >
                                                 Self
                                             </button>
                                             <button 
                                                 onClick={() => setScheduleView('all')}
-                                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                                                className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
                                                     scheduleView === 'all' 
                                                         ? 'bg-white text-blue-600 shadow-sm' 
-                                                        : 'text-slate-600 hover:text-slate-800'
+                                                        : 'text-slate-500 hover:text-slate-700'
                                                 }`}
                                             >
                                                 All
@@ -1303,7 +1303,7 @@ function DashboardContent() {
                                         </div>
                                     </div>
                                 </div>
-                                <div className="p-4">
+                                <div className="p-2 md:p-4 bg-slate-50 md:bg-white">
                                     {loading ? (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             {[1,2,3].map(i => (
