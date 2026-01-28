@@ -6,6 +6,7 @@ import {
     User, Send, Image as ImageIcon,
     FileText, AtSign, Loader2, Reply, CornerUpRight, MoreHorizontal, CheckCheck
 } from 'lucide-react';
+import { toast } from 'sonner';
 import Pusher from 'pusher-js';
 
 // Color palette for sender names
@@ -158,7 +159,10 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                 if (data.success && data.url) {
                     newAttachments.push({ name: file.name, url: data.url, type: file.type, size: file.size });
                 }
-            } catch (err) { console.error('Upload error:', err); }
+            } catch (err) { 
+                console.error('Upload error:', err);
+                toast.error('File upload failed');
+            }
         }
         
         setAttachments(prev => [...prev, ...newAttachments]);
@@ -194,7 +198,10 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                 setAttachments([]);
                 setReplyTo(null);
             }
-        } catch (err) { console.error('Error sending message:', err); }
+        } catch (err) { 
+            console.error('Error sending message:', err);
+            toast.error('Failed to send message');
+        }
     };
 
     const handleReply = (message: any, senderName: string) => {
@@ -207,7 +214,7 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
         if (!targetChat) return;
         const targetEstimate = sidebarData.estimates.find(e => e.estimate === targetChat);
         const targetChannel = sidebarData.channels.find(c => c.name.toLowerCase() === targetChat.toLowerCase());
-        if (!targetEstimate && !targetChannel) { alert('Target not found'); return; }
+        if (!targetEstimate && !targetChannel) { toast.error('Target not found'); return; }
 
         try {
             await fetch('/api/communication', {
@@ -223,8 +230,11 @@ export default function ChatModal({ onClose }: { onClose: () => void }) {
                     forwardedFrom: message.senderId
                 }})
             });
-            alert(`Message forwarded to ${targetChat}`);
-        } catch (err) { console.error('Forward error:', err); }
+            toast.success(`Message forwarded to ${targetChat}`);
+        } catch (err) { 
+            console.error('Forward error:', err);
+            toast.error('Failed to forward message');
+        }
     };
 
     const filteredEmployees = sidebarData.employees.filter(e => 
