@@ -10,9 +10,9 @@ import {
     GraduationCap, Award, CalendarCheck, Play, Pause,
     Trash2, Edit, Copy, Shield, ShieldCheck, FilePlus, FileCheck, 
     Car, StopCircle, Droplets, Warehouse, Circle, ClipboardList,
-    Mail, Loader2, Activity as ActivityIcon, ChevronDown
+    Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck
 } from 'lucide-react';
-import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { ScheduleDetailModal } from './components/ScheduleDetailModal';
@@ -22,6 +22,7 @@ import { JHAModal } from '../jobs/schedules/components/JHAModal';
 import { DJTModal } from '../jobs/schedules/components/DJTModal';
 import { TimesheetModal } from '../jobs/schedules/components/TimesheetModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
 
 // Week utilities
 const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label: string } => {
@@ -47,6 +48,10 @@ const shiftWeek = (current: Date, direction: number): Date => {
     newDate.setDate(newDate.getDate() + (direction * 7));
     return newDate;
 };
+
+
+
+
 
 // Types
 interface Objective {
@@ -283,7 +288,30 @@ function DashboardContent() {
     // Estimate Filter State
     const [estimateFilter, setEstimateFilter] = useState('all'); // all, this_month, last_month, ytd, last_year
 
+    // Computed Time Cards for Dashboard Table
+    const dashboardTimeCards = useMemo(() => {
+        if (!currentUser || !schedules.length) return [];
 
+        const userLowerEmail = currentUser.email.toLowerCase();
+        const allUserTimesheets: any[] = [];
+
+        schedules.forEach(schedule => {
+            if (schedule.timesheet) {
+                schedule.timesheet.forEach(ts => {
+                    if (ts.employee?.toLowerCase() === userLowerEmail) {
+                        allUserTimesheets.push({
+                            ...ts,
+                            estimate: schedule.estimate,
+                            scheduleId: schedule._id
+                        });
+                    }
+                });
+            }
+        });
+
+        // Sort by clockIn date descending
+        return allUserTimesheets.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
+    }, [schedules, currentUser]);
     
     // UI States
     const [loading, setLoading] = useState(true);
@@ -1146,7 +1174,7 @@ function DashboardContent() {
         } finally {
             setLoading(false);
         }
-    }, [weekRange, scheduleView, userEmail, isSuperAdmin, estimateFilter]);
+    }, [weekRange, scheduleView, userEmail, isSuperAdmin, estimateFilter, initialData.employees.length]);
 
     useEffect(() => {
         fetchDashboardData();
@@ -1539,32 +1567,99 @@ function DashboardContent() {
                                 </div>
                             </div>
 
-                            {/* Time Cards - Weekly */}
-                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                            {/* Time Cards - Weekly (Renamed & Table View) */}
+                            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm p-4 overflow-hidden">
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
                                         <Clock className="w-5 h-5 text-teal-600" />
                                     </div>
                                     <div>
-                                        <h2 className="font-bold text-slate-900">My Time Cards</h2>
-                                        <p className="text-xs text-slate-500">This week's entries</p>
+                                        <h2 className="font-bold text-slate-900">Time Cards</h2>
+                                        <p className="text-xs text-slate-500">Your recent activity</p>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {[1,2,3,4,5].map(i => (
-                                        <TimeCardMini 
-                                            key={i}
-                                            card={{
-                                                _id: String(i),
-                                                employee: userEmail,
-                                                clockIn: new Date(Date.now() - i * 86400000).toISOString(),
-                                                clockOut: i % 2 === 0 ? new Date(Date.now() - i * 86400000 + 28800000).toISOString() : undefined,
-                                                type: 'Site Work',
-                                                hours: i % 2 === 0 ? 8 : undefined,
-                                                projectName: `Project ${i}`
-                                            }}
-                                        />
-                                    ))}
+                                
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHead>
+                                            <TableRow className="hover:bg-transparent border-slate-100">
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[50px]">Type</TableHeader>
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Estimate #</TableHeader>
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Dist (Mi)</TableHeader>
+                                                <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {dashboardTimeCards.length > 0 ? dashboardTimeCards.slice(0, 10).map((ts, idx) => (
+                                                <TableRow key={idx} className="hover:bg-slate-50">
+                                                    <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                        {formatDateOnly(ts.clockIn)}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex justify-center">
+                                                            {ts.type?.toLowerCase().includes('drive') ? (
+                                                                <div className="p-1 text-blue-600 bg-blue-50 rounded">
+                                                                    <Truck size={14} />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="p-1 text-emerald-600 bg-emerald-50 rounded">
+                                                                    <MapPin size={14} />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <span className="text-[10px] bg-slate-100 px-2 py-0.5 rounded-full font-bold text-slate-600">
+                                                            {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {ts.type?.toLowerCase().includes('drive') ? (
+                                                            ts.dumpWashout ? (
+                                                                <span className="text-[9px] font-black uppercase bg-orange-500 text-white px-2 py-0.5 rounded shadow-sm">
+                                                                    Washout
+                                                                    {String(ts.dumpWashout).includes('qty') && ' ✓'}
+                                                                </span>
+                                                            ) : <span className="text-slate-300">-</span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-medium text-slate-600">
+                                                                {formatTimeOnly(ts.clockIn)}
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        {ts.type?.toLowerCase().includes('drive') ? (
+                                                            ts.shopTime ? (
+                                                                <span className="text-[9px] font-black uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-sm">
+                                                                    Shop
+                                                                    {String(ts.shopTime).includes('qty') && ' ✓'}
+                                                                </span>
+                                                            ) : <span className="text-slate-300">-</span>
+                                                        ) : (
+                                                            <span className="text-[10px] font-medium text-slate-600">
+                                                                {formatTimeOnly(ts.clockOut)}
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-medium text-slate-600">
+                                                        {(ts.distanceVal || 0) > 0 ? (ts.distanceVal).toFixed(1) : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                        {(ts.hoursVal || 0).toFixed(2)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={7} className="text-center py-8 text-xs text-slate-400">
+                                                        No time cards found
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
                                 </div>
                             </div>
                         </div>
@@ -1992,6 +2087,8 @@ function DashboardContent() {
     </div>
     );
 }
+
+
 
 export default function DashboardPage() {
     return (
