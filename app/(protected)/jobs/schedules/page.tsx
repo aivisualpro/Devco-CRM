@@ -47,12 +47,13 @@ function SchedulePageContent() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     // Initialize selectedDates with all days of the current week (Sunday to Saturday)
+    // Initialize selectedDates with all days of the current week (Monday to Sunday)
     const [selectedDates, setSelectedDates] = useState<string[]>(() => {
         const today = new Date();
-        const dayOfWeek = today.getDay(); // 0 = Sunday, 6 = Saturday
+        const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday
         const startOfWeek = new Date(today);
-        const diff = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // 0=Mon, 6=Sun
-        startOfWeek.setDate(today.getDate() - diff); // Go back to Monday
+        const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        startOfWeek.setDate(today.getDate() + diff); // Go back to Monday
 
         const dates: string[] = [];
         for (let i = 0; i < 7; i++) {
@@ -389,7 +390,7 @@ function SchedulePageContent() {
         // Start Jan 1 UTC
         let d = new Date(Date.UTC(currentYear, 0, 1));
         const day = d.getUTCDay();
-        const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1); // Adjust to Monday
+        const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1); // Monday start
         d.setUTCDate(diff);
 
         for (let i = 0; i < 54; i++) { 

@@ -70,10 +70,8 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
     const handleDeleteSchedule = async () => {
         if (!deleteId) return;
         try {
-            const res = await fetch('/api/schedules', {
-                method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: deleteId })
+            const res = await fetch(`/api/schedules?id=${deleteId}`, {
+                method: 'DELETE'
             });
             const data = await res.json();
             if (data.success) {

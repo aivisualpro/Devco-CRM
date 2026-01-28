@@ -1089,3 +1089,25 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }
+
+export async function DELETE(request: NextRequest) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get('id');
+        
+        if (!id) {
+            return NextResponse.json({ success: false, error: 'Missing ID' }, { status: 400 });
+        }
+
+        await connectToDatabase();
+        await Schedule.findByIdAndDelete(id);
+        
+        // Sync to AppSheet
+        await updateAppSheetSchedule({ _id: id }, "Delete");
+
+        return NextResponse.json({ success: true });
+    } catch (error: any) {
+        console.error('DELETE Error:', error);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}

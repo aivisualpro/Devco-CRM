@@ -170,7 +170,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                         {dayName}
                     </div>
 
-                    <div className="hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    <div className="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all duration-300">
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button

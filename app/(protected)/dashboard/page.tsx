@@ -40,7 +40,8 @@ const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label:
     
     const fmt = (dt: Date) => `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
     
-    return { start, end, label: `${fmt(start)} ~ ${fmt(end)}` };
+    // Format: MM/DD-MM/DD
+    return { start, end, label: `${fmt(start)}-${fmt(end)}` };
 };
 
 const shiftWeek = (current: Date, direction: number): Date => {
@@ -254,9 +255,15 @@ function DashboardContent() {
     // Week Navigation
     const [currentWeekDate, setCurrentWeekDate] = useState(() => {
         const week = searchParams.get('week');
-        if (week) {
-            const d = new Date(week);
-            if (!isNaN(d.getTime())) return d;
+        if (week && week.includes('-')) {
+            try {
+                const [startPart] = week.split('-');
+                const [m, d] = startPart.split('/').map(Number);
+                const date = new Date();
+                date.setMonth(m - 1);
+                date.setDate(d);
+                if (!isNaN(date.getTime())) return date;
+            } catch (e) {}
         }
         return new Date();
     });
@@ -264,15 +271,15 @@ function DashboardContent() {
 
     // Update URL when currentWeekDate changes
     useEffect(() => {
-        const dateStr = currentWeekDate.toISOString().split('T')[0];
+        const newLabel = weekRange.label;
         const currentWeekParam = searchParams.get('week');
         
-        if (dateStr !== currentWeekParam) {
+        if (newLabel !== currentWeekParam) {
             const params = new URLSearchParams(searchParams.toString());
-            params.set('week', dateStr);
+            params.set('week', newLabel);
             router.replace(`?${params.toString()}`, { scroll: false });
         }
-    }, [currentWeekDate, router, searchParams]);
+    }, [weekRange.label, router, searchParams]);
     
     // Data States
     const [schedules, setSchedules] = useState<Schedule[]>([]);
@@ -1224,7 +1231,30 @@ function DashboardContent() {
             <Header 
                 hideLogo={false}
                 centerContent={
-                    <div className="flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
+                    <div className="flex xl:hidden items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
+                        <button 
+                            onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
+                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => setCurrentWeekDate(new Date())}
+                            className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors"
+                            title="Go to Today"
+                        >
+                            <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                        </button>
+                        <button 
+                            onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
+                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </button>
+                    </div>
+                }
+                rightContent={
+                    <div className="hidden xl:flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
                         <button 
                             onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
                             className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
@@ -1248,27 +1278,28 @@ function DashboardContent() {
                 }
             />
 
-            <div className="flex-1 overflow-hidden flex flex-col md:p-4 lg:p-6 pb-0">
-                <div className="max-w-[1800px] mx-auto h-full w-full flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto md:p-4 lg:p-6 pb-0">
+                <div className="max-w-[1800px] mx-auto w-full">
                     
                     {/* Main Grid */}
-                    <div className="grid grid-cols-12 gap-4 lg:gap-6 h-full min-h-0">
+                    <div className="grid grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* Left Column - Main Content */}
-                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 flex flex-col h-full min-h-0">
+                        <div className="col-span-12 xl:col-span-9 space-y-4 lg:space-y-6">
                             
                             {/* Upcoming Schedules */}
-                            <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden flex-1 min-h-0 xl:h-auto flex flex-col">
-                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:p-4 md:border-slate-100 shrink-0">
+                            <div className="bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden">
+                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:px-4 md:py-3 md:border-slate-100 shrink-0">
                                     <div className="flex items-center gap-3">
-                                        <div className="hidden md:flex w-10 h-10 rounded-xl bg-blue-100 items-center justify-center">
-                                            <Calendar className="w-5 h-5 text-blue-600" />
+                                        <div className="hidden md:flex w-8 h-8 rounded-lg bg-blue-100 items-center justify-center">
+                                            <Calendar className="w-4 h-4 text-blue-600" />
                                         </div>
-                                        <div>
+                                        <div className="flex items-center gap-2">
                                             <h2 className="font-bold text-slate-900 flex items-center gap-2">
                                                 <span className="md:hidden text-sm font-black uppercase tracking-widest text-slate-700">Schedules ({schedules.length})</span>
-                                                <span className="hidden md:inline">Upcoming Schedules</span>
+                                                <span className="hidden md:inline text-sm">Upcoming Schedules</span>
                                             </h2>
+                                            <span className="hidden md:inline text-xs text-slate-400">•</span>
                                             <p className="hidden md:block text-xs text-slate-500">{schedules.length} jobs this week</p>
                                         </div>
                                     </div>
@@ -1297,8 +1328,8 @@ function DashboardContent() {
                                         </div>
                                     </div>
                                 </div>
-                                    {/* Scrollable Card Area */}
-                                    <div className="flex-1 overflow-y-auto p-2 md:p-4 bg-slate-50 md:bg-white xl:pr-2 xl:scrollbar-thin">
+                                    {/* Scrollable Card Area - max 2 rows visible before scroll */}
+                                    <div className="overflow-y-auto p-2 md:p-3 bg-slate-50 md:bg-white max-h-[calc(100vh-400px)] md:max-h-[400px]">
                                         {loading ? (
                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {[1,2,3].map(i => (
