@@ -13,6 +13,8 @@ import {
     SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+import { pdf } from '@react-pdf/renderer';
+import { PayrollPDF } from './PayrollPDF';
 import { 
     calculateTimesheetData, 
     formatDateOnly, 
@@ -179,6 +181,7 @@ function PayrollReportContent() {
     const [filterEmployee, setFilterEmployee] = useState<string>(() => {
         return searchParams.get('employee') || 'all';
     });
+    const [filterCertified, setFilterCertified] = useState(false);
 
     const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
     const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
@@ -365,6 +368,14 @@ function PayrollReportContent() {
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (clockInDate >= currentWeekStart && clockInDate <= weekEnd) {
                     const empEmail = ts.employee;
+                    
+                    // Improved Certified Check: Handles 'Yes', 'YES', 'yes'
+                    const certValue = String(estimatesMap[sched.estimate]?.certifiedPayroll || '').trim().toLowerCase();
+                    const estCertified = certValue === 'yes';
+
+                    // CRUCIAL: If CP filter is ON, skip records that are not certified
+                    if (filterCertified && !estCertified) return;
+
                     if (!employeesWork[empEmail]) {
                         employeesWork[empEmail] = {
                             email: empEmail,
@@ -420,8 +431,15 @@ function PayrollReportContent() {
         });
 
         const filtered = Object.values(employeesWork).filter((ew: any) => {
-            if (filterEmployee === 'all') return true;
-            return ew.email === filterEmployee;
+            if (filterEmployee !== 'all' && ew.email !== filterEmployee) return false;
+            
+            if (filterCertified) {
+                // If CP filter is ON, only include employees who have AT LEAST ONE certified day in this week
+                const hasCertifiedDay = ew.days.some((d: any) => d.certified);
+                if (!hasCertifiedDay) return false;
+            }
+            
+            return true;
         });
 
         return filtered.map((ew: any) => {
@@ -523,7 +541,7 @@ function PayrollReportContent() {
                 }
             } as EmployeeReport;
         });
-    }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee]);
+    }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee, filterCertified]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(currentWeekStart.getTime());
@@ -644,6 +662,45 @@ function PayrollReportContent() {
         document.body.removeChild(link);
     };
 
+    const handleExportPDF = async () => {
+        if (!reportData || reportData.length === 0) {
+            toastError("No data to export");
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const totalAmount = reportData.reduce((acc, emp) => acc + emp.totalAmount, 0);
+            const weekNum = getWeekNumber(currentWeekStart);
+            const weekEnd = endOfWeek(currentWeekStart);
+
+            const blob = await pdf(
+                <PayrollPDF 
+                    data={reportData} 
+                    weekRange={`${formatDate(currentWeekStart, 'MM/dd/yy')}-${formatDate(weekEnd, 'MM/dd/yy')}`}
+                    startDate={formatDate(currentWeekStart, 'MM/dd/yy')}
+                    endDate={formatDate(weekEnd, 'MM/dd/yy')}
+                    totalAmount={totalAmount}
+                    weekNumber={weekNum}
+                />
+            ).toBlob();
+
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `Certified_Payroll_Report_${formatDate(currentWeekStart, 'MM-dd-yy')}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toastSuccess("PDF Report Generated");
+        } catch (err) {
+            console.error(err);
+            toastError("Failed to generate PDF");
+        } finally {
+            setLoading(false);
+        }
+    };
+
 
     return (
         <div className="flex flex-col h-full bg-[#F4F7FA]">
@@ -653,6 +710,19 @@ function PayrollReportContent() {
                     leftContent={null}
                     rightContent={
                         <div className="flex items-center gap-4">
+                            {/* Certified Payroll (CP) Toggle */}
+                            <button
+                                onClick={() => setFilterCertified(!filterCertified)}
+                                className={`px-4 py-2.5 rounded-2xl text-xs font-black transition-all active:scale-95 border-2 ${
+                                    filterCertified 
+                                        ? 'bg-[#00CC00] text-white border-[#00CC00] shadow-[inset_0_2px_4px_rgba(0,0,0,0.2)]' 
+                                        : 'bg-[#F4F7FA] text-slate-400 border-transparent neu-outset'
+                                }`}
+                                title="Filter Certified Payroll Only"
+                            >
+                                CP
+                            </button>
+
                             {/* Week Selection - Neumorphic Dropdown */}
                             <div className="relative">
                                 <button 
@@ -788,6 +858,17 @@ function PayrollReportContent() {
                                     <p>Export CSV</p>
                                 </TooltipContent>
                             </Tooltip>
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button onClick={handleExportPDF} className="p-3 bg-[#F4F7FA] rounded-2xl text-red-500 transition-all neu-outset hover:neu-pressed active:scale-95">
+                                        <Printer size={18} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Download PDF Report</p>
+                                </TooltipContent>
+                            </Tooltip>
                         </div>
                     }
                 />
@@ -802,16 +883,16 @@ function PayrollReportContent() {
                 ) : (
                     <>
                 {/* Payroll Content Container */}
-                <div className="neu-outset rounded-[32px] overflow-hidden p-4 bg-[#F4F7FA]">
+                <div className="neu-outset rounded-[32px] overflow-visible p-4 bg-[#F4F7FA]">
                     {reportData.length === 0 ? (
                         <div className="h-[50vh] flex flex-col items-center justify-center">
                             <FileText className="w-16 h-16 text-slate-300 mb-6" />
                             <h3 className="text-xl font-black text-slate-500">No Records Found</h3>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto rounded-[32px] bg-[#F4F7FA]">
+                        <div className="overflow-x-auto rounded-[32px] bg-[#F4F7FA] relative">
                             <table className="w-full border-collapse">
-                                <thead className="sticky top-0 z-50">
+                                <thead className="sticky top-[-1px] z-[100] bg-[#F4F7FA] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                     <tr className="bg-[#F4F7FA]">
                                         <th className="sticky left-0 z-50 bg-[#F4F7FA] text-left px-4 py-4 min-w-[170px]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Identity</span>
@@ -841,7 +922,7 @@ function PayrollReportContent() {
                                     <tbody key={emp.employee} className="border-t-[10px] border-transparent">
                                         {/* Compact Identity Row Block */}
                                         <tr className="hover:bg-white/30 transition-colors group cursor-pointer" onClick={() => setSelectedDetail({ employee: emp, type: 'General' })}>
-                                            <td rowSpan={8} className="sticky left-0 z-40 bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50">
+                                            <td rowSpan={8} className="sticky left-0 z-[60] bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50 shadow-[2px_0_10px_rgba(0,0,0,0.02)]">
                                                 <div className="space-y-2 max-w-[155px]">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
@@ -890,7 +971,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40">Certified</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${d.certified ? 'text-[#00CC00]' : 'text-red-300'}`}>
-                                                    {d.certified ? 'YES' : 'NO'}
+                                                    {d.certified ? 'YES' : ''}
                                                 </td>
                                             ))}
                                             <td colSpan={2} className="border-b border-white/40"></td>
@@ -901,7 +982,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-orange-500/80 border-b border-white/40">Regular</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-700 text-center border-b border-white/40">
-                                                    {d.reg > 0 ? d.reg.toFixed(2) : '--'}
+                                                    {d.reg > 0 ? d.reg.toFixed(2) : ''}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-900 bg-white/40 border-b border-white/40">{emp.totalReg.toFixed(2)}</td>
@@ -917,7 +998,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-amber-500/80 border-b border-white/40">Overtime</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.ot > 0 ? d.ot.toFixed(2) : '--'}
+                                                    {d.ot > 0 ? d.ot.toFixed(2) : ''}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalOt.toFixed(2)}</td>
@@ -933,7 +1014,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-teal-500/80 border-b border-white/40">Double Time</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.dt > 0 ? d.dt.toFixed(2) : '--'}
+                                                    {d.dt > 0 ? d.dt.toFixed(2) : ''}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalDt.toFixed(2)}</td>
@@ -949,7 +1030,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-blue-500/80 border-b border-white/40">Travel</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.travel > 0 ? d.travel.toFixed(2) : '--'}
+                                                    {d.travel > 0 ? d.travel.toFixed(2) : ''}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalTravel.toFixed(2)}</td>
@@ -965,7 +1046,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-slate-500/80 border-b border-white/40">Per Diem</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.diem > 0 ? d.diem.toFixed(2) : '--'}
+                                                    {d.diem > 0 ? d.diem.toFixed(2) : ''}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 border-b border-white/40"></td>

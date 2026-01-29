@@ -568,12 +568,33 @@ export function EstimateHeaderCard({
                                             ${isDropdownOpen
                                                     ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                     : hasValue
-                                                        ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)]'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6]'}
+                                                        ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white'
+                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'}
                                         `}
                                             style={hasValue ? { backgroundColor: activeColor } : {}}
                                         >
-                                            <HardHat className={`w-5 h-5 ${hasValue ? 'text-white' : 'text-slate-400'}`} />
+                                            {hasValue ? (
+                                                <span 
+                                                    className={`font-black uppercase leading-none text-center px-0.5 ${
+                                                        (formData.fringe?.length || 0) <= 4 
+                                                            ? 'text-[9px]' 
+                                                            : (formData.fringe?.length || 0) <= 7 
+                                                                ? 'text-[7px]' 
+                                                                : 'text-[6px]'
+                                                    }`}
+                                                    style={{ 
+                                                        wordBreak: 'break-word',
+                                                        maxWidth: '40px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    {formData.fringe}
+                                                </span>
+                                            ) : (
+                                                <HardHat className="w-5 h-5" />
+                                            )}
                                         </div>
                                     );
                                 })()}
@@ -615,12 +636,33 @@ export function EstimateHeaderCard({
                                             ${isDropdownOpen
                                                     ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                     : hasValue
-                                                        ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)]'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6]'}
+                                                        ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white'
+                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'}
                                         `}
                                             style={hasValue ? { backgroundColor: activeColor } : {}}
                                         >
-                                            <Calculator className={`w-5 h-5 ${hasValue ? 'text-white' : 'text-slate-400'}`} />
+                                            {hasValue ? (
+                                                <span 
+                                                    className={`font-black uppercase leading-none text-center px-0.5 ${
+                                                        (formData.certifiedPayroll?.length || 0) <= 4 
+                                                            ? 'text-[9px]' 
+                                                            : (formData.certifiedPayroll?.length || 0) <= 7 
+                                                                ? 'text-[7px]' 
+                                                                : 'text-[6px]'
+                                                    }`}
+                                                    style={{ 
+                                                        wordBreak: 'break-word',
+                                                        maxWidth: '40px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    {formData.certifiedPayroll}
+                                                </span>
+                                            ) : (
+                                                <Calculator className="w-5 h-5" />
+                                            )}
                                         </div>
                                     );
                                 })()}
