@@ -361,19 +361,16 @@ function PayrollReportContent() {
 
         rawSchedules.forEach(sched => {
             if (!sched.timesheet) return;
-            // Get certified payroll from estimate (source of truth), fallback to schedule
-            const estCertified = estimatesMap[sched.estimate]?.certifiedPayroll === 'Yes';
             
             sched.timesheet.forEach((ts: any) => {
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (clockInDate >= currentWeekStart && clockInDate <= weekEnd) {
-                    const empEmail = ts.employee;
+                    const empEmail = String(ts.employee || '').toLowerCase();
                     
-                    // Improved Certified Check: Handles 'Yes', 'YES', 'yes'
+                    // Improved Certified Check
                     const certValue = String(estimatesMap[sched.estimate]?.certifiedPayroll || '').trim().toLowerCase();
-                    const estCertified = certValue === 'yes';
+                    const estCertified = (certValue === 'yes' || certValue === 'true' || estimatesMap[sched.estimate]?.certifiedPayroll === true);
 
-                    // CRUCIAL: If CP filter is ON, skip records that are not certified
                     if (filterCertified && !estCertified) return;
 
                     if (!employeesWork[empEmail]) {
@@ -381,7 +378,7 @@ function PayrollReportContent() {
                             email: empEmail,
                             days: Array.from({ length: 7 }, (_, i) => {
                                 const d = new Date(currentWeekStart);
-                                d.setDate(d.getDate() + i);
+                                d.setUTCDate(d.getUTCDate() + i);
                                 return {
                                     date: d,
                                     estimates: new Set<string>(),
@@ -516,11 +513,11 @@ function PayrollReportContent() {
 
             return {
                 employee: ew.email,
-                name: empInfo.label || ew.email,
-                address: empInfo.address || 'N/A',
-                phone: empInfo.phone || 'N/A',
-                position: empInfo.companyPosition || 'Technician',
-                classification: empInfo.classification || 'N/A',
+                name: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.label || ew.email,
+                address: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.address || 'N/A',
+                phone: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.phone || 'N/A',
+                position: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.companyPosition || 'Technician',
+                classification: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.classification || 'N/A',
                 days,
                 totalReg,
                 totalOt,
@@ -540,7 +537,7 @@ function PayrollReportContent() {
                     drive: rawDriveEntries
                 }
             } as EmployeeReport;
-        }).sort((a, b) => a.name.localeCompare(b.name));
+        }).filter(emp => emp.totalHrs > 0 || filterEmployee !== 'all').sort((a, b) => a.name.localeCompare(b.name));
     }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee, filterCertified]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -968,10 +965,10 @@ function PayrollReportContent() {
                                         </tr>
 
                                         <tr>
-                                            <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40">Certified</td>
+                                            <td className={`px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40`}>Certified</td>
                                             {emp.days.map((d, i) => (
-                                                <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${d.certified ? 'text-[#00CC00]' : 'text-red-300'}`}>
-                                                    {d.certified ? 'YES' : ''}
+                                                <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${d.certified ? 'text-[#00CC00]' : 'text-red-400'}`}>
+                                                    {d.certified ? 'YES' : 'NO'}
                                                 </td>
                                             ))}
                                             <td colSpan={2} className="border-b border-white/40"></td>
@@ -982,7 +979,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-orange-500/80 border-b border-white/40">Regular</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-700 text-center border-b border-white/40">
-                                                    {d.reg > 0 ? d.reg.toFixed(2) : ''}
+                                                    {d.reg > 0 ? d.reg.toFixed(2) : '--'}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-900 bg-white/40 border-b border-white/40">{emp.totalReg.toFixed(2)}</td>
@@ -998,7 +995,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-amber-500/80 border-b border-white/40">Overtime</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.ot > 0 ? d.ot.toFixed(2) : ''}
+                                                    {d.ot > 0 ? d.ot.toFixed(2) : '--'}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalOt.toFixed(2)}</td>
@@ -1014,7 +1011,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-teal-500/80 border-b border-white/40">Double Time</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.dt > 0 ? d.dt.toFixed(2) : ''}
+                                                    {d.dt > 0 ? d.dt.toFixed(2) : '--'}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalDt.toFixed(2)}</td>
@@ -1030,7 +1027,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-blue-500/80 border-b border-white/40">Travel</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.travel > 0 ? d.travel.toFixed(2) : ''}
+                                                    {d.travel > 0 ? d.travel.toFixed(2) : '--'}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 text-center text-[11px] font-black text-slate-700 border-b border-white/40">{emp.totalTravel.toFixed(2)}</td>
@@ -1046,7 +1043,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-2 font-black text-[9px] uppercase tracking-wider text-slate-500/80 border-b border-white/40">Per Diem</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-2 text-[11px] font-black text-slate-400 text-center border-b border-white/40">
-                                                    {d.diem > 0 ? d.diem.toFixed(2) : ''}
+                                                    {d.diem > 0 ? d.diem.toFixed(2) : '--'}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-2 border-b border-white/40"></td>
