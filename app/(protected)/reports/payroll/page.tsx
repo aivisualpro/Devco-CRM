@@ -540,7 +540,7 @@ function PayrollReportContent() {
                     drive: rawDriveEntries
                 }
             } as EmployeeReport;
-        });
+        }).sort((a, b) => a.name.localeCompare(b.name));
     }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee, filterCertified]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
@@ -705,7 +705,7 @@ function PayrollReportContent() {
     return (
         <div className="flex flex-col h-full bg-[#F4F7FA]">
             {/* Minimal Header */}
-            <div className="flex-none">
+            <div className="flex-none relative z-[310]">
                 <Header 
                     leftContent={null}
                     rightContent={
@@ -738,8 +738,8 @@ function PayrollReportContent() {
 
                                 {isWeekDropdownOpen && (
                                     <>
-                                        <div className="fixed inset-0 z-[100]" onClick={() => setIsWeekDropdownOpen(false)} />
-                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-2 z-[101] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
+                                        <div className="fixed inset-0 z-[250]" onClick={() => setIsWeekDropdownOpen(false)} />
+                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-2 z-[300] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
                                             <div className="max-h-[350px] overflow-y-auto custom-scrollbar p-2">
                                                 {weekOptions.map((week, idx) => {
                                                     const isActive = week.start.getTime() === currentWeekStart.getTime();
@@ -781,8 +781,8 @@ function PayrollReportContent() {
 
                                 {isEmployeeDropdownOpen && (
                                     <>
-                                        <div className="fixed inset-0 z-[100]" onClick={() => setIsEmployeeDropdownOpen(false)} />
-                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-4 z-[101] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
+                                        <div className="fixed inset-0 z-[250]" onClick={() => setIsEmployeeDropdownOpen(false)} />
+                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-4 z-[300] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
                                             {/* Search Bar - Neumorphic Style */}
                                             <div className="relative mb-4">
                                                 <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
@@ -874,7 +874,7 @@ function PayrollReportContent() {
                 />
             </div>
 
-            <main className="flex-1 overflow-y-auto w-full max-w-[2400px] mx-auto p-2 pb-28 bg-[#F4F7FA]">
+            <main className="flex-1 overflow-auto w-full max-w-[2400px] mx-auto p-2 pb-32 bg-[#F4F7FA]">
                 {loading ? (
                     <div className="h-[70vh] flex flex-col items-center justify-center gap-4">
                         <Loading />
@@ -883,36 +883,36 @@ function PayrollReportContent() {
                 ) : (
                     <>
                 {/* Payroll Content Container */}
-                <div className="neu-outset rounded-[32px] overflow-visible p-4 bg-[#F4F7FA]">
+                <div className="neu-outset rounded-[32px] p-4 bg-[#F4F7FA]">
                     {reportData.length === 0 ? (
                         <div className="h-[50vh] flex flex-col items-center justify-center">
                             <FileText className="w-16 h-16 text-slate-300 mb-6" />
                             <h3 className="text-xl font-black text-slate-500">No Records Found</h3>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto rounded-[32px] bg-[#F4F7FA] relative">
+                        <div className="relative">
                             <table className="w-full border-collapse">
-                                <thead className="sticky top-[-1px] z-[100] bg-[#F4F7FA] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
+                                <thead className="z-[100]">
                                     <tr className="bg-[#F4F7FA]">
-                                        <th className="sticky left-0 z-50 bg-[#F4F7FA] text-left px-4 py-4 min-w-[170px]">
+                                        <th className="sticky top-[-10px] left-[-16px] z-[110] bg-[#F4F7FA] text-left px-4 py-4 min-w-[170px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Identity</span>
                                         </th>
-                                        <th className="text-left px-4 py-4 min-w-[80px]">
+                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] text-left px-4 py-4 min-w-[80px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Category</span>
                                         </th>
                                         {weekDays.map((date, idx) => (
-                                            <th key={idx} className="px-2 py-4 text-center min-w-[80px]">
+                                            <th key={idx} className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-2 py-4 text-center min-w-[80px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                                 <p className="text-[9px] font-black text-[#0F4C75] uppercase tracking-tighter leading-none">{formatDate(date, 'EEEE')}</p>
                                                 <p className="text-[10px] font-black text-slate-700 mt-1">{formatDate(date, 'MM/dd/yy')}</p>
                                             </th>
                                         ))}
-                                        <th className="px-4 py-4 text-center min-w-[85px]">
+                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-center min-w-[85px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Total</span>
                                         </th>
-                                        <th className="px-4 py-4 text-right min-w-[85px]">
+                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-right min-w-[85px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Rate</span>
                                         </th>
-                                        <th className="px-4 py-4 text-right min-w-[100px]">
+                                        <th className="sticky top-[-10px] z-[100] bg-[#F4F7FA] px-4 py-4 text-right min-w-[100px] shadow-[0_2px_10px_rgba(0,0,0,0.05)]">
                                             <span className="text-[9px] font-black text-[#0F4C75] uppercase tracking-[0.2em] opacity-60">Subtotal</span>
                                         </th>
                                     </tr>
@@ -922,7 +922,7 @@ function PayrollReportContent() {
                                     <tbody key={emp.employee} className="border-t-[10px] border-transparent">
                                         {/* Compact Identity Row Block */}
                                         <tr className="hover:bg-white/30 transition-colors group cursor-pointer" onClick={() => setSelectedDetail({ employee: emp, type: 'General' })}>
-                                            <td rowSpan={8} className="sticky left-0 z-[60] bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50 shadow-[2px_0_10px_rgba(0,0,0,0.02)]">
+                                            <td rowSpan={8} className="sticky left-[-16px] z-[60] bg-[#F4F7FA] px-2 py-4 align-top border-r border-slate-100/50 shadow-[2px_0_10px_rgba(0,0,0,0.02)]">
                                                 <div className="space-y-2 max-w-[155px]">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-8 h-8 rounded-full bg-white shadow-sm border border-slate-100 flex items-center justify-center shrink-0">
@@ -1081,7 +1081,7 @@ function PayrollReportContent() {
 
             {/* Fixed Footer Summary */}
             {!loading && reportData.length > 0 && (
-                <div className="fixed bottom-0 left-0 right-0 z-50 p-3 bg-[#F4F7FA]/95 backdrop-blur-sm border-t border-slate-200/50">
+                <div className="fixed bottom-0 left-0 right-0 z-[200] p-3 bg-[#F4F7FA]/95 backdrop-blur-sm border-t border-slate-200/50">
                     <div className="max-w-[2400px] mx-auto px-4">
                         <div className="p-4 bg-white/80 neu-outset rounded-2xl flex flex-col md:flex-row items-center justify-start gap-8">
                             <div className="flex items-center gap-8">
