@@ -13,29 +13,38 @@ import {
     SearchableSelect
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+import { 
+    calculateTimesheetData, 
+    formatDateOnly, 
+    formatTimeOnly, 
+    robustNormalizeISO,
+    SPEED_MPH,
+    EARTH_RADIUS_MI,
+    DRIVING_FACTOR 
+} from '@/lib/timeCardUtils';
 
 
 // --- Custom Date Helpers ---
 
 const startOfWeek = (date: Date) => {
     const d = new Date(date);
-    d.setHours(0, 0, 0, 0); // Start of day
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
-    d.setDate(diff);
-    return d;
+    const day = d.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day; // Monday start
+    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
+    return start;
 };
 
 const endOfWeek = (date: Date) => {
     const d = startOfWeek(date);
-    d.setDate(d.getDate() + 6);
-    d.setHours(23, 59, 59, 999); // End of day
-    return d;
+    const end = new Date(d);
+    end.setUTCDate(d.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
+    return end;
 };
 
 const addWeeks = (date: Date, weeks: number) => {
     const d = new Date(date);
-    d.setDate(d.getDate() + (weeks * 7));
+    d.setUTCDate(d.getUTCDate() + (weeks * 7));
     return d;
 };
 
@@ -43,151 +52,37 @@ const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
 
 const formatDate = (date: Date, pattern: string) => {
     if (pattern === 'MMM d') {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
     }
     if (pattern === 'MMM d, yyyy') {
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
     }
     if (pattern === 'EEEE') {
-        return date.toLocaleDateString('en-US', { weekday: 'long' });
+        return date.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
     }
     if (pattern === 'MM-dd-yy') {
-        const m = String(date.getMonth() + 1).padStart(2, '0');
-        const d = String(date.getDate()).padStart(2, '0');
-        const y = String(date.getFullYear()).slice(-2);
+        const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const d = String(date.getUTCDate()).padStart(2, '0');
+        const y = String(date.getUTCFullYear()).slice(-2);
         return `${m}/${d}/${y}`;
     }
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', { timeZone: 'UTC' });
 };
 
 const getWeekNumber = (d: Date) => {
-    const date = new Date(d.getTime());
-    date.setHours(0, 0, 0, 0);
-    date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-    const week1 = new Date(date.getFullYear(), 0, 4);
-    return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+    // Ensure we use UTC components for week calculation
+    const utcDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    // Set to nearest Thursday: current date + 4 - current day number
+    utcDate.setUTCDate(utcDate.getUTCDate() + 4 - (utcDate.getUTCDay() || 7));
+    // Get first day of year
+    const yearStart = new Date(Date.UTC(utcDate.getUTCFullYear(), 0, 1));
+    // Calculate full weeks to nearest Thursday
+    const weekNo = Math.ceil((((utcDate.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    return weekNo;
 };
 
-// --- Constants ---
-const SPEED_MPH = 55;
-const EARTH_RADIUS_MI = 3958.8; // Radius of the earth in miles
-const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00');
-const DRIVING_FACTOR = 1.50; // Multiplier to convert straight-line to approximate driving distance
-
-// --- Helpers ---
-
-const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 3958.8; // Earth's radius in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return EARTH_RADIUS_MI * c; // Matches spreadsheet logic
-};
-
-const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
-    const isDrive = (ts.type || '').toLowerCase().includes('drive');
-    const tsDateStr = ts.clockIn || scheduleDate || new Date().toISOString();
-    const tsDate = new Date(tsDateStr);
-
-    const parseLoc = (val: any) => {
-        const str = String(val || '').trim();
-        if (str.includes(',')) {
-            const parts = str.split(',').map(p => parseFloat(p.trim()));
-            if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                return { lat: parts[0], lon: parts[1] };
-            }
-        }
-        return null;
-    };
-
-    const locIn = parseLoc(ts.locationIn);
-    const locOut = parseLoc(ts.locationOut);
-    let calculatedDistance = 0;
-    if (locIn && locOut) {
-        calculatedDistance = haversine(locIn.lat, locIn.lon, locOut.lat, locOut.lon) * DRIVING_FACTOR;
-    }
-
-    let distance = 0;
-    let hours = 0;
-
-    if (isDrive) {
-        const getQty = (val: any) => {
-            const str = String(val || '');
-            const match = str.match(/\((\d+)\s+qty\)/);
-            if (match) return parseFloat(match[1]);
-            if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
-            return 0;
-        };
-
-        const washoutQty = getQty(ts.dumpWashout);
-        const shopQty = getQty(ts.shopTime);
-        const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
-
-        const manualDist = ts.manualDistance ? parseFloat(String(ts.manualDistance)) : 0;
-        if (manualDist > 0) {
-            distance = manualDist;
-        } else {
-            distance = calculatedDistance;
-        }
-
-        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
-        if (manualHrs > 0) {
-            hours = manualHrs;
-        } else {
-            // Apply payroll cutoff rule for drive time if it exists
-            if (tsDate < FORMULA_CUTOFF_DATE) {
-                // Legacy drive time logic often used a fixed speed or was manual
-                // Here we'll try to keep the original logic if it was "hours = distance / 55"
-                // But time-cards page uses the same formula for both.
-                // Let's stick to time-cards logic for consistency as requested.
-                hours = (distance / SPEED_MPH) + specialHrs;
-            } else {
-                hours = (distance / SPEED_MPH) + specialHrs;
-            }
-        }
-    } else {
-        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
-        if (manualHrs > 0) {
-            hours = manualHrs;
-        } else {
-            const calcTimeHours = () => {
-                if (!ts.clockIn || !ts.clockOut) return 0;
-                const start = new Date(ts.clockIn).getTime();
-                const end = new Date(ts.clockOut).getTime();
-                let durationMs = end - start;
-
-                if (ts.lunchStart && ts.lunchEnd) {
-                    const lStart = new Date(ts.lunchStart).getTime();
-                    const lEnd = new Date(ts.lunchEnd).getTime();
-                    if (lEnd > lStart) durationMs -= (lEnd - lStart);
-                }
-                if (durationMs <= 0) return 0;
-                
-                const totalHoursRaw = durationMs / (1000 * 60 * 60);
-
-                const cutoff2025 = new Date('2025-10-26T00:00:00');
-                if (tsDate < cutoff2025) return totalHoursRaw;
-                if (totalHoursRaw >= 7.75 && totalHoursRaw < 8.0) return 8.0;
-
-                const h = Math.floor(totalHoursRaw);
-                const m = Math.round((totalHoursRaw - h) * 60);
-                let roundedM = 0;
-                if (m > 1 && m <= 14) roundedM = 0;
-                else if (m > 14 && m <= 29) roundedM = 15;
-                else if (m > 29 && m <= 44) roundedM = 30;
-                else if (m > 44 && m <= 59) roundedM = 45;
-                return h + (roundedM / 60);
-            };
-            hours = calcTimeHours();
-        }
-        distance = 0;
-    }
-
-    return { hours, distance, calculatedDistance };
-};
+// (Constants and calculateTimesheetData imported from @/lib/timeCardUtils)
+const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00.000Z');
 
 const normalizeEst = (val: any) => {
     const s = String(val || '').toLowerCase().trim();
@@ -207,8 +102,8 @@ const generateWeeks = (year: number) => {
     const weeks = [];
     // Start from current or end of year
     let d = startOfWeek(new Date());
-    if (d.getFullYear() > year) {
-        d = startOfWeek(new Date(year, 11, 31));
+    if (d.getUTCFullYear() > year) {
+        d = startOfWeek(new Date(Date.UTC(year, 11, 31)));
     }
     
     for (let i = 0; i < 20; i++) {
@@ -467,7 +362,7 @@ function PayrollReportContent() {
             const estCertified = estimatesMap[sched.estimate]?.certifiedPayroll === 'Yes';
             
             sched.timesheet.forEach((ts: any) => {
-                const clockInDate = new Date(ts.clockIn);
+                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (clockInDate >= currentWeekStart && clockInDate <= weekEnd) {
                     const empEmail = ts.employee;
                     if (!employeesWork[empEmail]) {
@@ -493,7 +388,7 @@ function PayrollReportContent() {
                         };
                     }
 
-                    const dayIdx = (clockInDate.getDay() + 6) % 7; 
+                    const dayIdx = (clockInDate.getUTCDay() + 6) % 7; 
                     const { hours, distance } = calculateTimesheetData(ts, sched.fromDate);
                     
                     const enrichedTs = { ...ts, scheduleId: sched._id, calcHours: hours, calcDistance: distance, estimate: sched.estimate };
@@ -566,7 +461,7 @@ function PayrollReportContent() {
                 totalTravelAmount += travel * dayRateTravel;
 
                 // Sort entries to ensure progressive tallying for Reg/OT attribution
-                d.entries.sort((a: any, b: any) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime());
+                d.entries.sort((a: any, b: any) => new Date(robustNormalizeISO(a.clockIn)).getTime() - new Date(robustNormalizeISO(b.clockIn)).getTime());
                 
                 let dayTally = 0;
                 d.entries.forEach((ent: any) => {
@@ -631,8 +526,8 @@ function PayrollReportContent() {
     }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(currentWeekStart);
-        d.setDate(d.getDate() + i);
+        const d = new Date(currentWeekStart.getTime());
+        d.setUTCDate(d.getUTCDate() + i);
         return d;
     });
 
