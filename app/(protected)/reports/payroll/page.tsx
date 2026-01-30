@@ -591,7 +591,11 @@ function PayrollReportContent() {
             rows.push(createRow('Project', projValues, '', '', ''));
 
             // 2. Certified Row
-            const certValues = emp.days.map(d => d.certified ? 'YES' : 'NO');
+            const certValues = emp.days.map(d => {
+                const hasProject = d.estimates.length > 0 || d.projectNames.length > 0;
+                if (!hasProject) return '';
+                return d.certified ? 'YES' : 'NO';
+            });
             rows.push(createRow('Certified', certValues, '', '', ''));
 
             // 3. Regular Row
@@ -973,11 +977,14 @@ function PayrollReportContent() {
 
                                         <tr>
                                             <td className={`px-4 py-2 font-black text-[9px] uppercase tracking-wider text-[#0F4C75]/60 border-b border-white/40`}>Certified</td>
-                                            {emp.days.map((d, i) => (
-                                                <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${d.certified ? 'text-[#00CC00]' : 'text-red-400'}`}>
-                                                    {d.certified ? 'YES' : 'NO'}
-                                                </td>
-                                            ))}
+                                            {emp.days.map((d, i) => {
+                                                const hasProject = d.estimates.length > 0 || d.projectNames.length > 0;
+                                                return (
+                                                    <td key={i} className={`px-2 py-2 text-[9px] font-black text-center tracking-[0.2em] border-b border-white/40 ${hasProject ? (d.certified ? 'text-[#00CC00]' : 'text-red-400') : 'text-slate-300'}`}>
+                                                        {hasProject ? (d.certified ? 'YES' : 'NO') : '--'}
+                                                    </td>
+                                                );
+                                            })}
                                             <td colSpan={2} className="border-b border-white/40"></td>
                                             <td className="border-b border-white/40 px-4 py-2"></td>
                                         </tr>

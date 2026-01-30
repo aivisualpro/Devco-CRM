@@ -155,6 +155,39 @@ export const PayrollPDF = ({ data, weekRange, startDate, endDate, totalAmount, w
                 </View>
               </View>
 
+              {/* Project Row */}
+              <View style={styles.tableRow}>
+                <View style={styles.tableColFirst}>
+                  <Text style={styles.tableCellFirst}>Project</Text>
+                </View>
+                {emp.days.map((d: any, i: number) => (
+                  <View key={i} style={styles.tableCol}>
+                    <Text style={[styles.tableCell, { fontSize: 6 }]}>
+                      {d.estimates.length > 0 ? d.estimates.join(', ') : ''}
+                    </Text>
+                  </View>
+                ))}
+                <View style={styles.tableCol}></View>
+              </View>
+
+              {/* Certified Row */}
+              <View style={styles.tableRow}>
+                <View style={styles.tableColFirst}>
+                  <Text style={styles.tableCellFirst}>Certified</Text>
+                </View>
+                {emp.days.map((d: any, i: number) => {
+                  const hasProject = d.estimates.length > 0 || d.projectNames.length > 0;
+                  return (
+                    <View key={i} style={styles.tableCol}>
+                      <Text style={[styles.tableCell, { color: hasProject ? (d.certified ? '#00CC00' : '#FF0000') : '#999999' }]}>
+                        {hasProject ? (d.certified ? 'YES' : 'NO') : '--'}
+                      </Text>
+                    </View>
+                  );
+                })}
+                <View style={styles.tableCol}></View>
+              </View>
+
               {/* REG Row */}
               <View style={styles.tableRow}>
                 <View style={styles.tableColFirst}>
