@@ -873,13 +873,74 @@ export default function RolesPage() {
                                     }
                                 };
 
+                                // Dashboard Widget Logic
+                                const DASHBOARD_CONFIG: Record<string, { actions: string[], hasScope: boolean }> = {
+                                    'widget_upcoming_schedules': { actions: ['view', 'update', 'delete'], hasScope: true },
+                                    'widget_chat': { actions: ['view', 'update', 'delete'], hasScope: true },
+                                    'widget_estimates_overview': { actions: ['view'], hasScope: true },
+                                    'widget_training_certifications': { actions: ['view'], hasScope: false },
+                                    'widget_time_cards': { actions: ['view'], hasScope: true },
+                                    'widget_tasks': { actions: ['view', 'update', 'delete'], hasScope: true },
+                                };
+
+                                // Check capabilities
+                                const supportsAction = (field: string, action: string) => {
+                                    if (activeModule === 'dashboard') {
+                                        return DASHBOARD_CONFIG[field]?.actions.includes(action) ?? false;
+                                    }
+                                    return ['view', 'update'].includes(action);
+                                };
+
+                                const supportsScope = (field: string) => {
+                                    if (activeModule === 'dashboard') {
+                                        return DASHBOARD_CONFIG[field]?.hasScope ?? false;
+                                    }
+                                    return false; // Default fields don't have per-field scope yet
+                                };
+
+                                // Get field data scope
+                                const getFieldDataScope = (field: string) => {
+                                    const fp = fieldPerms.find(f => f.field === field);
+                                    return fp?.dataScope || 'self';
+                                };
+
+                                // Set field data scope
+                                const setFieldDataScope = (field: string, scope: 'self' | 'all') => {
+                                    const perms = [...editForm.permissions];
+                                    const modIdx = perms.findIndex(p => p.module === activeModule);
+                                    
+                                    if (modIdx >= 0) {
+                                        const currentFieldPerms = perms[modIdx].fieldPermissions || [];
+                                        const fieldIdx = currentFieldPerms.findIndex(f => f.field === field);
+                                        
+                                        if (fieldIdx >= 0) {
+                                            currentFieldPerms[fieldIdx].dataScope = scope;
+                                        } else {
+                                            // Create new field permission
+                                            currentFieldPerms.push({
+                                                field,
+                                                actions: ['view'], // Default view
+                                                dataScope: scope
+                                            });
+                                        }
+                                        
+                                        perms[modIdx].fieldPermissions = currentFieldPerms;
+                                        setEditForm({ ...editForm, permissions: perms });
+                                    }
+                                };
+
                                 // Format field name for display
                                 const formatFieldName = (field: string) => {
                                     return field
+                                        .replace(/^widget_/, '') // Strip prefix
                                         .replace(/([A-Z])/g, ' $1')
                                         .replace(/^./, str => str.toUpperCase())
                                         .replace(/_/g, ' ');
                                 };
+
+                                // Check if we should show delete column
+                                const showDelete = activeModule === 'dashboard';
+                                const showScope = activeModule === 'dashboard';
 
                                 return (
                                     <div className="flex gap-6">
@@ -921,7 +982,7 @@ export default function RolesPage() {
                                                         </div>
                                                         <div>
                                                             <h3 className="font-bold text-slate-900">{MODULE_LABELS[activeModule]}</h3>
-                                                            <p className="text-xs text-slate-500">{currentModuleFields.length} fields</p>
+                                                            <p className="text-xs text-slate-500">{currentModuleFields.length} {activeModule === 'dashboard' ? 'widgets' : 'fields'}</p>
                                                         </div>
                                                     </div>
                                                     <div className="flex gap-2">
@@ -970,9 +1031,13 @@ export default function RolesPage() {
                                                     <table className="w-full">
                                                         <thead className="sticky top-0 bg-slate-100">
                                                             <tr className="border-b border-slate-200">
-                                                                <th className="text-left py-2.5 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Field</th>
+                                                                <th className="text-left py-2.5 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                                                    {activeModule === 'dashboard' ? 'Widget' : 'Field'}
+                                                                </th>
                                                                 <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">View</th>
                                                                 <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Edit</th>
+                                                                {showDelete && <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Delete</th>}
+                                                                {showScope && <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Scope</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody className="bg-white">
@@ -980,7 +1045,9 @@ export default function RolesPage() {
                                                                 <tr key={field} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                                                                     <td className="py-2.5 px-4">
                                                                         <span className="font-medium text-sm text-slate-700">{formatFieldName(field)}</span>
-                                                                        <code className="ml-2 text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{field}</code>
+                                                                        {activeModule !== 'dashboard' && (
+                                                                            <code className="ml-2 text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{field}</code>
+                                                                        )}
                                                                     </td>
                                                                     <td className="text-center py-2.5 px-2">
                                                                         <div className="flex justify-center">
@@ -992,14 +1059,53 @@ export default function RolesPage() {
                                                                         </div>
                                                                     </td>
                                                                     <td className="text-center py-2.5 px-2">
-                                                                        <div className="flex justify-center">
-                                                                            <ToggleSwitch
-                                                                                checked={hasFieldPerm(field, 'update')}
-                                                                                onChange={() => toggleFieldPerm(field, 'update')}
-                                                                                size="sm"
-                                                                            />
-                                                                        </div>
+                                                                        {supportsAction(field, 'update') ? (
+                                                                            <div className="flex justify-center">
+                                                                                <ToggleSwitch
+                                                                                    checked={hasFieldPerm(field, 'update')}
+                                                                                    onChange={() => toggleFieldPerm(field, 'update')}
+                                                                                    size="sm"
+                                                                                />
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-slate-300 text-xs">—</span>
+                                                                        )}
                                                                     </td>
+                                                                    {showDelete && (
+                                                                        <td className="text-center py-2.5 px-2">
+                                                                            {supportsAction(field, 'delete') ? (
+                                                                                <div className="flex justify-center">
+                                                                                    <ToggleSwitch
+                                                                                        checked={hasFieldPerm(field, 'delete')}
+                                                                                        onChange={() => toggleFieldPerm(field, 'delete')}
+                                                                                        size="sm"
+                                                                                    />
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-300 text-xs">—</span>
+                                                                            )}
+                                                                        </td>
+                                                                    )}
+                                                                    {showScope && (
+                                                                        <td className="text-center py-2.5 px-2">
+                                                                            {supportsScope(field) ? (
+                                                                                <div className="flex justify-center">
+                                                                                    <button
+                                                                                        onClick={() => setFieldDataScope(field, getFieldDataScope(field) === 'self' ? 'all' : 'self')}
+                                                                                        className={`relative inline-flex h-6 w-20 items-center justify-center rounded-md text-[10px] font-medium transition-colors ${
+                                                                                            getFieldDataScope(field) === 'all'
+                                                                                                ? 'bg-blue-100 text-blue-700'
+                                                                                                : 'bg-slate-100 text-slate-600'
+                                                                                        }`}
+                                                                                    >
+                                                                                        {getFieldDataScope(field) === 'all' ? 'All' : 'Self'}
+                                                                                    </button>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-slate-300 text-xs">—</span>
+                                                                            )}
+                                                                        </td>
+                                                                    )}
                                                                 </tr>
                                                             ))}
                                                         </tbody>

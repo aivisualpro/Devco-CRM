@@ -109,6 +109,7 @@ export interface ModulePermission {
 export interface FieldPermission {
     field: string;
     actions: FieldActionKey[];
+    dataScope?: 'self' | 'all'; // Some fields/widgets support data scope
 }
 
 // Role definition
@@ -237,7 +238,14 @@ export const DEFAULT_ROLES: Partial<IRole>[] = [
 // FIELD DEFINITIONS PER MODULE
 // =====================================
 export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
-    [MODULES.DASHBOARD]: [],
+    [MODULES.DASHBOARD]: [
+        'widget_upcoming_schedules',
+        'widget_chat',
+        'widget_estimates_overview',
+        'widget_training_certifications',
+        'widget_time_cards',
+        'widget_tasks'
+    ],
     [MODULES.CLIENTS]: ['name', 'email', 'phone', 'address', 'city', 'state', 'zip', 'notes', 'status'],
     [MODULES.EMPLOYEES]: [
         'firstName', 'lastName', 'email', 'phone', 'mobile', 'appRole', 'companyPosition', 

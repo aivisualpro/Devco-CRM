@@ -132,25 +132,14 @@ export default function FringeBenefitsPage() {
     const [fringeConstantsMap, setFringeConstantsMap] = useState<Record<string, any>>({});
     
     // Filters
-    const [selectedYear, setSelectedYear] = useState(new Date().getUTCFullYear());
-    const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('all');
+    // Initialize with current week
+    const [startDate, setStartDate] = useState<Date>(() => startOfWeek(new Date()));
+    const [endDate, setEndDate] = useState<Date>(() => endOfWeek(new Date()));
+    
     const [selectedFringe, setSelectedFringe] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
     const [visibleRows, setVisibleRows] = useState(50);
-    
-    const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
-    const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
-
-    // Derived Options
-    const yearOptions = useMemo(() => {
-        const current = new Date().getUTCFullYear();
-        return [current, current - 1, current - 2].map(y => ({ value: y, label: String(y) }));
-    }, []);
-
-    const weekOptions = useMemo(() => {
-        return generateWeeksForYear(selectedYear);
-    }, [selectedYear]);
 
     // Data Fetching
     const fetchData = async () => {
@@ -203,6 +192,13 @@ export default function FringeBenefitsPage() {
     const allRecords = useMemo(() => {
         const flat: TimesheetRecord[] = [];
         
+        // Ensure end date includes the full day
+        const filterStart = new Date(startDate);
+        filterStart.setHours(0, 0, 0, 0);
+        
+        const filterEnd = new Date(endDate);
+        filterEnd.setHours(23, 59, 59, 999);
+
         rawSchedules.forEach(sched => {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
             
@@ -212,12 +208,8 @@ export default function FringeBenefitsPage() {
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
                 
-                if (clockInDate.getUTCFullYear() !== selectedYear) return;
-                
-                if (selectedWeekLabel !== 'all') {
-                    const week = weekOptions.find(w => w.value === selectedWeekLabel);
-                    if (week && (clockInDate < week.start || clockInDate > week.end)) return;
-                }
+                // Date Filter
+                if (clockInDate < filterStart || clockInDate > filterEnd) return;
 
                 const { hours } = calculateTimesheetData(ts, sched.fromDate);
                 const reg = Math.min(8, hours);
@@ -261,7 +253,7 @@ export default function FringeBenefitsPage() {
         });
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-    }, [rawSchedules, selectedYear, selectedWeekLabel, weekOptions, employeesMap, estimatesMap]);
+    }, [rawSchedules, startDate, endDate, employeesMap, estimatesMap]);
 
     // Grouping Data by Fringe
     const groups = useMemo(() => {
@@ -291,7 +283,7 @@ export default function FringeBenefitsPage() {
 
     useEffect(() => {
         setVisibleRows(50);
-    }, [selectedFringe, searchQuery, selectedYear, selectedWeekLabel, expandedEmp]);
+    }, [selectedFringe, searchQuery, startDate, endDate, expandedEmp]);
 
     const totals = useMemo(() => {
         return allRecords.reduce((acc, r: any) => ({
@@ -367,7 +359,7 @@ export default function FringeBenefitsPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Fringe_Benefits_${selectedYear}.csv`;
+        link.download = `Fringe_Benefits_${startDate.toISOString().split('T')[0]}_${endDate.toISOString().split('T')[0]}.csv`;
         link.click();
     };
 
@@ -395,71 +387,40 @@ export default function FringeBenefitsPage() {
                 {/* Filter & KPI Bar */}
                 <div className="flex items-center mb-3 min-h-[40px] relative z-40">
                     <div className="w-[320px] flex items-center gap-2 shrink-0">
-                        <div className="relative">
-                            <button 
-                                onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-xl border ${isYearDropdownOpen ? 'border-[#0F4C75] shadow-inner' : 'border-slate-100 shadow-sm'} transition-all`}
-                            >
-                                <CalendarIcon size={12} className="text-[#0F4C75]" />
-                                <span className="text-[10px] font-bold text-slate-800">{selectedYear}</span>
-                                <ChevronDown size={10} className={`text-slate-400 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
-                            
-                            {isYearDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setIsYearDropdownOpen(false)} />
-                                    <div className="absolute top-full mt-1.5 w-32 bg-white rounded-xl shadow-xl border border-slate-100 z-50 py-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                                        {yearOptions.map(y => (
-                                            <button 
-                                                key={y.value}
-                                                onClick={() => { setSelectedYear(y.value); setSelectedWeekLabel('all'); setIsYearDropdownOpen(false); }}
-                                                className={`w-full px-3 py-2 text-left text-[11px] font-semibold hover:bg-slate-50 transition-colors ${selectedYear === y.value ? 'text-[#0F4C75] bg-blue-50/50' : 'text-slate-600'}`}
-                                            >
-                                                {y.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className="relative flex-1">
-                            <button 
-                                onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)}
-                                className={`w-full flex items-center justify-between px-3 py-1.5 bg-white rounded-xl border ${isWeekDropdownOpen ? 'border-[#0F4C75] shadow-inner' : 'border-slate-100 shadow-sm'} transition-all`}
-                            >
-                                <div className="flex items-center gap-1.5">
-                                    <Clock size={12} className="text-[#0F4C75]" />
-                                    <span className="text-[10px] font-bold text-slate-800">
-                                        {selectedWeekLabel === 'all' ? 'All Weeks' : weekOptions.find(w => w.value === selectedWeekLabel)?.label || 'All Weeks'}
-                                    </span>
-                                </div>
-                                <ChevronDown size={10} className={`text-slate-400 transition-transform ${isWeekDropdownOpen ? 'rotate-180' : ''}`} />
-                            </button>
-                            
-                            {isWeekDropdownOpen && (
-                                <>
-                                    <div className="fixed inset-0 z-40" onClick={() => setIsWeekDropdownOpen(false)} />
-                                    <div className="absolute top-full mt-1.5 w-64 bg-white rounded-xl shadow-xl border border-slate-100 z-50 py-1.5 overflow-hidden max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 custom-scrollbar">
-                                        <button 
-                                            onClick={() => { setSelectedWeekLabel('all'); setIsWeekDropdownOpen(false); }}
-                                            className={`w-full px-2.5 py-1.5 text-left text-[10px] font-semibold hover:bg-slate-50 transition-colors ${selectedWeekLabel === 'all' ? 'text-[#0F4C75] bg-blue-50/50' : 'text-slate-600'}`}
-                                        >
-                                            All Weeks
-                                        </button>
-                                        {weekOptions.map(w => (
-                                            <button 
-                                                key={w.value}
-                                                onClick={() => { setSelectedWeekLabel(w.value); setIsWeekDropdownOpen(false); }}
-                                                className={`w-full px-3 py-2 text-left text-[11px] font-semibold hover:bg-slate-50 transition-colors ${selectedWeekLabel === w.value ? 'text-[#0F4C75] bg-blue-50/50' : 'text-slate-600'}`}
-                                            >
-                                                {w.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                         {/* Date Range Picker */}
+                         <div className="flex items-center gap-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                             <div className="flex items-center gap-2 px-3 py-1.5 border-r border-slate-100">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">From</span>
+                                  <input 
+                                     type="date"
+                                     value={startDate.toISOString().split('T')[0]}
+                                     onChange={(e) => {
+                                         const d = new Date(e.target.value);
+                                         if (!isNaN(d.getTime())) {
+                                             setStartDate(d);
+                                             // Auto-set End Date to (Start Date + 1 Month - 1 Day)
+                                             const next = new Date(d);
+                                             next.setMonth(next.getMonth() + 1);
+                                             next.setDate(next.getDate() - 1);
+                                             setEndDate(next);
+                                         }
+                                     }}
+                                     className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
+                                  />
+                             </div>
+                             <div className="flex items-center gap-2 px-3 py-1.5">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">To</span>
+                                  <input 
+                                     type="date"
+                                     value={endDate.toISOString().split('T')[0]}
+                                     onChange={(e) => {
+                                         const d = new Date(e.target.value);
+                                         if (!isNaN(d.getTime())) setEndDate(d);
+                                     }}
+                                     className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
+                                  />
+                             </div>
+                         </div>
                     </div>
 
                     <div className="w-3" />

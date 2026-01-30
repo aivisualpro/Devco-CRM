@@ -1539,13 +1539,18 @@ function DashboardContent() {
                     }
                 })
             });
-            const schedData = await schedRes.json();
-            if (schedData.success) {
-                const scheds = schedData.result?.schedules || [];
-                setSchedules(scheds);
-                if (schedData.result?.initialData) {
-                    setInitialData(schedData.result.initialData);
+
+            if (schedRes.headers.get('content-type')?.includes('application/json')) {
+                const schedData = await schedRes.json();
+                if (schedData.success) {
+                    const scheds = schedData.result?.schedules || [];
+                    setSchedules(scheds);
+                    if (schedData.result?.initialData) {
+                        setInitialData(schedData.result.initialData);
+                    }
                 }
+            } else {
+                console.error('Schedules API returned non-JSON:', await schedRes.text());
             }
             
             // Fetch estimate stats using aggregate
@@ -1585,7 +1590,13 @@ function DashboardContent() {
                     payload: { startDate: estStart, endDate: estEnd } // Pass filter to backend
                 })
             });
-            const estData = await estRes.json();
+            
+            let estData: any = { success: false };
+            if (estRes.headers.get('content-type')?.includes('application/json')) {
+                estData = await estRes.json();
+            } else {
+                console.error('Estimates API returned non-JSON:', await estRes.text());
+            }
             if (estData.success && estData.result?.length > 0) {
                 // Merge statuses
                 const merged = estData.result.reduce((acc: any[], curr: any) => {
@@ -1621,16 +1632,24 @@ function DashboardContent() {
             
             // Fetch tasks from API
             const tasksRes = await fetch('/api/tasks');
-            const tasksData = await tasksRes.json();
-            if (tasksData.success) {
-                setTodos(tasksData.tasks);
+            if (tasksRes.headers.get('content-type')?.includes('application/json')) {
+                const tasksData = await tasksRes.json();
+                if (tasksData.success) {
+                    setTodos(tasksData.tasks);
+                }
+            } else {
+                console.error('Tasks API returned non-JSON:', await tasksRes.text());
             }
 
             // Fetch Company Docs
             const docsRes = await fetch('/api/company-docs');
-            const docsData = await docsRes.json();
-            if (docsData.success) {
-                setCompanyDocs(docsData.docs || []);
+            if (docsRes.headers.get('content-type')?.includes('application/json')) {
+                const docsData = await docsRes.json();
+                if (docsData.success) {
+                    setCompanyDocs(docsData.docs || []);
+                }
+            } else {
+                console.error('Docs API returned non-JSON:', await docsRes.text());
             }
             
         } catch (err) {

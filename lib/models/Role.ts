@@ -21,6 +21,7 @@ export interface IRole {
 const FieldPermissionSchema = new Schema({
     field: { type: String, required: true },
     actions: [{ type: String, enum: ['view', 'create', 'update', 'delete'] }],
+    dataScope: { type: String, enum: ['self', 'all', 'department'] },
 }, { _id: false });
 
 const ModulePermissionSchema = new Schema({
