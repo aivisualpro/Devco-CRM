@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { usePermissions } from '@/hooks/usePermissions';
 
@@ -675,6 +676,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [mentionQuery, setMentionQuery] = useState('');
     const [showMentions, setShowMentions] = useState(false);
+    const [chatAssignees, setChatAssignees] = useState<string[]>([]);
     const [cursorPosition, setCursorPosition] = useState(0); 
     const chatInputRef = React.useRef<HTMLInputElement>(null);
     const chatScrollRef = React.useRef<HTMLDivElement>(null);
@@ -727,47 +729,27 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }
     };
 
-    const insertChatTag = (tag: string) => {
-        if (!chatInputRef.current) return;
-        
-        const val = newChatMessage;
-        const textBefore = val.slice(0, cursorPosition);
-        const textAfter = val.slice(cursorPosition);
-        
-        const lastWordStart = textBefore.lastIndexOf('@');
-        
-        if (lastWordStart >= 0) {
-            const newTextBefore = textBefore.slice(0, lastWordStart) + tag + ' ';
-            setNewChatMessage(newTextBefore + textAfter);
-            setShowMentions(false);
-            chatInputRef.current.focus();
-        }
-    };
-
     const handleSendChatMessage = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!newChatMessage.trim() || !formData?.estimate) return;
 
-        const extractedMentions = (newChatMessage.match(/@([\w.@]+)/g) || []).map(s => s.slice(1));
-        
-        // Optimistic UI
-        const optimisticMsg: any = {
+        const optimisticMsg = {
             _id: `temp-${Date.now()}`,
-            sender: 'Me', // We might not have full user context here easily without auth hook, but backend handles it
-            senderName: 'Me', // Backend will overwrite
+            sender: currentUser?.email || 'Me', // Fallback
+            senderName: currentUser?.email || 'Me',
             message: newChatMessage,
-            createdAt: new Date().toISOString(),
-            mentions: extractedMentions,
-            references: [formData.estimate]
+            assignees: chatAssignees,
+            createdAt: new Date().toISOString()
         };
+
         setChatMessages(prev => [...prev, optimisticMsg]);
         setNewChatMessage('');
+        setChatAssignees([]);
         
-        setTimeout(() => {
-            if (chatScrollRef.current) {
-                chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-            }
-        }, 50);
+        // Reset height
+        if (chatInputRef.current) {
+            // chatInputRef.current.style.height = 'auto'; // if using textarea
+        }
 
         try {
             await fetch('/api/chat', {
@@ -775,27 +757,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     message: optimisticMsg.message,
-                    mentions: extractedMentions,
-                    references: [formData.estimate], // Automatically link to this estimate
-                    // senderName handled by backend session
+                    estimate: formData.estimate,
+                    assignees: chatAssignees
                 })
             });
-            // Re-fetch to sync
-            const res = await fetch(`/api/chat?limit=50&estimate=${encodeURIComponent(formData.estimate)}`);
-            const data = await res.json();
-            if (data.success) setChatMessages(data.messages);
+            // fetchChat will sync eventual ID
         } catch (error) {
             console.error('Failed to send', error);
             toast.error('Failed to send message');
         }
     };
-
-    const filteredChatEmployees = useMemo(() => {
-        if (!mentionQuery) return (employees || []).slice(0, 5);
-        return (employees || []).filter((e: any) => 
-            (e.label || e.firstName || e.email || '').toLowerCase().includes(mentionQuery.toLowerCase())
-        ).slice(0, 5);
-    }, [mentionQuery, employees]);
 
     const getEmployeeData = (idOrEmail: string) => {
         if (!idOrEmail) return null;
@@ -825,6 +796,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             };
         }).sort((a, b) => a.label.localeCompare(b.label));
     }, [employees]);
+
+    const filteredChatOptions = useMemo(() => {
+        const source = employeeOptions;
+        if (!mentionQuery) return source.slice(0, 5);
+        return source.filter(e => e.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 50);
+    }, [mentionQuery, employeeOptions]);
 
     const handleAddPlanning = () => {
         setNewPlanningItem({
@@ -1598,46 +1575,106 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                          </div>
 
                          {/* Chat Input Area */}
-                         <div className="mt-3 pt-3 border-t border-slate-200/50 relative">
-                             {/* Mentions Popup inside the card */}
-                             {showMentions && (
-                                <div className="absolute bottom-full left-0 mb-2 w-full bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-in slide-in-from-bottom-2">
-                                    <div className="bg-slate-50 px-3 py-2 border-b border-slate-100 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                        Mention Team
-                                    </div>
-                                    <div className="max-h-32 overflow-y-auto">
-                                        {filteredChatEmployees.map((emp: any) => (
-                                            <div 
-                                                key={emp._id || emp.value}
-                                                className="px-3 py-2 hover:bg-blue-50 cursor-pointer flex items-center gap-2"
-                                                onClick={() => insertChatTag(`@${emp.label || emp.firstName || emp.value}`)}
-                                            >
-                                                <div className="w-5 h-5 rounded-full bg-slate-200 flex items-center justify-center text-[9px] font-bold">
-                                                    {(emp.label || emp.firstName || emp.value || '?')[0]}
-                                                </div>
-                                                <span className="text-xs text-slate-700 truncate">{emp.label || emp.firstName || emp.value}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            
-                            <form onSubmit={handleSendChatMessage} className="flex gap-2">
-                                <input 
-                                    ref={chatInputRef}
-                                    type="text"
-                                    placeholder="Message team..."
-                                    className="flex-1 bg-white/50 border border-white focus:bg-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400"
-                                    value={newChatMessage}
-                                    onChange={handleChatInput}
-                                />
-                                <button 
-                                    type="submit"
-                                    disabled={!newChatMessage.trim()}
-                                    className="w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
-                                >
-                                    <Send className="w-3.5 h-3.5" />
-                                </button>
+                         {/* Chat Input Area */}
+                         <div className="mt-3 pt-3 border-t border-slate-200/50 relative" id="estimate-chat-input-container">
+                             <MyDropDown
+                                  isOpen={showMentions}
+                                  onClose={() => setShowMentions(false)}
+                                  options={filteredChatOptions}
+                                  selectedValues={chatAssignees}
+                                  onSelect={(val) => {
+                                      if (!chatAssignees.includes(val)) {
+                                          setChatAssignees(prev => [...prev, val]);
+                                      } else {
+                                          setChatAssignees(prev => prev.filter(v => v !== val));
+                                      }
+                                      
+                                      // Remove trigger text
+                                      const text = newChatMessage;
+                                      const before = text.slice(0, cursorPosition);
+                                      const lastAt = before.lastIndexOf('@');
+                                      if (lastAt >= 0) {
+                                          const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
+                                          setNewChatMessage(newText);
+                                          setShowMentions(false);
+                                          setTimeout(() => {
+                                              if (chatInputRef.current) {
+                                                  chatInputRef.current.focus();
+                                                  const newPos = lastAt;
+                                                  chatInputRef.current.setSelectionRange(newPos, newPos);
+                                                  setCursorPosition(newPos);
+                                              }
+                                          }, 0);
+                                      }
+                                  }}
+                                  multiSelect={true}
+                                  anchorId="estimate-chat-input-container"
+                                  width="w-64"
+                                  showSearch={false}
+                             />
+                             
+                             <form 
+                                  onSubmit={handleSendChatMessage} 
+                                  className="flex flex-col gap-2"
+                                  onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && !e.shiftKey) {
+                                          e.preventDefault();
+                                          handleSendChatMessage();
+                                      }
+                                  }}
+                             >
+                                  {chatAssignees.length > 0 && (
+                                      <div className="flex items-center gap-2 mb-1 px-1">
+                                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Assigning:</span>
+                                          <div className="flex -space-x-1.5 overflow-hidden">
+                                              {chatAssignees.map((val: string, i: number) => {
+                                                  // Find employee by val (id or value)
+                                                  // employeeOptions has { id, label, value, profilePicture }
+                                                  const emp = employeeOptions.find(e => e.value === val || e.id === val);
+                                                  return (
+                                                      <div 
+                                                          key={i} 
+                                                          className="cursor-pointer hover:scale-110 transition-transform"
+                                                          onClick={() => setChatAssignees(prev => prev.filter(v => v !== val))}
+                                                          title={emp?.label || val}
+                                                      >
+                                                          <Avatar className="w-5 h-5 border border-white shrink-0 shadow-sm">
+                                                              <AvatarImage src={emp?.profilePicture} />
+                                                              <AvatarFallback className="text-[8px] bg-slate-200">
+                                                                  {(emp?.label || val)[0].toUpperCase()}
+                                                              </AvatarFallback>
+                                                          </Avatar>
+                                                      </div>
+                                                  );
+                                              })}
+                                          </div>
+                                          <button 
+                                              type="button"
+                                              onClick={() => setChatAssignees([])}
+                                              className="text-[9px] text-red-500 font-bold hover:underline ml-1"
+                                          >
+                                              Clear
+                                          </button>
+                                      </div>
+                                  )}
+                             
+                                  <div className="flex gap-2">
+                                      <input 
+                                          ref={chatInputRef}
+                                          type="text"
+                                          placeholder="Message team... (@ to mention)"
+                                          className="flex-1 bg-white/50 border border-white focus:bg-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400"
+                                          value={newChatMessage}
+                                          onChange={handleChatInput}
+                                      />
+                                      <button 
+                                          type="submit"
+                                          disabled={!newChatMessage.trim()}
+                                          className="w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                      >
+                                          <Send className="w-3.5 h-3.5" />
+                                      </button>
+                                  </div>
                             </form>
                          </div>
                     </div>

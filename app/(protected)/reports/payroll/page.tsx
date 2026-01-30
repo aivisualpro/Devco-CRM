@@ -455,10 +455,17 @@ function PayrollReportContent() {
             const rawDriveEntries: any[] = [];
 
             const days = ew.days.map((d: any) => {
-                const reg = Math.min(8, d.siteHrs);
-                const ot = Math.min(4, Math.max(0, d.siteHrs - 8));
-                const dt = Math.max(0, d.siteHrs - 12);
-                const travel = d.travelHrs;
+                const rawReg = Math.min(8, d.siteHrs);
+                const rawOt = Math.min(4, Math.max(0, d.siteHrs - 8));
+                const rawDt = Math.max(0, d.siteHrs - 12);
+                const rawTravel = d.travelHrs;
+
+                // Round to 2 decimals to match visual display logic (WYSIWYG)
+                const reg = Number(rawReg.toFixed(2));
+                const ot = Number(rawOt.toFixed(2));
+                const dt = Number(rawDt.toFixed(2));
+                const travel = Number(rawTravel.toFixed(2));
+
                 const total = reg + ot + dt + travel;
 
                 totalReg += reg;
