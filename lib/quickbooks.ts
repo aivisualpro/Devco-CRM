@@ -54,6 +54,7 @@ export async function getAccessToken() {
             grant_type: 'refresh_token',
             refresh_token: currentRefreshToken.trim(),
         }).toString(),
+        cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -137,8 +138,8 @@ export async function qboQuery(query: string) {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Accept': 'application/json',
-                // Removed Content-Type for GET query to avoid potential issues
             },
+            cache: 'no-store'
         });
 
         if (!response.ok) {
@@ -193,7 +194,10 @@ async function fetchAllOfType(type: string) {
             }
         } catch (err) {
             console.error(`Error fetching ${type} batch ${batchCount} (start=${start}):`, err);
-            // Continue to next batch instead of failing completely
+            // If the very first batch fails, it's likely a config/auth issue, so throw it
+            if (batchCount === 1) throw err;
+            
+            // Otherwise try once more then break if it's a persistent issue
             start += limit;
             if (start > 50000) break;
         }

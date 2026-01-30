@@ -44,6 +44,10 @@ interface Project {
     proposalWriters?: string[];
     originalContract?: number;
     changeOrders?: number;
+    estOriginalContract?: number;
+    estChangeOrders?: number;
+    isManualOriginalContract?: boolean;
+    isManualChangeOrders?: boolean;
     status?: string;
     proposalSlug?: string;
     jobTickets?: any[];
@@ -63,7 +67,63 @@ function WIPReportContent() {
     const [editingProposalId, setEditingProposalId] = useState<string | null>(null);
     const [editingProposalValue, setEditingProposalValue] = useState('');
     const [savingProposal, setSavingProposal] = useState(false);
+    
+    // Manual Edit State
+    const [editingContractId, setEditingContractId] = useState<string | null>(null);
+    const [editingChangeOrderId, setEditingChangeOrderId] = useState<string | null>(null);
+    const [editingValue, setEditingValue] = useState('');
+
     const [transactions, setTransactions] = useState<any[]>([]);
+
+    const handleSaveManualValue = async (projectId: string, field: 'originalContract' | 'changeOrders', value: string) => {
+        try {
+            // If empty, send null to revert to calculated
+            const numericValue = value.trim() === '' ? null : value; 
+            
+            const response = await fetch(`/api/quickbooks/projects/${projectId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [field]: numericValue })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+                // Update local state directly instead of re-fetching everything
+                setProjects(prev => prev.map(p => {
+                    if (p.Id === projectId) {
+                        const isManual = numericValue !== null;
+                        let newValue: number;
+                        
+                        if (isManual) {
+                            newValue = parseFloat(value);
+                        } else {
+                            // Revert to baseline
+                            newValue = field === 'originalContract' 
+                                ? (p.estOriginalContract || 0) 
+                                : (p.estChangeOrders || 0);
+                        }
+
+                        return {
+                            ...p,
+                            [field]: newValue,
+                            [field === 'originalContract' ? 'isManualOriginalContract' : 'isManualChangeOrders']: isManual
+                        };
+                    }
+                    return p;
+                }));
+                toast.success('Value updated');
+            } else {
+                toast.error(data.error || 'Failed to update value');
+            }
+        } catch (error) {
+            console.error('Error updating value:', error);
+            toast.error('Failed to update value');
+        } finally {
+            setEditingContractId(null);
+            setEditingChangeOrderId(null);
+            setEditingValue('');
+        }
+    };
     const [endDateFilter, setEndDateFilter] = useState('All');
     const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
@@ -200,13 +260,11 @@ function WIPReportContent() {
                     if (updatedProject) {
                         setProjects(prev => prev.map(p => p.Id === projectId ? {
                             ...p,
+                            ...updatedProject,
+                            // Ensure these defaults are still applied if missing in updatedProject
                             income: updatedProject.income || 0,
                             cost: updatedProject.cost || 0,
-                            profitMargin: updatedProject.profitMargin || 0,
-                            proposalNumber: updatedProject.proposalNumber,
-                            proposalWriters: updatedProject.proposalWriters || [],
-                            originalContract: updatedProject.originalContract || 0,
-                            changeOrders: updatedProject.changeOrders || 0,
+                            profitMargin: updatedProject.profitMargin || 0
                         } : p));
                     }
                 }
@@ -1526,7 +1584,10 @@ function WIPReportContent() {
                                                                         className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
                                                                         onClick={() => setSelectedProject(project)}
                                                                     >
-                                                                        <td className="p-1.5 text-center text-[9px] border border-slate-200">
+                                                                        <td 
+                                                                            className="p-1.5 text-center text-[9px] border border-slate-200"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
                                                                             <button 
                                                                                 className={`${project.isFavorite ? 'text-amber-400' : 'text-slate-300'} hover:text-amber-400 transition-colors`}
                                                                                 onClick={(e) => { e.stopPropagation(); }}
@@ -1537,7 +1598,10 @@ function WIPReportContent() {
                                                                         <td className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''}`}>
                                                                             <div className="truncate text-[9px]" title={project.DisplayName}>{project.DisplayName}</div>
                                                                         </td>
-                                                                        <td className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`}>
+                                                                        <td 
+                                                                            className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
                                                                             <div className="flex items-center gap-1.5">
                                                                                 {editingProposalId === project.Id ? (
                                                                                     <input 
@@ -1578,7 +1642,10 @@ function WIPReportContent() {
                                                                             </div>
                                                                         </td>
                                                                         <td className={`${cellCls} ${activeHighlight.includes('date') ? highlightCls : ''}`}>{project.startDate}</td>
-                                                                        <td className={`${cellCls} ${activeHighlight.includes('writers') ? highlightCls : ''}`}>
+                                                                        <td 
+                                                                            className={`${cellCls} ${activeHighlight.includes('writers') ? highlightCls : ''}`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
                                                                             <div className="flex -space-x-1">
                                                                                 {(project.proposalWriters || []).slice(0, 3).map((w, idx) => {
                                                                                     const employee = employees.find(e => 
@@ -1628,8 +1695,60 @@ function WIPReportContent() {
                                                                             </div>
                                                                         </td>
                                                                         <td className={`${cellCls} max-w-[100px] truncate ${activeHighlight.includes('client') ? highlightCls : ''}`}>{project.CompanyName || '---'}</td>
-                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('orig-contract') ? highlightCls : ''}`}>{fmt(originalContract)}</td>
-                                                                        <td className={`${cellCls} text-right ${activeHighlight.includes('change-orders') ? highlightCls : ''}`}>{fmt(changeOrders)}</td>
+                                                                        <td 
+                                                                            className={`${cellCls} text-right ${activeHighlight.includes('orig-contract') ? highlightCls : ''} cursor-pointer hover:bg-blue-50`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            onDoubleClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingContractId(project.Id);
+                                                                                setEditingValue(originalContract.toString());
+                                                                            }}
+                                                                        >
+                                                                            {editingContractId === project.Id ? (
+                                                                                <input 
+                                                                                    type="text"
+                                                                                    value={editingValue}
+                                                                                    onChange={(e) => setEditingValue(e.target.value)}
+                                                                                    onBlur={() => handleSaveManualValue(project.Id, 'originalContract', editingValue)}
+                                                                                    onKeyDown={(e) => {
+                                                                                        if(e.key === 'Enter') handleSaveManualValue(project.Id, 'originalContract', editingValue);
+                                                                                        if(e.key === 'Escape') setEditingContractId(null);
+                                                                                    }}
+                                                                                    autoFocus
+                                                                                    className="w-full text-right bg-white border border-blue-400 rounded px-1 py-0 text-[9px] outline-none"
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                />
+                                                                            ) : (
+                                                                                project.isManualOriginalContract ? <span className="text-[#1A3263] font-bold">{fmt(originalContract)}</span> : fmt(originalContract)
+                                                                            )}
+                                                                        </td>
+                                                                        <td 
+                                                                            className={`${cellCls} text-right ${activeHighlight.includes('change-orders') ? highlightCls : ''} cursor-pointer hover:bg-blue-50`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            onDoubleClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setEditingChangeOrderId(project.Id);
+                                                                                setEditingValue(changeOrders.toString());
+                                                                            }}
+                                                                        >
+                                                                            {editingChangeOrderId === project.Id ? (
+                                                                                <input 
+                                                                                    type="text"
+                                                                                    value={editingValue}
+                                                                                    onChange={(e) => setEditingValue(e.target.value)}
+                                                                                    onBlur={() => handleSaveManualValue(project.Id, 'changeOrders', editingValue)}
+                                                                                    onKeyDown={(e) => {
+                                                                                        if(e.key === 'Enter') handleSaveManualValue(project.Id, 'changeOrders', editingValue);
+                                                                                        if(e.key === 'Escape') setEditingChangeOrderId(null);
+                                                                                    }}
+                                                                                    autoFocus
+                                                                                    className="w-full text-right bg-white border border-blue-400 rounded px-1 py-0 text-[9px] outline-none"
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                />
+                                                                            ) : (
+                                                                                project.isManualChangeOrders ? <span className="text-[#1A3263] font-bold">{fmt(changeOrders)}</span> : fmt(changeOrders)
+                                                                            )}
+                                                                        </td>
                                                                         <td className={`${cellCls} text-right font-bold ${activeHighlight.includes('updated-contract') ? highlightCls : ''}`}>{fmt(updatedContract)}</td>
                                                                         <td className={`${cellCls} text-right ${activeHighlight.includes('orig-cost') ? highlightCls : ''}`}>{fmt(originalContractCost)}</td>
                                                                         <td className={`${cellCls} text-right ${activeHighlight.includes('co-cost') ? highlightCls : ''}`}>{fmt(changeOrderCost)}</td>
@@ -1643,7 +1762,10 @@ function WIPReportContent() {
                                                                         <td className={`${cellBase} text-center font-bold ${grossProfitPct >= 0 ? 'text-emerald-600' : 'text-rose-600'} ${activeHighlight.includes('gp-pct') ? highlightCls : ''}`}>{grossProfitPct.toFixed(1)}%</td>
                                                                         <td className={`${cellCls} text-center ${activeHighlight.includes('markup') ? highlightCls : ''}`}>{grossMarkupPct.toFixed(1)}%</td>
                                                                         <td className={`${cellCls} text-center ${activeHighlight.includes('complete') ? highlightCls : ''}`}>{percentageComplete.toFixed(0)}%</td>
-                                                                        <td className={`p-1.5 text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? highlightCls : ''}`}>
+                                                                        <td 
+                                                                            className={`p-1.5 text-center border border-slate-200 transition-colors ${activeHighlight.includes('sync') ? highlightCls : ''}`}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
                                                                             <button 
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();

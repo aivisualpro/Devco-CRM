@@ -56,6 +56,7 @@ export async function POST(req: Request) {
                                         'Authorization': `Bearer ${accessToken}`,
                                         'Accept': 'application/json',
                                     },
+                                    cache: 'no-store'
                                 });
 
                                 if (reportResponse.ok) {
@@ -215,8 +216,8 @@ export async function POST(req: Request) {
         
         return NextResponse.json({ 
             success: true, 
-            message: `Sync complete. ${projectId ? 'Project updated.' : `Added: ${addedCount}, Updated: ${updatedCount}`}`,
-            stats: { added: addedCount, updated: updatedCount }
+            message: `Sync complete. ${projectId ? 'Project updated.' : `Found ${liveProjects.length} live projects. Added: ${addedCount}, Updated: ${updatedCount}`}`,
+            stats: { totalFound: liveProjects.length, added: addedCount, updated: updatedCount }
         });
     } catch (error: any) {
         console.error('QuickBooks Sync Error:', error);

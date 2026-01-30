@@ -19,6 +19,8 @@ export interface IDevcoQuickBooks extends Document {
     endDate?: Date;
     status: string;
     proposalNumber?: string;
+    manualOriginalContract?: number;
+    manualChangeOrders?: number;
     transactions: IQuickBooksTransaction[];
     createdAt?: Date;
     updatedAt?: Date;
@@ -43,6 +45,8 @@ const DevcoQuickBooksSchema = new Schema({
     endDate: { type: Date },
     status: { type: String },
     proposalNumber: { type: String },
+    manualOriginalContract: { type: Number },
+    manualChangeOrders: { type: Number },
     transactions: { type: [QuickBooksTransactionSchema], default: [] }
 }, {
     timestamps: true,
