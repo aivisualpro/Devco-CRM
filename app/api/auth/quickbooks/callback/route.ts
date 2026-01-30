@@ -4,21 +4,22 @@ import Token from '@/lib/models/Token';
 import { QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_REALM_ID } from '@/lib/quickbooks';
 
 export async function GET(req: NextRequest) {
-    const { searchParams } = new URL(req.url);
+    const { searchParams, origin } = new URL(req.url);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
     const code = searchParams.get('code');
     const realmId = searchParams.get('realmId');
     const error = searchParams.get('error');
 
     if (error) {
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL || ''}/settings/imports?error=${error}`);
+        return NextResponse.redirect(`${appUrl}/settings/imports?error=${error}`);
     }
 
     if (!code) {
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL || ''}/settings/imports?error=no_code`);
+        return NextResponse.redirect(`${appUrl}/settings/imports?error=no_code`);
     }
 
     try {
-        const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/auth/quickbooks/callback`;
+        const redirectUri = `${appUrl}/api/auth/quickbooks/callback`;
         const auth = Buffer.from(`${QBO_CLIENT_ID}:${QBO_CLIENT_SECRET}`).toString('base64');
         const tokenUrl = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
         if (!response.ok) {
             const errorData = await response.json();
             console.error('QBO Token Exchange Failed:', errorData);
-            return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL || ''}/settings/imports?error=token_exchange_failed`);
+            return NextResponse.redirect(`${appUrl}/settings/imports?error=token_exchange_failed`);
         }
 
         const data = await response.json();
@@ -58,9 +59,9 @@ export async function GET(req: NextRequest) {
         );
 
         // Redirect back to imports with success
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL || ''}/settings/imports?success=quickbooks_connected`);
+        return NextResponse.redirect(`${appUrl}/settings/imports?success=quickbooks_connected`);
     } catch (err) {
         console.error('QuickBooks Auth Callback Error:', err);
-        return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL || ''}/settings/imports?error=internal_error`);
+        return NextResponse.redirect(`${appUrl}/settings/imports?error=internal_error`);
     }
 }
