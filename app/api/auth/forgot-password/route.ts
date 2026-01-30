@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         console.log(`[Forgot Password] Sending email to ${employee.email}...`);
         
         const { data, error } = await resend.emails.send({
-            from: 'DEVCO ERP Solutions <onboarding@resend.dev>',
+            from: 'DEVCO ERP Solutions <info@devco.email>',
             to: employee.email,
             subject: 'Password Recovery - DEVCO ERP SOLUTIONS',
             html: `
