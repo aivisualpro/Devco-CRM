@@ -142,6 +142,7 @@ export default function WorkersCompPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [activityIcons, setActivityIcons] = useState<Record<string, string>>({});
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
+    const [visibleRows, setVisibleRows] = useState(50);
     
     const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
     const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
@@ -300,6 +301,11 @@ export default function WorkersCompPage() {
 
         return Object.values(gMap).sort((a: any, b: any) => a.label.localeCompare(b.label));
     }, [allRecords]);
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setVisibleRows(50);
+    }, [selectedItem, searchQuery, selectedYear, selectedWeekLabel, expandedEmp]);
 
     const totals = useMemo(() => {
         return allRecords.reduce((acc, r: any) => ({
@@ -588,7 +594,15 @@ export default function WorkersCompPage() {
                                 >
                                     <div className="flex items-center gap-2.5">
                                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100'}`}>
-                                            <Briefcase size={14} />
+                                            {activityIcons[group.label.toLowerCase()] ? (
+                                                <img 
+                                                    src={activityIcons[group.label.toLowerCase()]} 
+                                                    alt="" 
+                                                    className="w-4 h-4 object-contain"
+                                                />
+                                            ) : (
+                                                <Briefcase size={14} />
+                                            )}
                                         </div>
                                         <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
                                     </div>
@@ -716,7 +730,7 @@ export default function WorkersCompPage() {
                                         </>
                                     ) : (
                                         <>
-                                            {displayData.length > 0 ? displayData.map((record: any, idx) => (
+                                            {displayData.length > 0 ? displayData.slice(0, visibleRows).map((record: any, idx) => (
                                                 <TableRow key={`${record._id}-${idx}`} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50/50 last:border-0 text-[11px]">
                                                     <TableCell className="px-2 py-2 text-center">
                                                         <Tooltip>
@@ -794,6 +808,20 @@ export default function WorkersCompPage() {
                                                             </div>
                                                             <p className="text-[11px] font-bold text-slate-400">No records found for this selection</p>
                                                         </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+
+                                            {/* Load More Button or Infinite Scroll Trigger */}
+                                            {displayData.length > visibleRows && (
+                                                <TableRow className="hover:bg-transparent">
+                                                    <TableCell colSpan={8} className="py-6 text-center">
+                                                        <button 
+                                                            onClick={() => setVisibleRows(prev => prev + 50)}
+                                                            className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm active:scale-95"
+                                                        >
+                                                            Load More Records ({displayData.length - visibleRows} remaining)
+                                                        </button>
                                                     </TableCell>
                                                 </TableRow>
                                             )}
