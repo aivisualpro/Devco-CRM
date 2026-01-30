@@ -20,7 +20,7 @@ import {
     robustNormalizeISO
 } from '@/lib/timeCardUtils';
 
-// --- Local Utils to fix build issues ---
+// --- Local Utils ---
 const startOfWeek = (date: Date) => {
     const d = new Date(date);
     const day = d.getUTCDay();
@@ -46,7 +46,6 @@ const addWeeks = (date: Date, weeks: number) => {
 const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
 
 // --- Types ---
-
 interface TimesheetRecord {
     _id: string;
     employee: string;
@@ -65,21 +64,23 @@ interface TimesheetRecord {
     compCost: number;
     scheduleId: string;
     item: string;
+    fringe: string;
     dateLabel: string;
     title: string;
     estimateRef: string;
 }
 
-interface WorkerCompGroup {
+interface FringeGroup {
     id: string;
     label: string;
     totalAmount: number;
     totalHours: number;
     recordCount: number;
+    color?: string;
+    image?: string;
 }
 
 // --- Helpers ---
-
 const getWeekNumber = (d: Date) => {
     const utcDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
     utcDate.setUTCDate(utcDate.getUTCDate() + 4 - (utcDate.getUTCDay() || 7));
@@ -97,24 +98,18 @@ const formatMMDDYY = (date: Date) => {
 
 const generateWeeksForYear = (year: number) => {
     const weeks = [];
-    // Start from end of year or current date if year is current
     let d = new Date(Date.UTC(year, 11, 31));
     const now = new Date();
     if (year === now.getUTCFullYear()) {
         d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     }
-    
-    // Normalize to start of its week (Monday)
     let current = startOfWeek(d);
-    
-    // Go back until we hit the start of the year
     while (current.getUTCFullYear() >= year) {
         if (current.getUTCFullYear() === year) {
             const startStr = formatMMDDYY(current);
             const end = endOfWeek(current);
             const endStr = formatMMDDYY(end);
             const weekNum = getWeekNumber(current);
-            
             weeks.push({
                 value: `${startStr}-${endStr}`,
                 label: `Week ${weekNum} (${startStr} - ${endStr})`,
@@ -123,24 +118,24 @@ const generateWeeksForYear = (year: number) => {
             });
         }
         current = subWeeks(current, 1);
-        if (weeks.length > 53) break; // Safety
+        if (weeks.length > 53) break;
     }
     return weeks;
 };
 
-export default function WorkersCompPage() {
+export default function FringeBenefitsPage() {
     const { success: toastSuccess, error: toastError } = useToast();
     const [loading, setLoading] = useState(true);
     const [rawSchedules, setRawSchedules] = useState<any[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
-    const [workersCompRates, setWorkersCompRates] = useState<Record<string, number>>({});
+    const [estimatesMap, setEstimatesMap] = useState<Record<string, any>>({});
+    const [fringeConstantsMap, setFringeConstantsMap] = useState<Record<string, any>>({});
     
     // Filters
     const [selectedYear, setSelectedYear] = useState(new Date().getUTCFullYear());
     const [selectedWeekLabel, setSelectedWeekLabel] = useState<string>('all');
-    const [selectedItem, setSelectedItem] = useState<string>('All');
+    const [selectedFringe, setSelectedFringe] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
-    const [activityIcons, setActivityIcons] = useState<Record<string, string>>({});
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
     const [visibleRows, setVisibleRows] = useState(50);
     
@@ -161,7 +156,6 @@ export default function WorkersCompPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Fetch all schedules for the year (or wider range if needed)
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -172,34 +166,26 @@ export default function WorkersCompPage() {
             });
             const data = await res.json();
             
-            // Fetch Constants for Workers Comp Rates
-            const resConst = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getConstants' })
-            });
-            const dataConst = await resConst.json();
-            if (dataConst.success) {
-                const wcRates: Record<string, number> = {};
-                const icons: Record<string, string> = {};
-                (dataConst.result || []).forEach((c: any) => {
-                    if (c.type === 'WComp') {
-                        wcRates[String(c.description || '').toLowerCase()] = parseFloat(c.value || '0');
-                    }
-                    if (c.image) {
-                        icons[String(c.description || '').toLowerCase()] = c.image;
-                    }
-                });
-                setWorkersCompRates(wcRates);
-                setActivityIcons(icons);
-            }
-
             if (data.success) {
                 setRawSchedules(data.result.schedules || []);
                 const emps = data.result.initialData?.employees || [];
                 const eMap: Record<string, any> = {};
                 emps.forEach((e: any) => eMap[e.value] = e);
                 setEmployeesMap(eMap);
+
+                const ests = data.result.initialData?.estimates || [];
+                const estMap: Record<string, any> = {};
+                ests.forEach((e: any) => estMap[e.value] = e);
+                setEstimatesMap(estMap);
+
+                const constants = data.result.initialData?.constants || [];
+                const fMap: Record<string, any> = {};
+                constants.forEach((c: any) => {
+                    if (c.type === 'Fringe') {
+                        fMap[c.description] = c;
+                    }
+                });
+                setFringeConstantsMap(fMap);
             }
         } catch (err) {
             console.error(err);
@@ -221,26 +207,19 @@ export default function WorkersCompPage() {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
             
             sched.timesheet.forEach((ts: any) => {
-                // Filter: Only "Site Time"
                 if (ts.type?.trim().toLowerCase() !== 'site time'.toLowerCase()) return;
                 
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
                 
-                // Filter: Year
                 if (clockInDate.getUTCFullYear() !== selectedYear) return;
                 
-                // Filter: Week
                 if (selectedWeekLabel !== 'all') {
                     const week = weekOptions.find(w => w.value === selectedWeekLabel);
-                    if (week) {
-                        if (clockInDate < week.start || clockInDate > week.end) return;
-                    }
+                    if (week && (clockInDate < week.start || clockInDate > week.end)) return;
                 }
 
                 const { hours } = calculateTimesheetData(ts, sched.fromDate);
-                
-                // Break down hours into Reg, OT, DT (Daily 8/12 Rule as per Payroll)
                 const reg = Math.min(8, hours);
                 const ot = Math.min(4, Math.max(0, hours - 8));
                 const dt = Math.max(0, hours - 12);
@@ -252,10 +231,8 @@ export default function WorkersCompPage() {
                 const rDtPay = dt * rate * 2.0;
                 const grossPay = rRegPay + rOtPay + rDtPay;
                 
-                // Comp Amount = Wage base subject to WC (usually Total Hours * Straight Rate)
                 const subjectWages = hours * rate;
-                const wcRatePer100 = workersCompRates[String(sched.item || '').toLowerCase()] || 0;
-                const estimatedCompCost = (subjectWages * wcRatePer100) / 100;
+                const fringeVal = sched.fringe || estimatesMap[sched.estimate]?.fringe || 'No';
 
                 flat.push({
                     _id: ts._id || ts.recordId,
@@ -272,27 +249,37 @@ export default function WorkersCompPage() {
                     dtPay: rDtPay,
                     grossPay: grossPay,
                     subjectWages: subjectWages,
-                    compCost: estimatedCompCost,
+                    compCost: 0, 
                     scheduleId: sched._id,
                     item: sched.item || 'Uncategorized',
+                    fringe: fringeVal,
                     dateLabel: formatDateOnly(ts.clockIn),
                     title: sched.projectTitle || sched.title || sched.jobTitle || 'Unknown Project',
-                    estimateRef: sched.estimate || sched.quoteNumber || sched.quote_number || sched.quoteRef || sched.estimateNo || sched.estimateRef || sched.quote_ref || sched.projectQuoteRef || '--'
+                    estimateRef: sched.estimate || sched.quoteNumber || sched.quote_number || '--'
                 });
             });
         });
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-    }, [rawSchedules, selectedYear, selectedWeekLabel, weekOptions]);
+    }, [rawSchedules, selectedYear, selectedWeekLabel, weekOptions, employeesMap, estimatesMap]);
 
-    // Grouping Data
+    // Grouping Data by Fringe
     const groups = useMemo(() => {
-        const gMap: Record<string, WorkerCompGroup> = {};
+        const gMap: Record<string, FringeGroup> = {};
         
         allRecords.forEach(r => {
-            const key = r.item;
+            const key = r.fringe;
             if (!gMap[key]) {
-                gMap[key] = { id: key, label: key, totalAmount: 0, totalHours: 0, recordCount: 0 };
+                const constant = fringeConstantsMap[key];
+                gMap[key] = { 
+                    id: key, 
+                    label: key, 
+                    totalAmount: 0, 
+                    totalHours: 0, 
+                    recordCount: 0,
+                    color: constant?.color,
+                    image: constant?.image
+                };
             }
             gMap[key].totalAmount += r.grossPay;
             gMap[key].totalHours += r.hoursVal;
@@ -300,12 +287,11 @@ export default function WorkersCompPage() {
         });
 
         return Object.values(gMap).sort((a: any, b: any) => a.label.localeCompare(b.label));
-    }, [allRecords]);
+    }, [allRecords, fringeConstantsMap]);
 
-    // Reset pagination when filters change
     useEffect(() => {
         setVisibleRows(50);
-    }, [selectedItem, searchQuery, selectedYear, selectedWeekLabel, expandedEmp]);
+    }, [selectedFringe, searchQuery, selectedYear, selectedWeekLabel, expandedEmp]);
 
     const totals = useMemo(() => {
         return allRecords.reduce((acc, r: any) => ({
@@ -313,17 +299,15 @@ export default function WorkersCompPage() {
             ot: acc.ot + r.otHrs,
             regPay: acc.regPay + r.regPay,
             otPay: acc.otPay + r.otPay,
-            gross: acc.gross + r.grossPay,
-            comp: acc.comp + r.compCost,
-            personnel: acc.personnel.add(r.employee)
-        }), { hours: 0, ot: 0, regPay: 0, otPay: 0, gross: 0, comp: 0, personnel: new Set<string>() });
+            gross: acc.gross + r.grossPay
+        }), { hours: 0, ot: 0, regPay: 0, otPay: 0, gross: 0 });
     }, [allRecords]);
 
     // Table Data
     const tableData = useMemo(() => {
         let filtered = allRecords;
-        if (selectedItem !== 'All') {
-            filtered = filtered.filter(r => r.item === selectedItem);
+        if (selectedFringe !== 'All') {
+            filtered = filtered.filter(r => r.fringe === selectedFringe);
         }
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
@@ -331,11 +315,12 @@ export default function WorkersCompPage() {
                 r.employee.toLowerCase().includes(q) || 
                 r.title.toLowerCase().includes(q) ||
                 r.estimateRef.toLowerCase().includes(q) ||
-                (employeesMap[r.employee.toLowerCase()]?.label || '').toLowerCase().includes(q)
+                (employeesMap[r.employee.toLowerCase()]?.label || '').toLowerCase().includes(q) ||
+                r.fringe.toLowerCase().includes(q)
             );
         }
         return filtered;
-    }, [allRecords, selectedItem, searchQuery, employeesMap]);
+    }, [allRecords, selectedFringe, searchQuery, employeesMap]);
 
     const employeeSummary = useMemo(() => {
         const summaryMap: Record<string, any> = {};
@@ -367,13 +352,13 @@ export default function WorkersCompPage() {
         : tableData;
 
     const downloadCSV = () => {
-        const headers = ["Employee", "Date", "Title", "Estimate", "Classification", "Hours"];
+        const headers = ["Employee", "Date", "Title", "Estimate", "Fringe", "Hours"];
         const rows = tableData.map(r => [
             employeesMap[r.employee]?.label || r.employee,
             r.dateLabel,
             r.title,
             r.estimateRef,
-            r.item,
+            r.fringe,
             r.hoursVal.toFixed(2)
         ]);
 
@@ -382,7 +367,7 @@ export default function WorkersCompPage() {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `Workers_Comp_${selectedYear}_${selectedItem}.csv`;
+        link.download = `Fringe_Benefits_${selectedYear}.csv`;
         link.click();
     };
 
@@ -407,11 +392,9 @@ export default function WorkersCompPage() {
 
             <main className="flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto p-4 overflow-hidden">
                 
-                {/* Filter & KPI Bar Combined */}
+                {/* Filter & KPI Bar */}
                 <div className="flex items-center mb-3 min-h-[40px] relative z-40">
-                    {/* Left: Sidebar-aligned Filters */}
                     <div className="w-[320px] flex items-center gap-2 shrink-0">
-                        {/* Year Selector */}
                         <div className="relative">
                             <button 
                                 onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
@@ -440,7 +423,6 @@ export default function WorkersCompPage() {
                             )}
                         </div>
 
-                        {/* Week Selector */}
                         <div className="relative flex-1">
                             <button 
                                 onClick={() => setIsWeekDropdownOpen(!isWeekDropdownOpen)}
@@ -478,12 +460,10 @@ export default function WorkersCompPage() {
                                 </>
                             )}
                         </div>
-
                     </div>
 
-                    <div className="w-3" /> {/* Gap spacer */}
+                    <div className="w-3" />
 
-                    {/* Right: Table-aligned KPIs */}
                     <div className="flex-1 flex items-center justify-between">
                         <div className="flex items-center gap-4 bg-white/50 px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
                             <div className="flex items-center gap-2">
@@ -530,7 +510,6 @@ export default function WorkersCompPage() {
                             </div>
                         </div>
 
-                        {/* Search Filter - Right Aligned */}
                         <div className="relative w-48 mx-3">
                             <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input 
@@ -555,60 +534,57 @@ export default function WorkersCompPage() {
                 </div>
 
                 <div className="flex-1 flex gap-3 min-h-0">
-                    
-                    {/* Left Sidebar - Grouping */}
                     <aside className="w-[320px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-50 bg-slate-50/30">
-                            <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Grouping</h3>
+                            <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Fringe Benefits</h3>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1.5">
-                            
-                            {/* All Categories Button */}
                             <button 
-                                onClick={() => setSelectedItem('All')}
+                                onClick={() => setSelectedFringe('All')}
                                 className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
-                                    ${selectedItem === 'All' 
+                                    ${selectedFringe === 'All' 
                                         ? 'bg-[#0F4C75] text-white shadow-lg shadow-blue-900/10' 
                                         : 'text-slate-600 hover:bg-slate-50'}
                                 `}
                             >
                                 <div className="flex items-center gap-2.5">
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === 'All' ? 'bg-white/20' : 'bg-slate-100'}`}>
+                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100'}`}>
                                         <List size={14} />
                                     </div>
-                                    <span className="text-xs font-semibold">All Activities</span>
+                                    <span className="text-xs font-semibold">All Fringe Types</span>
                                 </div>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedItem === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
                                     ${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                 </span>
                             </button>
 
-                            {/* Group List */}
                             {groups.map(group => (
                                 <button 
                                     key={group.id}
-                                    onClick={() => setSelectedItem(group.id)}
+                                    onClick={() => setSelectedFringe(group.id)}
                                     className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
-                                        ${selectedItem === group.id 
-                                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/10' 
+                                        ${selectedFringe === group.id 
+                                            ? 'shadow-lg shadow-blue-900/10' 
                                             : 'text-slate-600 hover:bg-slate-50'}
                                     `}
+                                    style={{ 
+                                        backgroundColor: selectedFringe === group.id ? (group.color || '#059669') : '',
+                                        color: selectedFringe === group.id ? 'white' : ''
+                                    }}
                                 >
                                     <div className="flex items-center gap-2.5">
-                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100'}`}>
-                                            {activityIcons[group.label.toLowerCase()] ? (
-                                                <img 
-                                                    src={activityIcons[group.label.toLowerCase()]} 
-                                                    alt="" 
-                                                    className="w-4 h-4 object-contain"
-                                                />
+                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100'} overflow-hidden`}>
+                                            {group.image ? (
+                                                <img src={group.image} className="w-full h-full object-cover" alt="" />
                                             ) : (
-                                                <Briefcase size={14} />
+                                                <span className={`text-[10px] font-bold uppercase ${selectedFringe === group.id ? 'text-white' : 'text-slate-500'}`}>
+                                                    {group.label.substring(0, 2)}
+                                                </span>
                                             )}
                                         </div>
                                         <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
                                     </div>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
                                         ${group.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </span>
                                 </button>
@@ -617,8 +593,6 @@ export default function WorkersCompPage() {
                     </aside>
 
                     <div className="flex-1 flex flex-col min-w-0">
-                        
-
                         <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-none shadow-sm rounded-2xl">
                             <Table containerClassName="h-full border-none shadow-none bg-transparent min-h-0">
                                 <TableHead className="sticky top-0 z-10 bg-white/80 backdrop-blur-md">
@@ -635,7 +609,7 @@ export default function WorkersCompPage() {
                                             </>
                                         ) : (
                                             <>
-                                                <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-8">Tag</TableHeader>
+                                                <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-20">Fringe</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-28">Employee</TableHeader>
                                                 <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-20">Date</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] max-w-[150px]">Title</TableHeader>
@@ -650,7 +624,6 @@ export default function WorkersCompPage() {
                                 <TableBody>
                                     {!expandedEmp ? (
                                         <>
-                                            {/* Summary "All" Row */}
                                             {employeeSummary.length > 0 && (
                                                 <TableRow 
                                                     className="bg-slate-50/50 font-bold border-b border-slate-100 hover:bg-slate-100/50 transition-colors cursor-pointer group"
@@ -717,42 +690,40 @@ export default function WorkersCompPage() {
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
-                                            {employeeSummary.length === 0 && (
-                                                <TableRow>
-                                                    <TableCell colSpan={7} className="py-20 text-center">
-                                                        <div className="flex flex-col items-center gap-3">
-                                                            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
-                                                                <Search size={20} className="text-slate-200" />
-                                                            </div>
-                                                            <p className="text-[11px] font-bold text-slate-400">No staff found for this period</p>
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            )}
                                         </>
                                     ) : (
                                         <>
                                             {displayData.length > 0 ? displayData.slice(0, visibleRows).map((record: any, idx) => (
                                                 <TableRow key={`${record._id}-${idx}`} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50/50 last:border-0 text-[11px]">
                                                     <TableCell className="px-2 py-2 text-center">
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <div className="w-6 h-6 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center p-0.5 mx-auto">
-                                                                    {activityIcons[record.item.toLowerCase()] ? (
-                                                                        <img
-                                                                            src={activityIcons[record.item.toLowerCase()]}
-                                                                            alt=""
-                                                                            className="w-full h-full object-contain"
-                                                                        />
-                                                                    ) : (
-                                                                        <Briefcase size={10} className="text-slate-400" />
-                                                                    )}
-                                                                </div>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent side="right">
-                                                                <p className="text-[10px] font-bold">{record.item}</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <div 
+                                                                className="w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden border border-slate-50 shadow-sm"
+                                                                style={{ 
+                                                                    backgroundColor: fringeConstantsMap[record.fringe]?.color ? `${fringeConstantsMap[record.fringe].color}20` : '#f8fafc',
+                                                                }}
+                                                            >
+                                                                {fringeConstantsMap[record.fringe]?.image ? (
+                                                                    <img src={fringeConstantsMap[record.fringe].image} className="w-full h-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <span 
+                                                                        className="text-[9px] font-black uppercase"
+                                                                        style={{ color: fringeConstantsMap[record.fringe]?.color || '#0F4C75' }}
+                                                                    >
+                                                                        {record.fringe.substring(0, 2)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <Badge 
+                                                                className="border-slate-100 text-[9px] font-bold px-1.5 py-0 shadow-none bg-transparent"
+                                                                style={{ 
+                                                                    color: fringeConstantsMap[record.fringe]?.color || '#0F4C75',
+                                                                    borderColor: fringeConstantsMap[record.fringe]?.color ? `${fringeConstantsMap[record.fringe].color}40` : '#e2e8f0'
+                                                                }}
+                                                            >
+                                                                {record.fringe}
+                                                            </Badge>
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="px-3 py-2">
                                                         <div className="flex items-center gap-2">
@@ -764,41 +735,31 @@ export default function WorkersCompPage() {
                                                                 )}
                                                             </div>
                                                             <div>
-                                                                <p className="text-[10px] font-semibold text-slate-800 leading-tight truncate w-24" title={employeesMap[record.employee]?.label || record.employee}>
+                                                                <p className="text-[10px] font-semibold text-slate-800 leading-tight truncate w-24">
                                                                     {employeesMap[record.employee]?.label || record.employee}
                                                                 </p>
                                                             </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="px-2 py-2 text-center">
-                                                        <Badge className="bg-white border-slate-100 text-slate-500 text-[8px] font-medium px-1 py-0 shadow-none">
-                                                            {record.dateLabel}
-                                                        </Badge>
+                                                    <TableCell className="px-2 py-2 text-center text-slate-500">
+                                                        {record.dateLabel}
                                                     </TableCell>
                                                     <TableCell className="px-3 py-2 max-w-[150px]">
-                                                        <p className="text-[10px] font-medium text-slate-700 leading-snug truncate" title={record.title}>
+                                                        <p className="text-[10px] font-medium text-slate-700 truncate" title={record.title}>
                                                             {record.title}
                                                         </p>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2">
-                                                        <p className="text-[10px] font-bold text-slate-400 tracking-tighter uppercase whitespace-nowrap">
-                                                            {record.estimateRef}
-                                                        </p>
+                                                    <TableCell className="px-3 py-2 text-slate-400 font-bold uppercase tracking-tighter">
+                                                        {record.estimateRef}
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-semibold text-[#0F4C75] tracking-tight tabular-nums">
-                                                            {record.regHrs.toFixed(2)}
-                                                        </span>
+                                                    <TableCell className="px-3 py-2 text-right font-semibold text-[#0F4C75] tabular-nums">
+                                                        {record.regHrs.toFixed(2)}
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-semibold text-orange-500 tracking-tight tabular-nums">
-                                                            {record.otHrs > 0 ? record.otHrs.toFixed(2) : '-'}
-                                                        </span>
+                                                    <TableCell className="px-3 py-2 text-right font-semibold text-orange-500 tabular-nums">
+                                                        {record.otHrs > 0 ? record.otHrs.toFixed(2) : '-'}
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-medium text-slate-600 tracking-tight tabular-nums">
-                                                            ${record.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                        </span>
+                                                    <TableCell className="px-3 py-2 text-right font-medium text-slate-600 tabular-nums">
+                                                        ${record.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
                                                 </TableRow>
                                             )) : (
@@ -814,7 +775,6 @@ export default function WorkersCompPage() {
                                                 </TableRow>
                                             )}
 
-                                            {/* Load More Button or Infinite Scroll Trigger */}
                                             {displayData.length > visibleRows && (
                                                 <TableRow className="hover:bg-transparent">
                                                     <TableCell colSpan={8} className="py-6 text-center">
@@ -832,7 +792,6 @@ export default function WorkersCompPage() {
                                 </TableBody>
                             </Table>
                         </Card>
-
                     </div>
                 </div>
             </main>
