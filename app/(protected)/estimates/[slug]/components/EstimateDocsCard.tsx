@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send } from 'lucide-react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -681,6 +681,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const chatInputRef = React.useRef<HTMLInputElement>(null);
     const chatScrollRef = React.useRef<HTMLDivElement>(null);
 
+    const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+    const [editingMsgText, setEditingMsgText] = useState('');
+    const [replyingTo, setReplyingTo] = useState<any>(null);
+    const [deleteMsgId, setDeleteMsgId] = useState<string | null>(null);
+
     // Fetch Chat Messages for this Estimate
     React.useEffect(() => {
         if (!formData?.estimate) return;
@@ -758,13 +763,64 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 body: JSON.stringify({
                     message: optimisticMsg.message,
                     estimate: formData.estimate,
-                    assignees: chatAssignees
+                    assignees: chatAssignees,
+                    replyTo: replyingTo ? {
+                        _id: replyingTo._id,
+                        sender: replyingTo.sender,
+                        message: replyingTo.message
+                    } : undefined
                 })
             });
+            setReplyingTo(null);
             // fetchChat will sync eventual ID
         } catch (error) {
             console.error('Failed to send', error);
             toast.error('Failed to send message');
+        }
+    };
+
+    const handleUpdateMessage = async (id: string, text: string) => {
+        if (!text.trim()) return;
+        try {
+            const res = await fetch(`/api/chat/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: text })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setChatMessages(prev => prev.map(m => m._id === id ? { ...m, message: text } : m));
+                setEditingMsgId(null);
+                setEditingMsgText('');
+                toast.success('Message updated');
+            } else {
+                toast.error(data.error || 'Failed to update');
+            }
+        } catch (error) {
+            toast.error('Operation failed');
+        }
+    };
+
+    const handleDeleteMessage = (id: string) => {
+        setDeleteMsgId(id);
+    };
+
+    const confirmDeleteMessage = async () => {
+        if (!deleteMsgId) return;
+        try {
+            const res = await fetch(`/api/chat/${deleteMsgId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.success) {
+                setChatMessages(prev => prev.filter(m => m._id !== deleteMsgId));
+                toast.success('Message deleted');
+            } else {
+                toast.error(data.error || 'Failed to delete');
+            }
+        } catch (error) {
+            console.error('Failed to delete', error);
+            toast.error('Failed to delete message');
+        } finally {
+            setDeleteMsgId(null);
         }
     };
 
@@ -1556,7 +1612,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         e.value?.toLowerCase() === msg.sender?.toLowerCase()
                                     );
                                     const senderLabel = senderEmp?.label || senderEmp?.firstName || msg.senderName || msg.sender || 'U';
-                                    const senderInitials = senderLabel.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+                                    const senderInitials = senderLabel.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
                                     const renderMessage = (text: string) => {
                                         const parts = text.split(/(@[\w.@]+)/g);
@@ -1597,7 +1653,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                     <Avatar className="w-5 h-5 border-[1.5px] border-white/20 shrink-0">
                                                                         <AvatarImage src={assEmp?.image || assEmp?.profilePicture} />
                                                                         <AvatarFallback className="text-[8px] bg-slate-200 font-extrabold text-[#0F4C75]">
-                                                                            {assName[0].toUpperCase()}
+                                                                            {assName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                                                                         </AvatarFallback>
                                                                     </Avatar>
                                                                 </TooltipTrigger>
@@ -1645,22 +1701,99 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     };
                                     
                                     return (
-                                        <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1`}>
-                                            <div className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${
+                                         <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1 items-end gap-2`}>
+                                            {isMe && !editingMsgId && (
+                                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setReplyingTo(msg);
+                                                            chatInputRef.current?.focus();
+                                                        }} 
+                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
+                                                        title="Reply"
+                                                    >
+                                                        <Reply size={12} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
+                                                            setNewChatMessage(prev => `Fwd: ${cleanText}\n` + prev);
+                                                            chatInputRef.current?.focus();
+                                                        }} 
+                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                        title="Forward"
+                                                    >
+                                                        <Forward size={12} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
+                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                        title="Edit"
+                                                    >
+                                                        <Pencil size={12} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteMessage(msg._id)}
+                                                        className="p-1 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={12} />
+                                                    </button>
+                                                </div>
+                                            )}
+                                            
+                                            <div id={msg._id} className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${
                                                 isMe 
                                                     ? 'bg-[#526D82] text-white rounded-br-none' 
                                                     : 'bg-white text-slate-700 rounded-bl-none border border-slate-200'
                                             }`}>
                                                 <HeaderContent />
-                                                <p className="text-[11px] leading-relaxed break-words px-1">
-                                                    {renderMessage(msg.message)}
-                                                </p>
+
+                                                {/* Reply Citation */}
+                                                {msg.replyTo && (
+                                                    <div 
+                                                        onClick={() => document.getElementById(msg.replyTo._id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                                        className={`mb-2 mx-1 p-1.5 rounded-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity ${
+                                                            isMe 
+                                                                ? 'bg-white/10 border-l-2 border-white/40 text-white/80' 
+                                                                : 'bg-slate-50 border-l-2 border-slate-300 text-slate-500'
+                                                        }`}
+                                                    >
+                                                        <p className="font-bold opacity-75 mb-0.5">{msg.replyTo.sender?.split('@')[0]}</p>
+                                                        <p className="truncate line-clamp-1 italic opacity-90">{msg.replyTo.message}</p>
+                                                    </div>
+                                                )}
+
+                                                {editingMsgId === msg._id ? (
+                                                    <div className="px-1 py-1 space-y-2">
+                                                        <textarea 
+                                                            autoFocus
+                                                            className="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-white/50 min-h-[60px] resize-none"
+                                                            value={editingMsgText}
+                                                            onChange={(e) => setEditingMsgText(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                                    e.preventDefault();
+                                                                    handleUpdateMessage(msg._id, editingMsgText);
+                                                                } else if (e.key === 'Escape') {
+                                                                    setEditingMsgId(null);
+                                                                }
+                                                            }}
+                                                        />
+                                                        <div className="flex justify-end gap-2">
+                                                            <button onClick={() => setEditingMsgId(null)} className="text-[9px] font-bold uppercase hover:underline">Cancel</button>
+                                                            <button onClick={() => handleUpdateMessage(msg._id, editingMsgText)} className="text-[9px] font-bold uppercase hover:underline">Save</button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-[11px] leading-relaxed break-words px-1">
+                                                        {renderMessage(msg.message)}
+                                                    </p>
+                                                )}
+
                                                 <div className={`flex items-center justify-between mt-1 pt-1 px-1 gap-2 ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
                                                     <div /> 
                                                     <div className="flex items-center gap-2">
-                                                        {msg.estimate && (
-                                                            <span className="bg-purple-100 text-purple-700 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-200 uppercase tracking-tight">#{msg.estimate.value || msg.estimate}</span>
-                                                        )}
                                                         <span className={`text-[8px] uppercase tracking-widest font-black opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
                                                             {new Date(msg.createdAt).toLocaleString([], { 
                                                                 month: 'short', 
@@ -1674,12 +1807,48 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {!isMe && !editingMsgId && (
+                                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
+                                                    <button 
+                                                        onClick={() => {
+                                                            setReplyingTo(msg);
+                                                            chatInputRef.current?.focus();
+                                                        }} 
+                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
+                                                        title="Reply"
+                                                    >
+                                                        <Reply size={12} />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
+                                                            setNewChatMessage(prev => `Fwd: ${cleanText}\n` + prev);
+                                                            chatInputRef.current?.focus();
+                                                        }} 
+                                                        className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                        title="Forward"
+                                                    >
+                                                        <Forward size={12} />
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 })
                             )}
                          </div>
-
+                             {replyingTo && (
+                                 <div className="mb-2 mx-1 p-2 bg-slate-50 border-l-4 border-blue-500 rounded flex items-center justify-between animate-in slide-in-from-bottom-2">
+                                     <div className="flex-1 min-w-0">
+                                         <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight mb-0.5">Replying to {replyingTo.sender?.split('@')[0]}</p>
+                                         <p className="text-[10px] text-slate-500 truncate italic">{replyingTo.message}</p>
+                                     </div>
+                                     <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-slate-200 rounded-full transition-colors ml-2">
+                                         <X className="w-3 h-3 text-slate-400" />
+                                     </button>
+                                 </div>
+                             )}
                          {/* Chat Input Area */}
                          {/* Chat Input Area */}
                          <div className="mt-3 pt-3 border-t border-slate-200/50 relative" id="estimate-chat-input-container">
@@ -1722,12 +1891,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                              <form 
                                   onSubmit={handleSendChatMessage} 
                                   className="flex flex-col gap-2"
-                                  onKeyDown={(e) => {
-                                      if (e.key === 'Enter' && !e.shiftKey) {
-                                          e.preventDefault();
-                                          handleSendChatMessage();
-                                      }
-                                  }}
                              >
                                   {chatAssignees.length > 0 && (
                                       <div className="flex items-center gap-2 mb-1 px-1">
@@ -4136,6 +4299,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 title="Remove Receipt Entry"
                 message="Are you sure you want to remove this receipt/cost record? This cannot be undone."
                 confirmText="Remove"
+                variant="danger"
+            />
+            <ConfirmModal
+                isOpen={deleteMsgId !== null}
+                onClose={() => setDeleteMsgId(null)}
+                onConfirm={confirmDeleteMessage}
+                title="Delete Message"
+                message="Are you sure you want to delete this message? This action cannot be undone."
+                confirmText="Delete"
                 variant="danger"
             />
 

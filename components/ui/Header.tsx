@@ -20,7 +20,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -61,7 +61,7 @@ const menuStructure: MenuItem[] = [
         label: 'REPORTS',
         items: [
             { label: 'Payroll', href: '/reports/payroll', icon: <DollarSign className="w-5 h-5" />, description: 'Employee payroll summary', colorClass: 'text-green-600' },
-            { label: 'Work Comp', href: '/reports/work-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
+            { label: 'Workers Comp', href: '/reports/workers-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
             { label: 'Work in Progress Report', href: '/reports/wip', icon: <BarChart className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
             { label: 'Daily Activities', href: '/reports/daily-activities', icon: <Activity className="w-5 h-5" />, description: 'Track daily team activities', colorClass: 'text-orange-500' },
             { label: 'Fringe Benefits', href: '/reports/fringe', icon: <Settings className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },

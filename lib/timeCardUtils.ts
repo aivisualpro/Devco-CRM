@@ -189,3 +189,28 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
 
     return { hours, distance, calculatedDistance };
 };
+
+export const startOfWeek = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getUTCDay();
+    const diff = day === 0 ? -6 : 1 - day; // Monday start
+    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
+    return start;
+};
+
+export const endOfWeek = (date: Date) => {
+    const d = startOfWeek(date);
+    const end = new Date(d);
+    end.setUTCDate(d.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
+    return end;
+};
+
+export const addWeeks = (date: Date, weeks: number) => {
+    const d = new Date(date);
+    d.setUTCDate(d.getUTCDate() + (weeks * 7));
+    return d;
+};
+
+export const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
+

@@ -22,35 +22,16 @@ import {
     robustNormalizeISO,
     SPEED_MPH,
     EARTH_RADIUS_MI,
-    DRIVING_FACTOR 
+    DRIVING_FACTOR,
+    startOfWeek,
+    endOfWeek,
+    addWeeks,
+    subWeeks
 } from '@/lib/timeCardUtils';
 
 
 // --- Custom Date Helpers ---
 
-const startOfWeek = (date: Date) => {
-    const d = new Date(date);
-    const day = d.getUTCDay();
-    const diff = day === 0 ? -6 : 1 - day; // Monday start
-    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
-    return start;
-};
-
-const endOfWeek = (date: Date) => {
-    const d = startOfWeek(date);
-    const end = new Date(d);
-    end.setUTCDate(d.getUTCDate() + 6);
-    end.setUTCHours(23, 59, 59, 999);
-    return end;
-};
-
-const addWeeks = (date: Date, weeks: number) => {
-    const d = new Date(date);
-    d.setUTCDate(d.getUTCDate() + (weeks * 7));
-    return d;
-};
-
-const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
 
 const formatDate = (date: Date, pattern: string) => {
     if (pattern === 'MMM d') {
@@ -181,11 +162,14 @@ function PayrollReportContent() {
     const [filterEmployee, setFilterEmployee] = useState<string>(() => {
         return searchParams.get('employee') || 'all';
     });
+    const [filterEstimate, setFilterEstimate] = useState<string>('all');
     const [filterCertified, setFilterCertified] = useState(false);
 
     const [isWeekDropdownOpen, setIsWeekDropdownOpen] = useState(false);
     const [isEmployeeDropdownOpen, setIsEmployeeDropdownOpen] = useState(false);
+    const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
     const [employeeSearch, setEmployeeSearch] = useState('');
+    const [estimateSearch, setEstimateSearch] = useState('');
     const [selectedDetail, setSelectedDetail] = useState<{ 
         employee: EmployeeReport, 
         type: 'Regular' | 'Overtime' | 'Double Time' | 'Travel' | 'Per Diem' | 'General' 
@@ -201,6 +185,18 @@ function PayrollReportContent() {
         }
     }, [filterEmployee, pathname, router]);
 
+    // Reset estimate filter if the selected estimate is not certified while CP filter is ON
+    useEffect(() => {
+        if (filterCertified && filterEstimate !== 'all') {
+            const estData = estimatesMap[filterEstimate];
+            const certValue = String(estData?.certifiedPayroll || '').trim().toLowerCase();
+            const isCertified = (certValue === 'yes' || certValue === 'true' || estData?.certifiedPayroll === true);
+            if (!isCertified) {
+                setFilterEstimate('all');
+            }
+        }
+    }, [filterCertified, filterEstimate, estimatesMap]);
+
     const [editingRecord, setEditingRecord] = useState<any | null>(null);
     const [editForm, setEditForm] = useState<any>({});
 
@@ -211,7 +207,7 @@ function PayrollReportContent() {
             value: id,
             label: `${e.value}${e.projectTitle ? ' - ' + e.projectTitle : ''}`,
             estimate: e.value
-        }));
+        })).sort((a, b) => a.label.localeCompare(b.label));
     }, [estimatesMap]);
 
     const editingCalculated = useMemo(() => {
@@ -225,16 +221,84 @@ function PayrollReportContent() {
             value: e.value,
             image: e.image,
             initials: e.initials || (e.label ? e.label.split(' ').map((n:string)=>n[0]).join('').substring(0,2) : '??')
-        }));
+        })).sort((a, b) => a.label.localeCompare(b.label));
         return emps;
     }, [employeesMap]);
 
+    const weekEnd = useMemo(() => endOfWeek(currentWeekStart), [currentWeekStart]);
+
+    // Track which employees actually worked this week
+    const employeesWhoWorkedThisWeek = useMemo(() => {
+        const ids = new Set<string>();
+        rawSchedules.forEach(sched => {
+            if (!sched.timesheet) return;
+
+            // If CP filter is ON, only consider employees working on certified estimates
+            if (filterCertified) {
+                const estData = estimatesMap[sched.estimate];
+                const certValue = String(estData?.certifiedPayroll || '').trim().toLowerCase();
+                const isCertified = (certValue === 'yes' || certValue === 'true' || estData?.certifiedPayroll === true);
+                if (!isCertified) return;
+            }
+
+            sched.timesheet.forEach((ts: any) => {
+                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
+                if (clockInDate >= currentWeekStart && clockInDate <= weekEnd) {
+                    ids.add(String(ts.employee || '').toLowerCase());
+                }
+            });
+        });
+        return ids;
+    }, [rawSchedules, currentWeekStart, weekEnd, filterCertified, estimatesMap]);
+
+    // Unique estimates for this week
+    const estimatesForThisWeek = useMemo(() => {
+        const estIds = new Set<string>();
+        rawSchedules.forEach(sched => {
+            if (!sched.timesheet) return;
+            
+            // Check if this estimate should be included based on CP filter
+            if (filterCertified) {
+                const estData = estimatesMap[sched.estimate];
+                const certValue = String(estData?.certifiedPayroll || '').trim().toLowerCase();
+                const isCertified = (certValue === 'yes' || certValue === 'true' || estData?.certifiedPayroll === true);
+                if (!isCertified) return;
+            }
+
+            sched.timesheet.some((ts: any) => {
+                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
+                if (clockInDate >= currentWeekStart && clockInDate <= weekEnd) {
+                    estIds.add(sched.estimate);
+                    return true;
+                }
+                return false;
+            });
+        });
+        
+        return Array.from(estIds).map(id => {
+            const e = estimatesMap[id];
+            return {
+                value: id,
+                label: e ? `${e.value}${e.projectTitle ? ' - ' + e.projectTitle : ''}` : id,
+                estimate: e?.value || id
+            };
+        }).sort((a, b) => a.label.localeCompare(b.label));
+    }, [rawSchedules, currentWeekStart, weekEnd, estimatesMap, filterCertified]);
+
     const filteredEmployeeOptions = useMemo(() => {
-        if (!employeeSearch) return employeeOptions;
-        return employeeOptions.filter(e => 
+        const base = employeeOptions.filter(e => employeesWhoWorkedThisWeek.has(e.value.toLowerCase()));
+        if (!employeeSearch) return base;
+        return base.filter(e => 
             e.label.toLowerCase().includes(employeeSearch.toLowerCase())
         );
-    }, [employeeOptions, employeeSearch]);
+    }, [employeeOptions, employeeSearch, employeesWhoWorkedThisWeek]);
+
+    const filteredEstimateOptions = useMemo(() => {
+        if (!estimateSearch) return estimatesForThisWeek;
+        return estimatesForThisWeek.filter(e => 
+            e.label.toLowerCase().includes(estimateSearch.toLowerCase())
+        );
+    }, [estimatesForThisWeek, estimateSearch]);
 
     const fetchData = async (weekStart: Date) => {
         setLoading(true);
@@ -372,6 +436,7 @@ function PayrollReportContent() {
                     const estCertified = (certValue === 'yes' || certValue === 'true' || estimatesMap[sched.estimate]?.certifiedPayroll === true);
 
                     if (filterCertified && !estCertified) return;
+                    if (filterEstimate !== 'all' && sched.estimate !== filterEstimate) return;
 
                     if (!employeesWork[empEmail]) {
                         employeesWork[empEmail] = {
@@ -429,6 +494,11 @@ function PayrollReportContent() {
 
         const filtered = Object.values(employeesWork).filter((ew: any) => {
             if (filterEmployee !== 'all' && ew.email !== filterEmployee) return false;
+            
+            if (filterEstimate !== 'all') {
+                const hasEstimate = ew.days.some((d: any) => d.estimates.has(filterEstimate));
+                if (!hasEstimate) return false;
+            }
             
             if (filterCertified) {
                 // If CP filter is ON, only include employees who have AT LEAST ONE certified day in this week
@@ -776,6 +846,7 @@ function PayrollReportContent() {
                                     onClick={() => {
                                         setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen);
                                         setIsWeekDropdownOpen(false);
+                                        setIsEstimateDropdownOpen(false);
                                         setEmployeeSearch('');
                                     }}
                                     className={`p-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center relative ${isEmployeeDropdownOpen ? 'neu-pressed text-[#0F4C75] bg-[#F4F7FA]' : 'neu-outset text-slate-500 bg-[#F4F7FA]'}`}
@@ -845,6 +916,85 @@ function PayrollReportContent() {
                                                 
                                                 {filteredEmployeeOptions.length === 0 && (
                                                     <div className="p-8 text-center text-xs font-bold text-slate-400">No results found</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+
+                            {/* Estimate Selection - Neumorphic Search Dropdown */}
+                            <div className="relative">
+                                <button 
+                                    onClick={() => {
+                                        setIsEstimateDropdownOpen(!isEstimateDropdownOpen);
+                                        setIsWeekDropdownOpen(false);
+                                        setIsEmployeeDropdownOpen(false);
+                                        setEstimateSearch('');
+                                    }}
+                                    className={`p-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center relative ${isEstimateDropdownOpen ? 'neu-pressed text-[#0F4C75] bg-[#F4F7FA]' : 'neu-outset text-slate-500 bg-[#F4F7FA]'}`}
+                                >
+                                    <Briefcase size={18} />
+                                    {isEstimateDropdownOpen && <ChevronDown size={14} className="ml-1 opacity-50" />}
+                                    {filterEstimate !== 'all' && !isEstimateDropdownOpen && (
+                                        <div className="absolute top-2 right-2 w-2 h-2 bg-purple-500 rounded-full border-2 border-[#F4F7FA]" />
+                                    )}
+                                </button>
+
+                                {isEstimateDropdownOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-[250]" onClick={() => setIsEstimateDropdownOpen(false)} />
+                                        <div className="absolute top-full right-0 mt-4 w-80 bg-[#F4F7FA] rounded-3xl p-4 z-[300] animate-in fade-in zoom-in-95 duration-100 neu-dropdown">
+                                            {/* Search Bar - Neumorphic Style */}
+                                            <div className="relative mb-4">
+                                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+                                                    <Search size={16} className="text-slate-400" />
+                                                </div>
+                                                <input 
+                                                    autoFocus
+                                                    type="text"
+                                                    placeholder="Search Estimates..."
+                                                    value={estimateSearch}
+                                                    onChange={(e) => setEstimateSearch(e.target.value)}
+                                                    className="w-full bg-[#f0f3f8] border-none rounded-2xl py-3 pl-12 pr-4 text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none neu-pressed"
+                                                />
+                                            </div>
+
+                                            <div className="max-h-[350px] overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                                                <button
+                                                    onClick={() => {
+                                                        setFilterEstimate('all');
+                                                        setIsEstimateDropdownOpen(false);
+                                                    }}
+                                                    className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${filterEstimate === 'all' ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
+                                                >
+                                                    <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[10px] text-slate-500 font-bold">
+                                                        ALL
+                                                    </div>
+                                                    All Estimates
+                                                </button>
+                                                
+                                                {filteredEstimateOptions.map((est, idx) => {
+                                                    const isActive = est.value === filterEstimate;
+                                                    return (
+                                                        <button
+                                                            key={idx}
+                                                            onClick={() => {
+                                                                setFilterEstimate(est.value);
+                                                                setIsEstimateDropdownOpen(false);
+                                                            }}
+                                                            className={`w-full px-4 py-3 text-left text-sm font-bold transition-all rounded-2xl flex items-center gap-3 ${isActive ? 'text-[#00CC00] neu-pressed bg-white/50' : 'text-slate-800 hover:neu-pressed'}`}
+                                                        >
+                                                            <div className="w-10 h-10 rounded-full bg-white border-2 border-slate-200 flex items-center justify-center text-[10px] text-[#0F4C75] font-black shrink-0">
+                                                                #{est.estimate.slice(-4)}
+                                                            </div>
+                                                            <span className="truncate leading-tight text-xs">{est.label}</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                                
+                                                {filteredEstimateOptions.length === 0 && (
+                                                    <div className="p-8 text-center text-xs font-bold text-slate-400">No estimates found for this week</div>
                                                 )}
                                             </div>
                                         </div>
@@ -1071,7 +1221,7 @@ function PayrollReportContent() {
                                             <td className="px-4 py-4 font-black text-[11px] uppercase tracking-[0.2em] italic text-[#0F4C75] border-b-[20px] border-transparent">Total Net</td>
                                             {emp.days.map((d, i) => (
                                                 <td key={i} className="px-2 py-4 text-[12px] font-black text-center text-slate-900 border-b-[20px] border-transparent">
-                                                    {d.total > 0 ? d.total.toFixed(2) : '--'}
+                                                    {(d.reg + d.ot + d.dt + d.travel + d.diem) > 0 ? (d.reg + d.ot + d.dt + d.travel + d.diem).toFixed(2) : '--'}
                                                 </td>
                                             ))}
                                             <td className="px-4 py-4 text-center text-[13px] font-black text-slate-900 bg-white/20 border-b-[20px] border-transparent">{emp.totalHrs.toFixed(2)}</td>
