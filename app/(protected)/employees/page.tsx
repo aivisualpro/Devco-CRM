@@ -387,7 +387,12 @@ export default function EmployeesPage() {
         return Array.from(new Set(split));
     };
 
-    const appRoleOptions = getOptions('appRole');
+    const appRoleOptions = useMemo(() => {
+        if (roles && roles.length > 0) {
+           return roles.map(r => r.name);
+        }
+        return getOptions('appRole');
+    }, [roles, employees]);
     const positionOptions = getOptions('companyPosition');
     const designationOptions = Array.from(new Set(['Foreman', 'Project Manager', ...getSplitOptions('designation')]));
     const cityOptions = getOptions('city');

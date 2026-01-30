@@ -140,6 +140,7 @@ export default function FringeBenefitsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
     const [visibleRows, setVisibleRows] = useState(50);
+    const [viewMode, setViewMode] = useState<'hours' | 'amount'>('amount');
 
     // Data Fetching
     const fetchData = async () => {
@@ -496,8 +497,22 @@ export default function FringeBenefitsPage() {
 
                 <div className="flex-1 flex gap-3 min-h-0">
                     <aside className="w-[320px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
-                        <div className="p-3 border-b border-slate-50 bg-slate-50/30">
+                        <div className="p-3 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
                             <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Fringe Benefits</h3>
+                            <div className="flex bg-slate-200/50 p-0.5 rounded-lg">
+                                <button 
+                                    onClick={() => setViewMode('hours')}
+                                    className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${viewMode === 'hours' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Hrs
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('amount')}
+                                    className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${viewMode === 'amount' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    $
+                                </button>
+                            </div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1.5">
                             <button 
@@ -515,7 +530,10 @@ export default function FringeBenefitsPage() {
                                     <span className="text-xs font-semibold">All Fringe Types</span>
                                 </div>
                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                    ${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    {viewMode === 'amount' 
+                                        ? `$${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                                        : totals.hours.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                                    }
                                 </span>
                             </button>
 
@@ -546,7 +564,10 @@ export default function FringeBenefitsPage() {
                                         <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
                                     </div>
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                        ${group.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        {viewMode === 'amount'
+                                            ? `$${group.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                                            : group.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })
+                                        }
                                     </span>
                                 </button>
                             ))}

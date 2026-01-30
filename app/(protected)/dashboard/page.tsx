@@ -18,6 +18,7 @@ import { UploadButton } from '@/components/ui/UploadButton';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES } from '@/lib/permissions/types';
 import { ScheduleDetailModal } from './components/ScheduleDetailModal';
 import { ScheduleCard, ScheduleItem } from '../jobs/schedules/components/ScheduleCard';
 import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModal';
@@ -517,7 +518,7 @@ const TaskFormModal = ({
 function DashboardContent() {
     const router = useRouter();
     const { success, error: showError } = useToast();
-    const { user, isSuperAdmin } = usePermissions();
+    const { user, isSuperAdmin, canField } = usePermissions();
     const [currentUser, setCurrentUser] = useState<any>(null);
     const userEmail = user?.email || currentUser?.email || '';
     
@@ -2084,6 +2085,7 @@ function DashboardContent() {
                             <div className={`${searchParams.get('view') === 'training' ? 'grid' : 'hidden md:grid'} grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6`}>
                                 
                                 {/* Estimate Stats Pie Chart */}
+                                {canField(MODULES.DASHBOARD, 'widget_estimates_overview', 'view') && (
                                 <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden md:block' : ''}`}>
                                     <div className="flex items-center gap-3 mb-4 justify-between">
                                         <div className="flex items-center gap-3">
@@ -2120,6 +2122,7 @@ function DashboardContent() {
                                         </div>
                                     )}
                                 </div>
+                                )}
 
                                 {/* Training Card */}
                                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
