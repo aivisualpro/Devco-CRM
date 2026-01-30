@@ -5,7 +5,9 @@ import { QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_REALM_ID } from '@/lib/quickbooks
 
 export async function GET(req: NextRequest) {
     const { searchParams, origin } = new URL(req.url);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
+    // Force https for production environments
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || origin).replace(/^http:/, 'https:');
+    
     const code = searchParams.get('code');
     const realmId = searchParams.get('realmId');
     const error = searchParams.get('error');
@@ -22,6 +24,8 @@ export async function GET(req: NextRequest) {
         const redirectUri = `${appUrl}/api/auth/quickbooks/callback`;
         const auth = Buffer.from(`${QBO_CLIENT_ID}:${QBO_CLIENT_SECRET}`).toString('base64');
         const tokenUrl = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
+
+        console.log('Exchanging code for tokens with Redirect URI:', redirectUri);
 
         const response = await fetch(tokenUrl, {
             method: 'POST',
@@ -58,7 +62,6 @@ export async function GET(req: NextRequest) {
             { upsert: true, new: true }
         );
 
-        // Redirect back to imports with success
         return NextResponse.redirect(`${appUrl}/settings/imports?success=quickbooks_connected`);
     } catch (err) {
         console.error('QuickBooks Auth Callback Error:', err);

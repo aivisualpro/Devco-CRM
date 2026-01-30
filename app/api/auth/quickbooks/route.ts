@@ -7,10 +7,13 @@ export async function GET(req: Request) {
     }
 
     const { origin } = new URL(req.url);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
+    // Force https for production environments
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || origin).replace(/^http:/, 'https:');
     const redirectUri = `${appUrl}/api/auth/quickbooks/callback`;
     const scope = 'com.intuit.quickbooks.accounting';
     const state = 'devco_qbo_auth'; 
+
+    console.log('Initiating QBO Auth with Redirect URI:', redirectUri);
 
     const authUrl = `https://appcenter.intuit.com/connect/oauth2?client_id=${QBO_CLIENT_ID}&response_type=code&scope=${scope}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
 
