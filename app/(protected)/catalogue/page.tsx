@@ -16,8 +16,8 @@ const categoryConfig: Record<string, { headers: string[]; fields: string[] }> = 
         fields: ['sno', 'equipmentMachine', 'classification', 'subClassification', 'supplier', 'uom', 'dailyCost', 'weeklyCost', 'monthlyCost', 'tax']
     },
     labor: {
-        headers: ['S.NO', 'Labor', 'Classification', 'Sub Classification', 'Fringe', 'Base Pay', 'W Comp %', 'Payroll Tax %'],
-        fields: ['sno', 'labor', 'classification', 'subClassification', 'fringe', 'basePay', 'wCompPercent', 'payrollTaxesPercent']
+        headers: ['S.NO', 'Labor', 'Base Pay', 'W Comp %', 'Payroll Tax %'],
+        fields: ['sno', 'classification', 'basePay', 'wCompPercent', 'payrollTaxesPercent']
     },
     material: {
         headers: ['S.NO', 'Material', 'Classification', 'Sub Classification', 'Supplier', 'UOM', 'Cost', 'Taxes %'],
@@ -113,7 +113,7 @@ function CatalogueContent() {
     };
 
     // Fringe Constants
-    const [fringeConstants, setFringeConstants] = useState<CatalogItem[]>([]);
+    // const [fringeConstants, setFringeConstants] = useState<CatalogItem[]>([]); // Removed
 
     // Init active category from Hash & Listen for changes
     useEffect(() => {
@@ -137,7 +137,7 @@ function CatalogueContent() {
         fetchItems();
         fetchAllCounts();
         if (activeCategory === 'labor') {
-            loadFringeConstants();
+            // loadFringeConstants(); // Removed
         }
         setSortConfig(null); // Reset sort on category change
         setCurrentPage(1);
@@ -207,6 +207,17 @@ function CatalogueContent() {
         setHasMore(sortedItems.length > 20);
     }, [sortedItems, activeCategory]);
 
+    const getColumnWidthStyle = (field: string, category: string) => {
+        if (category === 'labor') {
+            if (field === 'sno') return { width: '5%' };
+            if (field === 'classification') return { width: '70%' };
+            if (field === 'basePay') return { width: '5%' };
+            if (field === 'wCompPercent') return { width: '5%' };
+            if (field === 'payrollTaxesPercent') return { width: '5%' };
+        }
+        return {};
+    };
+
     const loadMoreMobile = useCallback(() => {
         if (!hasMore) return;
         setMobileItems(prev => {
@@ -233,59 +244,7 @@ function CatalogueContent() {
         };
     }, [loadMoreMobile, hasMore]);
 
-    const loadFringeConstants = async () => {
-        try {
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getCatalogueItems', payload: { type: 'constant' } })
-            });
-            const data = await res.json();
-            if (data.success && data.result) {
-                setFringeConstants(data.result.filter((c: any) => c.type === 'Fringe'));
-            }
-        } catch (err) {
-            console.error('Error loading fringes:', err);
-        }
-    };
 
-    const handleAddFringe = async (name: string, value: number) => {
-        try {
-            // Format value as string currency if needed by backend, or number
-            // Backend model for Constant usually expects 'value' as string based on backup
-            // Backup logic: value: formattedValue (e.g. "$12.50")
-            const formattedValue = new Intl.NumberFormat('en-US', {
-                style: 'currency',
-                currency: 'USD'
-            }).format(value);
-
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'addCatalogueItem',
-                    payload: {
-                        type: 'constant',
-                        item: {
-                            description: name,
-                            type: 'Fringe',
-                            value: formattedValue
-                        }
-                    }
-                })
-            });
-            const data = await res.json();
-            if (data.success) {
-                await loadFringeConstants();
-                success('New fringe constant saved');
-            } else {
-                toastError('Failed to save fringe');
-            }
-        } catch (e) {
-            console.error(e);
-            toastError('Error saving fringe');
-        }
-    };
 
     const fetchItems = async () => {
         setLoading(true);
@@ -522,9 +481,6 @@ function CatalogueContent() {
                                                         </p>
                                                     </div>
                                                     <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between gap-1">
-                                                        <span className="text-[10px] text-[#3282B8] font-bold truncate">
-                                                            {String(item.fringe || '-')}
-                                                        </span>
                                                         <span className="text-[11px] font-extrabold text-[#0F4C75] shrink-0">
                                                             {formatValue(item.basePay, 'cost')}
                                                         </span>
@@ -582,14 +538,17 @@ function CatalogueContent() {
                                         <TableRow>
                                             {config.headers.map((h, index) => {
                                                 const fieldKey = config.fields[index];
+                                                const isSortable = fieldKey !== 'sno';
                                                 const isSorted = sortConfig?.key === fieldKey;
-                                                const isSortable = fieldKey !== 'sno'; // Disable sort for S.NO
+                                                
+                                                const widthStyle = getColumnWidthStyle(fieldKey, activeCategory);
 
                                                 return (
-                                                    <TableHeader
+                                                    <TableHeader 
                                                         key={h}
                                                         onClick={() => isSortable && handleSort(fieldKey)}
                                                         className={`whitespace-nowrap group ${isSortable ? 'cursor-pointer' : ''}`}
+                                                        style={widthStyle}
                                                     >
                                                         <div className="flex items-center gap-1">
                                                             {h}
@@ -606,7 +565,7 @@ function CatalogueContent() {
                                                     </TableHeader>
                                                 );
                                             })}
-                                            <TableHeader className="text-right">Actions</TableHeader>
+                                            <TableHeader className={activeCategory === 'labor' ? "text-center" : "text-right"} style={activeCategory === 'labor' ? { width: '10%' } : {}}>Actions</TableHeader>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -622,18 +581,19 @@ function CatalogueContent() {
                                         ) : (
                                             paginatedItems.map((item, rowIndex) => (
                                                 <TableRow key={item._id}>
-                                                    {config.fields.map((f) => (
-                                                        <TableCell key={f} className={f === 'sno' ? "text-gray-400 font-medium w-16" : ""}>
-                                                            {f === 'sno'
-                                                                ? (currentPage - 1) * itemsPerPage + rowIndex + 1
-                                                                : f === 'labor' && activeCategory === 'labor'
-                                                                    ? `${item.classification || ''}${item.classification && item.fringe ? '-' : ''}${item.fringe || ''}`
+                                                    {config.fields.map((f) => {
+                                                        const widthStyle = getColumnWidthStyle(f, activeCategory);
+                                                        return (
+                                                            <TableCell key={f} className={f === 'sno' ? "text-gray-400 font-medium w-16" : ""} style={widthStyle}>
+                                                                {f === 'sno'
+                                                                    ? (currentPage - 1) * itemsPerPage + rowIndex + 1
                                                                     : formatValue(item[f], f)
-                                                            }
-                                                        </TableCell>
-                                                    ))}
-                                                    <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-2">
+                                                                }
+                                                            </TableCell>
+                                                        );
+                                                    })}
+                                                    <TableCell className={activeCategory === 'labor' ? "text-center" : "text-right"} style={activeCategory === 'labor' ? { width: '10%' } : {}}>
+                                                        <div className={`flex items-center gap-2 ${activeCategory === 'labor' ? 'justify-center' : 'justify-end'}`}>
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <button onClick={() => openEditModal(item)} className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all">
@@ -686,8 +646,6 @@ function CatalogueContent() {
                         initialData={editItem}
                         isEditing={!!editItem}
                         existingItems={items}
-                        fringeConstants={fringeConstants}
-                        onAddFringe={handleAddFringe}
                     />
                 )}
 

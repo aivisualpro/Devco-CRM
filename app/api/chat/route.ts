@@ -3,6 +3,8 @@ import { connectToDatabase } from '@/lib/db';
 import Chat from '@/lib/models/Chat';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
     try {
         const user = await getUserFromRequest(request);
@@ -49,7 +51,7 @@ export async function GET(request: NextRequest) {
 
         return NextResponse.json({ success: true, messages: messages.reverse() }); // Return oldest first for chat flow
     } catch (error) {
-        console.error('Chat GET Error:', error);
+        console.error('Chat GET Error:', error instanceof Error ? error.message : error);
         return NextResponse.json({ success: false, error: 'Failed to fetch messages' }, { status: 500 });
     }
 }

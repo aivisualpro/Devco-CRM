@@ -37,9 +37,7 @@ interface AddLaborEstimateDialogueProps {
 
 // Column configuration for Labor
 const LABOR_COLUMNS = [
-    { key: 'classification', label: 'Classification', type: 'text', editable: true },
-    { key: 'subClassification', label: 'Sub Classification', type: 'text', editable: true },
-    { key: 'fringe', label: 'Fringe', type: 'text', editable: true },
+    { key: 'classification', label: 'Labor', type: 'text', editable: true },
     { key: 'basePay', label: 'Base Pay', type: 'number', editable: true, prefix: '$' },
     { key: 'wCompPercent', label: 'W Comp %', type: 'number', editable: true, suffix: '%' },
     { key: 'payrollTaxesPercent', label: 'Payroll Tax %', type: 'number', editable: true, suffix: '%' },
@@ -49,7 +47,6 @@ interface LaborRowProps {
     item: CatalogItem;
     isAdded: boolean;
     isSelected: boolean;
-    isSuggested: boolean;
     onToggle: (item: CatalogItem) => void;
     onInlineEdit: (item: CatalogItem, field: string, value: unknown) => void;
     editingCell: { itemId: string; field: string } | null;
@@ -64,7 +61,6 @@ const LaborRow = memo(({
     item, 
     isAdded, 
     isSelected, 
-    isSuggested,
     onToggle, 
     onInlineEdit,
     editingCell,
@@ -126,7 +122,7 @@ const LaborRow = memo(({
 
     return (
         <tr
-            className={`cursor-pointer transition-colors group ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : isQuickEditing ? 'bg-amber-50' : isSelected ? 'bg-indigo-100' : isSuggested ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+            className={`cursor-pointer transition-colors group ${isAdded ? 'bg-gray-100 opacity-60 cursor-not-allowed' : isQuickEditing ? 'bg-amber-50' : isSelected ? 'bg-indigo-100' : 'hover:bg-gray-50'}`}
             onClick={() => !isAdded && !isQuickEditing && onToggle(item)}
         >
             <td className="p-2">
@@ -168,11 +164,6 @@ const LaborRow = memo(({
                                 ) : (
                                     <>
                                         <span className="truncate">{formatValue(col, value)}</span>
-                                        {isSuggested && cIdx === 0 && (
-                                            <span className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[8px] font-medium bg-blue-100 text-blue-700 border border-blue-200">
-                                                Suggested
-                                            </span>
-                                        )}
                                     </>
                                 )}
                             </div>
@@ -248,7 +239,7 @@ export function AddLaborEstimateDialogue({
     const getIdentifier = useCallback((item: CatalogItem): string => {
         const normalize = (val: unknown) => String(val || '').toLowerCase().trim();
         const basePay = typeof item.basePay === 'number' ? item.basePay : parseFloat(String(item.basePay || 0).replace(/[^0-9.-]+/g, ""));
-        return `labor|${normalize(item.classification)}|${normalize(item.subClassification)}|${normalize(item.fringe)}|${basePay}`;
+        return `labor|${normalize(item.classification)}|${basePay}`;
     }, []);
 
     const existingIdentifiers = useMemo(() => new Set(existingItems.map(getIdentifier)), [existingItems, getIdentifier]);
@@ -267,9 +258,7 @@ export function AddLaborEstimateDialogue({
         if (searchStr) {
             list = list.filter(item => {
                 const classification = String(item.classification || '').toLowerCase();
-                const subClassification = String(item.subClassification || '').toLowerCase();
-                const itemFringe = String(item.fringe || '').toLowerCase();
-                return classification.includes(searchStr) || subClassification.includes(searchStr) || itemFringe.includes(searchStr);
+                return classification.includes(searchStr);
             });
         }
 
@@ -281,19 +270,8 @@ export function AddLaborEstimateDialogue({
             return true;
         });
 
-        if (fringe) {
-            const normalizedFringe = String(fringe).trim().toLowerCase();
-            filtered.sort((a, b) => {
-                const aMatch = String(a.fringe || '').trim().toLowerCase() === normalizedFringe;
-                const bMatch = String(b.fringe || '').trim().toLowerCase() === normalizedFringe;
-                if (aMatch && !bMatch) return -1;
-                if (!aMatch && bMatch) return 1;
-                return 0;
-            });
-        }
-
         return filtered.slice(0, 100);
-    }, [catalog, searchTerm, fringe, getIdentifier, localNewItems, getDisplayItem]);
+    }, [catalog, searchTerm, getIdentifier, localNewItems, getDisplayItem]);
 
     const toggleSelection = useCallback((item: CatalogItem) => {
         if (editingCell || quickEditId) return;
@@ -446,7 +424,6 @@ export function AddLaborEstimateDialogue({
                             <tbody className="divide-y divide-gray-100">
                                 {filteredCatalog.length > 0 ? (
                                     filteredCatalog.map((item) => {
-                                        const isSuggested = fringe && String(item.fringe || '').trim().toLowerCase() === String(fringe).trim().toLowerCase();
                                         const identifier = getIdentifier(item);
                                         return (
                                             <LaborRow 
@@ -454,7 +431,6 @@ export function AddLaborEstimateDialogue({
                                                 item={item}
                                                 isAdded={existingIdentifiers.has(identifier)}
                                                 isSelected={selectedItems.has(item)}
-                                                isSuggested={!!isSuggested}
                                                 onToggle={toggleSelection}
                                                 onInlineEdit={handleInlineEdit}
                                                 editingCell={editingCell}
@@ -484,11 +460,7 @@ export function AddLaborEstimateDialogue({
                     isOpen={isAddNewCatalogue}
                     onClose={() => setIsAddNewCatalogue(false)}
                     onSave={handleCatalogueSave}
-                    fringeConstants={fringeConstants}
                     existingItems={catalog}
-                    onAddFringe={async (name, val) => {
-                        // Not fully supported in this view yet
-                    }}
                 />
             )}
         </>

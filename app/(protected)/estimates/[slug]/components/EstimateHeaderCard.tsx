@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { MyDropDown, Modal, Input, Button, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 
 import { CostBreakdownChart } from './CostBreakdownChart';
@@ -130,6 +131,7 @@ export function EstimateHeaderCard({
     const [isEditingProjectName, setIsEditingProjectName] = useState(false);
     const [activeDropdown, setActiveDropdown] = useState<'services' | 'status' | 'fringe' | 'markup' | 'proposalWriter' | 'certifiedPayroll' | 'prevailingWage' | 'client' | 'contact' | 'address' | null>(null);
     const [isAddingService, setIsAddingService] = useState(false);
+    const [isConfirmWonModalOpen, setIsConfirmWonModalOpen] = useState(false);
 
 
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -558,13 +560,15 @@ export function EstimateHeaderCard({
                                     const isDropdownOpen = activeDropdown === 'fringe';
                                     const hasValue = !!formData.fringe;
                                     const activeColor = selectedFringe?.color || '#4f46e5';
+                                    const isFringeLocked = ['Won', 'Completed'].includes(formData.status || '');
 
                                     return (
                                         <div
                                             id="field-fringe"
-                                            onClick={() => setActiveDropdown(activeDropdown === 'fringe' ? null : 'fringe')}
+                                            onClick={() => !isFringeLocked && setActiveDropdown(activeDropdown === 'fringe' ? null : 'fringe')}
                                             className={`
-                                            w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
+                                            w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 relative overflow-visible
+                                            ${isFringeLocked ? 'cursor-default' : 'cursor-pointer'}
                                             ${isDropdownOpen
                                                     ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
                                                     : hasValue
@@ -574,24 +578,31 @@ export function EstimateHeaderCard({
                                             style={hasValue ? { backgroundColor: activeColor } : {}}
                                         >
                                             {hasValue ? (
-                                                <span 
-                                                    className={`font-black uppercase leading-none text-center px-0.5 ${
-                                                        (formData.fringe?.length || 0) <= 4 
-                                                            ? 'text-[9px]' 
-                                                            : (formData.fringe?.length || 0) <= 7 
-                                                                ? 'text-[7px]' 
-                                                                : 'text-[6px]'
-                                                    }`}
-                                                    style={{ 
-                                                        wordBreak: 'break-word',
-                                                        maxWidth: '40px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
-                                                    }}
-                                                >
-                                                    {formData.fringe}
-                                                </span>
+                                                <>
+                                                    <span 
+                                                        className={`font-black uppercase leading-none text-center px-0.5 ${
+                                                            (formData.fringe?.length || 0) <= 4 
+                                                                ? 'text-[9px]' 
+                                                                : (formData.fringe?.length || 0) <= 7 
+                                                                    ? 'text-[7px]' 
+                                                                    : 'text-[5.5px] tracking-tight'
+                                                        }`}
+                                                        style={{ 
+                                                            wordBreak: 'break-word',
+                                                            maxWidth: '46px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                    >
+                                                        {formData.fringe}
+                                                    </span>
+                                                    {isFringeLocked && (
+                                                        <div className="absolute -top-1 -right-1 bg-emerald-500 rounded-full p-0.5 shadow-sm animate-[scaleIn_0.3s_ease-out_forwards]">
+                                                            <Check className="w-3 h-3 text-white" />
+                                                        </div>
+                                                    )}
+                                                </>
                                             ) : (
                                                 <HardHat className="w-5 h-5" />
                                             )}
@@ -599,21 +610,24 @@ export function EstimateHeaderCard({
                                     );
                                 })()}
 
-                                {/* Fringe Dropdown */}
-                                <MyDropDown
-                                    isOpen={activeDropdown === 'fringe'}
-                                    onClose={() => setActiveDropdown(null)}
-                                    options={fringeOptions}
-                                    selectedValues={formData.fringe ? [formData.fringe] : []}
-                                    onSelect={(val) => {
-                                        onFringeChange(val === formData.fringe ? '' : val);
-                                        setActiveDropdown(null);
-                                    }}
-                                    onAdd={handleAddNewFringe}
-                                    placeholder="Search fringe rates..."
-                                    anchorId="field-fringe"
-                                    positionMode="overlay"
-                                />
+                                {
+                                    /* Fringe Dropdown - Hide if locked */
+                                    !['Won', 'Completed'].includes(formData.status || '') && (
+                                    <MyDropDown
+                                        isOpen={activeDropdown === 'fringe'}
+                                        onClose={() => setActiveDropdown(null)}
+                                        options={fringeOptions}
+                                        selectedValues={formData.fringe ? [formData.fringe] : []}
+                                        onSelect={(val) => {
+                                            onFringeChange(val === formData.fringe ? '' : val);
+                                            setActiveDropdown(null);
+                                        }}
+                                        onAdd={handleAddNewFringe}
+                                        placeholder="Search fringe rates..."
+                                        anchorId="field-fringe"
+                                        positionMode="overlay"
+                                    />
+                                )}
                             </div>
 
                             {/* Certified Payroll */}
@@ -648,11 +662,11 @@ export function EstimateHeaderCard({
                                                             ? 'text-[9px]' 
                                                             : (formData.certifiedPayroll?.length || 0) <= 7 
                                                                 ? 'text-[7px]' 
-                                                                : 'text-[6px]'
+                                                                : 'text-[5.5px] tracking-tight'
                                                     }`}
                                                     style={{ 
                                                         wordBreak: 'break-word',
-                                                        maxWidth: '40px',
+                                                        maxWidth: '46px',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center'
@@ -995,43 +1009,61 @@ export function EstimateHeaderCard({
                                     const isDropdownOpen = activeDropdown === 'status';
                                     const hasValue = !!formData.status;
                                     const activeColor = selectedStatus?.color || '#3b82f6';
+                                    const isStatusLocked = ['Won', 'Completed'].includes(formData.status || '');
 
                                     return (
-                                        <div
-                                            id="field-status"
-                                            onClick={() => setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
-                                            className={`
-                                    w-12 h-12 rounded-full flex items-center justify-center cursor-pointer transition-all duration-300 relative overflow-hidden
-                                            ${isDropdownOpen
-                                                    ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
-                                                    : hasValue
-                                                        ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white'
-                                                        : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'
-                                                }
-                                    `}
-                                            style={hasValue ? { backgroundColor: activeColor } : {}}
-                                        >
-                                            {hasValue ? (
-                                                <span 
-                                                    className={`font-black uppercase leading-none text-center px-0.5 ${
-                                                        (formData.status?.length || 0) <= 4 
-                                                            ? 'text-[9px]' 
-                                                            : (formData.status?.length || 0) <= 7 
-                                                                ? 'text-[7px]' 
-                                                                : 'text-[6px]'
-                                                    }`}
-                                                    style={{ 
-                                                        wordBreak: 'break-word',
-                                                        maxWidth: '40px',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
+                                        <div className="relative">
+                                            <div
+                                                id="field-status"
+                                                onClick={() => !isStatusLocked && setActiveDropdown(activeDropdown === 'status' ? null : 'status')}
+                                                className={`
+                                        w-12 h-12 rounded-full flex items-center justify-center ${isStatusLocked ? 'cursor-default' : 'cursor-pointer'} transition-all duration-300 relative overflow-hidden
+                                                ${isDropdownOpen
+                                                        ? 'shadow-[inset_4px_4px_8px_rgba(0,0,0,0.2)]'
+                                                        : hasValue
+                                                            ? 'shadow-[4px_4px_10px_rgba(0,0,0,0.15),-4px_-4px_10px_rgba(255,255,255,0.8)] text-white'
+                                                            : 'shadow-[6px_6px_12px_#d1d9e6,-6px_-6px_12px_#ffffff] hover:shadow-[8px_8px_16px_#d1d9e6,-8px_-8px_16px_#ffffff] hover:-translate-y-0.5 bg-[#eef2f6] text-slate-400'
+                                                    }
+                                        `}
+                                                style={hasValue ? { backgroundColor: activeColor } : {}}
+                                            >
+                                                {hasValue ? (
+                                                    <span 
+                                                        className={`font-black uppercase leading-none text-center px-0.5 ${
+                                                            (formData.status?.length || 0) <= 4 
+                                                                ? 'text-[9px]' 
+                                                                : (formData.status?.length || 0) <= 7 
+                                                                    ? 'text-[7px]' 
+                                                                    : 'text-[5.5px] tracking-tight'
+                                                        }`}
+                                                        style={{ 
+                                                            wordBreak: 'break-word',
+                                                            maxWidth: '46px',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center'
+                                                        }}
+                                                    >
+                                                        {formData.status}
+                                                    </span>
+                                                ) : (
+                                                    <Activity className="w-5 h-5" />
+                                                )}
+                                            </div>
+
+                                            {/* Tiny Completed Button */}
+                                            {formData.status === 'Won' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onStatusChange('Completed');
+                                                        toast.success('Status marked as Completed');
                                                     }}
+                                                    className="absolute -top-1 -right-1 w-5 h-5 bg-white rounded-full shadow-md flex items-center justify-center border border-emerald-100 hover:bg-emerald-50 hover:scale-110 transition-all z-20 group/btn"
+                                                    title="Mark as Completed"
                                                 >
-                                                    {formData.status}
-                                                </span>
-                                            ) : (
-                                                <Activity className="w-5 h-5" />
+                                                    <Check className="w-3 h-3 text-emerald-500" />
+                                                </button>
                                             )}
                                         </div>
                                     );
@@ -1041,9 +1073,27 @@ export function EstimateHeaderCard({
                                 <MyDropDown
                                     isOpen={activeDropdown === 'status'}
                                     onClose={() => setActiveDropdown(null)}
-                                    options={statusOptions}
+                                    options={statusOptions.map(opt => 
+                                        opt.value === 'Completed' && formData.status !== 'Won'
+                                            ? { ...opt, disabled: true, tooltip: 'Estimate must be Won before marking as Completed' }
+                                            : opt
+                                    )}
                                     selectedValues={formData.status ? [formData.status] : []}
                                     onSelect={(val) => {
+                                        if (val === 'Won') {
+                                            if (!formData.fringe) {
+                                                toast.error("Please select a Fringe Rate first.");
+                                                return;
+                                            }
+                                            const contracts = (formData as any).signedContracts;
+                                            if (!contracts || !Array.isArray(contracts) || contracts.length === 0) {
+                                                toast.error("Please upload a Signed Contract first.");
+                                                return;
+                                            }
+                                            setIsConfirmWonModalOpen(true);
+                                            setActiveDropdown(null);
+                                            return;
+                                        }
                                         onStatusChange(val);
                                         setActiveDropdown(null);
                                     }}
@@ -1125,6 +1175,57 @@ export function EstimateHeaderCard({
                             <option value="Other">Other</option>
                         </select>
                     </div>
+                </div>
+
+            </Modal>
+
+            {/* Confirm Won Status Modal */}
+            <Modal
+                isOpen={isConfirmWonModalOpen}
+                onClose={() => setIsConfirmWonModalOpen(false)}
+                title="Confirm Job Win"
+                footer={(
+                    <div className="flex justify-end gap-3 w-full">
+                        <Button variant="ghost" onClick={() => setIsConfirmWonModalOpen(false)}>Cancel</Button>
+                        <Button 
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                            onClick={() => {
+                                onStatusChange('Won');
+                                setIsConfirmWonModalOpen(false);
+                                toast.success("Status updated to Won! Fringe Rate Locked.");
+                            }}
+                        >
+                            Confirm & Lock
+                        </Button>
+                    </div>
+                )}
+            >
+                <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-2">
+                        <Check className="w-8 h-8 text-emerald-600" />
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <h3 className="text-lg font-bold text-slate-800">
+                            Congratulations on the Win!
+                        </h3>
+                        <p className="text-sm text-slate-500 max-w-[280px] mx-auto leading-relaxed">
+                            You are about to set the status to <span className="font-bold text-emerald-600">Won</span>.
+                        </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-4 w-full border border-slate-100 mt-2">
+                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                            Confirmed Fringe Rate
+                        </p>
+                        <p className="text-xl font-black text-[#0F4C75]">
+                            {formData.fringe || 'None'}
+                        </p>
+                    </div>
+
+                    <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
+                        <span className="mr-1">⚠️</span> This will lock the Fringe Rate
+                    </p>
                 </div>
             </Modal>
         </div>

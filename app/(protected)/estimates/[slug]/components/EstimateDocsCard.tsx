@@ -694,6 +694,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             try {
                 // Fetch messages specifically for this estimate
                 const res = await fetch(`/api/chat?limit=50&estimate=${encodeURIComponent(formData.estimate)}`);
+                if (!res.ok) {
+                    console.warn(`Chat fetch failed with status: ${res.status}`);
+                    return;
+                }
                 const data = await res.json();
                 if (data.success) {
                     setChatMessages(data.messages);
@@ -1320,6 +1324,19 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const handleAddContract = () => {
         if (!onUpdate) return;
+        if (!newContract.date) {
+            toast.error('Date is required');
+            return;
+        }
+        if (!newContract.amount) {
+            toast.error('Amount is required');
+            return;
+        }
+        if (!newContract.attachments || newContract.attachments.length === 0) {
+            toast.error('At least one file is required');
+            return;
+        }
+
         const updatedContracts = [...signedContracts, {
             ...newContract,
             amount: parseFloat(newContract.amount) || 0
@@ -2847,7 +2864,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 footer={
                     <div className="flex gap-3 justify-end w-full">
                         <Button variant="ghost" onClick={() => setIsSignedContractModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleAddContract} disabled={!newContract.date || !newContract.amount}>Add Contract</Button>
+                        <Button onClick={handleAddContract} disabled={!newContract.date || !newContract.amount || !newContract.attachments || newContract.attachments.length === 0}>Add Contract</Button>
                     </div>
                 }
             >

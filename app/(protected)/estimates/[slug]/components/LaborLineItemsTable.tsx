@@ -106,8 +106,7 @@ function LaborRow({
 }) {
     const [localValues, setLocalValues] = useState({
         labor: String(item.labor ?? ''),
-        classification: String(item.classification ?? ''),
-        subClassification: String(item.subClassification ?? ''),
+        fringe: String(item.fringe ?? ''),
         basePay: String(item.basePay ?? ''),
         quantity: String(item.quantity ?? ''),
         days: String(item.days ?? ''),
@@ -122,8 +121,7 @@ function LaborRow({
     useEffect(() => {
         setLocalValues(prev => ({
             labor: dirtyFields.has('labor') ? prev.labor : String(item.labor ?? ''),
-            classification: dirtyFields.has('classification') ? prev.classification : String(item.classification ?? ''),
-            subClassification: dirtyFields.has('subClassification') ? prev.subClassification : String(item.subClassification ?? ''),
+            fringe: dirtyFields.has('fringe') ? prev.fringe : String(item.fringe ?? ''),
             basePay: dirtyFields.has('basePay') ? prev.basePay : String(item.basePay ?? ''),
             quantity: dirtyFields.has('quantity') ? prev.quantity : String(item.quantity ?? ''),
             days: dirtyFields.has('days') ? prev.days : String(item.days ?? ''),
@@ -132,7 +130,7 @@ function LaborRow({
             wCompPercent: dirtyFields.has('wCompPercent') ? prev.wCompPercent : String(item.wCompPercent ?? ''),
             payrollTaxesPercent: dirtyFields.has('payrollTaxesPercent') ? prev.payrollTaxesPercent : String(item.payrollTaxesPercent ?? '')
         }));
-    }, [item.labor, item.classification, item.subClassification, item.basePay, item.quantity, item.days, item.otPd, item.dtPd, item.wCompPercent, item.payrollTaxesPercent]);
+    }, [item.labor, item.fringe, item.basePay, item.quantity, item.days, item.otPd, item.dtPd, item.wCompPercent, item.payrollTaxesPercent]);
 
     // Calculate labor total using the 10-step formula
     const liveTotal = useMemo(() => {
@@ -232,7 +230,7 @@ function LaborRow({
             <td className="p-1 text-xs text-gray-400 text-center font-medium">
                 {index + 1}
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '40%' }}>
                 <LiveInput
                     value={localValues.labor}
                     inputType="text"
@@ -242,27 +240,7 @@ function LaborRow({
                     inputId={`labor-${index}-0`}
                 />
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
-                <LiveInput
-                    value={localValues.classification}
-                    inputType="text"
-                    onChange={(val) => handleChange('classification', val)}
-                    onBlur={() => handleBlur('classification')}
-                    placeholder="Classification"
-                    inputId={`labor-${index}-1`}
-                />
-            </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '20%' }}>
-                <LiveInput
-                    value={localValues.subClassification}
-                    inputType="text"
-                    onChange={(val) => handleChange('subClassification', val)}
-                    onBlur={() => handleBlur('subClassification')}
-                    placeholder="Sub"
-                    inputId={`labor-${index}-2`}
-                />
-            </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <LiveInput
                     value={localValues.basePay}
                     inputType="number"
@@ -272,7 +250,7 @@ function LaborRow({
                     inputId={`labor-${index}-3`}
                 />
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <LiveInput
                     value={localValues.quantity}
                     inputType="number"
@@ -282,7 +260,7 @@ function LaborRow({
                     inputId={`labor-${index}-4`}
                 />
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <LiveInput
                     value={localValues.days}
                     inputType="number"
@@ -292,7 +270,7 @@ function LaborRow({
                     inputId={`labor-${index}-5`}
                 />
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <LiveInput
                     value={localValues.otPd}
                     inputType="number"
@@ -302,7 +280,7 @@ function LaborRow({
                     inputId={`labor-${index}-6`}
                 />
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <LiveInput
                     value={localValues.dtPd}
                     inputType="number"
@@ -312,13 +290,23 @@ function LaborRow({
                     inputId={`labor-${index}-7`}
                 />
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700 font-medium bg-gray-50" style={{ width: '7%' }}>
+                <div className="px-1.5 py-0.5 truncate" title={localValues.fringe || 'No Fringe'}>
+                    {formatCurrency(
+                        (item.fringe && fringeConstants 
+                            ? getFringeRate(item.fringe as string, fringeConstants) 
+                            : fringeRate) || 0
+                    )}
+                </div>
+            </td>
+
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <span className="text-xs text-gray-700">{formatPercent(localValues.wCompPercent)}</span>
             </td>
-            <td className="p-1 text-xs text-gray-700" style={{ width: '5%' }}>
+            <td className="p-1 text-xs text-gray-700" style={{ width: '7%' }}>
                 <span className="text-xs text-gray-700">{formatPercent(localValues.payrollTaxesPercent)}</span>
             </td>
-            <td className="p-1 text-xs whitespace-nowrap text-right" style={{ width: '10%' }}>
+            <td className="p-1 text-xs whitespace-nowrap text-right" style={{ width: '14%' }}>
                 <div
                     onClick={(e) => {
                         e.stopPropagation();
@@ -371,37 +359,34 @@ export function LaborLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8">
                             #
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '20%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '30%' }}>
                             Labor
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '20%' }}>
-                            Classification
-                        </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '20%' }}>
-                            Sub
-                        </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             Base Pay
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             Qty
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             Days
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             OTPD
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             DTPD
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
+                            Fringe
+                        </th>
+                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             W.Comp
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '5%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             Payroll
                         </th>
-                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap text-right" style={{ width: '10%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap text-right" style={{ width: '14%' }}>
                             Total
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8" />

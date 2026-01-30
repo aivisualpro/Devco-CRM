@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Plus, Check } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from './tooltip';
 
 interface Option {
     id: string;
@@ -13,6 +14,7 @@ interface Option {
     badge?: string;
     icon?: React.ReactNode;
     disabled?: boolean;
+    tooltip?: string;
 }
 
 interface MyDropDownProps {
@@ -231,9 +233,8 @@ export function MyDropDown({
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
                     {filteredOptions.map((opt) => {
                         const active = isSelected(opt.value);
-                        return (
+                        const content = (
                             <div
-                                key={opt.id}
                                 onMouseDown={(e) => {
                                     e.stopPropagation();
                                     if (!opt.disabled) {
@@ -242,10 +243,10 @@ export function MyDropDown({
                                 }}
                                 className={`
                                     group flex items-center gap-3 p-3 rounded-xl transition-all duration-200
-                                    ${opt.disabled 
-                                        ? 'cursor-not-allowed opacity-50 bg-slate-50' 
-                                        : active 
-                                            ? 'bg-slate-100 cursor-pointer' 
+                                    ${opt.disabled
+                                        ? 'cursor-not-allowed opacity-50 bg-slate-50'
+                                        : active
+                                            ? 'bg-slate-100 cursor-pointer'
                                             : 'hover:bg-slate-50 cursor-pointer'
                                     }
                                 `}
@@ -283,13 +284,28 @@ export function MyDropDown({
                                         <span className={`text-[11px] font-bold whitespace-nowrap leading-tight block ${active ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
                                             {opt.label}
                                         </span>
-                                        {opt.disabled && (
+                                        {opt.disabled && !opt.tooltip && (
                                             <span className="text-[9px] text-slate-400 font-medium italic border border-slate-200 px-1 rounded">Soon</span>
                                         )}
                                     </div>
                                 </div>
                             </div>
                         );
+
+                        if (opt.tooltip && opt.disabled) {
+                            return (
+                                <Tooltip key={opt.id}>
+                                    <TooltipTrigger asChild>
+                                        {content}
+                                    </TooltipTrigger>
+                                    <TooltipContent className="z-[10000]">
+                                        {opt.tooltip}
+                                    </TooltipContent>
+                                </Tooltip>
+                            );
+                        }
+
+                        return <div key={opt.id}>{content}</div>;
                     })}
 
                     {/* Add New Option */}

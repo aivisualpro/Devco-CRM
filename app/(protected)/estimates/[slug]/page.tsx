@@ -138,11 +138,11 @@ interface VersionEntry {
 const baseSectionConfigs = [
     {
         id: 'Labor', title: 'Labor', key: 'labor',
-        headers: ['Labor', 'Classification', 'Sub Classification', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp', 'Payroll Tax', 'Total'],
-        fields: ['labor', 'classification', 'subClassification', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent', 'total'],
-        formFields: ['classification', 'subClassification', 'fringe', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent'],
-        formHeaders: ['Classification', 'Sub Classification', 'Fringe', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp %', 'Payroll Tax %'],
-        editableFields: ['labor', 'classification', 'subClassification', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent']
+        headers: ['Labor', 'Fringe', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp', 'Payroll Tax', 'Total'],
+        fields: ['labor', 'fringe', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent', 'total'],
+        formFields: ['labor', 'fringe', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent'],
+        formHeaders: ['Labor', 'Fringe', 'Base Pay', 'Quantity', 'Days', 'OT PD', 'W. Comp %', 'Payroll Tax %'],
+        editableFields: ['labor', 'basePay', 'quantity', 'days', 'otPd', 'wCompPercent', 'payrollTaxesPercent']
     },
     {
         id: 'Equipment', title: 'Equipment', key: 'equipment',
@@ -1428,9 +1428,21 @@ export default function EstimateViewPage() {
     };
 
     const handleFringeChange = (newFringe: string) => {
-        if (!formData) return;
-        console.log('Fringe changed to:', newFringe);
+        if (!formData || !estimate) return;
+        
+        // 1. Update form data
         setFormData(prev => prev ? { ...prev, fringe: newFringe } : null);
+        
+        // 2. Update all labor items with new fringe (and update estimate state to trigger recalc)
+        setEstimate(prev => {
+            if (!prev) return null;
+            const laborItems = (prev.labor || []).map(item => ({
+                ...item,
+                fringe: newFringe
+            }));
+            return { ...prev, fringe: newFringe, labor: laborItems };
+        });
+
         setUnsavedChanges(true);
     };
 

@@ -102,7 +102,7 @@ export function LaborCalculationModal({
                                 </span>
                             </div>
                             <div className="flex justify-between text-xs group">
-                                <span className="text-gray-600">Fringes</span>
+                                <span className="text-gray-600">Fringes ({(item.fringe as string) || 'None'})</span>
                                 <span className="font-mono text-slate-600">
                                     {formatMoney(breakdown.fringe)}
                                 </span>
@@ -144,7 +144,7 @@ export function LaborCalculationModal({
                                 </span>
                             </div>
                             <div className="flex justify-between text-xs group">
-                                <span className="text-gray-600">Fringes</span>
+                                <span className="text-gray-600">Fringes ({(item.fringe as string) || 'None'})</span>
                                 <span className="font-mono text-slate-600">
                                     {formatMoney(breakdown.fringe)}
                                 </span>
@@ -186,7 +186,7 @@ export function LaborCalculationModal({
                                 </span>
                             </div>
                             <div className="flex justify-between text-xs group">
-                                <span className="text-gray-600">Fringes</span>
+                                <span className="text-gray-600">Fringes ({(item.fringe as string) || 'None'})</span>
                                 <span className="font-mono text-slate-600">
                                     {formatMoney(breakdown.fringe)}
                                 </span>

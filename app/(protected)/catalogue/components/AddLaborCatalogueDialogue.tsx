@@ -11,8 +11,6 @@ interface AddLaborCatalogueDialogueProps {
     initialData?: any;
     isEditing?: boolean;
     existingItems?: any[];
-    fringeConstants?: any[];
-    onAddFringe: (name: string, value: number) => Promise<void>;
 }
 
 export function AddLaborCatalogueDialogue({
@@ -21,17 +19,11 @@ export function AddLaborCatalogueDialogue({
     onSave,
     initialData,
     isEditing,
-    existingItems = [],
-    fringeConstants = [],
-    onAddFringe
+    existingItems = []
 }: AddLaborCatalogueDialogueProps) {
     const [formData, setFormData] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
 
-    // Fringe Prompt State
-    const [showFringePrompt, setShowFringePrompt] = useState(false);
-    const [pendingFringeName, setPendingFringeName] = useState('');
-    const [newFringeValue, setNewFringeValue] = useState('');
     const [activeField, setActiveField] = useState<string | null>(null);
 
     useEffect(() => {
@@ -41,8 +33,6 @@ export function AddLaborCatalogueDialogue({
             } else {
                 setFormData({
                     classification: '-',
-                    subClassification: '-',
-                    fringe: '-',
                     otPd: 2,
                     wCompPercent: 12,
                     payrollTaxesPercent: 16
@@ -55,28 +45,16 @@ export function AddLaborCatalogueDialogue({
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
-                // If fringe prompt is open, it handles its own escape
-                if (!showFringePrompt) {
-                    onClose();
-                }
+                onClose();
             }
         };
         window.addEventListener('keydown', handleEsc);
         return () => window.removeEventListener('keydown', handleEsc);
-    }, [isOpen, showFringePrompt, onClose]);
+    }, [isOpen, onClose]);
 
     if (!isOpen) return null;
 
-    const filteredFringeOptions = React.useMemo(() => {
-        return (fringeConstants || [])
-            .filter((c: any) => {
-                const type = (c.type || c.category || '').toLowerCase();
-                return type === 'fringe';
-            })
-            .map((c: any) => c.description)
-            .filter(Boolean)
-            .sort();
-    }, [fringeConstants]);
+
 
     const getOptions = (field: string) => {
         const values = existingItems
@@ -98,34 +76,9 @@ export function AddLaborCatalogueDialogue({
         setIsSaving(false);
     };
 
-    const handleFringeChange = (val: string) => {
-        // Check if existing constant
-        const existing = fringeConstants.find(c => c.description === val);
-        if (existing || val === '-') {
-            setFormData({ ...formData, fringe: val });
-        } else {
-            // New Fringe - prompt for value
-            setPendingFringeName(val);
-            setNewFringeValue('');
-            setShowFringePrompt(true);
-        }
-    };
-
-    const confirmNewFringe = async () => {
-        if (!newFringeValue) return;
-        const numVal = parseFloat(newFringeValue);
-        if (isNaN(numVal)) return;
-
-        await onAddFringe(pendingFringeName, numVal);
-        setFormData({ ...formData, fringe: pendingFringeName });
-        setShowFringePrompt(false);
-    };
-
     const focusNextField = (currentIndex: number) => {
         const fieldIds = [
             'labor-modal-classification',
-            'labor-modal-subClassification',
-            'labor-modal-fringe',
             'field-basePay',
             'field-wComp',
             'field-payrollTax'
@@ -162,7 +115,7 @@ export function AddLaborCatalogueDialogue({
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="col-span-1">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                    Classification
+                                    Labor
                                 </label>
                                 <div
                                     id="labor-modal-classification"
@@ -187,80 +140,16 @@ export function AddLaborCatalogueDialogue({
                                         setActiveField(null);
                                         focusNextField(0);
                                     }}
-                                    placeholder="Select or add classification..."
+                                    placeholder="Select or add labor..."
                                     width="w-full"
                                     anchorId="labor-modal-classification"
                                     positionMode="overlay"
                                 />
                             </div>
 
-                            <div className="col-span-1">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                    Sub Classification
-                                </label>
-                                <div
-                                    id="labor-modal-subClassification"
-                                    className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
-                                    onClick={() => setActiveField('subClassification')}
-                                >
-                                    {formData.subClassification || '-'}
-                                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                                </div>
-                                <MyDropDown
-                                    isOpen={activeField === 'subClassification'}
-                                    onClose={() => setActiveField(null)}
-                                    options={getOptions('subClassification').map(opt => ({ id: opt, label: opt, value: opt }))}
-                                    selectedValues={formData.subClassification ? [formData.subClassification] : []}
-                                    onSelect={(val) => {
-                                        setFormData({ ...formData, subClassification: val });
-                                        setActiveField(null);
-                                        focusNextField(1);
-                                    }}
-                                    onAdd={async (val) => {
-                                        setFormData({ ...formData, subClassification: val });
-                                        setActiveField(null);
-                                        focusNextField(1);
-                                    }}
-                                    placeholder="Select or add sub-classification..."
-                                    width="w-full"
-                                    anchorId="labor-modal-subClassification"
-                                    positionMode="overlay"
-                                />
-                            </div>
 
-                            <div className="col-span-1">
-                                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                    Fringe Benefits
-                                </label>
-                                <div
-                                    id="labor-modal-fringe"
-                                    className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
-                                    onClick={() => setActiveField('fringe')}
-                                >
-                                    {formData.fringe || '-'}
-                                    <ChevronDown className="w-4 h-4 text-slate-400" />
-                                </div>
-                                <MyDropDown
-                                    isOpen={activeField === 'fringe'}
-                                    onClose={() => setActiveField(null)}
-                                    options={['-', ...filteredFringeOptions].map(opt => ({ id: opt, label: opt, value: opt }))}
-                                    selectedValues={formData.fringe ? [formData.fringe] : []}
-                                    onSelect={(val) => {
-                                        handleFringeChange(val);
-                                        setActiveField(null);
-                                        focusNextField(2);
-                                    }}
-                                    onAdd={async (val) => {
-                                        handleFringeChange(val);
-                                        setActiveField(null);
-                                        focusNextField(2);
-                                    }}
-                                    placeholder="Select or add fringe..."
-                                    width="w-full"
-                                    anchorId="labor-modal-fringe"
-                                    positionMode="overlay"
-                                />
-                            </div>
+
+
 
                             <div className="col-span-1">
                                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Base Pay</label>
@@ -274,7 +163,7 @@ export function AddLaborCatalogueDialogue({
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
-                                            focusNextField(3);
+                                            focusNextField(1);
                                         }
                                     }}
                                 />
@@ -292,7 +181,7 @@ export function AddLaborCatalogueDialogue({
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
-                                            focusNextField(4);
+                                            focusNextField(2);
                                         }
                                     }}
                                 />
@@ -337,37 +226,7 @@ export function AddLaborCatalogueDialogue({
                 </div>
             </div>
 
-            {/* Fringe Prompt Modal */}
-            {showFringePrompt && (
-                <div className="fixed inset-0 z-[60] fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
-                    <div className="absolute inset-0 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowFringePrompt(false)}></div>
-                    <div className="relative w-full max-w-sm bg-white rounded-xl shadow-2xl p-6 animate-in zoom-in-95">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">New Fringe Constant</h3>
-                        <p className="text-sm text-gray-500 mb-4">
-                            Set the value for <strong>{pendingFringeName}</strong>.
-                        </p>
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Value (e.g. 15.50)</label>
-                            <input
-                                autoFocus
-                                type="number"
-                                value={newFringeValue}
-                                onChange={(e) => setNewFringeValue(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-200 rounded-xl"
-                                placeholder="0.00"
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') confirmNewFringe();
-                                    if (e.key === 'Escape') setShowFringePrompt(false);
-                                }}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button onClick={() => setShowFringePrompt(false)} className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg">Cancel</button>
-                            <button onClick={confirmNewFringe} className="px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg">Save</button>
-                        </div>
-                    </div>
-                </div>
-            )}
+
         </>
     );
 }

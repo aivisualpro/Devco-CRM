@@ -71,14 +71,16 @@ interface TableHeaderProps {
     onClick?: () => void;
     sortable?: boolean;
     sortDirection?: 'asc' | 'desc' | null;
+    style?: React.CSSProperties;
 }
 
-export function TableHeader({ children, className = '', onClick, sortable, sortDirection }: TableHeaderProps) {
+export function TableHeader({ children, className = '', onClick, sortable, sortDirection, style }: TableHeaderProps) {
     const isCentered = className.includes('text-center');
     return (
         <th
             className={`p-1 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wider bg-[#f9fafb] ${onClick || sortable ? 'cursor-pointer hover:bg-white select-none transition-colors group' : ''} ${className}`}
             onClick={onClick}
+            style={style}
         >
             <div className={`flex items-center gap-1 ${isCentered ? 'justify-center' : ''}`}>
                 {children}
