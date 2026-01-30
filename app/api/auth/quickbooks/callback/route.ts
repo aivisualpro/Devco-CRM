@@ -5,8 +5,9 @@ import { QBO_CLIENT_ID, QBO_CLIENT_SECRET, QBO_REALM_ID } from '@/lib/quickbooks
 
 export async function GET(req: NextRequest) {
     const { searchParams, origin } = new URL(req.url);
-    // Force https for production environments
-    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || origin).replace(/^http:/, 'https:');
+    // Force https and remove trailing slash for exact matching
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL || origin;
+    appUrl = appUrl.replace(/\/$/, '').replace(/^http:/, 'https:');
     
     const code = searchParams.get('code');
     const realmId = searchParams.get('realmId');

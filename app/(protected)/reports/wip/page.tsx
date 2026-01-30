@@ -1584,8 +1584,7 @@ function WIPReportContent() {
                                                                 return (
                                                                     <tr 
                                                                         key={project.Id} 
-                                                                        className="hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                                                                        onClick={() => setSelectedProject(project)}
+                                                                        className="hover:bg-slate-50/50 transition-colors group"
                                                                     >
                                                                         <td 
                                                                             className="p-1.5 text-center text-[9px] border border-slate-200"
@@ -1598,8 +1597,11 @@ function WIPReportContent() {
                                                                                 <Star size={10} fill={project.isFavorite ? 'currentColor' : 'none'} />
                                                                             </button>
                                                                         </td>
-                                                                        <td className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''}`}>
-                                                                            <div className="truncate text-[9px]" title={project.DisplayName}>{project.DisplayName}</div>
+                                                                        <td 
+                                                                            className={`${cellCls} min-w-[120px] max-w-[150px] ${activeHighlight.includes('project') ? highlightCls : ''} cursor-pointer hover:bg-slate-100 transition-colors`}
+                                                                            onClick={() => setSelectedProject(project)}
+                                                                        >
+                                                                            <div className="truncate text-[9px] font-semibold text-blue-800" title={project.DisplayName}>{project.DisplayName}</div>
                                                                         </td>
                                                                         <td 
                                                                             className={`${cellCls} ${activeHighlight.includes('proposal-num') ? highlightCls : ''}`}
@@ -1722,7 +1724,7 @@ function WIPReportContent() {
                                                                                     onClick={(e) => e.stopPropagation()}
                                                                                 />
                                                                             ) : (
-                                                                                project.isManualOriginalContract ? <span className="text-[#1A3263] font-bold">{fmt(originalContract)}</span> : fmt(originalContract)
+                                                                                project.isManualOriginalContract ? <span className="text-blue-500 font-bold">{fmt(originalContract)}</span> : fmt(originalContract)
                                                                             )}
                                                                         </td>
                                                                         <td 
@@ -1749,7 +1751,7 @@ function WIPReportContent() {
                                                                                     onClick={(e) => e.stopPropagation()}
                                                                                 />
                                                                             ) : (
-                                                                                project.isManualChangeOrders ? <span className="text-[#1A3263] font-bold">{fmt(changeOrders)}</span> : fmt(changeOrders)
+                                                                                project.isManualChangeOrders ? <span className="text-blue-500 font-bold">{fmt(changeOrders)}</span> : fmt(changeOrders)
                                                                             )}
                                                                         </td>
                                                                         <td className={`${cellCls} text-right font-bold ${activeHighlight.includes('updated-contract') ? highlightCls : ''}`}>{fmt(updatedContract)}</td>
