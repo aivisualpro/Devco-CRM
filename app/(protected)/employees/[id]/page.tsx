@@ -77,7 +77,9 @@ export default function EmployeeViewPage() {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee>>({});
     const [modalTab, setModalTab] = useState('personal');
+
     const [saving, setSaving] = useState(false);
+    const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
 
     // Dropdown options for edit modal
     const [appRoleOptions, setAppRoleOptions] = useState<string[]>([]);
@@ -170,6 +172,28 @@ export default function EmployeeViewPage() {
         }
     };
 
+    const handleQuickUpdate = async (field: string, value: any) => {
+        if (!employee) return;
+        
+        // Optimistic update
+        const originalEmployee = { ...employee };
+        setEmployee({ ...employee, [field]: value });
+
+        try {
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { [field]: value } });
+            if (res.success) {
+                success('Updated successfully');
+            } else {
+                toastError('Update failed');
+                setEmployee(originalEmployee); // Revert
+            }
+        } catch (e) {
+            console.error('Quick update error:', e);
+            toastError('Update failed');
+            setEmployee(originalEmployee); // Revert
+        }
+    };
+
     const getComplianceOptions = (key: string) => {
         return ['Yes', 'No', 'Pending', 'N/A'];
     };
@@ -249,7 +273,8 @@ export default function EmployeeViewPage() {
                     {/* Hero Header Card */}
                     <EmployeeHeaderCard
                         employee={employee}
-                        onUpdate={() => { }}
+                        onUpdate={handleQuickUpdate}
+                        onEditSignature={() => setIsSignatureModalOpen(true)}
                         animate={animate}
                     />
 
@@ -322,6 +347,25 @@ export default function EmployeeViewPage() {
 
                 </div>
             </main>
+
+            {/* Signature Modal */}
+            <Modal
+                isOpen={isSignatureModalOpen}
+                onClose={() => setIsSignatureModalOpen(false)}
+                title="Update Signature"
+                footer={null}
+            >
+                <div className="flex justify-center p-4">
+                    <SignaturePad
+                        value={employee?.signature}
+                        onChange={(sig) => {
+                            handleQuickUpdate('signature', sig);
+                            setIsSignatureModalOpen(false);
+                        }}
+                        label={`Signature for ${employee?.firstName}`}
+                    />
+                </div>
+            </Modal>
 
             <ConfirmModal
                 isOpen={confirmDelete}

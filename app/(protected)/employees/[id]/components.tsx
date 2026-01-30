@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Eye, EyeOff, KeyRound, Save, X } from 'lucide-react';
 
 interface Employee {
@@ -30,16 +30,29 @@ interface Employee {
 interface EmployeeHeaderCardProps {
     employee: Employee;
     onUpdate: (field: string, value: any) => void;
+    onEditSignature: () => void;
     animate: boolean;
 }
 
-export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHeaderCardProps) {
+export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignature }: EmployeeHeaderCardProps) {
     const [showPassword, setShowPassword] = useState(false);
     const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [saving, setSaving] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const formatRate = (val?: number) => val ? `$${val.toFixed(2)}` : '$0.00';
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                onUpdate('profilePicture', reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const handleSavePassword = async () => {
         if (!newPassword.trim()) return;
@@ -74,17 +87,32 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                 {/* PART 1: Identity */}
                 <div className="flex flex-col gap-4 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">
                     <div className="flex items-center gap-4">
-                        {employee.profilePicture ? (
-                            <img
-                                src={employee.profilePicture}
-                                alt={`${employee.firstName} ${employee.lastName}`}
-                                className="w-16 h-16 rounded-2xl object-cover shadow-lg transform rotate-3"
+                        <div 
+                            className="relative group cursor-pointer"
+                            onClick={() => fileInputRef.current?.click()}
+                        >
+                            <input
+                                type="file"
+                                ref={fileInputRef}
+                                className="hidden"
+                                accept="image/*"
+                                onChange={handleImageUpload}
                             />
-                        ) : (
-                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg transform rotate-3">
-                                {employee.firstName?.[0]}{employee.lastName?.[0]}
+                            {employee.profilePicture ? (
+                                <img
+                                    src={employee.profilePicture}
+                                    alt={`${employee.firstName} ${employee.lastName}`}
+                                    className="w-16 h-16 rounded-2xl object-cover shadow-lg transform rotate-3 group-hover:opacity-80 transition-opacity"
+                                />
+                            ) : (
+                                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-lg transform rotate-3 group-hover:opacity-80 transition-opacity">
+                                    {employee.firstName?.[0]}{employee.lastName?.[0]}
+                                </div>
+                            )}
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                                <span className="bg-black/50 text-white text-[10px] px-1 rounded">Edit</span>
                             </div>
-                        )}
+                        </div>
                         <div className="flex-1 min-w-0">
 
                             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">
@@ -98,9 +126,41 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate }: EmployeeHead
                             </div>
                         </div>
                     </div>
-                    <div className="mt-2 flex items-center gap-2 text-slate-500 text-sm">
-                        <Briefcase className="w-4 h-4" />
-                        <span>{employee.designation || 'No Designation'}</span>
+                    <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-slate-500 text-sm">
+                            <Briefcase className="w-4 h-4" />
+                            <span>{employee.designation || 'No Designation'}</span>
+                        </div>
+                    </div>
+                    
+                    {/* Signature Option */}
+                    <div className="mt-1 pt-3 border-t border-gray-100/50">
+                         <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                Signature
+                            </label>
+                            <button
+                                onClick={onEditSignature}
+                                className="text-[10px] text-indigo-600 font-bold hover:underline"
+                            >
+                                {employee.signature ? 'Edit' : 'Add'}
+                            </button>
+                         </div>
+                         {employee.signature ? (
+                             <div 
+                                onClick={onEditSignature}
+                                className="mt-2 h-12 border border-dashed border-slate-300 rounded-lg flex items-center justify-center bg-white/50 cursor-pointer hover:bg-white transition-colors"
+                             >
+                                 <img src={employee.signature} alt="Signature" className="max-h-full max-w-full" />
+                             </div>
+                         ) : (
+                             <div 
+                                onClick={onEditSignature}
+                                className="mt-2 py-2 text-center text-xs text-slate-400 italic cursor-pointer hover:text-indigo-500 transition-colors"
+                             >
+                                 No signature on file
+                             </div>
+                         )}
                     </div>
                 </div>
 
