@@ -913,8 +913,38 @@ function WIPReportContent() {
                                                                                 <Users size={18} />
                                                                             </div>
                                                                             <div className="flex flex-col">
-                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Proposal Writers</span>
-                                                                                <span className="text-sm font-black text-slate-700 max-w-[150px] truncate">{selectedProject.proposalWriters?.join(', ') || '---'}</span>
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proposal Writers</span>
+                                                                                <div className="flex -space-x-1.5">
+                                                                                    {(selectedProject.proposalWriters || []).map((w, idx) => {
+                                                                                        const employee = employees.find(e => 
+                                                                                            `${e.firstName} ${e.lastName}`.toLowerCase() === w.toLowerCase() ||
+                                                                                            e.email?.toLowerCase() === w.toLowerCase() ||
+                                                                                            e._id?.toLowerCase() === w.toLowerCase()
+                                                                                        );
+                                                                                        const profilePic = employee?.profilePicture;
+                                                                                        const displayName = employee ? `${employee.firstName} ${employee.lastName}` : w;
+                                                                                        
+                                                                                        return (
+                                                                                            <Tooltip key={idx}>
+                                                                                                <TooltipTrigger asChild>
+                                                                                                    <div className="w-6 h-6 rounded-full bg-[#0F4C75] border-2 border-white flex items-center justify-center text-[8px] text-white font-black shadow-sm overflow-hidden cursor-help">
+                                                                                                        {profilePic ? (
+                                                                                                            <img src={profilePic} alt={displayName} className="w-full h-full object-cover" />
+                                                                                                        ) : (
+                                                                                                            displayName.substring(0, 1).toUpperCase()
+                                                                                                        )}
+                                                                                                    </div>
+                                                                                                </TooltipTrigger>
+                                                                                                <TooltipContent side="top">
+                                                                                                    <p>{displayName}</p>
+                                                                                                </TooltipContent>
+                                                                                            </Tooltip>
+                                                                                        );
+                                                                                    })}
+                                                                                    {(selectedProject.proposalWriters || []).length === 0 && (
+                                                                                        <span className="text-sm font-black text-slate-700">---</span>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
                                                                         </div>
 
