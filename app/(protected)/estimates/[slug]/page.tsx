@@ -536,7 +536,7 @@ export default function EstimateViewPage() {
                 if (config.id === 'Labor') {
                     return {
                         ...item,
-                        labor: item.labor || `${item.classification || ''}-${item.fringe || ''}`,
+                        labor: item.labor || item.classification || '',
                         total
                     };
                 }
@@ -1482,7 +1482,7 @@ export default function EstimateViewPage() {
         processedData._id = 'temp_' + Date.now() + Math.random().toString(36).substr(2, 9);
         processedData.estimateId = estimate._id;
         if (section.id === 'Labor') {
-            processedData.labor = `${processedData.classification || ''}-${processedData.fringe || ''}`;
+            processedData.labor = processedData.classification || '';
             if (processedData.otPd === undefined || processedData.otPd === null) {
                 processedData.otPd = 2;
             }
