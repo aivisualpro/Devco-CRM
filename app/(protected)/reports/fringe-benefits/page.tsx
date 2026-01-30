@@ -353,7 +353,7 @@ export default function FringeBenefitsPage() {
                 const grossPay = rRegPay + rOtPay + rDtPay;
                 
                 const subjectWages = hours * rate;
-                const fringeVal = sched.fringe || estimatesMap[sched.estimate]?.fringe || 'No';
+                const fringeVal = estimatesMap[sched.estimate]?.fringe || sched.fringe || 'No';
 
                 flat.push({
                     _id: ts._id || ts.recordId,
