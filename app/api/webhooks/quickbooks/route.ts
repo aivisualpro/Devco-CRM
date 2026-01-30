@@ -1,6 +1,6 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { resolveProjectIdsFromEntity, syncProjectToDb } from '@/lib/qbo-sync';
 
 export async function POST(req: NextRequest) {
     try {
@@ -30,9 +30,30 @@ export async function POST(req: NextRequest) {
                 const realmId = notification.realmId;
                 const entities = notification.dataEvents?.entities || [];
                 
+                // We use a set to avoid double-syncing the same project if multiple updates come in one batch
+                const projectsToSync = new Set<string>();
+                
                 for (const entity of entities) {
                     console.log(`Realm ${realmId}: Entity ${entity.name} with ID ${entity.id} was ${entity.operation}d`);
-                    // Here you would typically trigger some internal sync or notification
+                    
+                    try {
+                        const resolvedIds = await resolveProjectIdsFromEntity(entity.name, entity.id);
+                        resolvedIds.forEach(id => projectsToSync.add(id));
+                    } catch (err) {
+                        console.error(`Failed to resolve projects for ${entity.name}/${entity.id}`, err);
+                    }
+                }
+                
+                // Trigger Syncs
+                if (projectsToSync.size > 0) {
+                    console.log(`Triggering sync for ${projectsToSync.size} projects:`, Array.from(projectsToSync));
+                    for (const projectId of Array.from(projectsToSync)) {
+                        try {
+                             await syncProjectToDb(projectId);
+                        } catch (err) {
+                             console.error(`Failed to sync project ${projectId} from webhook:`, err);
+                        }
+                    }
                 }
             }
         }
