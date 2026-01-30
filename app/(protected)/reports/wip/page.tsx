@@ -18,6 +18,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Skeleton, SkeletonTableRow, SkeletonTable } from '@/components/ui';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
+import { formatDateOnly } from '@/lib/timeCardUtils';
 
 interface Project {
     Id: string;
@@ -181,8 +182,8 @@ function WIPReportContent() {
                     cost: p.cost || 0,
                     profitMargin: p.profitMargin || 0,
                     timeSpent: '0:00',
-                    startDate: new Date(p.MetaData.CreateTime).toLocaleDateString(),
-                    endDate: new Date(new Date(p.MetaData.CreateTime).getTime() + 86400000 * 30).toLocaleDateString(),
+                    startDate: formatDateOnly(p.MetaData.CreateTime),
+                    endDate: formatDateOnly(new Date(new Date(p.MetaData.CreateTime).getTime() + 86400000 * 30).toISOString()),
                     isFavorite: Math.random() > 0.8
                 })).sort((a: any, b: any) => 
                     new Date(b.MetaData.CreateTime).getTime() - new Date(a.MetaData.CreateTime).getTime()
@@ -261,6 +262,8 @@ function WIPReportContent() {
                         setProjects(prev => prev.map(p => p.Id === projectId ? {
                             ...p,
                             ...updatedProject,
+                            startDate: formatDateOnly(updatedProject.MetaData?.CreateTime || updatedProject.startDate),
+                            endDate: formatDateOnly(new Date(new Date(updatedProject.MetaData?.CreateTime || updatedProject.startDate).getTime() + 86400000 * 30).toISOString()),
                             // Ensure these defaults are still applied if missing in updatedProject
                             income: updatedProject.income || 0,
                             cost: updatedProject.cost || 0,
@@ -1641,7 +1644,7 @@ function WIPReportContent() {
                                                                                 )}
                                                                             </div>
                                                                         </td>
-                                                                        <td className={`${cellCls} ${activeHighlight.includes('date') ? highlightCls : ''}`}>{project.startDate}</td>
+                                                                         <td className={`${cellCls} ${activeHighlight.includes('date') ? highlightCls : ''}`}>{formatDateOnly(project.startDate)}</td>
                                                                         <td 
                                                                             className={`${cellCls} ${activeHighlight.includes('writers') ? highlightCls : ''}`}
                                                                             onClick={(e) => e.stopPropagation()}

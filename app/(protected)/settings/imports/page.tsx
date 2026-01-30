@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -9,6 +10,22 @@ import Papa from 'papaparse';
 export default function ImportsPage() {
     const { success, error: toastError } = useToast();
     const [isImporting, setIsImporting] = useState(false);
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
+    useEffect(() => {
+        const connected = searchParams.get('success');
+        const err = searchParams.get('error');
+
+        if (connected === 'quickbooks_connected') {
+            success('QuickBooks account connected successfully!');
+            router.replace('/settings/imports');
+        }
+        if (err) {
+            toastError(`Authentication failed: ${err}`);
+            router.replace('/settings/imports');
+        }
+    }, [searchParams, success, toastError, router]);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const timesheetInputRef = useRef<HTMLInputElement>(null);
@@ -592,7 +609,12 @@ export default function ImportsPage() {
             const syncResponse = await fetch('/api/quickbooks/sync', { method: 'POST' });
             const syncData = await syncResponse.json();
             if (!syncData.success) {
-                toastError(syncData.error || 'Sync failed');
+                // If token error, offer re-authentication
+                if (syncData.error?.includes('refresh token') || syncData.error?.includes('invalid_grant')) {
+                    toastError('QuickBooks connection expired. Please click "Reconnect QuickBooks" below.');
+                } else {
+                    toastError(syncData.error || 'Sync failed');
+                }
             } else {
                 success(syncData.message || 'QuickBooks data synced successfully');
             }
@@ -602,6 +624,11 @@ export default function ImportsPage() {
         } finally {
             setIsImporting(false);
         }
+    };
+
+    const handleConnectQuickBooks = () => {
+        // Redirect to our OAuth initiation route
+        window.location.href = '/api/auth/quickbooks';
     };
 
     const ImportCard = ({ title, icon: Icon, onClick, description, color }: any) => (
@@ -723,6 +750,14 @@ export default function ImportsPage() {
                         color="bg-emerald-500"
                         description="Fetch live project and financial data from QuickBooks"
                         onClick={handleSyncQuickBooks}
+                    />
+
+                    <ImportCard 
+                        title="Reconnect QuickBooks"
+                        icon={LinkIcon}
+                        color="bg-slate-800"
+                        description="Refresh your connection if tokens have expired"
+                        onClick={handleConnectQuickBooks}
                     />
 
                     <input type="file" ref={logoInputRef} onChange={handleUploadLogo} className="hidden" accept="image/png, image/jpeg" />
