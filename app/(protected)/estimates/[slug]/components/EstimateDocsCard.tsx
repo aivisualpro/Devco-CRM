@@ -799,7 +799,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const filteredChatOptions = useMemo(() => {
         const source = employeeOptions;
-        if (!mentionQuery) return source.slice(0, 5);
+        if (!mentionQuery) return source.slice(0, 100);
         return source.filter(e => e.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 50);
     }, [mentionQuery, employeeOptions]);
 
@@ -1543,30 +1543,136 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                             ) : (
                                 chatMessages.map((msg, idx) => {
-                                    // Identify if message is from me (simple check by 'Me' for optimistic, or check if I can get current user email prop, but for now generic style is fine)
-                                    // Since we don't have current user email passed in props easily, we'll style loosely or assume 'Me'
-                                    const isMe = msg.senderName === 'Me' || msg.sender === formData?.proposalWriter; // Rough guess
+                                    // Determine if I am the sender
+                                    // Use currentUser from usePermissions or fallback to basic check
+                                    const isMe = (currentUser?.email && msg.sender?.toLowerCase() === currentUser.email?.toLowerCase()) || 
+                                                 msg.senderName === 'Me' || 
+                                                 msg.sender === formData?.proposalWriter;
+                                    
+                                    // Find sender employee for avatar
+                                    const senderEmp = employees.find(e => 
+                                        e.email?.toLowerCase() === msg.sender?.toLowerCase() || 
+                                        e._id === msg.sender ||
+                                        e.value?.toLowerCase() === msg.sender?.toLowerCase()
+                                    );
+                                    const senderLabel = senderEmp?.label || senderEmp?.firstName || msg.senderName || msg.sender || 'U';
+                                    const senderInitials = senderLabel.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+
+                                    const renderMessage = (text: string) => {
+                                        const parts = text.split(/(@[\w.@]+)/g);
+                                        return parts.map((part, i) => {
+                                            if (part.startsWith('@')) {
+                                                const label = part.slice(1);
+                                                // Check if this person is already an assignee (hide them from text if they are)
+                                                const isAssignee = msg.assignees?.some((email: string) => {
+                                                    const emp = employees.find(e => 
+                                                        e.email?.toLowerCase() === email?.toLowerCase() ||
+                                                        e._id === email ||
+                                                        e.value?.toLowerCase() === email?.toLowerCase()
+                                                    );
+                                                    return (emp?.label === label || emp?.firstName === label) || email === label;
+                                                });
+                                                
+                                                if (isAssignee) return null;
+                                                return <span key={i} className={`font-bold ${isMe ? 'text-blue-200' : 'text-blue-600'}`}>{part}</span>;
+                                            }
+                                            return part;
+                                        });
+                                    };
+
+                                    const HeaderContent = () => {
+                                        const AssigneesAvatars = (
+                                            <div className="flex -space-x-1.5 overflow-hidden">
+                                                {msg.assignees && msg.assignees.length > 0 ? (
+                                                    msg.assignees.map((email: string, aIdx: number) => {
+                                                        const assEmp = employees.find(e => 
+                                                            e.email?.toLowerCase() === email?.toLowerCase() || 
+                                                            e._id === email ||
+                                                            e.value?.toLowerCase() === email?.toLowerCase()
+                                                        );
+                                                        const assName = assEmp?.label || assEmp?.firstName || email || 'U';
+                                                        return (
+                                                            <Tooltip key={aIdx}>
+                                                                <TooltipTrigger asChild>
+                                                                    <Avatar className="w-5 h-5 border-[1.5px] border-white/20 shrink-0">
+                                                                        <AvatarImage src={assEmp?.image || assEmp?.profilePicture} />
+                                                                        <AvatarFallback className="text-[8px] bg-slate-200 font-extrabold text-[#0F4C75]">
+                                                                            {assName[0].toUpperCase()}
+                                                                        </AvatarFallback>
+                                                                    </Avatar>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="text-[10px] font-bold">{assName}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        );
+                                                    })
+                                                ) : null}
+                                            </div>
+                                        );
+
+                                        const SenderAvatar = (
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <Avatar className={`w-6 h-6 border-[1.5px] shrink-0 ${isMe ? 'border-white/20' : 'border-white'}`}>
+                                                        <AvatarImage src={senderEmp?.image || senderEmp?.profilePicture} />
+                                                        <AvatarFallback className={`text-[9px] font-black ${isMe ? 'bg-[#112D4E] text-white' : 'bg-slate-300 text-slate-700'}`}>
+                                                            {isMe ? 'ME' : senderInitials}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p className="text-[10px] font-bold">{isMe ? 'You' : senderLabel}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        );
+
+                                        if (isMe) {
+                                            return (
+                                                <div className="flex items-center justify-between mb-2 gap-2">
+                                                    {AssigneesAvatars}
+                                                    {SenderAvatar}
+                                                </div>
+                                            );
+                                        } else {
+                                            return (
+                                                <div className="flex items-center justify-between mb-2 flex-row-reverse gap-2">
+                                                    {AssigneesAvatars}
+                                                    {SenderAvatar}
+                                                </div>
+                                            );
+                                        }
+                                    };
                                     
                                     return (
-                                        <div key={idx} className={`flex flex-col gap-1 ${isMe ? 'items-end' : 'items-start'}`}>
-                                            <div className={`rounded-xl px-3 py-2 max-w-[90%] ${
+                                        <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1`}>
+                                            <div className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${
                                                 isMe 
-                                                    ? 'bg-blue-600 text-white rounded-tr-none' 
-                                                    : 'bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-sm'
+                                                    ? 'bg-[#526D82] text-white rounded-br-none' 
+                                                    : 'bg-white text-slate-700 rounded-bl-none border border-slate-200'
                                             }`}>
-                                                <p className="text-[11px] leading-relaxed break-words">
-                                                    {msg.message.split(/(@[\w.@]+)/g).map((part: string, i: number) => 
-                                                        part.startsWith('@') ? <span key={i} className={`font-bold ${isMe ? 'text-blue-200' : 'text-blue-600'}`}>{part}</span> : part
-                                                    )}
+                                                <HeaderContent />
+                                                <p className="text-[11px] leading-relaxed break-words px-1">
+                                                    {renderMessage(msg.message)}
                                                 </p>
-                                            </div>
-                                            <div className="flex items-center gap-1.5 px-1">
-                                                {!isMe && (
-                                                    <span className="text-[9px] font-bold text-slate-400">{msg.senderName}</span>
-                                                )}
-                                                <span className="text-[9px] text-slate-300">
-                                                    {format(new Date(msg.createdAt), 'h:mm a')}
-                                                </span>
+                                                <div className={`flex items-center justify-between mt-1 pt-1 px-1 gap-2 ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
+                                                    <div /> 
+                                                    <div className="flex items-center gap-2">
+                                                        {msg.estimate && (
+                                                            <span className="bg-purple-100 text-purple-700 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-200 uppercase tracking-tight">#{msg.estimate.value || msg.estimate}</span>
+                                                        )}
+                                                        <span className={`text-[8px] uppercase tracking-widest font-black opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
+                                                            {new Date(msg.createdAt).toLocaleString([], { 
+                                                                month: 'short', 
+                                                                day: 'numeric', 
+                                                                year: 'numeric', 
+                                                                hour: '2-digit', 
+                                                                minute: '2-digit', 
+                                                                hour12: true 
+                                                            })}
+                                                        </span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -1596,7 +1702,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                       if (lastAt >= 0) {
                                           const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
                                           setNewChatMessage(newText);
-                                          setShowMentions(false);
+                                          
                                           setTimeout(() => {
                                               if (chatInputRef.current) {
                                                   chatInputRef.current.focus();
@@ -1658,21 +1764,34 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                       </div>
                                   )}
                              
-                                  <div className="flex gap-2">
-                                      <input 
-                                          ref={chatInputRef}
-                                          type="text"
-                                          placeholder="Message team... (@ to mention)"
-                                          className="flex-1 bg-white/50 border border-white focus:bg-white rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all placeholder:text-slate-400"
-                                          value={newChatMessage}
-                                          onChange={handleChatInput}
-                                      />
+                                  <div className="flex items-end gap-2">
+                                      <div className="relative flex-1">
+                                          <textarea 
+                                              ref={chatInputRef as any}
+                                              placeholder="Message team... (@ to mention)"
+                                              className="w-full px-4 py-2.5 bg-white/50 border border-slate-200 focus:bg-white rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 resize-none min-h-[42px] max-h-32 overflow-y-auto"
+                                              rows={1}
+                                              value={newChatMessage}
+                                              onInput={(e: any) => {
+                                                  const target = e.target;
+                                                  target.style.height = 'auto';
+                                                  target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+                                              }}
+                                              onChange={(e: any) => handleChatInput(e)}
+                                              onKeyDown={(e) => {
+                                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                                      e.preventDefault();
+                                                      handleSendChatMessage();
+                                                  }
+                                              }}
+                                          />
+                                      </div>
                                       <button 
                                           type="submit"
                                           disabled={!newChatMessage.trim()}
-                                          className="w-8 h-8 bg-blue-600 text-white rounded-xl flex items-center justify-center hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                                          className="w-10 h-10 bg-[#526D82] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md shrink-0 mb-0.5"
                                       >
-                                          <Send className="w-3.5 h-3.5" />
+                                          <Send className="w-4 h-4" />
                                       </button>
                                   </div>
                             </form>

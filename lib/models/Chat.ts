@@ -4,7 +4,12 @@ export interface IChat extends Document {
     sender: string; // email
     message: string;
     estimate?: string; // estimate number reference
-    assignees?: string[]; // assigned user emails
+    assignees?: (string | { email: string; name: string })[]; // assigned user emails or objects
+    replyTo?: {
+        _id: string;
+        sender: string;
+        message: string;
+    };
     createdAt: Date;
     updatedAt: Date;
 }
@@ -13,7 +18,12 @@ const ChatSchema = new Schema({
     sender: { type: String, required: true },
     message: { type: String, required: true },
     estimate: { type: String },
-    assignees: [{ type: String }],
+    assignees: [Schema.Types.Mixed], // Allows strings or objects { email, name }
+    replyTo: {
+        _id: String,
+        sender: String,
+        message: String
+    }
 }, {
     timestamps: true,
     collection: 'devcoChats'

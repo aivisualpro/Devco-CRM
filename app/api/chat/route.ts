@@ -36,6 +36,9 @@ export async function GET(request: NextRequest) {
                 { message: { $regex: filterStr, $options: 'i' } },
                 { estimate: { $regex: filterStr, $options: 'i' } },
                 { sender: { $regex: filterStr, $options: 'i' } },
+                { assignees: { $regex: filterStr, $options: 'i' } }, // Searches string assignees
+                { 'assignees.name': { $regex: filterStr, $options: 'i' } }, // Searches object assignee names
+                { 'assignees.email': { $regex: filterStr, $options: 'i' } } // Searches object assignee emails
             ];
         }
 
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
 
         await connectToDatabase();
         const body = await request.json();
-        const { message, estimate, assignees } = body;
+        const { message, estimate, assignees, replyTo } = body;
 
         if (!message) {
             return NextResponse.json({ success: false, error: 'Message is required' }, { status: 400 });
@@ -71,6 +74,7 @@ export async function POST(request: NextRequest) {
             message,
             estimate: estimate || undefined,
             assignees: assignees || [],
+            replyTo: replyTo || undefined,
         });
 
         return NextResponse.json({ success: true, message: newChat });

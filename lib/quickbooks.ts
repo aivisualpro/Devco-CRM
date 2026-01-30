@@ -7,6 +7,8 @@ let QBO_REFRESH_TOKEN = process.env.QBO_REFRESH_TOKEN;
 
 import fs from 'fs';
 import path from 'path';
+import { connectToDatabase } from '@/lib/db';
+import Token from '@/lib/models/Token';
 
 // Determine if we are in production or development
 const IS_PRODUCTION = process.env.QBO_IS_PRODUCTION === 'true' || process.env.NODE_ENV === 'production';
@@ -17,14 +19,27 @@ export const BASE_URL = IS_PRODUCTION
 const TOKEN_URL = 'https://oauth.platform.intuit.com/oauth2/v1/tokens/bearer';
 
 export async function getAccessToken() {
-    if (!QBO_CLIENT_ID || !QBO_CLIENT_SECRET || !QBO_REFRESH_TOKEN) {
-        throw new Error('QuickBooks credentials missing in environment variables');
+    await connectToDatabase();
+    
+    // 1. Try to get from DB first
+    let dbToken = null;
+    try {
+        dbToken = await Token.findOne({ service: 'quickbooks' });
+    } catch (e) {
+        console.error('Error fetching token from DB:', e);
+    }
+
+    // 2. Fallback to Env variable if DB missing
+    let currentRefreshToken = dbToken?.refreshToken || process.env.QBO_REFRESH_TOKEN;
+
+    if (!QBO_CLIENT_ID || !QBO_CLIENT_SECRET || !currentRefreshToken) {
+        throw new Error('QuickBooks credentials missing (Client ID, Secret, or Refresh Token)');
     }
 
     // Log which credentials we are using (masking secrets)
     console.log('Refreshing QuickBooks token...');
     console.log(`Using Client ID: ${QBO_CLIENT_ID.substring(0, 5)}...`);
-    console.log(`Using Refresh Token: ${QBO_REFRESH_TOKEN.substring(0, 10)}...`);
+    console.log(`Using Refresh Token Source: ${dbToken ? 'Database' : 'Environment'}`);
 
     const auth = Buffer.from(`${QBO_CLIENT_ID}:${QBO_CLIENT_SECRET}`).toString('base64');
 
@@ -37,7 +52,7 @@ export async function getAccessToken() {
         },
         body: new URLSearchParams({
             grant_type: 'refresh_token',
-            refresh_token: QBO_REFRESH_TOKEN.trim(), // Trim in case of accidental whitespace
+            refresh_token: currentRefreshToken.trim(),
         }).toString(),
     });
 
@@ -58,29 +73,47 @@ export async function getAccessToken() {
     if (data.refresh_token) {
         console.log('Received new Refresh Token. Persisting to storage...');
         
-        // 1. Update in-memory for current process
-        process.env.QBO_REFRESH_TOKEN = data.refresh_token; 
-        QBO_REFRESH_TOKEN = data.refresh_token;
-
-        // 2. Persist to .env.local for development/local persistence
+        // 1. Persist to MongoDB (Primary Storage)
         try {
-            const envPath = path.resolve(process.cwd(), '.env.local');
-            if (fs.existsSync(envPath)) {
-                let envContent = fs.readFileSync(envPath, 'utf8');
-                const regex = /^QBO_REFRESH_TOKEN=.*$/m;
-                
-                if (regex.test(envContent)) {
-                    envContent = envContent.replace(regex, `QBO_REFRESH_TOKEN=${data.refresh_token}`);
-                } else {
-                    envContent += `\nQBO_REFRESH_TOKEN=${data.refresh_token}`;
+            await Token.findOneAndUpdate(
+                { service: 'quickbooks' },
+                { 
+                    accessToken: data.access_token,
+                    refreshToken: data.refresh_token,
+                    realmId: QBO_REALM_ID,
+                    expiresAt: new Date(Date.now() + (data.expires_in * 1000)),
+                    refreshTokenExpiresAt: new Date(Date.now() + (data.x_refresh_token_expires_in * 1000))
+                },
+                { upsert: true, new: true }
+            );
+            console.log('Successfully updated Token in MongoDB.');
+        } catch (dbError) {
+            console.error('Failed to save token to MongoDB:', dbError);
+        }
+
+        // 2. Update in-memory for current process
+        process.env.QBO_REFRESH_TOKEN = data.refresh_token; 
+        
+        // 3. Persist to .env.local for development convenience (optional but helpful)
+        if (!IS_PRODUCTION) {
+             try {
+                const envPath = path.resolve(process.cwd(), '.env.local');
+                if (fs.existsSync(envPath)) {
+                    let envContent = fs.readFileSync(envPath, 'utf8');
+                    const regex = /^QBO_REFRESH_TOKEN=.*$/m;
+                    
+                    if (regex.test(envContent)) {
+                        envContent = envContent.replace(regex, `QBO_REFRESH_TOKEN=${data.refresh_token}`);
+                    } else {
+                        envContent += `\nQBO_REFRESH_TOKEN=${data.refresh_token}`;
+                    }
+                    
+                    fs.writeFileSync(envPath, envContent);
+                    console.log('Successfully updated .env.local with new refresh token.');
                 }
-                
-                fs.writeFileSync(envPath, envContent);
-                console.log('Successfully updated .env.local with new refresh token.');
+            } catch (filesysError) {
+                console.error('Failed to write new token to .env.local:', filesysError);
             }
-        } catch (filesysError) {
-            console.error('Failed to write new token to .env.local:', filesysError);
-            // Non-fatal, app continues working until restart
         }
     }
 
