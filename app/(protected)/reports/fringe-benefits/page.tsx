@@ -131,16 +131,130 @@ export default function FringeBenefitsPage() {
     const [estimatesMap, setEstimatesMap] = useState<Record<string, any>>({});
     const [fringeConstantsMap, setFringeConstantsMap] = useState<Record<string, any>>({});
     
-    // Filters
-    // Initialize with current week
-    const [startDate, setStartDate] = useState<Date>(() => startOfWeek(new Date()));
-    const [endDate, setEndDate] = useState<Date>(() => endOfWeek(new Date()));
+    const params = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
+
+    // Default dates: First and Last day of current month
+    const getDefaultDateRange = () => {
+        const now = new Date();
+        const start = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1));
+        const end = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0));
+        return { start, end };
+    };
+
+    // Initialize from URL or defaults
+    const [startDate, setStartDate] = useState<Date>(() => {
+        const p = params.get('from');
+        if (p) {
+            const d = new Date(p);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return getDefaultDateRange().start;
+    });
+
+    const [endDate, setEndDate] = useState<Date>(() => {
+        const p = params.get('to');
+        if (p) {
+            const d = new Date(p);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return getDefaultDateRange().end;
+    });
     
     const [selectedFringe, setSelectedFringe] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
     const [visibleRows, setVisibleRows] = useState(50);
-    const [viewMode, setViewMode] = useState<'hours' | 'amount'>('amount');
+    const [viewMode, setViewMode] = useState<'hours' | 'amount'>('hours');
+    const [groupingMode, setGroupingMode] = useState<'employee' | 'estimate'>('employee');
+    const [includeDriveTime, setIncludeDriveTime] = useState(true);
+    const [prefsLoaded, setPrefsLoaded] = useState(false);
+
+    // Load User Preferences
+    useEffect(() => {
+        const loadPrefs = async () => {
+            try {
+                const res = await fetch('/api/user/preferences');
+                if (res.ok) {
+                    const data = await res.json();
+                    const filters = data.filters?.['fringe-benefits'];
+                    if (filters) {
+                         if (filters.groupingMode) setGroupingMode(filters.groupingMode);
+                         if (filters.viewMode) setViewMode(filters.viewMode);
+                         if (filters.includeDriveTime !== undefined) setIncludeDriveTime(filters.includeDriveTime);
+                         if (filters.selectedFringe) setSelectedFringe(filters.selectedFringe);
+                         
+                         // Only restore saved dates if URL params are missing
+                         if (!params.get('from') && !params.get('to')) {
+                             if (filters.startStr) {
+                                 const s = new Date(filters.startStr);
+                                 if (!isNaN(s.getTime())) setStartDate(s);
+                             }
+                             if (filters.endStr) {
+                                 const e = new Date(filters.endStr);
+                                 if (!isNaN(e.getTime())) setEndDate(e);
+                             }
+                         }
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load preferences", e);
+            } finally {
+                setPrefsLoaded(true);
+            }
+        };
+        loadPrefs();
+    }, []);
+
+    // Save User Preferences (Debounced)
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        
+        const timer = setTimeout(() => {
+            const filters = {
+                groupingMode,
+                viewMode,
+                includeDriveTime,
+                selectedFringe,
+                startStr: startDate.toISOString(),
+                endStr: endDate.toISOString()
+            };
+            
+            fetch('/api/user/preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reportName: 'fringe-benefits',
+                    filters
+                })
+            }).catch(console.error);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [prefsLoaded, groupingMode, viewMode, includeDriveTime, selectedFringe, startDate, endDate]);
+
+    // Sync URL with dates
+    useEffect(() => {
+        const currentParams = new URLSearchParams(params.toString());
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+        
+        let needsUpdate = false;
+        
+        if (currentParams.get('from') !== startStr) {
+            currentParams.set('from', startStr);
+            needsUpdate = true;
+        }
+        if (currentParams.get('to') !== endStr) {
+            currentParams.set('to', endStr);
+            needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            router.replace(`${pathname}?${currentParams.toString()}`, { scroll: false });
+        }
+    }, [startDate, endDate, router, pathname, params]);
 
     // Data Fetching
     const fetchData = async () => {
@@ -204,8 +318,14 @@ export default function FringeBenefitsPage() {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
             
             sched.timesheet.forEach((ts: any) => {
-                if (ts.type?.trim().toLowerCase() !== 'site time'.toLowerCase()) return;
-                
+                const tType = ts.type?.trim().toLowerCase() || '';
+                const isSite = tType.includes('site');
+                const isDrive = tType.includes('drive');
+
+                // Filter logic
+                if (!isSite && !isDrive) return; // Skip unhandled types
+                if (isDrive && !includeDriveTime) return; // Skip drive if disabled
+
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
                 
@@ -218,7 +338,15 @@ export default function FringeBenefitsPage() {
                 const dt = Math.max(0, hours - 12);
 
                 const empInfo = employeesMap[ts.employee.toLowerCase()] || {};
-                const rate = parseFloat(empInfo.hourlyRateSITE || '45');
+                
+                // Determine Rate based on Type
+                let rate = 0;
+                if (isDrive) {
+                    rate = parseFloat(empInfo.hourlyRateDrive || empInfo.hourlyRateSITE || '0');
+                } else {
+                    rate = parseFloat(empInfo.hourlyRateSITE || '45');
+                }
+                
                 const rRegPay = reg * rate;
                 const rOtPay = ot * rate * 1.5;
                 const rDtPay = dt * rate * 2.0;
@@ -254,7 +382,7 @@ export default function FringeBenefitsPage() {
         });
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-    }, [rawSchedules, startDate, endDate, employeesMap, estimatesMap]);
+    }, [rawSchedules, startDate, endDate, employeesMap, estimatesMap, includeDriveTime]);
 
     // Grouping Data by Fringe
     const groups = useMemo(() => {
@@ -321,7 +449,7 @@ export default function FringeBenefitsPage() {
         tableData.forEach(r => {
             if (!summaryMap[r.employee]) {
                 summaryMap[r.employee] = { 
-                    reg: 0, ot: 0, 
+                    reg: 0, ot: 0, totalHours: 0,
                     regPay: 0, otPay: 0, 
                     gross: 0, 
                     count: 0,
@@ -331,17 +459,61 @@ export default function FringeBenefitsPage() {
             const s = summaryMap[r.employee];
             s.reg += r.regHrs;
             s.ot += r.otHrs;
+            s.totalHours += r.hoursVal;
             s.regPay += r.regPay;
             s.otPay += r.otPay;
             s.gross += r.grossPay;
             s.count += 1;
+            s.distinctFringes = s.distinctFringes || new Set();
+            s.distinctFringes.add(r.fringe);
         });
 
-        return Object.values(summaryMap).sort((a: any, b: any) => b.gross - a.gross);
+        return Object.values(summaryMap).map((s: any) => ({
+            ...s,
+            fringeDisplay: s.distinctFringes.size === 1 ? Array.from(s.distinctFringes)[0] : 'Multiple'
+        })).sort((a: any, b: any) => {
+            const nameA = employeesMap[a.employee]?.label || a.employee;
+            const nameB = employeesMap[b.employee]?.label || b.employee;
+            return nameA.localeCompare(nameB);
+        });
+    }, [tableData, employeesMap]);
+
+    const estimateSummary = useMemo(() => {
+        const summaryMap: Record<string, any> = {};
+
+        tableData.forEach(r => {
+            const key = r.estimateRef || 'Unknown';
+            if (!summaryMap[key]) {
+                summaryMap[key] = { 
+                    reg: 0, ot: 0, totalHours: 0,
+                    regPay: 0, otPay: 0, 
+                    gross: 0, 
+                    count: 0,
+                    id: key,
+                    label: key,
+                    title: r.title
+                };
+            }
+            const s = summaryMap[key];
+            s.reg += r.regHrs;
+            s.ot += r.otHrs;
+            s.totalHours += r.hoursVal;
+            s.regPay += r.regPay;
+            s.otPay += r.otPay;
+            s.gross += r.grossPay;
+            s.count += 1;
+            s.distinctFringes = s.distinctFringes || new Set();
+            s.distinctFringes.add(r.fringe);
+        });
+
+        return Object.values(summaryMap).map((s: any) => ({
+            ...s,
+            fringeDisplay: s.distinctFringes.size === 1 ? Array.from(s.distinctFringes)[0] : 'Multiple'
+        })).sort((a: any, b: any) => a.label.localeCompare(b.label));
     }, [tableData]);
 
     const displayData = (expandedEmp && expandedEmp !== '_all_')
-        ? tableData.filter(r => r.employee === expandedEmp)
+        ? tableData.filter(r => groupingMode === 'employee' ? r.employee === expandedEmp : r.estimateRef === expandedEmp)
         : tableData;
 
     const downloadCSV = () => {
@@ -424,7 +596,50 @@ export default function FringeBenefitsPage() {
                          </div>
                     </div>
 
-                    <div className="w-3" />
+                     <div className="w-3" />
+
+                     {/* Drive Time Toggle */}
+                    <button 
+                        onClick={() => setIncludeDriveTime(!includeDriveTime)}
+                        className={`
+                            w-[42px] h-[34px] flex items-center justify-center rounded-xl border shadow-sm transition-all
+                            ${includeDriveTime 
+                                ? 'bg-blue-50 border-blue-200' 
+                                : 'bg-white border-slate-200 hover:bg-slate-50'
+                            }
+                        `}
+                        title={includeDriveTime ? "Drive Time Included" : "Drive Time Excluded"}
+                    >
+                        <Truck size={16} className={includeDriveTime ? 'text-[#0F4C75]' : 'text-slate-300'} />
+                    </button>
+
+                     <div className="w-3" />
+
+                     {/* Grouping Toggle */}
+                    <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 h-[34px]">
+                        <button 
+                            onClick={() => {
+                                setGroupingMode('employee');
+                                setExpandedEmp(null);
+                            }}
+                            className={`h-full w-[38px] flex items-center justify-center rounded-lg transition-all ${groupingMode === 'employee' ? 'bg-white text-[#0F4C75] shadow-sm font-bold' : 'text-slate-400 hover:text-slate-600'}`}
+                            title="Group by Employee"
+                        >
+                            <User size={16} />
+                        </button>
+                        <button 
+                            onClick={() => {
+                                setGroupingMode('estimate');
+                                setExpandedEmp(null);
+                            }}
+                            className={`h-full w-[38px] flex items-center justify-center rounded-lg transition-all ${groupingMode === 'estimate' ? 'bg-white text-[#0F4C75] shadow-sm font-bold' : 'text-slate-400 hover:text-slate-600'}`}
+                            title="Group by Estimate"
+                        >
+                            <Briefcase size={16} />
+                        </button>
+                    </div>
+
+                     <div className="w-3" />
 
                     <div className="flex-1 flex items-center justify-between">
                         <div className="flex items-center gap-4 bg-white/50 px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
@@ -582,9 +797,11 @@ export default function FringeBenefitsPage() {
                                         {!expandedEmp ? (
                                             <>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-12 text-center">#</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Employee</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">{groupingMode === 'employee' ? 'Employee' : 'Estimate'}</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-32">Fringe</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Reg Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">OT Hrs</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Total Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">Reg Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">OT Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-32">Total Amount</TableHeader>
@@ -614,15 +831,23 @@ export default function FringeBenefitsPage() {
                                                     <TableCell className="px-4 py-3 text-center text-[10px] text-slate-400">#</TableCell>
                                                     <TableCell className="px-4 py-3">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-[11px] text-slate-900 uppercase tracking-wider">All Staff Combined</span>
+                                                            <span className="text-[11px] text-slate-900 uppercase tracking-wider">
+                                                                {groupingMode === 'employee' ? 'All Staff Combined' : 'All Estimates Combined'}
+                                                            </span>
                                                             <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-transform group-hover:translate-x-0.5" />
                                                         </div>
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-[11px] font-bold text-slate-300">
+                                                        --
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-[#0F4C75] tabular-nums">
                                                         {employeeSummary.reduce((a,b)=>a+b.reg,0).toFixed(2)}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-orange-500 tabular-nums">
                                                         {employeeSummary.reduce((a,b)=>a+b.ot,0).toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
+                                                        {employeeSummary.reduce((a,b)=>a+(b.totalHours || 0),0).toFixed(2)}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-emerald-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.regPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -636,42 +861,116 @@ export default function FringeBenefitsPage() {
                                                 </TableRow>
                                             )}
 
-                                            {employeeSummary.map((emp: any, idx) => (
-                                                <TableRow
-                                                    key={emp.employee}
-                                                    className="group hover:bg-slate-50 transition-colors border-b border-slate-50/50 last:border-0 cursor-pointer"
-                                                    onClick={() => setExpandedEmp(emp.employee)}
-                                                >
-                                                    <TableCell className="px-4 py-3 text-center text-[10px] text-slate-300 font-bold">{idx + 1}</TableCell>
-                                                    <TableCell className="px-4 py-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500 border border-white shadow-sm overflow-hidden">
-                                                                {employeesMap[emp.employee]?.image ? (
-                                                                    <img src={employeesMap[emp.employee].image} alt="" className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n:any)=>n[0]).join('').substring(0,2).toUpperCase()
+                                            {groupingMode === 'employee' ? (
+                                                employeeSummary.map((emp: any, idx) => (
+                                                    <TableRow
+                                                        key={emp.employee}
+                                                        className="group hover:bg-slate-50 transition-colors border-b border-slate-50/50 last:border-0 cursor-pointer"
+                                                        onClick={() => setExpandedEmp(emp.employee)}
+                                                    >
+                                                        <TableCell className="px-4 py-3 text-center text-[10px] text-slate-300 font-bold">{idx + 1}</TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-7 h-7 rounded-full bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500 border border-white shadow-sm overflow-hidden">
+                                                                    {employeesMap[emp.employee]?.image ? (
+                                                                        <img src={employeesMap[emp.employee].image} alt="" className="w-full h-full object-cover" />
+                                                                    ) : (
+                                                                        (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n:any)=>n[0]).join('').substring(0,2).toUpperCase()
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-[11px] font-bold text-slate-800">{employeesMap[emp.employee]?.label || emp.employee}</p>
+                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{emp.count} Records</p>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <div className="flex items-center gap-2">
+                                                                {emp.fringeDisplay !== 'Multiple' && fringeConstantsMap[emp.fringeDisplay]?.image && (
+                                                                     <div className="w-5 h-5 rounded overflow-hidden">
+                                                                         <img src={fringeConstantsMap[emp.fringeDisplay].image} className="w-full h-full object-cover" alt="" />
+                                                                     </div>
                                                                 )}
+                                                                <span 
+                                                                    className={`text-[10px] font-bold uppercase truncate max-w-[120px] ${emp.fringeDisplay === 'Multiple' ? 'text-slate-400 italic' : ''}`}
+                                                                    style={{ color: emp.fringeDisplay !== 'Multiple' ? (fringeConstantsMap[emp.fringeDisplay]?.color || '#0F4C75') : undefined }}
+                                                                >
+                                                                    {emp.fringeDisplay}
+                                                                </span>
                                                             </div>
-                                                            <div>
-                                                                <p className="text-[11px] font-bold text-slate-800">{employeesMap[emp.employee]?.label || emp.employee}</p>
-                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{emp.count} Records</p>
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{emp.reg.toFixed(2)}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(emp.totalHours || 0).toFixed(2)}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
+                                                                    ${emp.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                                </span>
+                                                                <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors" />
                                                             </div>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{emp.reg.toFixed(2)}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
-                                                            <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
-                                                                ${emp.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                            </span>
-                                                            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors" />
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                estimateSummary.map((item: any, idx) => (
+                                                    <TableRow
+                                                        key={item.id}
+                                                        className="group hover:bg-slate-50 transition-colors border-b border-slate-50/50 last:border-0 cursor-pointer"
+                                                        onClick={() => setExpandedEmp(item.id)}
+                                                    >
+                                                        <TableCell className="px-4 py-3 text-center text-[10px] text-slate-300 font-bold">{idx + 1}</TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 border border-indigo-100 shadow-sm">
+                                                                    <Briefcase size={12} />
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <p className="text-[11px] font-bold text-slate-800 truncate max-w-[200px]" title={item.title || item.label}>
+                                                                        {item.label}
+                                                                        {item.title && item.title !== 'Unknown Project' && (
+                                                                            <span className="font-normal text-slate-500 ml-1.5 opacity-80">
+                                                                                — {item.title}
+                                                                            </span>
+                                                                        )}
+                                                                    </p>
+                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{item.count} Records</p>
+                                                                </div>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <div className="flex items-center gap-2">
+                                                                {item.fringeDisplay !== 'Multiple' && fringeConstantsMap[item.fringeDisplay]?.image && (
+                                                                     <div className="w-5 h-5 rounded overflow-hidden">
+                                                                         <img src={fringeConstantsMap[item.fringeDisplay].image} className="w-full h-full object-cover" alt="" />
+                                                                     </div>
+                                                                )}
+                                                                <span 
+                                                                    className={`text-[10px] font-bold uppercase truncate max-w-[120px] ${item.fringeDisplay === 'Multiple' ? 'text-slate-400 italic' : ''}`}
+                                                                    style={{ color: item.fringeDisplay !== 'Multiple' ? (fringeConstantsMap[item.fringeDisplay]?.color || '#0F4C75') : undefined }}
+                                                                >
+                                                                    {item.fringeDisplay}
+                                                                </span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{item.reg.toFixed(2)}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{item.ot > 0 ? item.ot.toFixed(2) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(item.totalHours || 0).toFixed(2)}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.otPay > 0 ? item.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right">
+                                                            <div className="flex items-center justify-end gap-2">
+                                                                <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
+                                                                    ${item.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                                </span>
+                                                                <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors" />
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            )}
                                         </>
                                     ) : (
                                         <>

@@ -48,6 +48,7 @@ export interface IEmployee extends Omit<Document, '_id'> {
     profilePicture?: string;
     signature?: string; // Base64 signature image
     estimateSettings?: string[];
+    reportFilters?: Record<string, any>;
 
 
     createdAt?: Date;
@@ -100,6 +101,7 @@ const EmployeeSchema: Schema = new Schema({
     profilePicture: { type: String },
     signature: { type: String },
     estimateSettings: [{ type: String }],
+    reportFilters: { type: Schema.Types.Mixed, default: {} },
 
 
 }, {
