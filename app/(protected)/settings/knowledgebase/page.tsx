@@ -13,6 +13,40 @@ import {
 // Version changelog data with timestamps
 const changelog = [
     {
+        version: 'V.0.84',
+        date: 'January 31, 2026',
+        time: '00:35 PKT',
+        type: 'Reports & Estimates',
+        color: 'from-blue-600 to-indigo-700',
+        highlights: [
+            'New Dashboard',
+            'Workers Comp Report',
+            'Fringe Benefits Report',
+            'Certified Payroll',
+            'Estimate Enhancements'
+        ],
+        changes: [
+            {
+                category: 'New Reports (Jan 29-31)',
+                items: [
+                    "Workers Comp Report: Comprehensive report implementation with employee summaries.",
+                    "Fringe Benefits Report: Added hours view, persistent filters, and icon integration.",
+                    "Certified Payroll: Refined logic for certified days and display formats.",
+                    "Dashboard: Added comprehensive dashboard system."
+                ]
+            },
+            {
+                category: 'Estimates & System (Jan 29-31)',
+                items: [
+                    "Labor Line Items: Updated total calculations to include fringe values; improved column sizing.",
+                    "Status Workflow: Prevented 'Completed' selection for non-Won estimates.",
+                    "Contract Uploads: Added strict validation for signed contract submissions.",
+                    "UI Refinements: Various improvements to Estimate Header and component styling."
+                ]
+            }
+        ]
+    },
+    {
         version: 'V.0.83',
         date: 'January 28, 2026',
         time: '03:30 PKT',
