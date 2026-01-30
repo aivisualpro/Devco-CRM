@@ -23,6 +23,7 @@ import { ScheduleDetailModal } from './components/ScheduleDetailModal';
 import { ScheduleCard, ScheduleItem } from '../jobs/schedules/components/ScheduleCard';
 import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModal';
 import { JHAModal } from '../jobs/schedules/components/JHAModal';
+import ClientOnly from '@/components/ClientOnly';
 import { DJTModal } from '../jobs/schedules/components/DJTModal';
 import { TimesheetModal } from '../jobs/schedules/components/TimesheetModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -518,7 +519,7 @@ const TaskFormModal = ({
 function DashboardContent() {
     const router = useRouter();
     const { success, error: showError } = useToast();
-    const { user, isSuperAdmin, canField } = usePermissions();
+    const { user, isSuperAdmin, canField, permissions } = usePermissions();
     const [currentUser, setCurrentUser] = useState<any>(null);
     const userEmail = user?.email || currentUser?.email || '';
     
@@ -646,6 +647,23 @@ function DashboardContent() {
     // UI States
     const [loading, setLoading] = useState(true);
     const [scheduleView, setScheduleView] = useState<'all' | 'self'>('self');
+
+    // Determine Upcoming Schedules Scope
+    const upcomingSchedulesScope = useMemo(() => {
+        if (isSuperAdmin) return 'all';
+        if (!permissions) return 'self';
+        
+        const dashboardPerm = permissions.modules.find(m => m.module === MODULES.DASHBOARD);
+        const widgetPerm = dashboardPerm?.fieldPermissions?.find(f => f.field === 'widget_upcoming_schedules');
+        return widgetPerm?.dataScope || 'self'; 
+    }, [permissions, isSuperAdmin]);
+
+    // Enforce Scope
+    useEffect(() => {
+        if (upcomingSchedulesScope !== 'all' && scheduleView !== 'self') {
+            setScheduleView('self');
+        }
+    }, [upcomingSchedulesScope, scheduleView]);
 
     // Default to 'all' if super admin
     useEffect(() => {
@@ -1927,28 +1945,30 @@ function DashboardContent() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
-                                            <button 
-                                                onClick={() => setScheduleView('self')}
-                                                className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
-                                                    scheduleView === 'self' 
-                                                        ? 'bg-white text-blue-600 shadow-sm' 
-                                                        : 'text-slate-500 hover:text-slate-700'
-                                                }`}
-                                            >
-                                                Self
-                                            </button>
-                                            <button 
-                                                onClick={() => setScheduleView('all')}
-                                                className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
-                                                    scheduleView === 'all' 
-                                                        ? 'bg-white text-blue-600 shadow-sm' 
-                                                        : 'text-slate-500 hover:text-slate-700'
-                                                }`}
-                                            >
-                                                All
-                                            </button>
-                                        </div>
+                                        {upcomingSchedulesScope === 'all' && (
+                                            <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
+                                                <button 
+                                                    onClick={() => setScheduleView('self')}
+                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                        scheduleView === 'self' 
+                                                            ? 'bg-white text-blue-600 shadow-sm' 
+                                                            : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                                >
+                                                    Self
+                                                </button>
+                                                <button 
+                                                    onClick={() => setScheduleView('all')}
+                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                        scheduleView === 'all' 
+                                                            ? 'bg-white text-blue-600 shadow-sm' 
+                                                            : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                                >
+                                                    All
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                     {/* Scrollable Card Area - max 2 rows visible before scroll */}
@@ -2949,7 +2969,8 @@ function DashboardContent() {
                         
                         {/* Mobile Accordion View */}
                         <div className="md:hidden mt-2">
-                            <Accordion type="multiple" className="space-y-4">
+                            <ClientOnly>
+                                <Accordion type="multiple" className="space-y-4">
                                 <AccordionItem value="todo" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
                                     <AccordionTrigger className="hover:no-underline py-4 px-4 bg-slate-50/50">
                                         <div className="flex items-center gap-3">
@@ -3109,6 +3130,7 @@ function DashboardContent() {
                                     </AccordionContent>
                                 </AccordionItem>
                             </Accordion>
+                            </ClientOnly>
                         </div>
                     </div>
                 </div>

@@ -100,7 +100,19 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         }
 
         const fieldPerm = modulePerm.fieldPermissions.find(f => f.field === field);
-        return fieldPerm?.actions.includes(action) ?? false;
+        if (fieldPerm) {
+            return fieldPerm.actions.includes(action);
+        }
+
+        // Implicit Allow: If field not explicitly strictly, inherit module permission
+        // Since we already checked module access above, we just check if the action maps to a module action
+        const actionMap: Record<FieldActionKey, ActionKey> = {
+            view: ACTIONS.VIEW,
+            create: ACTIONS.CREATE,
+            update: ACTIONS.EDIT,
+            delete: ACTIONS.DELETE,
+        };
+        return modulePerm.actions.includes(actionMap[action]);
     }, [permissions]);
 
     // Check route access

@@ -805,9 +805,9 @@ export default function RolesPage() {
                             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
                                 <Eye className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                                 <div>
-                                    <h4 className="font-semibold text-blue-800">Field-Level Visibility</h4>
+                                    <h4 className="font-semibold text-blue-800">Field/widget-Level Visibility</h4>
                                     <p className="text-sm text-blue-600 mt-1">
-                                        Control which fields are visible for this role. Hidden fields can still be granted to specific users via User Overrides.
+                                        Control which fields or widgets are visible for this role. Hidden fields can still be granted to specific users via User Overrides.
                                     </p>
                                 </div>
                             </div>

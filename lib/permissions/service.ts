@@ -156,7 +156,16 @@ export function hasFieldPermission(
 
     // Check specific field permission
     const fieldPerm = modulePerm.fieldPermissions.find(f => f.field === field);
-    if (!fieldPerm) return false;
+    if (!fieldPerm) {
+        // Implicit Allow: Inherit module permission
+        const actionMap: Record<FieldActionKey, ActionKey> = {
+            view: ACTIONS.VIEW,
+            create: ACTIONS.CREATE,
+            update: ACTIONS.EDIT,
+            delete: ACTIONS.DELETE,
+        };
+        return modulePerm.actions.includes(actionMap[fieldAction]);
+    }
 
     return fieldPerm.actions.includes(fieldAction);
 }
