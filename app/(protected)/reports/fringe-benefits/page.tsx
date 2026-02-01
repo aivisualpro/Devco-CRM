@@ -168,7 +168,10 @@ export default function FringeBenefitsPage() {
     const [visibleRows, setVisibleRows] = useState(50);
     const [viewMode, setViewMode] = useState<'hours' | 'amount'>('hours');
     const [groupingMode, setGroupingMode] = useState<'employee' | 'estimate'>('employee');
-    const [includeDriveTime, setIncludeDriveTime] = useState(true);
+    const [includeDriveTime, setIncludeDriveTime] = useState(() => {
+        const p = params.get('driveTime');
+        return p !== null ? p === 'true' : true;
+    });
     const [prefsLoaded, setPrefsLoaded] = useState(false);
 
     // Load User Preferences
@@ -182,7 +185,9 @@ export default function FringeBenefitsPage() {
                     if (filters) {
                          if (filters.groupingMode) setGroupingMode(filters.groupingMode);
                          if (filters.viewMode) setViewMode(filters.viewMode);
-                         if (filters.includeDriveTime !== undefined) setIncludeDriveTime(filters.includeDriveTime);
+                         if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
+                            setIncludeDriveTime(filters.includeDriveTime);
+                         }
                          if (filters.selectedFringe) setSelectedFringe(filters.selectedFringe);
                          
                          // Only restore saved dates if URL params are missing
@@ -234,11 +239,12 @@ export default function FringeBenefitsPage() {
         return () => clearTimeout(timer);
     }, [prefsLoaded, groupingMode, viewMode, includeDriveTime, selectedFringe, startDate, endDate]);
 
-    // Sync URL with dates
+    // Sync URL with dates and filters
     useEffect(() => {
         const currentParams = new URLSearchParams(params.toString());
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
+        const driveTimeStr = String(includeDriveTime);
         
         let needsUpdate = false;
         
@@ -250,11 +256,15 @@ export default function FringeBenefitsPage() {
             currentParams.set('to', endStr);
             needsUpdate = true;
         }
+        if (currentParams.get('driveTime') !== driveTimeStr) {
+            currentParams.set('driveTime', driveTimeStr);
+            needsUpdate = true;
+        }
 
         if (needsUpdate) {
             router.replace(`${pathname}?${currentParams.toString()}`, { scroll: false });
         }
-    }, [startDate, endDate, router, pathname, params]);
+    }, [startDate, endDate, includeDriveTime, router, pathname, params]);
 
     // Data Fetching
     const fetchData = async () => {

@@ -34,11 +34,11 @@ const menuStructure: MenuItem[] = [
     {
         label: 'JOBS',
         items: [
-            { label: 'Catalogue', href: '/catalogue', icon: <Package className="w-5 h-5" />, description: 'Manage resource and item library', colorClass: 'text-blue-500' },
-            { label: 'Templates', href: '/templates', icon: <FileText className="w-5 h-5" />, description: 'Reusable proposal templates', colorClass: 'text-indigo-500' },
             { label: 'Estimates & Proposals', href: '/estimates', icon: <Calculator className="w-5 h-5" />, description: 'Create and manage cost estimates', colorClass: 'text-orange-500' },
             { label: 'Schedules', href: '/jobs/schedules', icon: <Calendar className="w-5 h-5" />, description: 'Project timelines and scheduling', colorClass: 'text-teal-500' },
             { label: 'Time Cards', href: '/jobs/time-cards', icon: <Clock className="w-5 h-5" />, description: 'Employee time cards', colorClass: 'text-purple-500' },
+            { label: 'Templates', href: '/templates', icon: <FileText className="w-5 h-5" />, description: 'Reusable proposal templates', colorClass: 'text-indigo-500' },
+            { label: 'Catalogue', href: '/catalogue', icon: <Package className="w-5 h-5" />, description: 'Manage resource and item library', colorClass: 'text-blue-500' },
         ]
     },
     {
@@ -61,11 +61,10 @@ const menuStructure: MenuItem[] = [
         label: 'REPORTS',
         items: [
             { label: 'Payroll', href: '/reports/payroll', icon: <DollarSign className="w-5 h-5" />, description: 'Employee payroll summary', colorClass: 'text-green-600' },
-            { label: 'Workers Comp', href: '/reports/workers-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
-            { label: 'Work in Progress Report', href: '/reports/wip', icon: <BarChart className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
-            { label: 'Daily Activities', href: '/reports/daily-activities', icon: <Activity className="w-5 h-5" />, description: 'Track daily team activities', colorClass: 'text-orange-500' },
             { label: 'Fringe Benefits', href: '/reports/fringe-benefits', icon: <DollarSign className="w-5 h-5" />, description: 'Benefits analysis', colorClass: 'text-purple-600' },
-            { label: 'Sales Performance', href: '/reports/sales', icon: <BarChart className="w-5 h-5" />, description: 'Revenue and sales metrics', colorClass: 'text-rose-600' },
+            { label: 'Workers Comp', href: '/reports/workers-comp', icon: <FileCheck className="w-5 h-5" />, description: 'Insurance and compensation', colorClass: 'text-blue-700' },
+            { label: 'Work in Progress', href: '/reports/wip', icon: <BarChart className="w-5 h-5" />, description: 'Live QuickBooks project financials', colorClass: 'text-emerald-500' },
+            { label: 'Daily Activity', href: '/reports/daily-activities', icon: <Activity className="w-5 h-5" />, description: 'Track daily team activities', colorClass: 'text-orange-500' },
         ]
     },
     {
