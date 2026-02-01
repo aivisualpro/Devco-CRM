@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface SubItem {
     label: string;
@@ -20,7 +21,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -28,7 +29,7 @@ const menuStructure: MenuItem[] = [
         items: [
             { label: 'Clients', href: '/clients', icon: <Users className="w-5 h-5" />, description: 'Manage client relationships and data', colorClass: 'text-cyan-500' },
             { label: 'Employees', href: '/employees', icon: <Briefcase className="w-5 h-5" />, description: 'Manage company employees', colorClass: 'text-green-500' },
-            { label: 'Leads', href: '/leads', icon: <Briefcase className="w-5 h-5" />, description: 'Track potential sales opportunities', colorClass: 'text-pink-500' },
+            { label: 'Contacts', href: '/contacts', icon: <Contact className="w-5 h-5" />, description: 'View employee contacts', colorClass: 'text-pink-500' },
         ]
     },
     {
@@ -55,6 +56,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Lubrication', href: '/docs/lubrication', icon: <Wrench className="w-5 h-5" />, description: 'Equipment lubrication logs', colorClass: 'text-slate-600' },
             { label: 'Repair Report', href: '/docs/repair', icon: <Wrench className="w-5 h-5" />, description: 'Maintenance and repair logs', colorClass: 'text-gray-600' },
             { label: 'Scope Change', href: '/docs/scope-change', icon: <FileText className="w-5 h-5" />, description: 'Document change orders', colorClass: 'text-indigo-600' },
+            { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
         ]
     },
     {
@@ -110,6 +112,7 @@ interface User {
 export function Header({ rightContent, leftContent, centerContent, showDashboardActions, hideLogo, wipReportFilters }: HeaderProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const { canAccessRoute } = usePermissions();
     const [searchOpen, setSearchOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [user, setUser] = useState<User | null>(null);
@@ -221,7 +224,20 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             {leftContent}
                             <nav className="hidden md:flex items-center gap-2">
                                 {menuStructure.map((group) => {
-                                    const active = isGroupActive(group.items || []);
+                                    // Filter items based on permissions
+                                    const visibleItems = (group.items || []).filter(item => canAccessRoute(item.href));
+                                    
+                                    // If group has no visible items and no direct href, hide it
+                                    if (visibleItems.length === 0 && !group.href) {
+                                        return null;
+                                    }
+
+                                    // If group has a direct href, check if it's accessible
+                                    if (group.href && !canAccessRoute(group.href)) {
+                                        return null;
+                                    }
+
+                                    const active = isGroupActive(visibleItems);
 
                                     if (group.href) {
                                         const isLinkActive = pathname.startsWith(group.href);
@@ -254,7 +270,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             <MyDropDown
                                                 isOpen={openMenu === group.label}
                                                 onClose={() => setOpenMenu(null)}
-                                                options={(group.items || []).map(item => ({
+                                                options={visibleItems.map(item => ({
                                                     id: item.href,
                                                     label: item.label,
                                                     value: item.href,

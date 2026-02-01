@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { Upload, Pencil, Trash2, FileText, Plus, Building, Building2, Mail, Phone, MapPin, User, Briefcase, Search, ChevronRight, X, MessageSquare } from 'lucide-react';
 import { Header, Button, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, SearchableSelect, Tooltip, TooltipTrigger, TooltipContent, Switch, SegmentedControl } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 interface ClientContact {
     name: string;
@@ -62,6 +64,7 @@ const formatPhoneNumber = (value: string) => {
 
 export default function ClientsPage() {
     const router = useRouter();
+    const { can } = usePermissions();
     const { success, error } = useToast();
     const [clients, setClients] = useState<Client[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -284,6 +287,10 @@ export default function ClientsPage() {
 
     const handleDelete = async () => {
         if (!clientToDelete) return;
+        if (!can(MODULES.CLIENTS, ACTIONS.DELETE)) {
+            error('You do not have permission to delete clients');
+            return;
+        }
 
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
@@ -610,19 +617,21 @@ export default function ClientsPage() {
                                                                 </TooltipContent>
                                                             </Tooltip>
 
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button
-                                                                        onClick={() => openDeleteModal(client)}
-                                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Delete Client</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                            {can(MODULES.CLIENTS, ACTIONS.DELETE) && (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={() => openDeleteModal(client)}
+                                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Delete Client</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            )}
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>

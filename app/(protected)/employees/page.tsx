@@ -5,6 +5,7 @@ import { Upload, Pencil, Trash2, Plus, Phone, Mail, ChevronDown, Shield, UserCog
 import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, Pagination, Badge, SkeletonTable, BadgeTabs, Modal, ConfirmModal, Input, Tabs, UnderlineTabs, SaveButton, CancelButton, MyDropDown, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
+import { EmployeeForm } from '@/components/employees/EmployeeForm';
 
 interface Employee {
     _id: string; // email
@@ -212,7 +213,7 @@ export default function EmployeesPage() {
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [currentEmployee, setCurrentEmployee] = useState<Partial<Employee>>(defaultEmployee);
-    const [modalTab, setModalTab] = useState('personal'); // personal, employment, compliance
+
 
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null);
@@ -456,13 +457,11 @@ export default function EmployeesPage() {
     // CRUD Handlers
     const openAddModal = () => {
         setCurrentEmployee({ ...defaultEmployee });
-        setModalTab('personal');
         setIsModalOpen(true);
     };
 
     const openEditModal = (emp: Employee) => {
         setCurrentEmployee({ ...emp });
-        setModalTab('personal');
         setIsModalOpen(true);
     };
 
@@ -471,40 +470,7 @@ export default function EmployeesPage() {
         setIsDeleteModalOpen(true);
     };
 
-    const handleSave = async () => {
-        if (!currentEmployee.firstName || !currentEmployee.lastName || !currentEmployee.email) {
-            error('First Name, Last Name and Email are required');
-            return;
-        }
-
-        setSaving(true);
-        try {
-            const action = currentEmployee._id ? 'updateEmployee' : 'addEmployee';
-            const payload = currentEmployee._id
-                ? { id: currentEmployee._id, item: currentEmployee }
-                : { item: currentEmployee };
-
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, payload })
-            });
-
-            const data = await res.json();
-            if (data.success) {
-                success(currentEmployee._id ? 'Employee updated successfully' : 'Employee added successfully');
-                setIsModalOpen(false);
-                fetchEmployees();
-            } else {
-                error('Failed to save employee: ' + (data.error || 'Unknown error'));
-            }
-        } catch (err) {
-            console.error('Error saving employee:', err);
-            error('An error occurred while saving');
-        } finally {
-            setSaving(false);
-        }
-    };
+    // handleSave is now handled within EmployeeForm component
 
     const handleDelete = async () => {
         if (!employeeToDelete) return;
@@ -849,329 +815,16 @@ export default function EmployeesPage() {
                 </div>
             </div>
 
-            {/* Add/Edit Modal */}
-            <Modal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                title={currentEmployee._id ? 'Edit Employee' : 'New Employee'}
-                footer={
-                    <>
-                        <CancelButton onClick={() => setIsModalOpen(false)} />
-                        <SaveButton onClick={handleSave} loading={saving} />
-                    </>
-                }
-            >
-                <div className="mb-6">
-                    <UnderlineTabs
-                        tabs={modalTabs}
-                        activeTab={modalTab}
-                        onChange={setModalTab}
-                    />
-                </div>
-
-
-
-                <div className="pb-4">
-                    {modalTab === 'personal' && (
-                        <div className="grid grid-cols-12 gap-4">
-                            {/* Profile Picture and Signature Row */}
-                            <div className="col-span-12 flex flex-wrap items-start justify-center gap-8 mb-4">
-                                {/* Profile Picture Upload */}
-                                <div className="flex flex-col items-center">
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Profile Photo</label>
-                                    <div className="relative group cursor-pointer">
-                                        <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-100 flex items-center justify-center shadow-lg border-2 border-white">
-                                            {currentEmployee.profilePicture ? (
-                                                <img
-                                                    src={currentEmployee.profilePicture}
-                                                    alt="Profile"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="text-2xl font-bold text-gray-400">
-                                                    {currentEmployee.firstName?.[0]}{currentEmployee.lastName?.[0]}
-                                                </div>
-                                            )}
-                                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <Pencil className="w-6 h-6 text-white" />
-                                            </div>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            onChange={(e) => {
-                                                const file = e.target.files?.[0];
-                                                if (file) {
-                                                    const reader = new FileReader();
-                                                    reader.onloadend = () => {
-                                                        setCurrentEmployee({ ...currentEmployee, profilePicture: reader.result as string });
-                                                    };
-                                                    reader.readAsDataURL(file);
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <span className="text-xs text-gray-500 mt-2">Click to upload</span>
-                                </div>
-
-                                {/* Signature Pad */}
-                                <SignaturePad
-                                    value={currentEmployee.signature}
-                                    onChange={(sig) => setCurrentEmployee({ ...currentEmployee, signature: sig })}
-                                />
-                            </div>
-
-
-                            <div className="col-span-12 md:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-                                <Input
-                                    value={currentEmployee.firstName || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, firstName: e.target.value })}
-                                    autoFocus={true}
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-                                <Input
-                                    value={currentEmployee.lastName || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, lastName: e.target.value })}
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                                <Input
-                                    value={currentEmployee.dob || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, dob: e.target.value })}
-                                    type="date"
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email (ID) *</label>
-                                <Input
-                                    value={currentEmployee.email || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, email: e.target.value })}
-                                    type="email"
-                                    disabled={!!currentEmployee._id}
-                                />
-                                {!!currentEmployee._id && <p className="text-xs text-gray-400 mt-1">Email cannot be changed.</p>}
-                            </div>
-
-                            <div className="col-span-12 md:col-span-3">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                                <Input
-                                    value={currentEmployee.phone || ''}
-                                    onChange={(e) => {
-                                        const formattedValue = formatPhoneNumber(e.target.value);
-                                        setCurrentEmployee({ ...currentEmployee, phone: formattedValue });
-                                    }}
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-3">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
-                                <Input
-                                    value={currentEmployee.mobile || ''}
-                                    onChange={(e) => {
-                                        const formattedValue = formatPhoneNumber(e.target.value);
-                                        setCurrentEmployee({ ...currentEmployee, mobile: formattedValue });
-                                    }}
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                                <Input
-                                    value={currentEmployee.password || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, password: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="col-span-12">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                                <Input
-                                    value={currentEmployee.address || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, address: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-4">
-                                <FormSelect
-                                    label="City"
-                                    value={currentEmployee.city || ''}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, city: val })}
-                                    options={cityOptions}
-                                    placeholder="Select or type city..."
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-4">
-                                <FormSelect
-                                    label="State"
-                                    value={currentEmployee.state || ''}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, state: val })}
-                                    options={stateOptions}
-                                    placeholder="State"
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Zip</label>
-                                <Input
-                                    value={currentEmployee.zip || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, zip: e.target.value })}
-                                />
-                            </div>
-
-                            <div className="col-span-12">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Driver License</label>
-                                <Input
-                                    value={currentEmployee.driverLicense || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, driverLicense: e.target.value })}
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {modalTab === 'employment' && (
-                        <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-12 md:col-span-6">
-                                <FormSelect
-                                    label="App Role"
-                                    value={currentEmployee.appRole || ''}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, appRole: val })}
-                                    options={appRoleOptions}
-                                    allowAdd={true}
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-6">
-                                <FormSelect
-                                    label="Company Position"
-                                    value={currentEmployee.companyPosition || ''}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, companyPosition: val })}
-                                    options={positionOptions}
-                                    allowAdd={true}
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-4">
-                                <FormSelect
-                                    label="Designation"
-                                    value={currentEmployee.designation || ''}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, designation: val })}
-                                    options={designationOptions}
-                                    allowAdd={true}
-                                    multiSelect={true}
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Group No</label>
-                                <Input
-                                    value={currentEmployee.groupNo || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, groupNo: e.target.value })}
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Date Hired</label>
-                                <Input
-                                    value={currentEmployee.dateHired || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, dateHired: e.target.value })}
-                                    type="date"
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (SITE)</label>
-                                <Input
-                                    value={currentEmployee.hourlyRateSITE || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, hourlyRateSITE: parseFloat(e.target.value) || 0 })}
-                                    type="number"
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (Drive)</label>
-                                <Input
-                                    value={currentEmployee.hourlyRateDrive || ''}
-                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, hourlyRateDrive: parseFloat(e.target.value) || 0 })}
-                                    type="number"
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-6">
-                                <FormSelect
-                                    label="Status"
-                                    value={currentEmployee.status || 'Active'}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, status: val })}
-                                    options={['Active', 'Inactive', 'Terminated']}
-                                    allowAdd={false}
-                                />
-                            </div>
-
-                            <div className="col-span-12 md:col-span-6">
-                                <FormSelect
-                                    label="Schedule Active"
-                                    value={currentEmployee.isScheduleActive ? 'Yes' : 'No'}
-                                    onChange={(val) => setCurrentEmployee({ ...currentEmployee, isScheduleActive: val === 'Yes' })}
-                                    options={['Yes', 'No']}
-                                    allowAdd={false}
-                                />
-                            </div>
-
-                            {(currentEmployee.status === 'Terminated' || currentEmployee.status === 'Inactive') && (
-                                <>
-                                    <div className="col-span-12 md:col-span-6">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Separation Date</label>
-                                        <Input
-                                            value={currentEmployee.separationDate || ''}
-                                            onChange={(e) => setCurrentEmployee({ ...currentEmployee, separationDate: e.target.value })}
-                                            type="date"
-                                        />
-                                    </div>
-                                    <div className="col-span-12 md:col-span-6">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Separation Reason</label>
-                                        <Input
-                                            value={currentEmployee.separationReason || ''}
-                                            onChange={(e) => setCurrentEmployee({ ...currentEmployee, separationReason: e.target.value })}
-                                        />
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    )}
-
-                    {modalTab === 'compliance' && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {[
-                                { key: 'applicationResume', label: 'Application / Resume' },
-                                { key: 'employeeHandbook', label: 'Employee Handbook' },
-                                { key: 'quickbooksW4I9DD', label: 'Quickbooks / W4 / I9 / DD' },
-                                { key: 'workforce', label: 'Workforce Hub' },
-                                { key: 'emergencyContact', label: 'Emergency Contact Form' },
-                                { key: 'dotRelease', label: 'DOT Release' },
-                                { key: 'dmvPullNotifications', label: 'DMV Pull Notifications' },
-                                { key: 'drivingRecordPermission', label: 'Driving Record Permission' },
-                                { key: 'backgroundCheck', label: 'Background Check' },
-                                { key: 'copyOfDL', label: 'Copy of DL' },
-                                { key: 'copyOfSS', label: 'Copy of SS / Passport / Birth Cert' },
-                                { key: 'lcpTracker', label: 'LCP Tracker' },
-                                { key: 'edd', label: 'EDD' },
-                                { key: 'autoInsurance', label: 'Auto Insurance' },
-                                { key: 'veriforce', label: 'Veriforce' },
-                                { key: 'unionPaperwork1184', label: 'Union Paperwork (1184)' },
-                            ].map((field) => (
-                                <div key={field.key} className="col-span-1">
-                                    <FormSelect
-                                        label={field.label}
-                                        value={(currentEmployee as any)[field.key] || ''}
-                                        onChange={(val) => setCurrentEmployee({ ...currentEmployee, [field.key]: val })}
-                                        options={getComplianceOptions(field.key as keyof Employee)}
-                                        placeholder="Select status..."
-                                        allowAdd={true}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            </Modal >
+            {/* Add/Edit Modal - Replaced with EmployeeForm */}
+            {isModalOpen && (
+                <EmployeeForm
+                    open={isModalOpen}
+                    onOpenChange={setIsModalOpen}
+                    initialData={currentEmployee as any}
+                    onSave={fetchEmployees}
+                    roles={roles}
+                />
+            )}
 
             {/* Delete Confirmation Modal */}
             < ConfirmModal

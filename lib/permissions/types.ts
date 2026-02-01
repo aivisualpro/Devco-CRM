@@ -17,7 +17,7 @@ export const MODULES = {
     DASHBOARD: 'dashboard',
     CLIENTS: 'clients',
     EMPLOYEES: 'employees',
-    LEADS: 'leads',
+    CONTACTS: 'contacts',
     ROLES: 'roles',
     
     // JOBS
@@ -50,6 +50,7 @@ export const MODULES = {
     REPORTS_WORK_COMP: 'reports_work_comp',
     REPORTS_FRINGE: 'reports_fringe',
     REPORTS_SALES: 'reports_sales',
+    REPORTS_DAILY_ACTIVITY: 'reports_daily_activity',
 } as const;
 
 export type ModuleKey = typeof MODULES[keyof typeof MODULES];
@@ -256,7 +257,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
         'dotRelease', 'dmvPullNotifications', 'drivingRecordPermission', 'backgroundCheck',
         'copyOfDL', 'copyOfSS', 'lcpTracker', 'edd', 'autoInsurance', 'veriforce', 'unionPaperwork1184'
     ],
-    [MODULES.LEADS]: ['name', 'email', 'phone', 'company', 'status', 'source', 'notes', 'assignedTo'],
+    [MODULES.CONTACTS]: ['firstName', 'lastName', 'email', 'mobile'],
     [MODULES.ROLES]: ['name', 'description', 'color', 'icon', 'isActive', 'permissions'],
     [MODULES.CATALOGUE]: ['name', 'description', 'category', 'unitCost', 'unit', 'status'],
     [MODULES.TEMPLATES]: ['name', 'description', 'category', 'content', 'isActive'],
@@ -284,6 +285,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     [MODULES.REPORTS_WORK_COMP]: [],
     [MODULES.REPORTS_FRINGE]: [],
     [MODULES.REPORTS_SALES]: [],
+    [MODULES.REPORTS_DAILY_ACTIVITY]: [],
 };
 
 // =====================================
@@ -292,7 +294,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
 export const PERMISSION_GROUPS = {
     CRM: {
         label: 'CRM & People',
-        modules: [MODULES.DASHBOARD, MODULES.CLIENTS, MODULES.EMPLOYEES, MODULES.LEADS],
+        modules: [MODULES.CLIENTS, MODULES.EMPLOYEES, MODULES.CONTACTS],
         color: '#0F4C75',
     },
     JOBS: {
@@ -316,7 +318,7 @@ export const PERMISSION_GROUPS = {
     },
     REPORTS: {
         label: 'Reports & Analytics',
-        modules: [MODULES.REPORTS_PAYROLL, MODULES.REPORTS_WIP, MODULES.REPORTS_WORK_COMP, MODULES.REPORTS_FRINGE, MODULES.REPORTS_SALES],
+        modules: [MODULES.REPORTS_PAYROLL, MODULES.REPORTS_FRINGE, MODULES.REPORTS_WORK_COMP, MODULES.REPORTS_WIP, MODULES.REPORTS_DAILY_ACTIVITY],
         color: '#059669',
     },
 };
@@ -328,7 +330,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.DASHBOARD]: 'Dashboard',
     [MODULES.CLIENTS]: 'Clients',
     [MODULES.EMPLOYEES]: 'Employees',
-    [MODULES.LEADS]: 'Leads',
+    [MODULES.CONTACTS]: 'Contacts',
     [MODULES.ROLES]: 'Roles & Permissions',
     [MODULES.CATALOGUE]: 'Catalogue',
     [MODULES.TEMPLATES]: 'Templates',
@@ -353,6 +355,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.REPORTS_WORK_COMP]: 'Work Comp Report',
     [MODULES.REPORTS_FRINGE]: 'Fringe Benefits',
     [MODULES.REPORTS_SALES]: 'Sales Performance',
+    [MODULES.REPORTS_DAILY_ACTIVITY]: 'Daily Activity',
 };
 
 // =====================================
@@ -377,7 +380,7 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/dashboard': MODULES.DASHBOARD,
     '/clients': MODULES.CLIENTS,
     '/employees': MODULES.EMPLOYEES,
-    '/leads': MODULES.LEADS,
+    '/contacts': MODULES.CONTACTS,
     '/roles': MODULES.ROLES,
     '/catalogue': MODULES.CATALOGUE,
     '/templates': MODULES.TEMPLATES,
@@ -398,8 +401,12 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/docs/scope-change': MODULES.SCOPE_CHANGE,
     '/constants': MODULES.CONSTANTS,
     '/chat': MODULES.CHAT,
+    '/settings/general': MODULES.CONSTANTS,
+    '/settings/imports': MODULES.CONSTANTS,
+    '/settings/knowledgebase': MODULES.CONSTANTS,
     '/reports/payroll': MODULES.REPORTS_PAYROLL,
-    '/reports/work-comp': MODULES.REPORTS_WORK_COMP,
-    '/reports/fringe': MODULES.REPORTS_FRINGE,
+    '/reports/workers-comp': MODULES.REPORTS_WORK_COMP,
+    '/reports/fringe-benefits': MODULES.REPORTS_FRINGE,
     '/reports/sales': MODULES.REPORTS_SALES,
+    '/reports/daily-activities': MODULES.REPORTS_DAILY_ACTIVITY,
 };

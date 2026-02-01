@@ -2,40 +2,36 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { 
-    Shield, Plus, Pencil, Trash2, Users, Eye, ShieldCheck, Copy,
-    ChevronDown, ChevronRight, Check, X, Search, Save, ArrowLeft,
-    UserCog, User, Lock, AlertTriangle, Settings, Key, History,
-    Package, FileText, Calculator, Calendar, DollarSign, MoreVertical,
-    ClipboardCheck, Truck, Wrench, BarChart, MessageSquare, Home,
-    Briefcase, Globe, Building2, UserCheck, Filter, RefreshCw
+    Shield, Plus, Pencil, Trash2, Users, Eye, ShieldCheck, 
+    Lock, Settings, Key,
+    Package, FileText, Calculator, Calendar, DollarSign,
+    ClipboardCheck, Truck, Wrench, BarChart, MessageSquare,
+    Briefcase,
+    RefreshCw
 } from 'lucide-react';
-import { Header, Modal, Input, Badge, ConfirmModal, SearchInput } from '@/components/ui';
+import { Header, Modal, Badge, ConfirmModal, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import {
     MODULES,
-    ACTIONS,
-    DATA_SCOPE,
     MODULE_LABELS,
-    ACTION_LABELS,
-    PERMISSION_GROUPS,
     ModuleKey,
-    ActionKey,
-    DataScopeKey,
-    ModulePermission,
     IRole,
-    MODULE_FIELDS,
 } from '@/lib/permissions/types';
+import { RoleForm } from './role-form';
 
 // Icon mapping for roles
 const ROLE_ICONS: Record<string, React.ReactNode> = {
     Shield: <Shield className="w-5 h-5" />,
-    UserCog: <UserCog className="w-5 h-5" />,
+    UserCog: <UserCog className="w-5 h-5" />, // Note: UserCog wasn't imported in my list above, need to add it
     Users: <Users className="w-5 h-5" />,
-    User: <User className="w-5 h-5" />,
+    User: <User className="w-5 h-5" />, // User needed
     Eye: <Eye className="w-5 h-5" />,
     Lock: <Lock className="w-5 h-5" />,
     Settings: <Settings className="w-5 h-5" />,
 };
+
+// Need access to User and UserCog for the icons above
+import { User, UserCog, ArrowLeft } from 'lucide-react'; // Adding missing imports
 
 // Module icons
 const MODULE_ICONS: Record<string, React.ReactNode> = {
@@ -59,66 +55,8 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
     chat: <MessageSquare className="w-4 h-4" />,
 };
 
-// Module icon colors
-const MODULE_COLORS: Record<string, string> = {
-    dashboard: '#3b82f6',
-    clients: '#06b6d4',
-    employees: '#10b981',
-    leads: '#f59e0b',
-    roles: '#ef4444',
-    catalogue: '#8b5cf6',
-    templates: '#6366f1',
-    estimates: '#ec4899',
-    schedules: '#14b8a6',
-    time_cards: '#84cc16',
-    quickbooks: '#22c55e',
-};
-
 interface RoleWithCount extends IRole {
     employeeCount?: number;
-}
-
-// Toggle Switch Component
-function ToggleSwitch({ 
-    checked, 
-    onChange, 
-    disabled = false,
-    size = 'md'
-}: { 
-    checked: boolean; 
-    onChange: () => void; 
-    disabled?: boolean;
-    size?: 'sm' | 'md';
-}) {
-    const sizeClasses = size === 'sm' 
-        ? 'w-8 h-4' 
-        : 'w-10 h-5';
-    const dotSize = size === 'sm'
-        ? 'w-3 h-3'
-        : 'w-4 h-4';
-    const dotTranslate = size === 'sm'
-        ? 'translate-x-4'
-        : 'translate-x-5';
-
-    return (
-        <button
-            onClick={onChange}
-            disabled={disabled}
-            className={`relative inline-flex items-center rounded-full transition-colors duration-200 ${sizeClasses} ${
-                disabled 
-                    ? 'bg-slate-100 cursor-not-allowed' 
-                    : checked 
-                        ? 'bg-blue-500' 
-                        : 'bg-slate-300 hover:bg-slate-400'
-            }`}
-        >
-            <span
-                className={`inline-block ${dotSize} transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                    checked ? dotTranslate : 'translate-x-0.5'
-                }`}
-            />
-        </button>
-    );
 }
 
 // Access Restricted Component
@@ -169,20 +107,6 @@ export default function RolesPage() {
     const [roleToDelete, setRoleToDelete] = useState<RoleWithCount | null>(null);
     const [saving, setSaving] = useState(false);
     const [search, setSearch] = useState('');
-    const [activeTab, setActiveTab] = useState<'general' | 'permissions' | 'data-scope' | 'users' | 'audit'>('general');
-    const [selectedModule, setSelectedModule] = useState<ModuleKey | null>(null);
-    const [moduleFilter, setModuleFilter] = useState<string>('all');
-    const [dataScopeModule, setDataScopeModule] = useState<ModuleKey | null>(null);
-
-    // Form state for editing
-    const [editForm, setEditForm] = useState({
-        name: '',
-        description: '',
-        color: '#3b82f6',
-        icon: 'User',
-        isActive: true,
-        permissions: [] as ModulePermission[],
-    });
 
     // Fetch roles
     useEffect(() => {
@@ -222,47 +146,23 @@ export default function RolesPage() {
     // Open modal for editing
     const openEditModal = (role: RoleWithCount) => {
         setSelectedRole(role);
-        setEditForm({
-            name: role.name,
-            description: role.description || '',
-            color: role.color || '#3b82f6',
-            icon: role.icon || 'User',
-            isActive: role.isActive,
-            permissions: role.permissions || [],
-        });
-        setActiveTab('general');
-        setSelectedModule(null);
         setIsModalOpen(true);
     };
 
     // Create new role
     const openNewRoleModal = () => {
         setSelectedRole(null);
-        setEditForm({
-            name: '',
-            description: '',
-            color: '#3b82f6',
-            icon: 'User',
-            isActive: true,
-            permissions: [],
-        });
-        setActiveTab('general');
         setIsModalOpen(true);
     };
 
     // Save role
-    const handleSave = async () => {
-        if (!editForm.name.trim()) {
-            showError('Role name is required');
-            return;
-        }
-
+    const handleSave = async (formData: any) => {
         setSaving(true);
         try {
             const method = selectedRole ? 'PUT' : 'POST';
             const body = selectedRole 
-                ? { id: selectedRole._id, ...editForm }
-                : editForm;
+                ? { id: selectedRole._id, ...formData }
+                : formData;
 
             const res = await fetch('/api/roles', {
                 method,
@@ -287,10 +187,11 @@ export default function RolesPage() {
 
     // Delete role
     const handleDelete = async () => {
-        if (!roleToDelete) return;
+        const targetRole = roleToDelete || selectedRole; // Handle delete from modal or list
+        if (!targetRole) return;
 
         try {
-            const res = await fetch(`/api/roles?id=${roleToDelete._id}`, {
+            const res = await fetch(`/api/roles?id=${targetRole._id}`, {
                 method: 'DELETE',
             });
 
@@ -298,6 +199,7 @@ export default function RolesPage() {
             if (data.success) {
                 success('Role deleted successfully');
                 fetchRoles();
+                if (isModalOpen) setIsModalOpen(false); // Close edit modal if open
             } else {
                 showError(data.error || 'Failed to delete role');
             }
@@ -308,79 +210,6 @@ export default function RolesPage() {
         setIsDeleteModalOpen(false);
         setRoleToDelete(null);
     };
-
-    // Check if action is enabled
-    const hasAction = (module: ModuleKey, action: ActionKey): boolean => {
-        const perm = editForm.permissions.find(p => p.module === module);
-        return perm?.actions.includes(action) ?? false;
-    };
-
-    // Toggle permission
-    const togglePermission = (module: ModuleKey, action: ActionKey) => {
-        const perms = [...editForm.permissions];
-        const idx = perms.findIndex(p => p.module === module);
-
-        if (idx >= 0) {
-            const current = perms[idx];
-            if (current.actions.includes(action)) {
-                current.actions = current.actions.filter(a => a !== action);
-                if (current.actions.length === 0) {
-                    perms.splice(idx, 1);
-                }
-            } else {
-                current.actions.push(action);
-            }
-        } else {
-            perms.push({
-                module,
-                actions: [action],
-                dataScope: DATA_SCOPE.SELF,
-            });
-        }
-
-        setEditForm({ ...editForm, permissions: perms });
-    };
-
-    // Get data scope for module
-    const getDataScope = (module: ModuleKey): DataScopeKey => {
-        const perm = editForm.permissions.find(p => p.module === module);
-        return perm?.dataScope || DATA_SCOPE.SELF;
-    };
-
-    // Set data scope
-    const setDataScope = (module: ModuleKey, scope: DataScopeKey) => {
-        const perms = [...editForm.permissions];
-        const idx = perms.findIndex(p => p.module === module);
-
-        if (idx >= 0) {
-            perms[idx].dataScope = scope;
-        } else {
-            perms.push({
-                module,
-                actions: [ACTIONS.VIEW],
-                dataScope: scope,
-            });
-        }
-
-        setEditForm({ ...editForm, permissions: perms });
-    };
-
-    // Filter modules
-    const filteredModules = useMemo(() => {
-        const allModules = Object.values(MODULES);
-        if (moduleFilter === 'all') return allModules;
-        
-        const group = PERMISSION_GROUPS[moduleFilter as keyof typeof PERMISSION_GROUPS];
-        return group ? group.modules : allModules;
-    }, [moduleFilter]);
-
-    // Color presets
-    const colorPresets = [
-        '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
-        '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b',
-        '#eab308', '#84cc16', '#22c55e', '#10b981', '#14b8a6',
-        '#06b6d4', '#0ea5e9', '#64748b',
-    ];
 
     if (!hasAccess) {
         return (
@@ -563,582 +392,19 @@ export default function RolesPage() {
                 onClose={() => setIsModalOpen(false)}
                 title={selectedRole ? `Role: ${selectedRole.name}` : 'Create New Role'}
                 maxWidth="6xl"
-                footer={
-                    <div className="flex items-center justify-between w-full">
-                        <button
-                            onClick={() => setIsModalOpen(false)}
-                            className="px-4 py-2 text-slate-600 hover:text-slate-800 font-medium"
-                        >
-                            Cancel
-                        </button>
-                        <div className="flex items-center gap-2">
-                            {selectedRole && selectedRole.name !== 'Super Admin' && (
-                                <button
-                                    onClick={() => {
-                                        setIsModalOpen(false);
-                                        setRoleToDelete(selectedRole);
-                                        setIsDeleteModalOpen(true);
-                                    }}
-                                    className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
-                                >
-                                    Delete Role
-                                </button>
-                            )}
-                            <button
-                                onClick={handleSave}
-                                disabled={saving || selectedRole?.name === 'Super Admin'}
-                                className="px-6 py-2.5 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2 transition-all"
-                            >
-                                {saving ? (
-                                    <RefreshCw className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    <Save className="w-4 h-4" />
-                                )}
-                                {saving ? 'Saving...' : 'Save Changes'}
-                            </button>
-                        </div>
-                    </div>
-                }
+                // No footer passed here, handled by RoleForm
             >
-                <div className="flex flex-col">
-                    {/* Tabs */}
-                    <div className="flex gap-6 border-b border-slate-200 p-4">
-                        {[
-                            { id: 'general', label: 'General Info', icon: Settings },
-                            { id: 'permissions', label: 'Permissions', icon: Shield },
-                            { id: 'data-scope', label: 'Data Scope', icon: Globe },
-                            { id: 'users', label: 'Assigned Users', icon: Users },
-                            { id: 'audit', label: 'Audit Log', icon: History },
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                                className={`flex items-center gap-2 pb-3 border-b-2 transition-colors ${
-                                    activeTab === tab.id
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-slate-500 hover:text-slate-700'
-                                }`}
-                            >
-                                <tab.icon className="w-4 h-4" />
-                                <span className="font-medium">{tab.label}</span>
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Super Admin Warning */}
-                    {selectedRole?.name === 'Super Admin' && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-                            <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                            <div>
-                                <h4 className="font-semibold text-amber-800">Super Admin Role</h4>
-                                <p className="text-sm text-amber-600 mt-1">
-                                    This role bypasses all permission checks. Users with this role have unrestricted access to all modules and data.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* General Tab */}
-                    {activeTab === 'general' && (
-                        <div className="grid grid-cols-2 gap-6">
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Role Name *</label>
-                                    <Input
-                                        value={editForm.name}
-                                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                                        placeholder="e.g., Sales Manager"
-                                        disabled={selectedRole?.isSystem}
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                                    <textarea
-                                        value={editForm.description}
-                                        onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                                        placeholder="Brief description of this role's purpose..."
-                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
-                                        rows={3}
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between py-3 border-t border-slate-100">
-                                    <div>
-                                        <p className="font-medium text-slate-900">Active Status</p>
-                                        <p className="text-sm text-slate-500">Enable or disable this role</p>
-                                    </div>
-                                    <ToggleSwitch
-                                        checked={editForm.isActive}
-                                        onChange={() => setEditForm({ ...editForm, isActive: !editForm.isActive })}
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Color</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {colorPresets.map(color => (
-                                            <button
-                                                key={color}
-                                                onClick={() => setEditForm({ ...editForm, color })}
-                                                className={`w-8 h-8 rounded-lg transition-all hover:scale-110 ${
-                                                    editForm.color === color ? 'ring-2 ring-offset-2 ring-slate-400' : ''
-                                                }`}
-                                                style={{ backgroundColor: color }}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-2">Icon</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {Object.entries(ROLE_ICONS).map(([name, icon]) => (
-                                            <button
-                                                key={name}
-                                                onClick={() => setEditForm({ ...editForm, icon: name })}
-                                                className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
-                                                    editForm.icon === name
-                                                        ? 'bg-blue-500 text-white'
-                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                                }`}
-                                            >
-                                                {icon}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Permissions Tab */}
-                    {activeTab === 'permissions' && selectedRole?.name !== 'Super Admin' && (
-                        <div className="flex gap-6">
-                            {/* Permissions Matrix */}
-                            <div className="flex-1">
-                                {/* Filter Bar */}
-                                <div className="flex items-center gap-4 mb-4">
-                                    <div className="flex gap-2">
-                                        {['all', 'CRM', 'JOBS', 'DOCS', 'SETTINGS'].map(filter => (
-                                            <button
-                                                key={filter}
-                                                onClick={() => setModuleFilter(filter)}
-                                                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                                    moduleFilter === filter
-                                                        ? 'bg-slate-900 text-white'
-                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                                }`}
-                                            >
-                                                {filter === 'all' ? 'All Modules' : filter}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* Permission Table */}
-                                <div className="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden max-h-[400px] overflow-y-auto">
-                                    <table className="w-full">
-                                        <thead className="sticky top-0 bg-slate-100">
-                                            <tr className="border-b border-slate-200">
-                                                <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Module</th>
-                                                {Object.values(ACTIONS).slice(0, 6).map(action => (
-                                                    <th key={action} className="text-center py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-16">
-                                                        {ACTION_LABELS[action]}
-                                                    </th>
-                                                ))}
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white">
-                                            {filteredModules.map((module) => (
-                                                <tr key={module} className="border-b border-slate-100 hover:bg-slate-50">
-                                                    <td className="py-3 px-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div 
-                                                                className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
-                                                                style={{ backgroundColor: MODULE_COLORS[module] || '#64748b' }}
-                                                            >
-                                                                {MODULE_ICONS[module] || <Package className="w-3.5 h-3.5" />}
-                                                            </div>
-                                                            <span className="font-medium text-slate-700 text-sm">{MODULE_LABELS[module]}</span>
-                                                        </div>
-                                                    </td>
-                                                    {Object.values(ACTIONS).slice(0, 6).map(action => (
-                                                        <td key={action} className="text-center py-3 px-2">
-                                                            {module === 'dashboard' && action !== 'view' ? (
-                                                                <span className="text-slate-300">—</span>
-                                                            ) : (
-                                                                <div className="flex justify-center">
-                                                                    <ToggleSwitch
-                                                                        checked={hasAction(module, action)}
-                                                                        onChange={() => togglePermission(module, action)}
-                                                                        size="sm"
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            {/* Module Detail Panel */}
-                            {selectedModule && (
-                                <div className="w-72 bg-slate-50 rounded-xl border border-slate-200 p-4 h-fit">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="font-semibold text-slate-900">{MODULE_LABELS[selectedModule]}</h3>
-                                        <button onClick={() => setSelectedModule(null)} className="text-slate-400 hover:text-slate-600">
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                    {/* Add module-specific settings here */}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Data Scope Tab - Field Level Permissions */}
-                    {activeTab === 'data-scope' && selectedRole?.name !== 'Super Admin' && (
-                        <div className="space-y-6">
-                            {/* Info Banner */}
-                            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-                                <Eye className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                                <div>
-                                    <h4 className="font-semibold text-blue-800">Field/widget-Level Visibility</h4>
-                                    <p className="text-sm text-blue-600 mt-1">
-                                        Control which fields or widgets are visible for this role. Hidden fields can still be granted to specific users via User Overrides.
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Module Tabs for Field Permissions */}
-                            {(() => {
-                                // Only show modules that have permissions enabled
-                                const enabledModules = editForm.permissions
-                                    .filter(p => p.actions.length > 0)
-                                    .map(p => p.module);
-                                
-                                if (enabledModules.length === 0) {
-                                    return (
-                                        <div className="text-center py-12 bg-slate-50 rounded-xl">
-                                            <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                                            <p className="text-slate-500 font-medium">No modules with permissions</p>
-                                            <p className="text-sm text-slate-400 mt-1">Enable permissions for modules in the Permissions tab first.</p>
-                                        </div>
-                                    );
-                                }
-
-                                // Use the first enabled module if current selection is not valid
-                                const activeModule = (dataScopeModule && enabledModules.includes(dataScopeModule)) 
-                                    ? dataScopeModule 
-                                    : enabledModules[0];
-                                const currentModuleFields = MODULE_FIELDS[activeModule] || [];
-                                const currentPerm = editForm.permissions.find(p => p.module === activeModule);
-                                const fieldPerms = currentPerm?.fieldPermissions || [];
-                                
-                                // Check if field has permission
-                                const hasFieldPerm = (field: string, action: 'view' | 'create' | 'update' | 'delete') => {
-                                    const fp = fieldPerms.find(f => f.field === field);
-                                    return fp?.actions.includes(action) ?? true; // Default to true (visible)
-                                };
-
-                                // Toggle field permission
-                                const toggleFieldPerm = (field: string, action: 'view' | 'create' | 'update' | 'delete') => {
-                                    const perms = [...editForm.permissions];
-                                    const modIdx = perms.findIndex(p => p.module === activeModule);
-                                    
-                                    if (modIdx >= 0) {
-                                        const currentFieldPerms = perms[modIdx].fieldPermissions || [];
-                                        const fieldIdx = currentFieldPerms.findIndex(f => f.field === field);
-                                        
-                                        if (fieldIdx >= 0) {
-                                            // Toggle the action
-                                            const actions = currentFieldPerms[fieldIdx].actions;
-                                            if (actions.includes(action)) {
-                                                currentFieldPerms[fieldIdx].actions = actions.filter(a => a !== action);
-                                            } else {
-                                                currentFieldPerms[fieldIdx].actions = [...actions, action];
-                                            }
-                                        } else {
-                                            // Create new field permission with this action disabled (remove from default all)
-                                            currentFieldPerms.push({
-                                                field,
-                                                actions: ['view', 'create', 'update', 'delete'].filter(a => a !== action) as any
-                                            });
-                                        }
-                                        
-                                        perms[modIdx].fieldPermissions = currentFieldPerms;
-                                        setEditForm({ ...editForm, permissions: perms });
-                                    }
-                                };
-
-                                // Dashboard Widget Logic
-                                const DASHBOARD_CONFIG: Record<string, { actions: string[], hasScope: boolean }> = {
-                                    'widget_upcoming_schedules': { actions: ['view', 'update', 'delete'], hasScope: true },
-                                    'widget_chat': { actions: ['view', 'update', 'delete'], hasScope: true },
-                                    'widget_estimates_overview': { actions: ['view'], hasScope: true },
-                                    'widget_training_certifications': { actions: ['view'], hasScope: false },
-                                    'widget_time_cards': { actions: ['view'], hasScope: true },
-                                    'widget_tasks': { actions: ['view', 'update', 'delete'], hasScope: true },
-                                };
-
-                                // Check capabilities
-                                const supportsAction = (field: string, action: string) => {
-                                    if (activeModule === 'dashboard') {
-                                        return DASHBOARD_CONFIG[field]?.actions.includes(action) ?? false;
-                                    }
-                                    return ['view', 'update'].includes(action);
-                                };
-
-                                const supportsScope = (field: string) => {
-                                    if (activeModule === 'dashboard') {
-                                        return DASHBOARD_CONFIG[field]?.hasScope ?? false;
-                                    }
-                                    return false; // Default fields don't have per-field scope yet
-                                };
-
-                                // Get field data scope
-                                const getFieldDataScope = (field: string) => {
-                                    const fp = fieldPerms.find(f => f.field === field);
-                                    return fp?.dataScope || 'self';
-                                };
-
-                                // Set field data scope
-                                const setFieldDataScope = (field: string, scope: 'self' | 'all') => {
-                                    const perms = [...editForm.permissions];
-                                    const modIdx = perms.findIndex(p => p.module === activeModule);
-                                    
-                                    if (modIdx >= 0) {
-                                        const currentFieldPerms = perms[modIdx].fieldPermissions || [];
-                                        const fieldIdx = currentFieldPerms.findIndex(f => f.field === field);
-                                        
-                                        if (fieldIdx >= 0) {
-                                            currentFieldPerms[fieldIdx].dataScope = scope;
-                                        } else {
-                                            // Create new field permission
-                                            currentFieldPerms.push({
-                                                field,
-                                                actions: ['view'], // Default view
-                                                dataScope: scope
-                                            });
-                                        }
-                                        
-                                        perms[modIdx].fieldPermissions = currentFieldPerms;
-                                        setEditForm({ ...editForm, permissions: perms });
-                                    }
-                                };
-
-                                // Format field name for display
-                                const formatFieldName = (field: string) => {
-                                    return field
-                                        .replace(/^widget_/, '') // Strip prefix
-                                        .replace(/([A-Z])/g, ' $1')
-                                        .replace(/^./, str => str.toUpperCase())
-                                        .replace(/_/g, ' ');
-                                };
-
-                                // Check if we should show delete column
-                                const showDelete = activeModule === 'dashboard';
-                                const showScope = activeModule === 'dashboard';
-
-                                return (
-                                    <div className="flex gap-6">
-                                        {/* Module Sidebar */}
-                                        <div className="w-56 flex-shrink-0">
-                                            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2">Modules</p>
-                                            <div className="space-y-1 max-h-[400px] overflow-y-auto">
-                                                {enabledModules.map(mod => (
-                                                    <button
-                                                        key={mod}
-                                                        onClick={() => setDataScopeModule(mod)}
-                                                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                                                            activeModule === mod
-                                                                ? 'bg-blue-500 text-white'
-                                                                : 'bg-white text-slate-700 hover:bg-slate-100'
-                                                        }`}
-                                                    >
-                                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                                                            activeModule === mod ? 'bg-white/20' : 'bg-slate-100'
-                                                        }`}>
-                                                            {MODULE_ICONS[mod] || <Package className="w-3.5 h-3.5" />}
-                                                        </div>
-                                                        <span className="font-medium text-sm">{MODULE_LABELS[mod]}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Field Permissions Grid */}
-                                        <div className="flex-1 bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
-                                            <div className="p-4 border-b border-slate-200 bg-white">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-3">
-                                                        <div 
-                                                            className="w-10 h-10 rounded-xl flex items-center justify-center text-white"
-                                                            style={{ backgroundColor: MODULE_COLORS[activeModule] || '#64748b' }}
-                                                        >
-                                                            {MODULE_ICONS[activeModule] || <Package className="w-5 h-5" />}
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="font-bold text-slate-900">{MODULE_LABELS[activeModule]}</h3>
-                                                            <p className="text-xs text-slate-500">{currentModuleFields.length} {activeModule === 'dashboard' ? 'widgets' : 'fields'}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex gap-2">
-                                                        <button 
-                                                            onClick={() => {
-                                                                // Enable all fields
-                                                                const perms = [...editForm.permissions];
-                                                                const modIdx = perms.findIndex(p => p.module === activeModule);
-                                                                if (modIdx >= 0) {
-                                                                    perms[modIdx].fieldPermissions = [];
-                                                                    setEditForm({ ...editForm, permissions: perms });
-                                                                }
-                                                            }}
-                                                            className="px-3 py-1.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors"
-                                                        >
-                                                            Show All
-                                                        </button>
-                                                        <button 
-                                                            onClick={() => {
-                                                                // Hide all fields
-                                                                const perms = [...editForm.permissions];
-                                                                const modIdx = perms.findIndex(p => p.module === activeModule);
-                                                                if (modIdx >= 0) {
-                                                                    perms[modIdx].fieldPermissions = currentModuleFields.map(f => ({
-                                                                        field: f,
-                                                                        actions: []
-                                                                    }));
-                                                                    setEditForm({ ...editForm, permissions: perms });
-                                                                }
-                                                            }}
-                                                            className="px-3 py-1.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-colors"
-                                                        >
-                                                            Hide All
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {currentModuleFields.length === 0 ? (
-                                                <div className="text-center py-12">
-                                                    <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                                                    <p className="text-slate-500">No configurable fields for this module</p>
-                                                </div>
-                                            ) : (
-                                                <div className="max-h-[350px] overflow-y-auto">
-                                                    <table className="w-full">
-                                                        <thead className="sticky top-0 bg-slate-100">
-                                                            <tr className="border-b border-slate-200">
-                                                                <th className="text-left py-2.5 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                                                    {activeModule === 'dashboard' ? 'Widget' : 'Field'}
-                                                                </th>
-                                                                <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">View</th>
-                                                                <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Edit</th>
-                                                                {showDelete && <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Delete</th>}
-                                                                {showScope && <th className="text-center py-2.5 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Scope</th>}
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="bg-white">
-                                                            {currentModuleFields.map((field, idx) => (
-                                                                <tr key={field} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
-                                                                    <td className="py-2.5 px-4">
-                                                                        <span className="font-medium text-sm text-slate-700">{formatFieldName(field)}</span>
-                                                                        {activeModule !== 'dashboard' && (
-                                                                            <code className="ml-2 text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{field}</code>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="text-center py-2.5 px-2">
-                                                                        <div className="flex justify-center">
-                                                                            <ToggleSwitch
-                                                                                checked={hasFieldPerm(field, 'view')}
-                                                                                onChange={() => toggleFieldPerm(field, 'view')}
-                                                                                size="sm"
-                                                                            />
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="text-center py-2.5 px-2">
-                                                                        {supportsAction(field, 'update') ? (
-                                                                            <div className="flex justify-center">
-                                                                                <ToggleSwitch
-                                                                                    checked={hasFieldPerm(field, 'update')}
-                                                                                    onChange={() => toggleFieldPerm(field, 'update')}
-                                                                                    size="sm"
-                                                                                />
-                                                                            </div>
-                                                                        ) : (
-                                                                            <span className="text-slate-300 text-xs">—</span>
-                                                                        )}
-                                                                    </td>
-                                                                    {showDelete && (
-                                                                        <td className="text-center py-2.5 px-2">
-                                                                            {supportsAction(field, 'delete') ? (
-                                                                                <div className="flex justify-center">
-                                                                                    <ToggleSwitch
-                                                                                        checked={hasFieldPerm(field, 'delete')}
-                                                                                        onChange={() => toggleFieldPerm(field, 'delete')}
-                                                                                        size="sm"
-                                                                                    />
-                                                                                </div>
-                                                                            ) : (
-                                                                                <span className="text-slate-300 text-xs">—</span>
-                                                                            )}
-                                                                        </td>
-                                                                    )}
-                                                                    {showScope && (
-                                                                        <td className="text-center py-2.5 px-2">
-                                                                            {supportsScope(field) ? (
-                                                                                <div className="flex justify-center">
-                                                                                    <button
-                                                                                        onClick={() => setFieldDataScope(field, getFieldDataScope(field) === 'self' ? 'all' : 'self')}
-                                                                                        className={`relative inline-flex h-6 w-20 items-center justify-center rounded-md text-[10px] font-medium transition-colors ${
-                                                                                            getFieldDataScope(field) === 'all'
-                                                                                                ? 'bg-blue-100 text-blue-700'
-                                                                                                : 'bg-slate-100 text-slate-600'
-                                                                                        }`}
-                                                                                    >
-                                                                                        {getFieldDataScope(field) === 'all' ? 'All' : 'Self'}
-                                                                                    </button>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <span className="text-slate-300 text-xs">—</span>
-                                                                            )}
-                                                                        </td>
-                                                                    )}
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    )}
-
-                    {/* Users Tab */}
-                    {activeTab === 'users' && (
-                        <div className="text-center py-12">
-                            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <p className="text-slate-500">No users assigned to this role yet.</p>
-                            <button className="mt-3 text-blue-500 font-medium hover:underline flex items-center gap-1 mx-auto">
-                                <Plus className="w-4 h-4" />
-                                Add first user
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Audit Tab */}
-                    {activeTab === 'audit' && (
-                        <div className="text-center py-12">
-                            <History className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                            <p className="text-slate-500">No audit history available yet.</p>
-                            <p className="text-sm text-slate-400 mt-1">Changes to this role will be logged here.</p>
-                        </div>
-                    )}
+                <div className="h-[70vh] flex flex-col">
+                    <RoleForm 
+                        initialData={selectedRole}
+                        onSave={handleSave}
+                        onCancel={() => setIsModalOpen(false)}
+                        onDelete={(role) => {
+                            setRoleToDelete(role);
+                            setIsDeleteModalOpen(true);
+                        }}
+                        isSaving={saving}
+                    />
                 </div>
             </Modal>
 

@@ -32,6 +32,9 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
     const user = await Employee.findById(userId).lean();
     if (!user) return null;
 
+    // Check if user is active
+    if (user.status !== 'Active') return null;
+
     // Super Admin bypasses all checks
     if (isSuperAdmin(user.appRole)) {
         return {

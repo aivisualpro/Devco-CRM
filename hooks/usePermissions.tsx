@@ -45,6 +45,13 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         
         try {
             const response = await fetch('/api/auth/me/permissions');
+            
+            if (response.status === 401 || response.status === 404) {
+               // User not authenticated or inactive - force logout
+               window.location.href = '/login';
+               return;
+            }
+
             const data = await response.json();
             
             if (data.success) {

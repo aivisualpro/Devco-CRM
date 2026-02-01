@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
@@ -81,6 +81,78 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [selectedViewContract, setSelectedViewContract] = useState<any>(null);
     const [contractIndexToDelete, setContractIndexToDelete] = useState<number | null>(null);
 
+    // Aggregated Receipts State
+    const [aggregatedReceipts, setAggregatedReceipts] = useState<any[]>([]);
+    const [loadingReceipts, setLoadingReceipts] = useState(false);
+
+    useEffect(() => {
+        const fetchAllVersions = async () => {
+            if (!formData?.estimate) return;
+            setLoadingReceipts(true);
+            try {
+                // Fetch all estimates to aggregate receipts across versions
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getEstimates' })
+                });
+                const data = await res.json();
+                
+                if (data.success && Array.isArray(data.result)) {
+                    // Filter for all versions of this estimate number
+                    const relevantEstimates = data.result.filter((e: any) => e.estimate === formData.estimate);
+                    
+                    let allR: any[] = [];
+                    const addedIds = new Set<string>();
+                    const addedKeys = new Set<string>();
+
+                    // Helper to add receipts uniquely
+                    const addUnique = (list: any[]) => {
+                        list.forEach(r => {
+                            if (!r) return;
+                            // Prefer _id for uniqueness
+                            if (r._id) {
+                                if (!addedIds.has(r._id)) {
+                                    addedIds.add(r._id);
+                                    allR.push(r);
+                                }
+                            } else {
+                                // Fallback to content hash for legacy/new items without ID
+                                const key = `${r.vendor}|${r.amount}|${r.date}|${r.remarks}`;
+                                if (!addedKeys.has(key)) {
+                                    addedKeys.add(key);
+                                    allR.push(r);
+                                }
+                            }
+                        });
+                    };
+
+                    // 1. Add from current formData first (most recent/draft)
+                    if (formData.receiptsAndCosts) {
+                        addUnique(formData.receiptsAndCosts);
+                    }
+
+                    // 2. Add from fetched versions
+                    relevantEstimates.forEach((est: any) => {
+                        if (est.receiptsAndCosts && Array.isArray(est.receiptsAndCosts)) {
+                            addUnique(est.receiptsAndCosts);
+                        }
+                    });
+
+                    // Sort by Date Descending
+                    allR.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+                    setAggregatedReceipts(allR);
+                }
+            } catch (err) {
+                console.error("Failed to fetch aggregated receipts", err);
+            } finally {
+                setLoadingReceipts(false);
+            }
+        };
+
+        fetchAllVersions();
+    }, [formData?.estimate, formData?.receiptsAndCosts]); // Re-run if main formData changes
+
     const prelimDocs = [
         '20 Day Prelim',
         'COI - Certificate of Insurance',
@@ -110,7 +182,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const jobPlanningDocs = formData?.jobPlanningDocs || [];
     const signedContracts = formData?.signedContracts || [];
-    const receiptsAndCosts = formData?.receiptsAndCosts || [];
+    const receiptsAndCosts = aggregatedReceipts.length > 0 ? aggregatedReceipts : (formData?.receiptsAndCosts || []);
 
     const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
     const [isReceiptDetailsModalOpen, setIsReceiptDetailsModalOpen] = useState(false);

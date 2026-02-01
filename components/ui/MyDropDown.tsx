@@ -230,7 +230,10 @@ export function MyDropDown({
                 )}
 
                 {/* Options List */}
-                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                <div 
+                    className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar overscroll-contain"
+                    onWheel={(e) => e.stopPropagation()}
+                >
                     {filteredOptions.map((opt) => {
                         const active = isSelected(opt.value);
                         const content = (

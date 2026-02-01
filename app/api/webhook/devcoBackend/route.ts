@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { Types } from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { resolveTemplate, resolveTemplateDocument } from '@/lib/templateResolver';
@@ -396,6 +397,16 @@ export async function POST(request: NextRequest) {
         action = bodyAction || action;
 
         await connectToDatabase();
+        
+        // Security Check: Verify user is active
+        const userPayload = await getUserFromRequest(request);
+        if (userPayload) {
+             const user = await Employee.findById(userPayload.userId).lean();
+             if (user && user.status !== 'Active') {
+                 return NextResponse.json({ success: false, error: 'Account is inactive' }, { status: 401 });
+             }
+        }
+        
         const { getEmptyTemplate } = await import('@/lib/templateResolver');
 
         // Helper to enrich estimate with Client's primary address for contactAddress

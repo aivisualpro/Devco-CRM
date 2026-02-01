@@ -11,8 +11,9 @@ import {
     Trash2, Edit, Copy, Shield, ShieldCheck, FilePlus, FileCheck, 
     Car, StopCircle, Droplets, Warehouse, Circle, ClipboardList,
     Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck, Download,
-    Reply, Forward
+    Reply, Forward, Trash
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui';
 import { UploadButton } from '@/components/ui/UploadButton';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -669,6 +670,32 @@ function DashboardContent() {
     useEffect(() => {
         if (isSuperAdmin) {
             setScheduleView('all');
+        }
+    }, [isSuperAdmin]);
+
+    const [taskView, setTaskView] = useState<'all' | 'self'>('self');
+
+    // Determine Tasks Scope
+    const tasksScope = useMemo(() => {
+        if (isSuperAdmin) return 'all';
+        if (!permissions) return 'self';
+        
+        const dashboardPerm = permissions.modules.find((m: any) => m.module === MODULES.DASHBOARD);
+        const widgetPerm = dashboardPerm?.fieldPermissions?.find((f: any) => f.field === 'widget_tasks');
+        return widgetPerm?.dataScope || 'self'; 
+    }, [permissions, isSuperAdmin]);
+
+    // Enforce Task Scope
+    useEffect(() => {
+        if (tasksScope !== 'all' && taskView !== 'self') {
+            setTaskView('self');
+        }
+    }, [tasksScope, taskView]);
+
+    // Default to 'all' if super admin
+    useEffect(() => {
+        if (isSuperAdmin) {
+            setTaskView('all');
         }
     }, [isSuperAdmin]);
     // const [chatFilter, setChatFilter] = useState(''); // Removed, using tagFilters and local state
@@ -1749,17 +1776,25 @@ function DashboardContent() {
 
     const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('Are you sure you want to delete this task?')) return;
         
-        try {
-            const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
-            if (res.ok) {
-                setTodos(prev => prev.filter(t => t._id !== id));
-                success('Task deleted successfully');
-            }
-        } catch (err) {
-            showError('Failed to delete task');
-        }
+        toast('Are you sure you want to delete this task?', {
+            action: {
+                label: 'Delete',
+                onClick: async () => {
+                    try {
+                        const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+                        if (res.ok) {
+                            setTodos(prev => prev.filter(t => t._id !== id));
+                            success('Task deleted successfully');
+                        } else {
+                            showError('Failed to delete task');
+                        }
+                    } catch (err) {
+                        showError('Failed to delete task');
+                    }
+                }
+            },
+        });
     };
 
     const handleSaveTask = async (taskData: Partial<TodoItem>) => {
@@ -1854,16 +1889,28 @@ function DashboardContent() {
     };
 
     // Filtered todos by status
-    const todosByStatus = useMemo(() => ({
-        todo: todos.filter(t => t.status === 'todo'),
-        'in progress': todos.filter(t => t.status === 'in progress' || t.status === ('in-progress' as any)),
-        done: todos.filter(t => {
-            if (t.status !== 'done') return false;
-            if (!t.lastUpdatedAt) return true; // Show if no timestamp info
-            const doneDate = new Date(t.lastUpdatedAt);
-            return doneDate >= weekRange.start && doneDate <= weekRange.end;
-        }),
-    }), [todos, weekRange]);
+    // Filtered todos by status
+    const todosByStatus = useMemo(() => {
+        const filteredTodos = todos.filter(t => {
+            if (taskView === 'self') {
+                const isCreator = t.createdBy === userEmail;
+                const isAssignee = t.assignees?.includes(userEmail);
+                return isCreator || isAssignee;
+            }
+            return true;
+        });
+
+        return {
+            todo: filteredTodos.filter(t => t.status === 'todo'),
+            'in progress': filteredTodos.filter(t => t.status === 'in progress' || t.status === ('in-progress' as any)),
+            done: filteredTodos.filter(t => {
+                if (t.status !== 'done') return false;
+                if (!t.lastUpdatedAt) return true; // Show if no timestamp info
+                const doneDate = new Date(t.lastUpdatedAt);
+                return doneDate >= weekRange.start && doneDate <= weekRange.end;
+            })
+        };
+    }, [todos, weekRange, taskView, userEmail]);
 
 
 
@@ -2917,13 +2964,39 @@ function DashboardContent() {
                                 </div>
                                 <h2 className="text-sm font-bold text-slate-900">Tasks</h2>
                             </div>
-                            <button 
-                                onClick={() => handleOpenTaskModal()}
-                                className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
-                                title="New Task"
-                            >
-                                <Plus className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-3">
+                                {tasksScope === 'all' && (
+                                    <div className="flex bg-slate-100 p-1 rounded-lg">
+                                        <button 
+                                            onClick={() => setTaskView('self')}
+                                            className={`px-3 py-1.5 text-[10px] md:text-md font-bold md:font-medium rounded-md transition-colors ${
+                                                taskView === 'self' 
+                                                    ? 'bg-white text-blue-600 shadow-sm' 
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            Self
+                                        </button>
+                                        <button 
+                                            onClick={() => setTaskView('all')}
+                                            className={`px-3 py-1.5 text-[10px] md:text-md font-bold md:font-medium rounded-md transition-colors ${
+                                                taskView === 'all' 
+                                                    ? 'bg-white text-blue-600 shadow-sm' 
+                                                    : 'text-slate-500 hover:text-slate-700'
+                                            }`}
+                                        >
+                                            All
+                                        </button>
+                                    </div>
+                                )}
+                                <button 
+                                    onClick={() => handleOpenTaskModal()}
+                                    className="w-8 h-8 bg-blue-600 text-white rounded-lg flex items-center justify-center hover:bg-blue-700 transition-all shadow-sm hover:shadow-md active:scale-95"
+                                    title="New Task"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                         <div className="hidden md:flex gap-6 overflow-x-auto pb-4">
                             <TodoColumn 
