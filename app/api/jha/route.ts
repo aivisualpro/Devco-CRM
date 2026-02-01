@@ -342,140 +342,199 @@ export async function POST(request: NextRequest) {
                 const { page = 1, limit = 20, search = '' } = payload || {};
                 const skip = (page - 1) * limit;
 
-                // Base matches for JHA fields
-                let matchStage: any = {};
-                
-                // If search exists, we want to try matching root fields first OR lookups
-                // Since Lookups are expensive, if we can filter by date/usaNo first, great.
-                // But user wants to search by Client/Estimate too which are looked up.
-                // Best strategy: Perform lookups first, then match? Or match what we can first.
-                // For simplicity and correctness with "Client/Estimate" search, we must lookup first or use a complex pipeline.
-                // Given performance is key:
-                // 1. Lookup Schedule (needed for Client/Estimate)
-                // 2. Lookup Client/Estimate
-                // 3. Match
-                // 4. Skip/Limit
-                
-                // OPTIMIZATION: If search is empty, skip filtering logic.
-                
-                const pipeline: any[] = [
-                    {
-                        $lookup: {
-                            from: 'devcoschedules',
-                            let: { schedId: "$schedule_id" },
-                            pipeline: [
-                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$schedId", "000000000000000000000000"] } }] } } }
-                            ],
-                            as: 'scheduleDocs'
-                        }
-                    },
-                    { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
-                    {
-                        $lookup: {
-                            from: 'clients',
-                            let: { cid: "$scheduleDocs.customerId" },
-                            pipeline: [
-                                { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$cid", "000000000000000000000000"] } }] } } }
-                            ],
-                            as: 'clientDocs'
-                        }
-                    },
-                    { $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true } },
-                    {
-                        $lookup: {
-                            from: 'estimatesdb',
-                            localField: 'scheduleDocs.estimate',
-                            foreignField: 'estimate',
-                            as: 'estimateDocs'
-                        }
-                    },
-                    { $unwind: { path: '$estimateDocs', preserveNullAndEmptyArrays: true } },
-                    {
-                        $addFields: {
-                            computedCustomerName: { 
-                                $ifNull: [
-                                    '$scheduleDocs.customerName', 
-                                    '$clientDocs.name',
-                                    '$estimateDocs.customerName',
-                                    '-'
-                                ] 
-                            },
-                             computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
-                             computedTitle: { $ifNull: ['$scheduleDocs.title', '$scheduleDocs.projectName', '-'] },
-                             dateStr: { $dateToString: { format: "%m/%d/%Y", date: "$date" } }
-                        }
+                if (!search) {
+                    // OPTIMIZED PATH: No Search
+                    // 1. Get IDs and sort on main collection (fast/indexed)
+                    const totalPromise = JHA.countDocuments({});
+                    const jhaDocs = await JHA.find({})
+                        .sort({ date: -1 })
+                        .skip(skip)
+                        .limit(limit)
+                        .lean();
+
+                    const total = await totalPromise;
+
+                    if (jhaDocs.length === 0) {
+                        return NextResponse.json({ success: true, result: { jhas: [], total: 0 } });
                     }
-                ];
 
-                if (search) {
-                    const searchRegex = { $regex: search, $options: 'i' };
-                    pipeline.push({
-                        $match: {
-                            $or: [
-                                { usaNo: searchRegex },
-                                { computedCustomerName: searchRegex },
-                                { computedEstimate: searchRegex },
-                                { computedTitle: searchRegex },
-                                { dateStr: searchRegex }
-                            ]
+                    // 2. Perform Lookups manually or via aggregation ONLY on this page of data
+                    // We can reuse the aggregation logic but match by IDs we just fetched
+                    const pageIds = jhaDocs.map((d: any) => d._id);
+
+                    const detailPipeline: any[] = [
+                        { $match: { _id: { $in: pageIds } } },
+                        // Ensure sort order is maintained (match doesn't guarantee order)
+                        // We can re-sort or map back. Re-sorting is easier.
+                        { $sort: { date: -1 } },
+                        {
+                            $lookup: {
+                                from: 'devcoschedules',
+                                let: { schedId: "$schedule_id" },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$schedId", "000000000000000000000000"] } }] } } }
+                                ],
+                                as: 'scheduleDocs'
+                            }
+                        },
+                        { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $lookup: {
+                                from: 'clients',
+                                let: { cid: "$scheduleDocs.customerId" },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$cid", "000000000000000000000000"] } }] } } }
+                                ],
+                                as: 'clientDocs'
+                            }
+                        },
+                        { $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $lookup: {
+                                from: 'estimatesdb',
+                                localField: 'scheduleDocs.estimate',
+                                foreignField: 'estimate',
+                                as: 'estimateDocs'
+                            }
+                        },
+                        { $unwind: { path: '$estimateDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $addFields: {
+                                computedCustomerName: { 
+                                    $ifNull: [
+                                        '$scheduleDocs.customerName', 
+                                        '$clientDocs.name',
+                                        '$estimateDocs.customerName',
+                                        '-'
+                                    ] 
+                                },
+                                computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
+                                computedTitle: { $ifNull: ['$scheduleDocs.title', '$scheduleDocs.projectName', '-'] },
+                            }
+                        },
+                        {
+                            $project: {
+                                _id: 1, 
+                                date: 1, 
+                                jhaTime: 1, 
+                                usaNo: 1, 
+                                subcontractorUSANo: 1,
+                                createdBy: 1, 
+                                schedule_id: 1,
+                                
+                                // Include all fields explicitly or via root merge? Explicit is safer for UI
+                                operatingMiniEx: 1, operatingAVacuumTruck: 1, excavatingTrenching: 1, acConcWork: 1,
+                                operatingBackhoe: 1, workingInATrench: 1, trafficControl: 1, roadWork: 1, operatingHdd: 1,
+                                confinedSpace: 1, settingUgBoxes: 1, otherDailyWork: 1, sidewalks: 1, heatAwareness: 1,
+                                ladderWork: 1, overheadLifting: 1, materialHandling: 1, roadHazards: 1, heavyLifting: 1,
+                                highNoise: 1, pinchPoints: 1, sharpObjects: 1, trippingHazards: 1, otherJobsiteHazards: 1,
+                                stagingAreaDiscussed: 1, rescueProceduresDiscussed: 1, evacuationRoutesDiscussed: 1,
+                                emergencyContactNumberWillBe911: 1, firstAidAndCPREquipmentOnsite: 1, closestHospitalDiscussed: 1,
+                                commentsOnOtherDailyWork: 1, commentsOnSidewalks: 1, commentsOnHeatAwareness: 1,
+                                commentsOnLadderWork: 1, commentsOnOverheadLifting: 1, commentsOnMaterialHandling: 1,
+                                commentsOnRoadHazards: 1, commentsOnHeavyLifting: 1, commentsOnHighNoise: 1,
+                                commentsOnPinchPoints: 1, commentsOnSharpObjects: 1, commentsOnTrippingHazards: 1,
+                                commentsOnOther: 1, anySpecificNotes: 1, nameOfHospital: 1, addressOfHospital: 1,
+                                clientEmail: 1, emailCounter: 1,
+                                
+                                signatures: { $ifNull: ['$scheduleDocs.JHASignatures', '$signatures', []] },
+
+                                scheduleRef: {
+                                    $mergeObjects: [
+                                        '$scheduleDocs',
+                                        { customerName: '$computedCustomerName' }
+                                    ]
+                                }
+                            }
                         }
-                    });
-                }
+                    ];
 
-                pipeline.push(
-                    { $sort: { date: -1 } },
-                    {
-                        $facet: {
-                            metadata: [{ $count: "total" }],
-                            data: [
-                                { $skip: skip },
-                                { $limit: limit },
-                                {
-                                    $project: {
-                                        _id: 1, 
-                                        date: 1, 
-                                        jhaTime: 1, 
-                                        usaNo: 1, 
-                                        subcontractorUSANo: 1,
-                                        createdBy: 1, 
-                                        schedule_id: 1,
-                                        
-                                        // Include all fields
-                                        operatingMiniEx: 1, operatingAVacuumTruck: 1, excavatingTrenching: 1, acConcWork: 1,
-                                        operatingBackhoe: 1, workingInATrench: 1, trafficControl: 1, roadWork: 1, operatingHdd: 1,
-                                        confinedSpace: 1, settingUgBoxes: 1, otherDailyWork: 1, sidewalks: 1, heatAwareness: 1,
-                                        ladderWork: 1, overheadLifting: 1, materialHandling: 1, roadHazards: 1, heavyLifting: 1,
-                                        highNoise: 1, pinchPoints: 1, sharpObjects: 1, trippingHazards: 1, otherJobsiteHazards: 1,
-                                        stagingAreaDiscussed: 1, rescueProceduresDiscussed: 1, evacuationRoutesDiscussed: 1,
-                                        emergencyContactNumberWillBe911: 1, firstAidAndCPREquipmentOnsite: 1, closestHospitalDiscussed: 1,
-                                        commentsOnOtherDailyWork: 1, commentsOnSidewalks: 1, commentsOnHeatAwareness: 1,
-                                        commentsOnLadderWork: 1, commentsOnOverheadLifting: 1, commentsOnMaterialHandling: 1,
-                                        commentsOnRoadHazards: 1, commentsOnHeavyLifting: 1, commentsOnHighNoise: 1,
-                                        commentsOnPinchPoints: 1, commentsOnSharpObjects: 1, commentsOnTrippingHazards: 1,
-                                        commentsOnOther: 1, anySpecificNotes: 1, nameOfHospital: 1, addressOfHospital: 1,
-                                        clientEmail: 1, emailCounter: 1,
-                                        
-                                        // Merge signatures from schedule if available (source of truth for separate imports)
-                                        signatures: { $ifNull: ['$scheduleDocs.JHASignatures', '$signatures', []] },
+                    const detailedResults = await JHA.aggregate(detailPipeline);
+                    // Map back to guarantee order if needed, but sort in pipeline helps
+                    return NextResponse.json({ success: true, result: { jhas: detailedResults, total } });
 
-                                        scheduleRef: {
-                                            $mergeObjects: [
-                                                '$scheduleDocs',
-                                                { customerName: '$computedCustomerName' }
-                                            ]
+                } else {
+                    // SEARCH PATH: Must Lookup First then Match -> Sort -> Skip/Limit
+                    // This is heavy, but unavoidable if searching strictly by Joined Fields
+                    const pipeline: any[] = [
+                        {
+                            $lookup: {
+                                from: 'devcoschedules',
+                                let: { schedId: "$schedule_id" },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$schedId", "000000000000000000000000"] } }] } } }
+                                ],
+                                as: 'scheduleDocs'
+                            }
+                        },
+                        { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $lookup: {
+                                from: 'clients',
+                                let: { cid: "$scheduleDocs.customerId" },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$cid", "000000000000000000000000"] } }] } } }
+                                ],
+                                as: 'clientDocs'
+                            }
+                        },
+                        { $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $addFields: {
+                                computedCustomerName: { 
+                                    $ifNull: [
+                                        '$scheduleDocs.customerName', 
+                                        '$clientDocs.name',
+                                        '-'
+                                    ] 
+                                },
+                                computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
+                                dateStr: { $dateToString: { format: "%m/%d/%Y", date: "$date" } }
+                            }
+                        },
+                        {
+                            $match: {
+                                $or: [
+                                    { usaNo: { $regex: search, $options: 'i' } },
+                                    { computedCustomerName: { $regex: search, $options: 'i' } },
+                                    { computedEstimate: { $regex: search, $options: 'i' } },
+                                    { dateStr: { $regex: search, $options: 'i' } }
+                                ]
+                            }
+                        },
+                        { $sort: { date: -1 } },
+                        {
+                            $facet: {
+                                metadata: [{ $count: "total" }],
+                                data: [
+                                    { $skip: skip },
+                                    { $limit: limit },
+                                    // Project here to reduce memory before returning
+                                    {
+                                        $project: {
+                                            date: 1, jhaTime: 1, usaNo: 1, schedule_id: 1, signatures: 1,
+                                            // Add minimal fields required for list view if searching
+                                            computedCustomerName: 1, computedEstimate: 1, 
+                                            scheduleDocs: 1 // Keep for scheduleRef mapping 
                                         }
                                     }
-                                }
-                            ]
+                                ]
+                            }
                         }
-                    }
-                );
-                
-                const result = await JHA.aggregate(pipeline as any[]).allowDiskUse(true);
-                const data = result[0].data;
-                const total = result[0].metadata[0]?.total || 0;
+                    ];
 
-                return NextResponse.json({ success: true, result: { jhas: data, total } });
+                    const result = await JHA.aggregate(pipeline).allowDiskUse(true);
+                    const data = result[0].data.map((d: any) => ({
+                        ...d,
+                         scheduleRef: {
+                            ...(d.scheduleDocs || {}),
+                            customerName: d.computedCustomerName
+                        }
+                    }));
+                    const total = result[0].metadata[0]?.total || 0;
+
+                    return NextResponse.json({ success: true, result: { jhas: data, total } });
+                }
             }
 
             default:

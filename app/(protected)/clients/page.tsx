@@ -340,44 +340,48 @@ export default function ClientsPage() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="hidden lg:flex p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600 disabled:opacity-50"
-                                    disabled={isImporting}
-                                >
-                                    <Upload className={`w-4 h-4 ${isImporting ? 'animate-pulse' : ''}`} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
-                            </TooltipContent>
-                        </Tooltip>
+                         {can(MODULES.CLIENTS, ACTIONS.CREATE) && (
+                         <>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="hidden lg:flex p-2.5 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm hover:border-[#0F4C75] text-slate-600 disabled:opacity-50"
+                                        disabled={isImporting}
+                                    >
+                                        <Upload className={`w-4 h-4 ${isImporting ? 'animate-pulse' : ''}`} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                                </TooltipContent>
+                            </Tooltip>
 
-                        <Button
-                            onClick={openAddModal}
-                            variant="default"
-                            size="icon"
-                            className="md:hidden rounded-full shadow-lg active:scale-95 transition-transform"
-                        >
-                            <Plus size={24} />
-                        </Button>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    onClick={openAddModal}
-                                    variant="default"
-                                    size="icon"
-                                    className="hidden md:flex rounded-full shadow-lg hover:shadow-slate-900/30 group"
-                                >
-                                    <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>New Client</p>
-                            </TooltipContent>
-                        </Tooltip>
+                            <Button
+                                onClick={openAddModal}
+                                variant="default"
+                                size="icon"
+                                className="md:hidden rounded-full shadow-lg active:scale-95 transition-transform"
+                            >
+                                <Plus size={24} />
+                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        onClick={openAddModal}
+                                        variant="default"
+                                        size="icon"
+                                        className="hidden md:flex rounded-full shadow-lg hover:shadow-slate-900/30 group"
+                                    >
+                                        <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>New Client</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </>
+                        )}
                     </div>
                 }
             />
@@ -603,19 +607,21 @@ export default function ClientsPage() {
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button
-                                                                        onClick={() => openEditModal(client)}
-                                                                        className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
-                                                                    >
-                                                                        <Pencil className="w-4 h-4" />
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Edit Client</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                            {can(MODULES.CLIENTS, ACTIONS.EDIT) && (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={() => openEditModal(client)}
+                                                                            className="w-7 h-7 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg border border-transparent hover:border-gray-200 transition-all"
+                                                                        >
+                                                                            <Pencil className="w-4 h-4" />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Edit Client</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            )}
 
                                                             {can(MODULES.CLIENTS, ACTIONS.DELETE) && (
                                                                 <Tooltip>

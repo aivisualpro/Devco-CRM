@@ -53,6 +53,7 @@ interface ReceiptModalProps {
     children?: React.ReactNode; // For "Estimate Selector" or other injected UI
     currentUserEmail?: string; // For setting 'createdBy' default
     estimateId?: string; // For upload filename context
+    canApprove?: boolean;
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ 
@@ -63,7 +64,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     employees, 
     children,
     currentUserEmail,
-    estimateId = 'doc'
+    estimateId = 'doc',
+    canApprove = false
 }) => {
     // Default State
     const defaultState: ReceiptData = {
@@ -386,17 +388,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                     Devco Paid
                                 </div>
                             </div>
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Approval</label>
-                                <select 
-                                    value={receipt.approvalStatus}
-                                    onChange={e => setReceipt(prev => ({ ...prev, approvalStatus: e.target.value as any }))}
-                                    className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                                >
-                                    <option value="Not Approved">Not Approved</option>
-                                    <option value="Approved">Approved</option>
-                                </select>
-                            </div>
+                            {canApprove && (
+                                <div className="space-y-1.5">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Approval</label>
+                                    <select 
+                                        value={receipt.approvalStatus}
+                                        onChange={e => setReceipt(prev => ({ ...prev, approvalStatus: e.target.value as any }))}
+                                        className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                    >
+                                        <option value="Not Approved">Not Approved</option>
+                                        <option value="Approved">Approved</option>
+                                    </select>
+                                </div>
+                            )}
                         </div>
 
                         {(initialData || receipt.createdBy) && (

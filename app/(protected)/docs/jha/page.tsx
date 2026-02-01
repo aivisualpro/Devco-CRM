@@ -11,6 +11,8 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { JHAModal } from '../../jobs/schedules/components/JHAModal';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 interface Signature {
     employee: string;
@@ -53,6 +55,12 @@ interface Employee {
 
 export default function JHAPage() {
     const { success, error } = useToast();
+    const { can } = usePermissions();
+    
+    // Permissions
+    const canCreate = can(MODULES.JHA, ACTIONS.CREATE);
+    const canEdit = can(MODULES.JHA, ACTIONS.EDIT);
+    const canDelete = can(MODULES.JHA, ACTIONS.DELETE);
     
     // Data State
     const [jhas, setJhas] = useState<JHA[]>([]);
@@ -356,9 +364,11 @@ export default function JHAPage() {
                                 className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#0F4C75] w-64 shadow-sm"
                             />
                         </div>
-                        <Button onClick={handleCreateOpen} size="icon" className="!bg-[#0F4C75] !rounded-full h-10 w-10 p-0 flex items-center justify-center">
-                            <Plus className="w-5 h-5" />
-                        </Button>
+                        {canCreate && (
+                            <Button onClick={handleCreateOpen} size="icon" className="!bg-[#0F4C75] !rounded-full h-10 w-10 p-0 flex items-center justify-center">
+                                <Plus className="w-5 h-5" />
+                            </Button>
+                        )}
                     </div>
                 }
             />
@@ -448,12 +458,16 @@ export default function JHAPage() {
                                             </TableCell>
                                             <TableCell className="text-right pr-6">
                                                 <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleEditOpen(jha)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
-                                                        <Edit size={16} />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(jha)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
-                                                        <Trash2 size={16} />
-                                                    </Button>
+                                                    {canEdit && (
+                                                        <Button variant="ghost" size="icon" onClick={() => handleEditOpen(jha)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
+                                                            <Edit size={16} />
+                                                        </Button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(jha)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                                                            <Trash2 size={16} />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

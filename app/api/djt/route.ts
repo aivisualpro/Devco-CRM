@@ -83,6 +83,97 @@ export async function POST(request: NextRequest) {
 
                 return NextResponse.json({ success: true, result: updatedDJT });
             }
+
+            case 'getDJTs': {
+                const { page = 1, limit = 20, search = '' } = payload;
+                const skip = (page - 1) * limit;
+
+                // Build Query
+                let query: any = {};
+                if (search) {
+                    const searchRegex = { $regex: search, $options: 'i' };
+                    // We can search description, or we might need to search schedule fields (client, estimate)
+                    // searching schedule fields requires aggregate usually, but let's start with local fields
+                    query.$or = [
+                        { dailyJobDescription: searchRegex },
+                        // If we want to search by schedule fields, we'd need to fetch matching schedules first or use aggregate
+                    ];
+                }
+
+                // 1. Get filtered DJTs (Paginated)
+                const djts = await DailyJobTicket.find(query)
+                    .sort({ date: -1, createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean();
+
+                const total = await DailyJobTicket.countDocuments(query);
+
+                // 2. Populate 'scheduleRef' manually (since schedule_id is string)
+                // Get all schedule IDs
+                const scheduleIds = djts.map((d: any) => d.schedule_id).filter(Boolean);
+                
+                // Fetch schedules
+                const schedules = await Schedule.find({ _id: { $in: scheduleIds } }).lean();
+                
+                // Attach scheduleRef
+                const djtsWithSchedule = djts.map((d: any) => {
+                    const schedule = schedules.find((s: any) => String(s._id) === String(d.schedule_id));
+                    return {
+                        ...d,
+                        scheduleRef: schedule || null
+                    };
+                });
+                
+                // Filter by search again if needed (e.g. if user searched for "Devco" which is in Schedule.customerName)
+                // For now, let's assume basic search on DJT fields + client/estimate from fetched schedules if simple logic allows
+                // (Implementing full joined search in Mongo without aggregate is complex, staying simple for now)
+
+                return NextResponse.json({ 
+                    success: true, 
+                    result: {
+                        djts: djtsWithSchedule,
+                        total
+                    }
+                });
+            }
+
+            case 'deleteDJT': {
+                const { id } = payload;
+                if (!id) return NextResponse.json({ success: false, error: 'ID required' }, { status: 400 });
+
+                // Find DJT first to get schedule_id
+                const djtToDelete = await DailyJobTicket.findById(id).lean();
+                if (!djtToDelete) return NextResponse.json({ success: false, error: 'DJT not found' }, { status: 404 });
+
+                // 1. Delete DJT
+                await DailyJobTicket.deleteOne({ _id: id });
+
+                // 2. Unlink from Schedule
+                if (djtToDelete.schedule_id) {
+                    await Schedule.updateOne(
+                        { _id: djtToDelete.schedule_id },
+                        { $unset: { djt: 1 } }
+                    );
+                }
+
+                // 3. Log Activity
+                const activityId = new mongoose.Types.ObjectId().toString();
+                await Activity.create({
+                    _id: activityId,
+                    title: 'Daily Job Ticket Deleted',
+                    type: 'job',
+                    action: 'deleted',
+                    entityId: id,
+                    user: payload.user || 'system',
+                    details: `Deleted Daily Job Ticket`,
+                    metadata: { scheduleId: djtToDelete.schedule_id },
+                    date: new Date(),
+                    createdAt: new Date()
+                });
+
+                return NextResponse.json({ success: true });
+            }
             
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });

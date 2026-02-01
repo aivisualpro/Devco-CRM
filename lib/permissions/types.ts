@@ -40,6 +40,7 @@ export const MODULES = {
     LUBRICATION: 'lubrication',
     REPAIR: 'repair',
     SCOPE_CHANGE: 'scope_change',
+    RECEIPTS_COSTS: 'receipts_costs',
     
     // MISC
     CONSTANTS: 'constants',
@@ -279,6 +280,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     [MODULES.LUBRICATION]: ['equipment', 'lubricant', 'date', 'operator'],
     [MODULES.REPAIR]: ['equipment', 'issue', 'solution', 'status', 'date', 'technician'],
     [MODULES.SCOPE_CHANGE]: ['title', 'description', 'status', 'requestedBy', 'approvedBy', 'date'],
+    [MODULES.RECEIPTS_COSTS]: ['vendor', 'date', 'cost', 'description', 'category', 'status', 'approvalStatus'],
     [MODULES.CONSTANTS]: ['name', 'value', 'category', 'description'],
     [MODULES.CHAT]: ['message', 'attachments'],
     [MODULES.REPORTS_PAYROLL]: [],
@@ -307,7 +309,8 @@ export const PERMISSION_GROUPS = {
         modules: [
             MODULES.JHA, MODULES.JOB_TICKETS, MODULES.BILLING_TICKETS, MODULES.POTHOLE,
             MODULES.DAMAGE_REPORT, MODULES.INCIDENTS, MODULES.PRE_BORE_LOGS,
-            MODULES.VEHICLE_SAFETY, MODULES.LUBRICATION, MODULES.REPAIR, MODULES.SCOPE_CHANGE
+            MODULES.VEHICLE_SAFETY, MODULES.LUBRICATION, MODULES.REPAIR, MODULES.SCOPE_CHANGE,
+            MODULES.RECEIPTS_COSTS
         ],
         color: '#7c3aed',
     },
@@ -349,6 +352,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.LUBRICATION]: 'Lubrication',
     [MODULES.REPAIR]: 'Repair Report',
     [MODULES.SCOPE_CHANGE]: 'Scope Change',
+    [MODULES.RECEIPTS_COSTS]: 'Receipts & Costs',
     [MODULES.CONSTANTS]: 'Constants',
     [MODULES.CHAT]: 'Chat',
     [MODULES.REPORTS_PAYROLL]: 'Payroll Report',
@@ -399,6 +403,7 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/docs/lubrication': MODULES.LUBRICATION,
     '/docs/repair': MODULES.REPAIR,
     '/docs/scope-change': MODULES.SCOPE_CHANGE,
+    '/docs/receipts-costs': MODULES.RECEIPTS_COSTS,
     '/constants': MODULES.CONSTANTS,
     '/chat': MODULES.CHAT,
     '/settings/general': MODULES.CONSTANTS,

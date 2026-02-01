@@ -70,6 +70,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
     repair: <Wrench className="w-4 h-4" />,
     constants: <Settings className="w-4 h-4" />,
     chat: <MessageSquare className="w-4 h-4" />,
+    receipts_costs: <DollarSign className="w-4 h-4" />,
 };
 
 // Module icon colors

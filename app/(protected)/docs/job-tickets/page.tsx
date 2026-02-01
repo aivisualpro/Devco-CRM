@@ -2,15 +2,18 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-    Plus, Search, FileText, Edit, Trash2, Loader2
+    Plus, Search, FileText, Edit, Trash2, Loader2, Check
 } from 'lucide-react';
 import { 
     Header, Table, TableHead, TableBody, TableRow, 
     TableHeader, TableCell, Pagination, Badge, Button,
-    Modal, SearchableSelect
+    Modal, SearchableSelect, Tooltip, TooltipContent, TooltipTrigger
 } from '@/components/ui';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 interface Signature {
     employee: string;
@@ -56,6 +59,12 @@ interface Employee {
 
 export default function JobTicketPage() {
     const { success, error } = useToast();
+    const { can } = usePermissions();
+
+    // Permissions
+    const canCreate = can(MODULES.JOB_TICKETS, ACTIONS.CREATE);
+    const canEdit = can(MODULES.JOB_TICKETS, ACTIONS.EDIT);
+    const canDelete = can(MODULES.JOB_TICKETS, ACTIONS.DELETE);
     
     // Data State
     const [djts, setDjts] = useState<DJT[]>([]); // Separated state for DJT list
@@ -492,9 +501,11 @@ export default function JobTicketPage() {
                                 className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm outline-none focus:ring-2 focus:ring-[#0F4C75] w-64 shadow-sm"
                             />
                         </div>
-                        <Button onClick={handleCreateOpen} size="icon" className="!bg-[#0F4C75] !rounded-full h-10 w-10 p-0 flex items-center justify-center">
-                            <Plus className="w-5 h-5" />
-                        </Button>
+                        {canCreate && (
+                            <Button onClick={handleCreateOpen} size="icon" className="!bg-[#0F4C75] !rounded-full h-10 w-10 p-0 flex items-center justify-center">
+                                <Plus className="w-5 h-5" />
+                            </Button>
+                        )}
                     </div>
                 }
             />
@@ -516,7 +527,9 @@ export default function JobTicketPage() {
                                     <TableHeader>Client</TableHeader>
                                     <TableHeader>Estimate</TableHeader>
                                     <TableHeader>Description</TableHeader>
+                                    <TableHeader>Equipment</TableHeader>
                                     <TableHeader>Signatures</TableHeader>
+                                    <TableHeader className="text-center">Client Signed</TableHeader>
                                     <TableHeader className="text-right pr-6">Actions</TableHeader>
                                 </TableRow>
                             </TableHead>
@@ -541,7 +554,9 @@ export default function JobTicketPage() {
                                                     </div>
                                                     <div>
                                                         <div className="text-sm font-bold text-slate-700">
-                                                            {djt.date ? new Date(djt.date).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
+                                                        <div className="text-sm font-bold text-slate-700">
+                                                            {(djt.date || djt.scheduleRef?.fromDate) ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
+                                                        </div>
                                                         </div>
                                                         <div className="text-[10px] text-slate-400">
                                                             {djt.djtTime || '--:--'}
@@ -565,28 +580,95 @@ export default function JobTicketPage() {
                                                 </span>
                                             </TableCell>
                                             <TableCell>
-                                                <div className="flex -space-x-2">
-                                                    {(djt.signatures || []).map((sig: any, i: number) => {
-                                                        const emp = employees.find(e => e.value === sig.employee);
+                                                <div className="flex flex-col gap-1">
+                                                    {(djt.equipmentUsed || []).map((eq: any, i: number) => {
+                                                        const eqItem = equipmentItems.find(e => String(e._id) === String(eq.equipment) || String(e.id) === String(eq.equipment));
+                                                        const name = eqItem ? eqItem.equipmentMachine : eq.equipment;
                                                         return (
-                                                            <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center overflow-hidden" title={emp?.label || sig.employee}>
-                                                                {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-slate-500">{emp?.label?.[0]}</span>}
+                                                            <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-fit mb-1">
+                                                                <span className="font-semibold text-slate-900 truncate max-w-[150px]" title={name}>{name}</span>
+                                                                <span className="text-slate-300">/</span>
+                                                                <span className={cn("uppercase text-[9px] font-bold", eq.type?.toLowerCase() === 'owned' ? "text-blue-600" : "text-amber-600")}>
+                                                                    {eq.type || 'Owned'}
+                                                                </span>
+                                                                <span className="text-slate-300">/</span>
+                                                                <span className="text-slate-500 font-medium">Qty: {eq.qty || 1}</span>
                                                             </div>
                                                         );
+                                                    })}
+                                                    {(!djt.equipmentUsed || djt.equipmentUsed.length === 0) && <span className="text-slate-300 text-xs">-</span>}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center -space-x-2">
+                                                    {(djt.scheduleRef?.assignees || []).map((assigneeId: string, i: number) => {
+                                                        const hasSigned = (djt.signatures || []).some((s: any) => s.employee === assigneeId);
+                                                        const emp = employees.find(e => e.value === assigneeId || e.email === assigneeId);
+                                                        
+                                                        // Only show avatars if they have signed (per request "show avatars of all assignees signatures")
+                                                        if (!hasSigned) return null;
+
+                                                        return (
+                                                             <Tooltip key={i}>
+                                                                <TooltipTrigger>
+                                                                    <div className="w-7 h-7 rounded-full border-2 border-white bg-green-50 flex items-center justify-center overflow-hidden shrink-0 relative">
+                                                                        {emp?.image ? (
+                                                                            <img src={emp.image} alt="" className="w-full h-full object-cover" /> 
+                                                                        ) : (
+                                                                            <span className="text-[9px] font-bold text-green-700">{(emp?.firstName?.[0] || assigneeId?.[0] || '?').toUpperCase()}</span>
+                                                                        )}
+                                                                        <div className="absolute inset-0 ring-1 ring-inset ring-black/10 rounded-full" />
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p className="font-medium">{emp?.firstName} {emp?.lastName}</p>
+                                                                    <p className="text-xs text-slate-400">Signed</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        );
+                                                    })}
+                                                    {/* Also show signatures from people NOT in assignees list (rare/legacy) */}
+                                                    {(djt.signatures || []).filter((s:any) => !(djt.scheduleRef?.assignees || []).includes(s.employee)).map((sig: any, i: number) => {
+                                                         const emp = employees.find(e => e.value === sig.employee);
+                                                         return (
+                                                             <Tooltip key={`extra-${i}`}>
+                                                                <TooltipTrigger>
+                                                                    <div className="w-7 h-7 rounded-full border-2 border-white bg-green-50 flex items-center justify-center overflow-hidden shrink-0">
+                                                                        {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-green-700">{(emp?.firstName?.[0] || sig.employee?.[0] || '?').toUpperCase()}</span>}
+                                                                    </div>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{emp?.label || sig.employee}</p>
+                                                                </TooltipContent>
+                                                             </Tooltip>
+                                                         )
                                                     })}
                                                     {(!djt.signatures || djt.signatures.length === 0) && (
                                                         <span className="text-xs text-slate-400 italic">None</span>
                                                     )}
                                                 </div>
                                             </TableCell>
+                                            <TableCell className="text-center">
+                                                {djt.customerSignature ? (
+                                                    <div className="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-600 rounded-full">
+                                                        <Check size={14} />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
+                                            </TableCell>
                                             <TableCell className="text-right pr-6">
                                                 <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleEditOpen(djt)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
-                                                        <Edit size={16} />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(djt)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
-                                                        <Trash2 size={16} />
-                                                    </Button>
+                                                    {canEdit && (
+                                                        <Button variant="ghost" size="icon" onClick={() => handleEditOpen(djt)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
+                                                            <Edit size={16} />
+                                                        </Button>
+                                                    )}
+                                                    {canDelete && (
+                                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(djt)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
+                                                            <Trash2 size={16} />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>

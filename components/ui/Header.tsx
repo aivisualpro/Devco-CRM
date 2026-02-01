@@ -21,7 +21,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets'];
 
 const menuStructure: MenuItem[] = [
     {

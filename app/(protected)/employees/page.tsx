@@ -6,6 +6,8 @@ import { Header, Button, AddButton, SearchInput, Table, TableHead, TableBody, Ta
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeForm } from '@/components/employees/EmployeeForm';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 interface Employee {
     _id: string; // email
@@ -199,6 +201,13 @@ const RoleBadge = ({ value, color }: { value: string, color?: string }) => {
 export default function EmployeesPage() {
     const router = useRouter();
     const { success, error } = useToast();
+    const { can } = usePermissions();
+    
+    // Permissions
+    const canCreate = can(MODULES.EMPLOYEES, ACTIONS.CREATE);
+    const canEdit = can(MODULES.EMPLOYEES, ACTIONS.EDIT);
+    const canDelete = can(MODULES.EMPLOYEES, ACTIONS.DELETE);
+
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [roles, setRoles] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -517,38 +526,43 @@ export default function EmployeesPage() {
                             className="hidden"
                             onChange={handleImport}
                         />
-                        <div className="hidden lg:block">
+                        {/* Only show import if can create (implies bulk create) OR maybe dedicated import permission? defaulting to create */}
+                        {canCreate && (
+                            <div className="hidden lg:block">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            onClick={() => fileInputRef.current?.click()}
+                                            disabled={isImporting}
+                                            className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
+                                        >
+                                            <Upload size={18} />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </div>
+                        )}
+
+                        {canCreate && (
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button
-                                        onClick={() => fileInputRef.current?.click()}
-                                        disabled={isImporting}
-                                        className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
+                                    <Button
+                                        onClick={openAddModal}
+                                        variant="default"
+                                        size="icon"
+                                        className="rounded-full shadow-lg active:scale-95 transition-transform"
                                     >
-                                        <Upload size={18} />
-                                    </button>
+                                        <Plus size={24} />
+                                    </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                                    <p>Add New</p>
                                 </TooltipContent>
                             </Tooltip>
-                        </div>
-
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    onClick={openAddModal}
-                                    variant="default"
-                                    size="icon"
-                                    className="rounded-full shadow-lg active:scale-95 transition-transform"
-                                >
-                                    <Plus size={24} />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Add New</p>
-                            </TooltipContent>
-                        </Tooltip>
+                        )}
                     </div>
                 }
             />
@@ -769,39 +783,43 @@ export default function EmployeesPage() {
                                                 </TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        openEditModal(emp);
-                                                                    }}
-                                                                    className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
-                                                                >
-                                                                    <Pencil className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Edit Employee</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
+                                                        {canEdit && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            openEditModal(emp);
+                                                                        }}
+                                                                        className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
+                                                                    >
+                                                                        <Pencil className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Edit Employee</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        )}
 
-                                                        <Tooltip>
-                                                            <TooltipTrigger asChild>
-                                                                <button
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        openDeleteModal(emp);
-                                                                    }}
-                                                                    className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
-                                                                >
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>Delete Employee</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
+                                                        {canDelete && (
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            openDeleteModal(emp);
+                                                                        }}
+                                                                        className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>Delete Employee</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        )}
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

@@ -5,74 +5,63 @@ import { useRouter } from 'next/navigation';
 import { 
     Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, 
     MoreVertical, Pencil, Trash2, Calendar, FileText, 
-    Receipt, DollarSign, CheckCircle, XCircle, Tag,
-    Link, Upload, Loader2, ChevronDown, Check, User
+    Link, Upload, Loader2, ChevronDown, Check, User, DollarSign, Image as ImageIcon
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
 import { 
     Header, Button, Table, TableHeader, TableRow, TableHead, 
-    TableBody, TableCell, Badge, Input, Modal, 
-    MyDropDown, Tooltip, TooltipTrigger, TooltipContent
+    TableBody, TableCell, Badge, Input, Tooltip, TooltipTrigger, TooltipContent
 } from '@/components/ui';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { 
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
-import { ReceiptModal, ReceiptData } from '@/components/dialogs/ReceiptModal';
+import { BillingTicketModal, BillingTicketData } from '@/components/dialogs/BillingTicketModal';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+
+interface BillingTicketItem {
+    _id?: string;
+    estimate?: string;
+    date: string;
+    billingTerms: string;
+    otherBillingTerms?: string;
+    uploads?: any[];
+    titleDescriptions?: { title: string; description: string }[];
+    lumpSum: string;
+    createdBy?: string;
+    createdAt?: string;
+    [key: string]: any;
+}
 
 interface Estimate {
     _id: string;
     estimate?: string;
     versionNumber?: number;
     projectName?: string;
-    receiptsAndCosts?: ReceiptItem[];
+    billingTickets?: BillingTicketItem[];
     [key: string]: any;
 }
 
-interface ReceiptItem {
-    _id?: string; // Client-side generated if new
-    type: 'Invoice' | 'Receipt';
-    vendor: string;
-    amount: number | string;
-    date: string;
-    dueDate?: string;
-    remarks?: string;
-    tag?: string[];
-    approvalStatus?: 'Approved' | 'Not Approved';
-    status?: 'Devco Paid' | '';
-    paidBy?: string;
-    paymentDate?: string;
-    upload?: any[];
-    createdBy?: string;
-    // Helper fields for this view
-    estimateId?: string;
-    estimateNumber?: string;
-    projectName?: string;
-}
-
-// Flattened receipt for display
-interface FlatReceipt extends ReceiptItem {
-    uniqueId: string; // Composite ID for list key
+interface FlatBillingTicket extends BillingTicketItem {
+    uniqueId: string;
     estimateId: string;
     estimateNumber: string;
     projectName: string;
 }
 
-export default function ReceiptsCostsPage() {
+export default function BillingTicketsPage() {
     const router = useRouter();
     const { user, can } = usePermissions();
-    const canApprove = can(MODULES.RECEIPTS_COSTS, ACTIONS.APPROVE);
-    const canCreate = can(MODULES.RECEIPTS_COSTS, ACTIONS.CREATE);
-    const canEdit = can(MODULES.RECEIPTS_COSTS, ACTIONS.EDIT);
-    const canDelete = can(MODULES.RECEIPTS_COSTS, ACTIONS.DELETE);
+    const canApprove = can(MODULES.BILLING_TICKETS, ACTIONS.APPROVE);
+    const canCreate = can(MODULES.BILLING_TICKETS, ACTIONS.CREATE);
+    const canEdit = can(MODULES.BILLING_TICKETS, ACTIONS.EDIT);
+    const canDelete = can(MODULES.BILLING_TICKETS, ACTIONS.DELETE);
     const [loading, setLoading] = useState(true);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
     const [search, setSearch] = useState('');
@@ -81,18 +70,16 @@ export default function ReceiptsCostsPage() {
     // Modal States
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-    const [editingReceipt, setEditingReceipt] = useState<FlatReceipt | null>(null);
-    const [receiptToDelete, setReceiptToDelete] = useState<FlatReceipt | null>(null);
+    const [editingTicket, setEditingTicket] = useState<FlatBillingTicket | null>(null);
+    const [ticketToDelete, setTicketToDelete] = useState<FlatBillingTicket | null>(null);
     const [saving, setSaving] = useState(false);
 
-    const [employees, setEmployees] = useState<any[]>([]); // For ReceiptModal tags
+    const [employees, setEmployees] = useState<any[]>([]); 
     
     // Estimate Selection
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
     const [estimateSearch, setEstimateSearch] = useState('');
     const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
-
-    const [tagInput, setTagInput] = useState('');
 
     const fetchEstimates = async () => {
         setLoading(true);
@@ -132,15 +119,15 @@ export default function ReceiptsCostsPage() {
         .catch(console.error);
     }, []);
 
-    // Derived State: Flattened Receipts
-    const allReceipts = useMemo(() => {
-        const flat: FlatReceipt[] = [];
+    // Derived State: Flattened Tickets
+    const allTickets = useMemo(() => {
+        const flat: FlatBillingTicket[] = [];
         estimates.forEach(est => {
-            if (est.receiptsAndCosts && Array.isArray(est.receiptsAndCosts)) {
-                est.receiptsAndCosts.forEach((r, idx) => {
+            if (est.billingTickets && Array.isArray(est.billingTickets)) {
+                est.billingTickets.forEach((ticket, idx) => {
                     flat.push({
-                        ...r,
-                        uniqueId: `${est._id}_${idx}`, // Stable-ish key
+                        ...ticket,
+                        uniqueId: ticket._id || `${est._id}_${idx}`, 
                         estimateId: est._id,
                         estimateNumber: est.estimate || 'N/A',
                         projectName: est.projectName || 'Untitled Project'
@@ -152,17 +139,16 @@ export default function ReceiptsCostsPage() {
     }, [estimates]);
 
     // Filtering & Sorting
-    const filteredReceipts = useMemo(() => {
-        let result = [...allReceipts];
+    const filteredTickets = useMemo(() => {
+        let result = [...allTickets];
 
         if (search) {
             const s = search.toLowerCase();
             result = result.filter(r => 
-                String(r.vendor || '').toLowerCase().includes(s) ||
-                String(r.remarks || '').toLowerCase().includes(s) ||
                 String(r.estimateNumber || '').toLowerCase().includes(s) ||
                 String(r.projectName || '').toLowerCase().includes(s) ||
-                String(r.amount || '').includes(s)
+                String(r.lumpSum || '').includes(s) ||
+                (r.titleDescriptions && r.titleDescriptions.some(td => td.title.toLowerCase().includes(s)))
             );
         }
 
@@ -176,7 +162,7 @@ export default function ReceiptsCostsPage() {
         });
 
         return result;
-    }, [allReceipts, search, sortConfig]);
+    }, [allTickets, search, sortConfig]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -185,19 +171,19 @@ export default function ReceiptsCostsPage() {
         }));
     };
 
-    const handleEdit = (receipt: FlatReceipt) => {
-        setEditingReceipt(receipt);
-        setSelectedEstimateId(receipt.estimateId);
+    const handleEdit = (ticket: FlatBillingTicket) => {
+        setEditingTicket(ticket);
+        setSelectedEstimateId(ticket.estimateId);
         setIsModalOpen(true);
     };
 
     const handleAddNew = () => {
-        setEditingReceipt(null);
+        setEditingTicket(null);
         setSelectedEstimateId('');
         setIsModalOpen(true);
     };
 
-    const handleSave = async (data: ReceiptData) => {
+    const handleSave = async (data: BillingTicketData) => {
         if (!selectedEstimateId) {
             toast.error('Please select an estimate');
             return;
@@ -208,33 +194,29 @@ export default function ReceiptsCostsPage() {
             const targetEstimate = estimates.find(e => e._id === selectedEstimateId);
             if (!targetEstimate) throw new Error('Target estimate not found');
 
-            let updatedReceipts = [...(targetEstimate.receiptsAndCosts || [])];
+            let updatedTickets = [...(targetEstimate.billingTickets || [])];
 
-            const newReceiptItem: ReceiptItem = {
-                type: data.type,
-                vendor: data.vendor,
-                amount: parseFloat(data.amount) || 0,
+            const newTicketItem: BillingTicketItem = {
+                _id: editingTicket?._id, // Preserve ID if editing
                 date: data.date,
-                dueDate: data.dueDate,
-                remarks: data.remarks,
-                tag: data.tag,
-                approvalStatus: data.approvalStatus,
-                status: data.status,
-                paidBy: data.paidBy,
-                paymentDate: data.paymentDate,
-                upload: data.upload,
-                createdBy: editingReceipt ? data.createdBy : user?.email
+                billingTerms: data.billingTerms,
+                otherBillingTerms: data.otherBillingTerms,
+                lumpSum: data.lumpSum,
+                titleDescriptions: data.titleDescriptions,
+                uploads: data.uploads,
+                createdBy: editingTicket ? data.createdBy : user?.email,
+                createdAt: editingTicket ? editingTicket.createdAt : new Date().toISOString()
             };
 
-            if (editingReceipt) {
+            if (editingTicket) {
                 // If estimate ID changed:
-                if (editingReceipt.estimateId !== selectedEstimateId) {
+                if (editingTicket.estimateId !== selectedEstimateId) {
                     // Remove from old
-                    const oldEst = estimates.find(e => e._id === editingReceipt.estimateId);
+                    const oldEst = estimates.find(e => e._id === editingTicket.estimateId);
                     if (oldEst) {
-                        const oldReceipts = (oldEst.receiptsAndCosts || []).filter(r => 
-                            // Try to match by object reference or properties if no ID
-                            JSON.stringify(r) !== JSON.stringify(editingReceipt) // This is weak, but receipts don't always have IDs
+                        const oldTickets = (oldEst.billingTickets || []).filter(r => 
+                            (r._id && r._id !== editingTicket._id) || 
+                            (!r._id && JSON.stringify(r) !== JSON.stringify(editingTicket)) // fallback
                         );
                         // Save old estimate
                          await fetch('/api/webhook/devcoBackend', {
@@ -242,23 +224,33 @@ export default function ReceiptsCostsPage() {
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ 
                                 action: 'updateEstimate', 
-                                payload: { id: oldEst._id, receiptsAndCosts: oldReceipts } 
+                                payload: { id: oldEst._id, billingTickets: oldTickets } 
                             })
                         });
                     }
                     // Add to new (bottom)
-                    updatedReceipts.push(newReceiptItem);
+                    updatedTickets.push(newTicketItem);
                 } else {
                     // Update in place
-                    const index = parseInt(editingReceipt.uniqueId.split('_')[1]);
-                    if (!isNaN(index) && index >= 0 && index < updatedReceipts.length) {
-                        updatedReceipts[index] = newReceiptItem;
+                    const index = updatedTickets.findIndex(t => 
+                        (t._id && t._id === editingTicket._id) || 
+                        (!t._id && JSON.stringify(t) === JSON.stringify(editingTicket)) // Loose match fallback
+                    );
+                    
+                    if (index >= 0) {
+                        updatedTickets[index] = { ...updatedTickets[index], ...newTicketItem };
                     } else {
-                        updatedReceipts.push(newReceiptItem);
+                        // Use uniqueId fallback check
+                        const legacyIndex = parseInt(editingTicket.uniqueId.split('_')[1]);
+                        if (!isNaN(legacyIndex) && legacyIndex >= 0 && legacyIndex < updatedTickets.length) {
+                             updatedTickets[legacyIndex] = newTicketItem;
+                        } else {
+                             updatedTickets.push(newTicketItem);
+                        }
                     }
                 }
             } else {
-                updatedReceipts.push(newReceiptItem);
+                updatedTickets.push(newTicketItem);
             }
 
             // Save to Backend
@@ -269,7 +261,7 @@ export default function ReceiptsCostsPage() {
                     action: 'updateEstimate', 
                     payload: { 
                         id: selectedEstimateId, 
-                        receiptsAndCosts: updatedReceipts,
+                        billingTickets: updatedTickets,
                         updatedBy: user?.email
                     } 
                 })
@@ -277,11 +269,11 @@ export default function ReceiptsCostsPage() {
 
             const result = await res.json();
             if (result.success) {
-                toast.success(editingReceipt ? 'Receipt updated' : 'Receipt added');
+                toast.success(editingTicket ? 'Billing Ticket updated' : 'Billing Ticket added');
                 setIsModalOpen(false);
-                fetchEstimates(); // Refresh all data
+                fetchEstimates(); 
             } else {
-                toast.error('Failed to save receipt');
+                toast.error('Failed to save ticket');
             }
         } catch (err) {
             console.error(err);
@@ -292,17 +284,28 @@ export default function ReceiptsCostsPage() {
     };
 
     const handleDelete = async () => {
-        if (!receiptToDelete) return;
+        if (!ticketToDelete) return;
         setSaving(true);
         try {
-            const targetEstimate = estimates.find(e => e._id === receiptToDelete.estimateId);
+            const targetEstimate = estimates.find(e => e._id === ticketToDelete.estimateId);
             if (!targetEstimate) return;
 
-            const index = parseInt(receiptToDelete.uniqueId.split('_')[1]);
-            const updatedReceipts = [...(targetEstimate.receiptsAndCosts || [])];
-            
-            if (!isNaN(index)) {
-                updatedReceipts.splice(index, 1);
+            let updatedTickets = [...(targetEstimate.billingTickets || [])];
+           
+            // Logic to find and remove
+            const index = updatedTickets.findIndex(t => 
+                (t._id && t._id === ticketToDelete._id) || 
+                (ticketToDelete.uniqueId && ticketToDelete.uniqueId.includes('_') && 
+                 parseInt(ticketToDelete.uniqueId.split('_')[1]) < updatedTickets.length && 
+                 JSON.stringify(updatedTickets[parseInt(ticketToDelete.uniqueId.split('_')[1])]) === JSON.stringify(ticketToDelete)) // messy fallback for legacy
+            );
+
+            // Simple index fallback
+            if (index === -1) {
+                 const simpleIndex = parseInt(ticketToDelete.uniqueId.split('_')[1]);
+                 if (!isNaN(simpleIndex)) updatedTickets.splice(simpleIndex, 1);
+            } else {
+                updatedTickets.splice(index, 1);
             }
 
             const res = await fetch('/api/webhook/devcoBackend', {
@@ -311,15 +314,15 @@ export default function ReceiptsCostsPage() {
                 body: JSON.stringify({ 
                     action: 'updateEstimate', 
                     payload: { 
-                        id: receiptToDelete.estimateId, 
-                        receiptsAndCosts: updatedReceipts,
+                        id: ticketToDelete.estimateId, 
+                        billingTickets: updatedTickets,
                         updatedBy: user?.email
                     } 
                 })
             });
 
             if (res.ok) {
-                toast.success('Receipt deleted');
+                toast.success('Ticket deleted');
                 setIsDeleteOpen(false);
                 fetchEstimates();
             } else {
@@ -327,24 +330,19 @@ export default function ReceiptsCostsPage() {
             }
         } catch (err) {
             console.error(err);
-            toast.error('Error deleting receipt');
+            toast.error('Error deleting ticket');
         } finally {
             setSaving(false);
         }
     };
 
-
-
     // Filter estimates for dropdown - Deduplicated by Estimate Number
     const filteredEstimates = useMemo(() => {
-        // Group by estimate number and keep only the latest version
         const uniqueEstimatesMap: Record<string, Estimate> = {};
         
         estimates.forEach(est => {
             const num = est.estimate;
             if (!num) return;
-            
-            // If new or higher version, update
             if (!uniqueEstimatesMap[num] || (est.versionNumber || 0) > (uniqueEstimatesMap[num].versionNumber || 0)) {
                 uniqueEstimatesMap[num] = est;
             }
@@ -358,7 +356,6 @@ export default function ReceiptsCostsPage() {
                 (e.projectName || '').toLowerCase().includes(estimateSearch.toLowerCase())
             );
         }
-        // Sort by Estimate Number (desc)
         return res.sort((a, b) => {
             return (b.estimate || '').localeCompare(a.estimate || '');
         }).slice(0, 50);
@@ -377,7 +374,7 @@ export default function ReceiptsCostsPage() {
                         <div className="relative w-64">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
-                                placeholder="Search receipts, vendors..." 
+                                placeholder="Search tickets..." 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -409,19 +406,10 @@ export default function ReceiptsCostsPage() {
                                 <TableHeader className="min-w-[150px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('projectName')}>
                                     <div className="flex items-center gap-1">Project <ArrowUpDown size={12} className="opacity-50" /></div>
                                 </TableHeader>
-                                <TableHeader className="min-w-[150px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('vendor')}>
-                                    <div className="flex items-center gap-1">Vendor <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('amount')}>
-                                    <div className="flex items-center gap-1">Amount <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="min-w-[150px]">Remarks</TableHeader>
+                                <TableHeader className="w-[120px]">Term</TableHeader>
+                                <TableHeader className="min-w-[150px]">Lump Sum</TableHeader>
+                                <TableHeader className="min-w-[150px]">Title</TableHeader>
                                 <TableHeader className="w-[120px]">Created By</TableHeader>
-                                <TableHeader className="w-[120px]">Tagged To</TableHeader>
-                                {canApprove && (
-                                    <TableHeader className="w-[100px]">Approval</TableHeader>
-                                )}
-                                <TableHeader className="w-[100px]">Payment</TableHeader>
                                 <TableHeader className="w-[60px] text-center">Docs</TableHeader>
                                 <TableHeader className="w-[80px] text-right">Actions</TableHeader>
                             </TableRow>
@@ -429,43 +417,52 @@ export default function ReceiptsCostsPage() {
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={12} className="h-48 text-center text-slate-500">
+                                    <TableCell colSpan={9} className="h-48 text-center text-slate-500">
                                         <div className="flex flex-col items-center gap-2">
                                             <Loader2 className="animate-spin text-[#0F4C75]" />
-                                            Loading receipts...
+                                            Loading tickets...
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ) : filteredReceipts.length === 0 ? (
+                            ) : filteredTickets.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={12} className="h-48 text-center text-slate-500">
-                                        No receipts found.
+                                    <TableCell colSpan={9} className="h-48 text-center text-slate-500">
+                                        No billing tickets found.
                                     </TableCell>
                                 </TableRow>
-                            ) : filteredReceipts.map((receipt) => {
-                                const creator = employees.find(e => e.email === receipt.createdBy || e._id === receipt.createdBy);
+                            ) : filteredTickets.map((ticket) => {
+                                const creator = employees.find(e => e.email === ticket.createdBy || e._id === ticket.createdBy);
                                 return (
-                                <TableRow key={receipt.uniqueId} className="group hover:bg-slate-50 transition-colors">
+                                <TableRow key={ticket.uniqueId} className="group hover:bg-slate-50 transition-colors">
                                     <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                        {receipt.date && !isNaN(new Date(receipt.date).getTime()) ? format(new Date(receipt.date), 'MMM dd, yyyy') : '-'}
+                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
                                     </TableCell>
                                     <TableCell>
                                         <span 
                                             className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                            onClick={() => router.push(`/estimates/${receipt.estimateNumber}`)}
+                                            onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
                                         >
-                                            {receipt.estimateNumber || 'N/A'}
+                                            {ticket.estimateNumber || 'N/A'}
                                         </span>
                                     </TableCell>
-                                    <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={receipt.projectName}>
-                                        {receipt.projectName || '-'}
+                                    <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={ticket.projectName}>
+                                        {ticket.projectName || '-'}
                                     </TableCell>
-                                    <TableCell className="font-medium text-xs text-slate-700 max-w-[150px] truncate" title={receipt.vendor}>{receipt.vendor}</TableCell>
-                                    <TableCell className="font-mono text-xs text-slate-700">
-                                        {receipt.amount ? `$${(typeof receipt.amount === 'number' ? receipt.amount : parseFloat(receipt.amount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                                    <TableCell className="text-xs text-slate-700">
+                                        {ticket.billingTerms === 'Other' ? ticket.otherBillingTerms : (ticket.billingTerms || '-')}
                                     </TableCell>
-                                    <TableCell className="text-xs text-slate-500 max-w-[200px] truncate" title={receipt.remarks}>
-                                        {receipt.remarks || '-'}
+                                    <TableCell className="font-mono text-xs text-slate-700 font-bold">
+                                         {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
+                                    </TableCell>
+                                    <TableCell className="text-xs text-slate-500 max-w-[200px] truncate">
+                                        {(ticket.titleDescriptions && ticket.titleDescriptions.length > 0) ? (
+                                            <div className="flex items-center gap-1">
+                                                <span className="truncate">{ticket.titleDescriptions[0].title}</span>
+                                                {ticket.titleDescriptions.length > 1 && (
+                                                    <span className="text-[10px] bg-slate-100 px-1 rounded-full text-slate-500">+{ticket.titleDescriptions.length - 1}</span>
+                                                )}
+                                            </div>
+                                        ) : '-'}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
@@ -480,63 +477,21 @@ export default function ReceiptsCostsPage() {
                                                     )}
                                                 </TooltipTrigger>
                                                 <TooltipContent>
-                                                    <p>{creator?.label || creator?.firstName ? `${creator.firstName} ${creator.lastName || ''}` : (receipt.createdBy || 'Unknown User')}</p>
+                                                    <p>{creator?.label || creator?.firstName ? `${creator.firstName} ${creator.lastName || ''}` : (ticket.createdBy || 'Unknown User')}</p>
                                                 </TooltipContent>
                                             </Tooltip>
-                                            <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{creator?.label || creator?.firstName || receipt.createdBy || '-'}</span>
+                                            <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{creator?.label || creator?.firstName || ticket.createdBy || '-'}</span>
                                         </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex -space-x-2 overflow-hidden items-center">
-                                            {(receipt.tag || []).map((tagId, i) => {
-                                                const emp = employees.find(e => e.email === tagId || e._id === tagId);
-                                                const name = emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : tagId;
-                                                return (
-                                                    <Tooltip key={i}>
-                                                        <TooltipTrigger>
-                                                            <div className="relative inline-block w-6 h-6 rounded-full border border-white bg-slate-100 flex items-center justify-center overflow-hidden cursor-help">
-                                                                {emp?.image || emp?.profilePicture ? (
-                                                                    <img src={emp.image || emp.profilePicture} className="w-full h-full object-cover" />
-                                                                ) : (
-                                                                    <span className="text-[9px] font-bold text-slate-500">{(emp?.firstName?.[0] || tagId?.[0] || '?').toUpperCase()}</span>
-                                                                )}
-                                                            </div>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>{name || 'Unknown User'}</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                );
-                                            })}
-                                            {(!receipt.tag || receipt.tag.length === 0) && <span className="text-slate-300 text-xs">-</span>}
-                                        </div>
-                                    </TableCell>
-                                    {canApprove && (
-                                        <TableCell>
-                                            <Badge variant={receipt.approvalStatus === 'Approved' ? 'success' : 'default'} className="w-fit text-[10px]">
-                                                {receipt.approvalStatus || 'Pending'}
-                                            </Badge>
-                                        </TableCell>
-                                    )}
-                                    <TableCell>
-                                        {receipt.status ? (
-                                            <span className="text-[10px] text-slate-500 flex items-center gap-1 whitespace-nowrap">
-                                                <CheckCircle size={10} className="text-green-500" /> {receipt.status}
-                                            </span>
-                                        ) : (
-                                            <span className="text-[10px] text-slate-400">-</span>
-                                        )}
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        {(!receipt.upload || receipt.upload.length === 0) ? (
+                                        {(!ticket.uploads || ticket.uploads.length === 0) ? (
                                             <span className="text-slate-300 text-xs">-</span>
-                                        ) : receipt.upload.length === 1 ? (
+                                        ) : ticket.uploads.length === 1 ? (
                                             <a 
-                                                href={typeof receipt.upload[0] === 'string' ? receipt.upload[0] : receipt.upload[0].url} 
+                                                href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url} 
                                                 target="_blank" 
                                                 rel="noreferrer"
                                                 className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                                title={typeof receipt.upload[0] === 'string' ? 'Document' : receipt.upload[0].name}
                                             >
                                                 <FileText size={16} />
                                             </a>
@@ -546,13 +501,13 @@ export default function ReceiptsCostsPage() {
                                                      <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 cursor-pointer hover:bg-blue-100 transition-colors">
                                                         <FileText size={16} />
                                                         <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white">
-                                                            {receipt.upload.length}
+                                                            {ticket.uploads.length}
                                                         </span>
                                                      </div>
                                                 </PopoverTrigger>
                                                 <PopoverContent className="w-64 p-2">
                                                     <div className="flex flex-col gap-1">
-                                                        {receipt.upload.map((file, i) => {
+                                                        {ticket.uploads.map((file: any, i: number) => {
                                                             const url = typeof file === 'string' ? file : file.url;
                                                             const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
                                                             return (
@@ -576,12 +531,12 @@ export default function ReceiptsCostsPage() {
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             {canEdit && (
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(receipt)}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(ticket)}>
                                                     <Pencil size={14} />
                                                 </Button>
                                             )}
                                             {canDelete && (
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setReceiptToDelete(receipt); setIsDeleteOpen(true); }}>
+                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setTicketToDelete(ticket); setIsDeleteOpen(true); }}>
                                                     <Trash2 size={14} />
                                                 </Button>
                                             )}
@@ -596,16 +551,16 @@ export default function ReceiptsCostsPage() {
             </div>
 
             {/* Add/Edit Modal */}
-            <ReceiptModal
+            <BillingTicketModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                initialData={editingReceipt ? (editingReceipt as unknown as ReceiptData) : null}
+                initialData={editingTicket ? (editingTicket as unknown as BillingTicketData) : null}
                 onSave={handleSave}
                 employees={employees}
                 currentUserEmail={user?.email || undefined}
                 canApprove={canApprove}
             >
-                {/* Estimate Selection (Critical) */}
+                {/* Estimate Selection */}
                 <div className="col-span-1 md:col-span-2 mb-4">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Linked Estimate *</Label>
                     <div className="relative mt-1">
@@ -659,20 +614,19 @@ export default function ReceiptsCostsPage() {
                             </div>
                         )}
                     </div>
-                    {/* Overlay to close dropdown */}
                      {isEstimateDropdownOpen && (
                         <div className="fixed inset-0 z-40" onClick={() => setIsEstimateDropdownOpen(false)} />
                     )}
                 </div>
-            </ReceiptModal>
+            </BillingTicketModal>
 
             {/* Delete Confirmation */}
             <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Delete Receipt</DialogTitle>
+                        <DialogTitle>Delete Billing Ticket</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete this receipt for <strong>{receiptToDelete?.vendor}</strong> (${receiptToDelete?.amount})?
+                            Are you sure you want to delete this ticket?
                             <br/>This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
@@ -687,3 +641,8 @@ export default function ReceiptsCostsPage() {
         </div>
     );
 }
+
+const formatCurrency = (val: string | number) => {
+    const num = typeof val === 'string' ? parseFloat(val) : val;
+    return isNaN(num) ? '-' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
+};
