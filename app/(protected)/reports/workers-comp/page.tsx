@@ -722,23 +722,23 @@ export default function WorkersCompPage() {
                                             <>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-12 text-center">#</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Employee</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Records</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">Reg Amt</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">OT Amt</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">DT Amt</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-32">Total Amount</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-24">Records</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-28">Reg Amt</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-28">OT Amt</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-28">DT Amt</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-32">Total Amount</TableHeader>
                                             </>
                                         ) : (
                                             <>
                                                 <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-8">Tag</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-28">Employee</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-28">Employee</TableHeader>
                                                 <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-20">Date</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-28">Estimate</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] max-w-[150px]">Title</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">Reg $</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">OT $</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">DT $</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-20">Total $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-28">Estimate</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left max-w-[150px]">Title</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-16">Reg $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-16">OT $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-16">DT $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-left w-20">Total $</TableHeader>
                                             </>
                                         )}
                                     </TableRow>
@@ -759,21 +759,21 @@ export default function WorkersCompPage() {
                                                             <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-transform group-hover:translate-x-0.5" />
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right">
+                                                    <TableCell className="px-4 py-3 text-left">
                                                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
                                                             {employeeSummary.reduce((a,b)=>a+b.count,0)}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-emerald-600 tabular-nums">
+                                                    <TableCell className="px-4 py-3 text-left text-[11px] text-emerald-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.regPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-orange-600 tabular-nums">
+                                                    <TableCell className="px-4 py-3 text-left text-[11px] text-orange-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.otPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-600 tabular-nums">
+                                                    <TableCell className="px-4 py-3 text-left text-[11px] text-red-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.dtPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[12px] text-slate-900 tabular-nums">
+                                                    <TableCell className="px-4 py-3 text-left text-[12px] text-slate-900 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.gross,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                 </TableRow>
@@ -800,16 +800,16 @@ export default function WorkersCompPage() {
                                                             </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right">
+                                                    <TableCell className="px-4 py-3 text-left">
                                                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
                                                             {emp.count}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.dtPay > 0 ? emp.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right">
-                                                        <div className="flex items-center justify-end gap-2">
+                                                    <TableCell className="px-4 py-3 text-left text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-left text-[11px] font-medium text-slate-600 tabular-nums">{emp.otPay > 0 ? `$${emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-left text-[11px] font-medium text-slate-600 tabular-nums">{emp.dtPay > 0 ? `$${emp.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '-'}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-left">
+                                                        <div className="flex items-center justify-start gap-2">
                                                             <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
                                                                 ${emp.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                             </span>
@@ -886,22 +886,22 @@ export default function WorkersCompPage() {
                                                             {record.title}
                                                         </p>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
+                                                    <TableCell className="px-3 py-2 text-left">
                                                         <span className="text-[10px] font-medium text-emerald-600 tracking-tight tabular-nums">
                                                             ${record.regPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
+                                                    <TableCell className="px-3 py-2 text-left">
                                                         <span className="text-[10px] font-medium text-orange-600 tracking-tight tabular-nums">
                                                             {record.otPay > 0 ? `$${record.otPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
+                                                    <TableCell className="px-3 py-2 text-left">
                                                         <span className="text-[10px] font-medium text-red-600 tracking-tight tabular-nums">
                                                             {record.dtPay > 0 ? `$${record.dtPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
+                                                    <TableCell className="px-3 py-2 text-left">
                                                         <span className="text-[10px] font-bold text-slate-800 tracking-tight tabular-nums">
                                                             ${record.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </span>
