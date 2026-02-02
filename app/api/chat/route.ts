@@ -18,14 +18,7 @@ export async function GET(request: NextRequest) {
         const checker = new PermissionChecker(user.userId);
         await checker.load();
 
-        console.log('DEBUG CHAT PERMS:', {
-            userEmail: user.email,
-            role: user.role,
-            canView: checker.can(MODULES.CHAT, ACTIONS.VIEW),
-            scope: checker.getScope(MODULES.CHAT),
-            allRef: DATA_SCOPE.ALL,
-            perms: JSON.stringify(checker.getPermissions()?.modules.find(m => m.module === MODULES.CHAT))
-        });
+
 
         if (!checker.can(MODULES.CHAT, ACTIONS.VIEW)) {
              return NextResponse.json({ success: false, error: 'Permission denied' }, { status: 403 });
@@ -43,17 +36,17 @@ export async function GET(request: NextRequest) {
         const scope = checker.getScope(MODULES.CHAT);
         if (scope !== DATA_SCOPE.ALL) {
             const escapedEmail = user.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const userEmailRegex = new RegExp(escapedEmail, 'i'); // Case insensitive, partial match allowed for robustness against whitespace
+            const emailRegex = new RegExp(`^${escapedEmail}$`, 'i');
             
             // User must be sender OR assignee
             andConditions.push({
                  $or: [
-                     { sender: { $regex: userEmailRegex } },
-                     { assignees: { $regex: userEmailRegex } }, // Matches string in array
-                     { 'assignees.email': { $regex: userEmailRegex } },
-                     { 'assignees.value': { $regex: userEmailRegex } },
-                     { 'assignees.id': { $regex: userEmailRegex } }, 
-                     { 'assignees.userId': { $regex: userEmailRegex } }
+                     { sender: emailRegex },
+                     { assignees: emailRegex }, // Matches if any element in array matches regex
+                     { 'assignees.email': emailRegex },
+                     { 'assignees.value': emailRegex },
+                     { 'assignees.id': emailRegex }, 
+                     { 'assignees.userId': emailRegex }
                  ]
             });
         }

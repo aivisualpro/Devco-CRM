@@ -71,6 +71,15 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
             dataScope: DATA_SCOPE.SELF as DataScopeKey
         });
     }
+    
+    // Default Company Docs Permission Injection
+    if (!modulePermissions.has(MODULES.COMPANY_DOCS)) {
+        modulePermissions.set(MODULES.COMPANY_DOCS, {
+            module: MODULES.COMPANY_DOCS,
+            actions: [ACTIONS.VIEW] as ActionKey[],
+            dataScope: DATA_SCOPE.ALL as DataScopeKey
+        });
+    }
 
     // Apply overrides
     for (const override of overrides) {

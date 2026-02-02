@@ -22,7 +22,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -50,6 +50,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Job Tickets', href: '/docs/job-tickets', icon: <FileCheck className="w-5 h-5" />, description: 'Daily job execution records', colorClass: 'text-violet-500' },
             { label: 'Billing Tickets', href: '/docs/billing-tickets', icon: <DollarSign className="w-5 h-5" />, description: 'Invoicing and billing details', colorClass: 'text-green-500' },
             { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
+            { label: 'Company Docs', href: '/docs/company-docs', icon: <FileText className="w-5 h-5" />, description: 'Training & Certifications', colorClass: 'text-blue-600' },
         ]
     },
     {
@@ -545,32 +546,30 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 <div className="space-y-3">
                                     <button
                                         onClick={() => {
-                                            router.push('/dashboard?view=training');
+                                            router.push('/docs/company-docs');
                                             setIsMobileMenuOpen(false);
                                         }}
                                         className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
-                                            pathname === '/dashboard' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('view') === 'training'
+                                            pathname === '/docs/company-docs'
                                                 ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
                                                 : 'bg-amber-50/80 border-amber-100 hover:bg-amber-100/80 hover:border-amber-200'
                                         }`}
                                     >
                                         <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 shadow-sm">
-                                            <GraduationCap size={24} />
+                                            <FileText size={24} />
                                         </div>
                                         <div className="flex-1 text-left">
                                             <span className={`text-base font-bold block ${
-                                                pathname === '/dashboard' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('view') === 'training'
-                                                    ? 'text-[#0F4C75]' 
-                                                    : 'text-slate-700'
+                                                pathname === '/docs/company-docs' ? 'text-[#0F4C75]' : 'text-slate-700'
                                             }`}>
-                                                Training & Certifications
+                                                Company Docs
                                             </span>
                                             <span className="text-xs text-slate-500 mt-0.5 block">
-                                                Your compliance status
+                                                Training & Certifications
                                             </span>
                                         </div>
                                         <div className={`w-2 h-2 rounded-full ${
-                                            pathname === '/dashboard' && new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('view') === 'training'
+                                            pathname === '/docs/company-docs'
                                                 ? 'bg-[#0F4C75]' 
                                                 : 'bg-amber-200'
                                         }`} />
@@ -603,7 +602,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 maxWidth="2xl"
             >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 max-h-[60vh] overflow-y-auto overscroll-contain px-1 scrollbar-thin scrollbar-thumb-slate-200">
-                    {menuStructure.find(m => m.label === 'DOCS')?.items?.filter(i => ['Billing Tickets', 'Receipts & Costs'].includes(i.label)).map((item) => (
+                    {menuStructure.find(m => m.label === 'DOCS')?.items?.filter(i => ['Billing Tickets', 'Receipts & Costs', 'Company Docs'].includes(i.label)).map((item) => (
                         <button
                             key={item.href}
                             onClick={() => {

@@ -45,6 +45,7 @@ export const MODULES = {
     // MISC
     CONSTANTS: 'constants',
     CHAT: 'chat',
+    COMPANY_DOCS: 'company_docs',
     
     // REPORTS
     REPORTS_PAYROLL: 'reports_payroll',
@@ -219,7 +220,8 @@ export const DEFAULT_ROLES: Partial<IRole>[] = [
             { module: MODULES.ESTIMATES, actions: [ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT], dataScope: DATA_SCOPE.SELF },
             { module: MODULES.SCHEDULES, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.SELF },
             { module: MODULES.TIME_CARDS, actions: [ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT], dataScope: DATA_SCOPE.SELF },
-            { module: MODULES.CHAT, actions: [ACTIONS.VIEW, ACTIONS.CREATE], dataScope: DATA_SCOPE.ALL },
+            { module: MODULES.CHAT, actions: [ACTIONS.VIEW, ACTIONS.CREATE], dataScope: DATA_SCOPE.SELF },
+            { module: MODULES.COMPANY_DOCS, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.ALL },
         ],
     },
     {
@@ -232,6 +234,7 @@ export const DEFAULT_ROLES: Partial<IRole>[] = [
         permissions: [
             { module: MODULES.DASHBOARD, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.SELF },
             { module: MODULES.ESTIMATES, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.ALL },
+            { module: MODULES.COMPANY_DOCS, actions: [ACTIONS.VIEW], dataScope: DATA_SCOPE.ALL },
         ],
     },
 ];
@@ -244,7 +247,6 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
         'widget_upcoming_schedules',
         'widget_chat',
         'widget_estimates_overview',
-        'widget_training_certifications',
         'widget_time_cards',
         'widget_tasks'
     ],
@@ -283,6 +285,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     [MODULES.RECEIPTS_COSTS]: ['vendor', 'date', 'cost', 'description', 'category', 'status', 'approvalStatus'],
     [MODULES.CONSTANTS]: ['name', 'value', 'category', 'description'],
     [MODULES.CHAT]: ['message', 'attachments'],
+    [MODULES.COMPANY_DOCS]: ['title', 'url', 'status'],
     [MODULES.REPORTS_PAYROLL]: [],
     [MODULES.REPORTS_WORK_COMP]: [],
     [MODULES.REPORTS_FRINGE]: [],
@@ -310,7 +313,7 @@ export const PERMISSION_GROUPS = {
             MODULES.JHA, MODULES.JOB_TICKETS, MODULES.BILLING_TICKETS, MODULES.POTHOLE,
             MODULES.DAMAGE_REPORT, MODULES.INCIDENTS, MODULES.PRE_BORE_LOGS,
             MODULES.VEHICLE_SAFETY, MODULES.LUBRICATION, MODULES.REPAIR, MODULES.SCOPE_CHANGE,
-            MODULES.RECEIPTS_COSTS
+            MODULES.RECEIPTS_COSTS, MODULES.COMPANY_DOCS
         ],
         color: '#7c3aed',
     },
@@ -355,6 +358,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.RECEIPTS_COSTS]: 'Receipts & Costs',
     [MODULES.CONSTANTS]: 'Constants',
     [MODULES.CHAT]: 'Chat',
+    [MODULES.COMPANY_DOCS]: 'Company Docs',
     [MODULES.REPORTS_PAYROLL]: 'Payroll Report',
     [MODULES.REPORTS_WORK_COMP]: 'Work Comp Report',
     [MODULES.REPORTS_FRINGE]: 'Fringe Benefits',
@@ -406,6 +410,7 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/docs/receipts-costs': MODULES.RECEIPTS_COSTS,
     '/constants': MODULES.CONSTANTS,
     '/chat': MODULES.CHAT,
+    '/docs/company-docs': MODULES.COMPANY_DOCS,
     '/settings/general': MODULES.CONSTANTS,
     '/settings/imports': MODULES.CONSTANTS,
     '/settings/knowledgebase': MODULES.CONSTANTS,

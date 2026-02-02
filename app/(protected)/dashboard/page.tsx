@@ -1692,16 +1692,7 @@ function DashboardContent() {
                 console.error('Tasks API returned non-JSON:', await tasksRes.text());
             }
 
-            // Fetch Company Docs
-            const docsRes = await fetch('/api/company-docs');
-            if (docsRes.headers.get('content-type')?.includes('application/json')) {
-                const docsData = await docsRes.json();
-                if (docsData.success) {
-                    setCompanyDocs(docsData.docs || []);
-                }
-            } else {
-                console.error('Docs API returned non-JSON:', await docsRes.text());
-            }
+
             
         } catch (err) {
             console.error('Dashboard fetch error:', err);
@@ -2196,108 +2187,7 @@ function DashboardContent() {
                                 </div>
                                 )}
 
-                                {/* Training Card */}
-                                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-                                                <GraduationCap className="w-5 h-5 text-amber-600" />
-                                            </div>
-                                            <h2 className="font-bold text-slate-900">Training & Certifications</h2>
-                                        </div>
-                                        <button
-                                            onClick={() => setIsDocModalOpen(true)}
-                                            className="w-8 h-8 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors"
-                                            title="Add New"
-                                        >
-                                            <Plus size={18} />
-                                        </button>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {trainings.map(t => (
-                                            <div 
-                                                key={t._id}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border ${
-                                                    t.status === 'completed' ? 'bg-emerald-50 border-emerald-200' :
-                                                    t.status === 'upcoming' ? 'bg-amber-50 border-amber-200' :
-                                                    'bg-red-50 border-red-200'
-                                                }`}
-                                            >
-                                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                                                    t.status === 'completed' ? 'bg-emerald-500' :
-                                                    t.status === 'upcoming' ? 'bg-amber-500' :
-                                                    'bg-red-500'
-                                                } text-white`}>
-                                                    {t.status === 'completed' ? <CheckCircle2 className="w-4 h-4" /> :
-                                                     t.status === 'upcoming' ? <CalendarCheck className="w-4 h-4" /> :
-                                                     <AlertCircle className="w-4 h-4" />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="font-medium text-sm text-slate-800 truncate">{t.name}</p>
-                                                    <p className="text-xs text-slate-500">
-                                                        {t.status === 'completed' ? `Completed: ${t.completedDate}` :
-                                                         t.status === 'upcoming' ? `Renewal: ${t.renewalDate}` :
-                                                         `Expired: ${t.renewalDate}`}
-                                                    </p>
-                                                </div>
-                                                <Badge 
-                                                    variant={t.status === 'completed' ? 'success' : t.status === 'upcoming' ? 'warning' : 'danger'}
-                                                    className="text-[10px]"
-                                                >
-                                                    {t.type}
-                                                </Badge>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    
-                                    {/* Company Docs Section */}
-                                    <div className="pt-4 mt-4 border-t border-slate-100">
 
-                                        <div className="space-y-2">
-                                            {companyDocs.length > 0 ? (
-                                                companyDocs.map(doc => (
-                                                    <div key={doc._id} className="group relative flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-slate-50 hover:bg-white hover:shadow-sm transition-all">
-                                                        <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                                                            <FileText size={16} />
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="text-sm font-bold text-slate-900 truncate">{doc.title}</p>
-                                                            <p className="text-[10px] text-slate-500">
-                                                                Added {new Date(doc.createdAt).toLocaleDateString()}
-                                                            </p>
-                                                        </div>
-                                                        <div className="flex items-center gap-1">
-                                                            <a 
-                                                                href={doc.url?.toLowerCase().endsWith('.pdf') 
-                                                                    ? `https://docs.google.com/viewer?url=${encodeURIComponent(doc.url)}&embedded=true`
-                                                                    : doc.url
-                                                                } 
-                                                                target="_blank" 
-                                                                rel="noopener noreferrer"
-                                                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                                title="View"
-                                                            >
-                                                                <Eye size={16} />
-                                                            </a>
-                                                            {/* CRUD for Desktop */}
-                                                            <button 
-                                                                onClick={() => handleDeleteDoc(doc._id)}
-                                                                className="hidden md:block p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                                title="Delete"
-                                                            >
-                                                                <Trash2 size={16} />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                                                    <p className="text-xs text-slate-400">No documents available</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
 
 

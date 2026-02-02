@@ -53,6 +53,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
     repair: <Wrench className="w-4 h-4" />,
     constants: <Settings className="w-4 h-4" />,
     chat: <MessageSquare className="w-4 h-4" />,
+    company_docs: <FileText className="w-4 h-4" />,
 };
 
 interface RoleWithCount extends IRole {
