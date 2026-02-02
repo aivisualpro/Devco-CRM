@@ -3151,7 +3151,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 {selectedViewContract.attachments?.map((file: any, idx: number) => (
                                     <div 
                                         key={idx}
-                                        onClick={() => window.open(file.url, '_blank')}
+                                        onClick={() => handleFileDownload(file.url, file.name)}
                                         className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
@@ -4225,7 +4225,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 {selectedReceipt.upload?.map((file: any, idx: number) => (
                                     <div 
                                         key={idx}
-                                        onClick={() => window.open(file.url, '_blank')}
+                                        onClick={() => handleFileDownload(file.url, file.name)}
                                         className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-pink-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
@@ -4471,7 +4471,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 {selectedPlanningItem.documents?.map((file: any, idx: number) => (
                                     <div 
                                         key={idx}
-                                        onClick={() => window.open(file.url, '_blank')}
+                                        onClick={() => handleFileDownload(file.url, file.name)}
                                         className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">

@@ -2,12 +2,12 @@
 
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, Loader2 } from 'lucide-react';
+import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, Loader2, Lock } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
 import Papa from 'papaparse';
 import { z } from 'zod';
 
-import { Header, AddButton, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent, MyDropDown } from '@/components/ui';
+import { Header, AddButton, Button, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent, MyDropDown } from '@/components/ui';
 import { Tabs, TabsList, TabsTrigger, BadgeTabs } from '@/components/ui/Tabs';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
@@ -35,6 +35,7 @@ interface Estimate {
     createdAt?: string;
     updatedAt?: string;
     syncedToAppSheet?: boolean;
+    signedContracts?: any[];
 }
 
 
@@ -65,6 +66,7 @@ export default function EstimatesPage() {
     const [employees, setEmployees] = useState<any[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
+    const [wonConfirmationId, setWonConfirmationId] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -116,6 +118,27 @@ export default function EstimatesPage() {
         // Find original item to allow revert on failure
         const item = estimates.find(e => e._id === id);
         if (!item) return;
+
+        // Apply rules
+        if (newStatus === 'Won') {
+            if (!item.fringe) {
+                toastError("Please select a Fringe Rate in the estimate details first.");
+                return;
+            }
+            if (!item.signedContracts || item.signedContracts.length === 0) {
+                toastError("Please upload a Signed Contract in the estimate details first.");
+                return;
+            }
+            setWonConfirmationId(id);
+            setStatusDropdownId(null);
+            return;
+        }
+
+        if (newStatus === 'Completed' && item.status !== 'Won') {
+            toastError("Estimate must be Won before marking as Completed");
+            return;
+        }
+
         const originalStatus = item.status;
 
         // 1. Optimistic UI Update
@@ -927,8 +950,11 @@ export default function EstimatesPage() {
                                                         >
                                                             <Badge 
                                                                 {...getBadgeProps('Status', est.status || 'draft')} 
-                                                                className="text-[10px] px-2 py-0 cursor-pointer hover:opacity-80 transition-opacity"
+                                                                className="text-[10px] px-2 py-0 cursor-pointer hover:opacity-80 transition-opacity flex items-center gap-1"
                                                             >
+                                                                {['Won', 'Completed'].includes(est.status || '') && (
+                                                                    <Lock className="w-2.5 h-2.5" />
+                                                                )}
                                                                 {est.status || 'draft'}
                                                             </Badge>
                                                         </div>
@@ -936,7 +962,16 @@ export default function EstimatesPage() {
                                                             isOpen={statusDropdownId === est._id}
                                                             onClose={() => setStatusDropdownId(null)}
                                                             anchorId={`status-trigger-${est._id}`}
-                                                            options={statusOptions}
+                                                            options={statusOptions.map(opt => ({
+                                                                ...opt,
+                                                                disabled: (opt.value === 'Completed' && est.status !== 'Won') || 
+                                                                          (['Won', 'Completed'].includes(est.status || '') && opt.value !== est.status && !(est.status === 'Won' && opt.value === 'Completed')),
+                                                                tooltip: opt.value === 'Completed' && est.status !== 'Won' 
+                                                                    ? 'Must be Won first' 
+                                                                    : (['Won', 'Completed'].includes(est.status || '') && opt.value !== est.status && !(est.status === 'Won' && opt.value === 'Completed'))
+                                                                        ? 'Status is locked'
+                                                                        : undefined
+                                                            }))}
                                                             selectedValues={est.status ? [est.status] : []}
                                                             onSelect={(val) => handleStatusUpdate(est._id, val)}
                                                             width="w-40"
@@ -1060,6 +1095,89 @@ export default function EstimatesPage() {
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </Modal>
+
+                {/* Won Status Confirmation Modal */}
+                <Modal
+                    isOpen={!!wonConfirmationId}
+                    onClose={() => setWonConfirmationId(null)}
+                    title="Confirm Job Win"
+                    footer={(
+                        <div className="flex justify-end gap-3 w-full">
+                            <Button variant="ghost" onClick={() => setWonConfirmationId(null)}>Cancel</Button>
+                            <Button 
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white"
+                                onClick={async () => {
+                                    const id = wonConfirmationId!;
+                                    const item = estimates.find(e => e._id === id);
+                                    if (!item) return;
+                                    const originalStatus = item.status;
+                                    
+                                    // Optimistic
+                                    setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: 'Won' } : e));
+                                    setWonConfirmationId(null);
+
+                                    try {
+                                        const res = await fetch('/api/webhook/devcoBackend', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({ 
+                                                action: 'updateEstimate', 
+                                                payload: { 
+                                                    id, 
+                                                    status: 'Won',
+                                                    updatedBy: currentUserEmail 
+                                                } 
+                                            })
+                                        });
+                                        const data = await res.json();
+                                        if (data.success) {
+                                            success("Status updated to Won! Fringe Rate Locked.");
+                                        } else {
+                                            setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: originalStatus } : e));
+                                            toastError('Failed to update status');
+                                        }
+                                    } catch (err) {
+                                        console.error(err);
+                                        setEstimates(prev => prev.map(e => e._id === id ? { ...e, status: originalStatus } : e));
+                                        toastError('Error updating status');
+                                    }
+                                }}
+                            >
+                                Confirm & Lock
+                            </Button>
+                        </div>
+                    )}
+                >
+                    <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+                        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-2">
+                            <Plus className="w-8 h-8 text-emerald-600" />
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <h3 className="text-lg font-bold text-slate-800">
+                                Congratulations on the Win!
+                            </h3>
+                            <p className="text-sm text-slate-500 max-w-[280px] mx-auto leading-relaxed">
+                                You are about to set the status to <span className="font-bold text-emerald-600">Won</span>.
+                            </p>
+                        </div>
+
+                        {wonConfirmationId && (
+                            <div className="bg-slate-50 rounded-xl p-4 w-full border border-slate-100 mt-2">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                    Confirmed Fringe Rate
+                                </p>
+                                <p className="text-xl font-black text-[#0F4C75]">
+                                    {estimates.find(e => e._id === wonConfirmationId)?.fringe || 'None'}
+                                </p>
+                            </div>
+                        )}
+
+                        <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
+                            <span className="mr-1">⚠️</span> This will lock the Fringe Rate
+                        </p>
                     </div>
                 </Modal>
         </div>
