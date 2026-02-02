@@ -1782,7 +1782,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex flex-col h-[400px] md:h-[500px] relative">
 
                          <div 
-                            className="flex-1 overflow-y-auto overscroll-contain space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
+                            className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
                             ref={chatScrollRef}
                          >
                             {chatMessages.length === 0 ? (
@@ -2167,7 +2167,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                     
                     
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
                         {/* Hidden file inputs for COI and Legal Docs */}
                         <input 
                             type="file" 
@@ -2463,7 +2463,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-3">
                             {billingTickets.length > 0 ? billingTickets.map((item: any, idx: number) => (
                                 <div 
@@ -2580,7 +2580,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
                          <div className="grid grid-cols-1 gap-3">
                             {releases.length > 0 ? releases.map((item: any, idx: number) => (
                                 <div 
@@ -2672,7 +2672,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </span>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
 
                         <div className="grid grid-cols-1 gap-3">
                             {certifiedPayrollDocs.length > 0 ? certifiedPayrollDocs.map((docName, idx) => (
@@ -2710,7 +2710,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
 
                         <div className="grid grid-cols-1 gap-3">
                             {jobPlanningDocs.length > 0 ? jobPlanningDocs.map((item: any, idx: number) => (
@@ -2824,7 +2824,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
 
                         <div className="grid grid-cols-1 gap-3">
                             {signedContracts.length > 0 ? signedContracts.map((contract: any, idx: number) => (
@@ -2905,7 +2905,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto overscroll-contain">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
 
                         <div className="grid grid-cols-3 gap-1 mb-4 pb-3 border-b border-slate-200/50">
                             {(() => {

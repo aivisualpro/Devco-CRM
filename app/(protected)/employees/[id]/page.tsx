@@ -7,6 +7,8 @@ import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, Underline
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 // Types (Mirrors Employee Interface)
 interface Employee {
@@ -61,6 +63,8 @@ export default function EmployeeViewPage() {
     const params = useParams();
     const id = decodeURIComponent(params.id as string);
     const { success, error: toastError } = useToast();
+    const { can } = usePermissions();
+    const canViewEmployees = can(MODULES.EMPLOYEES, ACTIONS.VIEW);
 
     const [employee, setEmployee] = useState<Employee | null>(null);
     const [loading, setLoading] = useState(true);
@@ -252,7 +256,7 @@ export default function EmployeeViewPage() {
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <button
-                                onClick={() => router.push('/employees')}
+                                onClick={() => canViewEmployees ? router.push('/employees') : router.push('/')}
                                 className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
                             >
                                 <ArrowLeft className="w-5 h-5" />

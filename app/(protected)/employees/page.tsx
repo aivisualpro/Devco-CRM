@@ -201,12 +201,20 @@ const RoleBadge = ({ value, color }: { value: string, color?: string }) => {
 export default function EmployeesPage() {
     const router = useRouter();
     const { success, error } = useToast();
-    const { can } = usePermissions();
+    const { can, loading: permsLoading } = usePermissions();
     
     // Permissions
     const canCreate = can(MODULES.EMPLOYEES, ACTIONS.CREATE);
     const canEdit = can(MODULES.EMPLOYEES, ACTIONS.EDIT);
     const canDelete = can(MODULES.EMPLOYEES, ACTIONS.DELETE);
+    const canView = can(MODULES.EMPLOYEES, ACTIONS.VIEW);
+
+    useEffect(() => {
+        if (!permsLoading && !canView) {
+             router.push('/');
+        }
+    }, [permsLoading, canView, router]);
+
 
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [roles, setRoles] = useState<any[]>([]);
@@ -266,9 +274,11 @@ export default function EmployeesPage() {
     }
 
     useEffect(() => {
-        fetchEmployees();
-        fetchRoles();
-    }, []);
+        if (canView) {
+            fetchEmployees();
+            fetchRoles();
+        }
+    }, [canView]);
 
 
     const [sortConfig, setSortConfig] = useState<{ key: keyof Employee | 'name'; direction: 'asc' | 'desc' } | null>({ key: 'name', direction: 'asc' });
