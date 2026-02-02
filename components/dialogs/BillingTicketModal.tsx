@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    FileText, Loader2, Paperclip, X, Image as ImageIcon, Check, User, Plus 
+    FileText, Loader2, Paperclip, X, Image as ImageIcon, Check, User, Plus, ChevronDown 
 } from 'lucide-react';
 import { Modal, Input, Button, MyDropDown } from '@/components/ui';
 import { format } from 'date-fns';
@@ -74,6 +74,7 @@ export const BillingTicketModal: React.FC<ReceiptModalProps> = ({
 
     const [ticket, setTicket] = useState<BillingTicketData>(defaultState);
     const [isUploading, setIsUploading] = useState(false);
+    const [isBillingTermsOpen, setIsBillingTermsOpen] = useState(false);
 
     // Initialize state when modal opens or initialData changes
     useEffect(() => {
@@ -110,6 +111,8 @@ export const BillingTicketModal: React.FC<ReceiptModalProps> = ({
         description: e.email
     }));
 
+    const billingTermsOptions = ['COD', 'Net 30', 'Net 45', 'Net 60', 'Other'];
+
     // Handle Upload
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || []);
@@ -145,7 +148,8 @@ export const BillingTicketModal: React.FC<ReceiptModalProps> = ({
                     uploaded.push({
                         name: file.name,
                         url: data.result.url,
-                        type: file.type
+                        type: file.type,
+                        thumbnailUrl: data.result.thumbnailUrl
                     });
                 } else {
                     toast.error(`Failed to upload ${file.name}`);
@@ -160,185 +164,230 @@ export const BillingTicketModal: React.FC<ReceiptModalProps> = ({
         setIsUploading(false);
     };
 
+    const addTitleDescription = () => {
+        setTicket(prev => ({
+            ...prev,
+            titleDescriptions: [...prev.titleDescriptions, { title: '', description: '' }]
+        }));
+    };
 
+    const updateTitleDescription = (index: number, field: 'title' | 'description', value: string) => {
+        setTicket(prev => ({
+            ...prev,
+            titleDescriptions: prev.titleDescriptions.map((td, i) =>
+                i === index ? { ...td, [field]: value } : td
+            )
+        }));
+    };
+
+    const removeTitleDescription = (index: number) => {
+        setTicket(prev => ({
+            ...prev,
+            titleDescriptions: prev.titleDescriptions.filter((_, i) => i !== index)
+        }));
+    };
 
     return (
-        <>
-            <Modal
-                isOpen={isOpen}
-                onClose={onClose}
-                title={initialData && initialData._id ? "Edit Billing Ticket" : "Add Billing Ticket"}
-                maxWidth="2xl"
-                footer={
-                    <div className="flex gap-3 justify-end w-full">
-                        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                        <Button 
-                            onClick={() => onSave(ticket)} 
-                            disabled={!ticket.lumpSum}
-                        >
-                            Save Ticket
-                        </Button>
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            title={initialData && initialData._id ? "Edit Billing Ticket" : "Add Billing Ticket"}
+            maxWidth="2xl"
+            footer={
+                <div className="flex gap-3 justify-end w-full">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button 
+                        onClick={() => onSave(ticket)} 
+                        disabled={!ticket.lumpSum}
+                    >
+                        Save Billing Ticket
+                    </Button>
+                </div>
+            }
+        >
+            <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-2">
+                {/* Inject Children (Estimate Selector) if any */}
+                {children}
+
+                {/* Row 1: Date, Billing Terms, Lump Sum */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
+                        <Input 
+                            type="date"
+                            value={ticket.date}
+                            onChange={e => setTicket(prev => ({ ...prev, date: e.target.value }))}
+                        />
                     </div>
-                }
-            >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                        {/* Inject any additional children (e.g. Estimate Selector) first */}
-                        {children}
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
-                                <Input 
-                                    type="date"
-                                    value={ticket.date}
-                                    onChange={e => setTicket(prev => ({ ...prev, date: e.target.value }))}
-                                />
-                            </div>
-                           <div className="space-y-1.5">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Lump Sum ($)</label>
-                                <Input 
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={ticket.lumpSum}
-                                    onChange={e => setTicket(prev => ({ ...prev, lumpSum: e.target.value }))}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Billing Terms</label>
-                            <select 
-                                value={ticket.billingTerms}
-                                onChange={e => setTicket(prev => ({ ...prev, billingTerms: e.target.value }))}
-                                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Billing Terms</label>
+                        <div className="relative">
+                            <button
+                                id="modal-billing-terms-trigger"
+                                onClick={() => setIsBillingTermsOpen(!isBillingTermsOpen)}
+                                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between"
                             >
-                                <option value="">Select Terms...</option>
-                                <option value="COD">COD</option>
-                                <option value="Net 30">Net 30</option>
-                                <option value="Net 45">Net 45</option>
-                                <option value="Net 60">Net 60</option>
-                                <option value="Other">Other</option>
-                            </select>
-                            {ticket.billingTerms === 'Other' && (
-                                <Input 
-                                    placeholder="Specify terms..."
-                                    value={ticket.otherBillingTerms}
-                                    onChange={e => setTicket(prev => ({ ...prev, otherBillingTerms: e.target.value }))}
-                                    className="mt-2"
-                                />
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Title & Descriptions</label>
-                            {(ticket.titleDescriptions || []).map((item, idx) => (
-                                <div key={idx} className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2 relative group">
-                                    <Input 
-                                        placeholder="Title"
-                                        value={item.title}
-                                        onChange={e => {
-                                            const newTD = [...ticket.titleDescriptions];
-                                            newTD[idx].title = e.target.value;
-                                            setTicket(prev => ({ ...prev, titleDescriptions: newTD }));
-                                        }}
-                                        className="font-bold text-xs"
-                                    />
-                                    <textarea 
-                                        placeholder="Description..."
-                                        value={item.description}
-                                        onChange={e => {
-                                            const newTD = [...ticket.titleDescriptions];
-                                            newTD[idx].description = e.target.value;
-                                            setTicket(prev => ({ ...prev, titleDescriptions: newTD }));
-                                        }}
-                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-blue-500 outline-none h-16"
-                                    />
-                                    <button 
-                                        onClick={() => {
-                                            const newTD = ticket.titleDescriptions.filter((_, i) => i !== idx);
-                                            setTicket(prev => ({ ...prev, titleDescriptions: newTD }));
-                                        }}
-                                        className="absolute top-1 right-1 p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                    >
-                                        <X size={12} />
-                                    </button>
-                                </div>
-                            ))}
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setTicket(prev => ({ ...prev, titleDescriptions: [...prev.titleDescriptions, { title: '', description: '' }] }))}
-                                className="w-full text-xs"
-                            >
-                                <Plus size={12} className="mr-1" /> Add Section
-                            </Button>
+                                <span className={ticket.billingTerms ? "text-slate-700 font-medium" : "text-slate-400"}>
+                                    {ticket.billingTerms || "Select Terms"}
+                                </span>
+                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                            </button>
+                            <MyDropDown 
+                                isOpen={isBillingTermsOpen}
+                                onClose={() => setIsBillingTermsOpen(false)}
+                                anchorId="modal-billing-terms-trigger"
+                                options={billingTermsOptions.map(t => ({ id: t, label: t, value: t }))}
+                                selectedValues={ticket.billingTerms ? [ticket.billingTerms] : []}
+                                onSelect={(val) => {
+                                    setTicket(prev => ({ ...prev, billingTerms: val as string }));
+                                    setIsBillingTermsOpen(false);
+                                }}
+                                width="w-full"
+                            />
                         </div>
                     </div>
-
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Attachments</label>
-                            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/50 flex flex-col items-center justify-center gap-3 transition-colors hover:bg-slate-50 hover:border-slate-300 relative h-40">
-                                <input 
-                                    type="file" 
-                                    multiple 
-                                    onChange={handleFileUpload}
-                                    className="absolute inset-0 opacity-0 cursor-pointer"
-                                    disabled={isUploading}
-                                />
-                                {isUploading ? (
-                                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                                ) : (
-                                    <Paperclip className="w-8 h-8 text-slate-300" />
-                                )}
-                                <div className="text-center">
-                                    <p className="text-sm font-bold text-slate-600">Upload Files</p>
-                                    <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">Docs / Images</p>
-                                </div>
-                            </div>
-                            {(ticket.uploads || []).length > 0 && (
-                                <div className="grid grid-cols-1 gap-2 mt-2">
-                                    {ticket.uploads.map((file, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-2 bg-white rounded-xl border border-slate-100 shadow-sm">
-                                            <div className="flex items-center gap-2 overflow-hidden">
-                                                {file.type?.startsWith('image/') ? <ImageIcon className="w-3.5 h-3.5 text-blue-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
-                                                <span className="text-[10px] font-bold text-slate-600 truncate">{file.name}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => setTicket(prev => ({ ...prev, uploads: prev.uploads.filter((_, i) => i !== idx) }))}
-                                                className="p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
-                                            >
-                                                <X className="w-3.5 h-3.5" />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-
-                         {(initialData || ticket.createdBy) && (
-                            <div className="flex items-center gap-2 px-1 mt-4">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created By:</label>
-                                {(() => {
-                                    const creator = getEmployeeData(ticket.createdBy);
-                                    const creatorImage = creator?.profilePicture || creator?.image;
-                                    const creatorName = `${creator?.firstName || ''} ${creator?.lastName || ''}`.trim() || ticket.createdBy;
-
-                                    return (
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
-                                                {creatorImage ? <img src={creatorImage} className="w-full h-full object-cover" /> : <User className="w-3 h-3 text-slate-400" />}
-                                            </div>
-                                            <span className="text-[10px] font-bold text-slate-600">{creatorName}</span>
-                                        </div>
-                                    );
-                                })()}
-                            </div>
-                        )}
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Lump Sum ($)</label>
+                        <Input 
+                            type="number"
+                            placeholder="0.00"
+                            value={ticket.lumpSum}
+                            onChange={e => setTicket(prev => ({ ...prev, lumpSum: e.target.value }))}
+                        />
                     </div>
                 </div>
-            </Modal>
-        </>
+
+                {/* Other Billing Terms (visible only when Other is selected) */}
+                {ticket.billingTerms === 'Other' && (
+                    <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Other Billing Terms</label>
+                        <Input 
+                            type="text"
+                            placeholder="Specify billing terms"
+                            value={ticket.otherBillingTerms}
+                            onChange={e => setTicket(prev => ({ ...prev, otherBillingTerms: e.target.value }))}
+                        />
+                    </div>
+                )}
+
+                {/* Title & Descriptions */}
+                <div className="space-y-3 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                            Titles & Descriptions
+                        </label>
+                        <button 
+                            onClick={addTitleDescription}
+                            className="text-[10px] text-indigo-600 font-bold hover:underline"
+                        >
+                            + Add Title
+                        </button>
+                    </div>
+                    {ticket.titleDescriptions.map((td, i) => (
+                        <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative group">
+                            {ticket.titleDescriptions.length > 1 && (
+                                <button 
+                                    onClick={() => removeTitleDescription(i)}
+                                    className="absolute top-2 right-2 p-1 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                >
+                                    <X size={14}/>
+                                </button>
+                            )}
+                            <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase">Title</label>
+                                <Input 
+                                    type="text"
+                                    placeholder="Enter title"
+                                    value={td.title}
+                                    onChange={e => updateTitleDescription(i, 'title', e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase">Description</label>
+                                <textarea 
+                                    placeholder="Enter description..."
+                                    value={td.description}
+                                    onChange={e => updateTitleDescription(i, 'description', e.target.value)}
+                                    rows={6}
+                                    className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none min-h-[120px]"
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* File Uploads */}
+                <div className="space-y-2 pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                            Uploads (Images/Documents)
+                        </label>
+                        <label className="text-[10px] text-indigo-600 font-bold cursor-pointer hover:underline">
+                            + Add Files
+                            <input 
+                                type="file" 
+                                multiple 
+                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                                className="hidden" 
+                                onChange={handleFileUpload} 
+                            />
+                        </label>
+                    </div>
+                    {isUploading && (
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
+                        </div>
+                    )}
+                    {(ticket.uploads || []).length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                            {ticket.uploads.map((file, i) => (
+                                <div key={i} className="relative group">
+                                    {file.type?.startsWith('image') ? (
+                                        <img 
+                                            src={file.thumbnailUrl || file.url} 
+                                            alt={file.name}
+                                            className="w-16 h-16 object-cover rounded-lg border border-slate-200"
+                                        />
+                                    ) : (
+                                        <div className="w-16 h-16 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
+                                            <FileText className="w-6 h-6 text-slate-400" />
+                                        </div>
+                                    )}
+                                    <button 
+                                        onClick={() => setTicket(prev => ({ ...prev, uploads: prev.uploads.filter((_, idx) => idx !== i) }))}
+                                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                    <span className="text-[8px] text-slate-500 truncate block max-w-[64px] text-center">{file.name}</span>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-[10px] text-slate-400 italic">No files uploaded</p>
+                    )}
+                </div>
+
+                {(initialData || ticket.createdBy) && (
+                    <div className="flex items-center gap-2 px-1 mt-4 pt-3 border-t border-slate-100">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Created By:</label>
+                        {(() => {
+                            const creator = getEmployeeData(ticket.createdBy);
+                            const creatorImage = creator?.profilePicture || creator?.image;
+                            const creatorName = `${creator?.firstName || ''} ${creator?.lastName || ''}`.trim() || ticket.createdBy;
+
+                            return (
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
+                                        {creatorImage ? <img src={creatorImage} className="w-full h-full object-cover" /> : <User className="w-3 h-3 text-slate-400" />}
+                                    </div>
+                                    <span className="text-[10px] font-bold text-slate-600">{creatorName}</span>
+                                </div>
+                            );
+                        })()}
+                    </div>
+                )}
+            </div>
+        </Modal>
     );
 };

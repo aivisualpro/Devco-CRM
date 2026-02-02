@@ -81,8 +81,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [selectedViewContract, setSelectedViewContract] = useState<any>(null);
     const [contractIndexToDelete, setContractIndexToDelete] = useState<number | null>(null);
 
-    // Aggregated Receipts State
+    // Aggregated Receipts & Billing Tickets State
     const [aggregatedReceipts, setAggregatedReceipts] = useState<any[]>([]);
+    const [aggregatedBillingTickets, setAggregatedBillingTickets] = useState<any[]>([]); // New State
     const [loadingReceipts, setLoadingReceipts] = useState(false);
 
     useEffect(() => {
@@ -90,7 +91,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             if (!formData?.estimate) return;
             setLoadingReceipts(true);
             try {
-                // Fetch all estimates to aggregate receipts across versions
+                // Fetch all estimates to aggregate receipts and billing tickets across versions
                 const res = await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -100,8 +101,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 
                 if (data.success && Array.isArray(data.result)) {
                     // Filter for all versions of this estimate number
-                    const relevantEstimates = data.result.filter((e: any) => e.estimate === formData.estimate);
+                    const relevantEstimates = data.result.filter((e: any) => String(e.estimate || '').trim() === String(formData.estimate || '').trim());
+                    console.log('[EstimateDocsCard] Aggregating from estimates:', relevantEstimates.length, 'for', formData.estimate);
                     
+                    // --- Aggregating Receipts ---
                     let allR: any[] = [];
                     const addedIds = new Set<string>();
                     const addedKeys = new Set<string>();
@@ -142,16 +145,53 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     // Sort by Date Descending
                     allR.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
                     setAggregatedReceipts(allR);
+
+                    // --- Aggregating Billing Tickets ---
+                    let allB: any[] = [];
+                    const addedBillingIds = new Set<string>();
+                    const addedBillingKeys = new Set<string>();
+
+                    const addUniqueBilling = (list: any[]) => {
+                        list.forEach(item => {
+                            if (!item) return;
+                            if (item._id) {
+                                if (!addedBillingIds.has(item._id)) {
+                                    addedBillingIds.add(item._id);
+                                    allB.push(item);
+                                }
+                            } else {
+                                const key = `${item.date}|${item.lumpSum}|${item.billingTerms}`;
+                                if (!addedBillingKeys.has(key)) {
+                                    addedBillingKeys.add(key);
+                                    allB.push(item);
+                                }
+                            }
+                        });
+                    };
+
+                    if (formData.billingTickets) {
+                        addUniqueBilling(formData.billingTickets);
+                    }
+
+                    relevantEstimates.forEach((est: any) => {
+                        if (est.billingTickets && Array.isArray(est.billingTickets)) {
+                            addUniqueBilling(est.billingTickets);
+                        }
+                    });
+
+                    allB.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+                    console.log('[EstimateDocsCard] Aggregated Billing Tickets:', allB);
+                    setAggregatedBillingTickets(allB);
                 }
             } catch (err) {
-                console.error("Failed to fetch aggregated receipts", err);
+                console.error("Failed to fetch aggregated data", err);
             } finally {
                 setLoadingReceipts(false);
             }
         };
 
         fetchAllVersions();
-    }, [formData?.estimate, formData?.receiptsAndCosts]); // Re-run if main formData changes
+    }, [formData?.estimate, formData?.receiptsAndCosts, formData?.billingTickets]); // Re-run if main formData changes
 
     const prelimDocs = [
         '20 Day Prelim',
@@ -566,7 +606,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     // Billing Tickets State
-    const billingTickets = formData?.billingTickets || [];
+    // Billing Tickets State
+    const billingTickets = aggregatedBillingTickets.length > 0 ? aggregatedBillingTickets : (formData?.billingTickets || []);
     const [isBillingTicketModalOpen, setIsBillingTicketModalOpen] = useState(false);
     const [isBillingTermsOpen, setIsBillingTermsOpen] = useState(false);
     const [editingBillingTicketIndex, setEditingBillingTicketIndex] = useState<number | null>(null);
@@ -601,13 +642,55 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const handleEditBillingTicket = (index: number, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         const item = billingTickets[index];
+        
+        // 1. Sanitize Lump Sum (strip $ and commas)
+        let safeLumpSum = '';
+        if (item.lumpSum || item.amount) {
+            safeLumpSum = String(item.lumpSum || item.amount).replace(/[^0-9.]/g, '');
+        }
+
+        // 2. Resolve Billing Terms
+        // If the term is non-standard, we treat it as "Other" and put the text in otherBillingTerms
+        const standardOptions = ['COD', 'Net 30', 'Net 45', 'Net 60'];
+        let safeBillingTerms = '';
+        let safeOtherBillingTerms = item.otherBillingTerms || '';
+        
+        const rawTerm = (item.billingTerms || item.term || '').trim();
+
+        if (rawTerm) {
+            if (standardOptions.includes(rawTerm)) {
+                safeBillingTerms = rawTerm;
+            } else if (rawTerm.toLowerCase() === 'other') {
+                safeBillingTerms = 'Other';
+            } else {
+                // It's a custom term
+                safeBillingTerms = 'Other';
+                // Only overwrite otherBillingTerms if it wasn't already set to something else
+                if (!safeOtherBillingTerms) {
+                    safeOtherBillingTerms = rawTerm;
+                }
+            }
+        } else if (safeOtherBillingTerms) {
+            // No main term, but we have other terms -> force "Other"
+            safeBillingTerms = 'Other';
+        }
+
+        // 3. Robust Date Parsing
+        let safeDate = format(new Date(), 'yyyy-MM-dd');
+        if (item.date) {
+            const parsed = new Date(item.date);
+            if (!isNaN(parsed.getTime())) {
+                safeDate = format(parsed, 'yyyy-MM-dd');
+            }
+        }
+
         setNewBillingTicket({
-            date: item.date || format(new Date(), 'yyyy-MM-dd'),
-            billingTerms: item.billingTerms || '',
-            otherBillingTerms: item.otherBillingTerms || '',
+            date: safeDate,
+            billingTerms: safeBillingTerms as any, // Cast to match strict union type
+            otherBillingTerms: safeOtherBillingTerms,
             uploads: item.uploads || [],
             titleDescriptions: item.titleDescriptions?.length ? item.titleDescriptions : [{ title: '', description: '' }],
-            lumpSum: item.lumpSum || '',
+            lumpSum: safeLumpSum,
             createdBy: item.createdBy || ''
         });
         setEditingBillingTicketIndex(index);
@@ -1662,7 +1745,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
 
                 {/* Column 0: Estimate Chat */}
-                <div className="space-y-4 flex flex-col h-full">
+                <div className="space-y-4">
                     <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-slate-700 to-slate-800 text-white flex items-center justify-center shadow-md">
                             <MessageSquare className="w-4 h-4" />
@@ -1676,7 +1759,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                     
                     
-                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex-1 flex flex-col h-[500px] relative">
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex flex-col h-[500px] relative">
 
                          <div 
                             className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
@@ -2380,54 +2463,54 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     )}
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
-                                            {item.billingTerms && (
-                                                <p className="text-[10px] font-bold text-indigo-500">
-                                                    {item.billingTerms === 'Other' ? item.otherBillingTerms : item.billingTerms}
-                                                </p>
-                                            )}
-                                            {item.date && (
-                                                <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
-                                            )}
-                                        </div>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setBillingTicketToDelete(idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDocClick('Billing Ticket', idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-12"
-                                            title="Download PDF"
-                                        >
-                                            {generatingDoc === 'Billing Ticket' ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                                            ) : (
-                                                <Download className="w-3.5 h-3.5" />
-                                            )}
-                                        </button>
-                                        <button 
-                                            onClick={(e) => handleEditBillingTicket(idx, e)}
-                                            className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
-                                        >
-                                            <Pencil className="w-3.5 h-3.5" />
-                                        </button>
-                                    </div>
-                                    
-                                    {item.lumpSum && (
-                                        <div className="mt-2 flex items-center gap-2">
-                                            <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
-                                            <span className="text-xs font-black text-green-600">
-                                                ${parseFloat(item.lumpSum).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                            </span>
-                                        </div>
+                                    {(item.billingTerms || item.otherBillingTerms) && (
+                                        <p className="text-[10px] font-bold text-indigo-500">
+                                            {(!item.billingTerms || item.billingTerms === 'Other') ? (item.otherBillingTerms || item.billingTerms) : item.billingTerms}
+                                        </p>
                                     )}
+                                    {item.date && (
+                                        <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
+                                    )}
+                                </div>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBillingTicketToDelete(idx);
+                                    }}
+                                    className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDocClick('Billing Ticket', idx);
+                                    }}
+                                    className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-12"
+                                    title="Download PDF"
+                                >
+                                    {generatingDoc === 'Billing Ticket' ? (
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                                    ) : (
+                                        <Download className="w-3.5 h-3.5" />
+                                    )}
+                                </button>
+                                <button 
+                                    onClick={(e) => handleEditBillingTicket(idx, e)}
+                                    className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
+                                >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                            
+                            {(item.lumpSum || item.amount) && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
+                                    <span className="text-xs font-black text-green-600">
+                                        ${parseFloat(String(item.lumpSum || item.amount).replace(/[^0-9.-]+/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                </div>
+                            )}
 
                                     {item.titleDescriptions?.length > 0 && (
                                         <div className="mt-2 space-y-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">

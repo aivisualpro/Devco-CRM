@@ -581,10 +581,54 @@ export default function ImportsPage() {
                 const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
                 if (!data || data.length === 0) throw new Error("No data found in CSV");
 
+                const processedData = data.map((row: any) => {
+                    // Normalize keys to lowercase and trim
+                    const normalizedRow: Record<string, any> = {};
+                    Object.keys(row).forEach(key => {
+                        const cleanKey = key.toLowerCase().trim().replace(/[\s_#]/g, ''); // remove spaces, _, #
+                        normalizedRow[cleanKey] = row[key];
+                    });
+
+                    const cleanRow: any = { ...row };
+
+                    // 1. Normalize Billing Terms
+                    const termVal = normalizedRow['billingterms'] || 
+                                    normalizedRow['terms'] || 
+                                    normalizedRow['term'];
+                    if (termVal) cleanRow.billingTerms = termVal;
+
+                    // 2. Normalize Lump Sum
+                    const sumVal = normalizedRow['lumpsum'] || 
+                                   normalizedRow['amount'] || 
+                                   normalizedRow['cost'] || 
+                                   normalizedRow['price'];
+                    if (sumVal) cleanRow.lumpSum = sumVal;
+
+                    // 3. Normalize Estimate #
+                    const estVal = normalizedRow['estimate'] || 
+                                   normalizedRow['estimatenumber'] || 
+                                   normalizedRow['proposal'] || 
+                                   normalizedRow['proposalnumber'];
+                    if (estVal) cleanRow.estimate = estVal;
+
+                    // 4. Normalize Title Descriptions
+                    // If 'description' field exists and no titleDescriptions, use it
+                    const descVal = normalizedRow['description'] || normalizedRow['desc'];
+                    const existingTD = normalizedRow['titledescriptions'];
+
+                    if (!existingTD && descVal) {
+                        cleanRow.titleDescriptions = JSON.stringify([{ title: '', description: descVal }]);
+                    } else if (existingTD) {
+                        cleanRow.titleDescriptions = existingTD;
+                    }
+
+                    return cleanRow;
+                });
+
                 const res = await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'importBillingTickets', payload: { records: data } })
+                    body: JSON.stringify({ action: 'importBillingTickets', payload: { records: processedData } })
                 });
                 const resData = await res.json();
                 if (resData.success) {

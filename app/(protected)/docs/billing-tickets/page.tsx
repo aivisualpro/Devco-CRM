@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { 
     Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, 
     MoreVertical, Pencil, Trash2, Calendar, FileText, 
-    Link, Upload, Loader2, ChevronDown, Check, User, DollarSign, Image as ImageIcon
+    Link, Upload, Loader2, ChevronDown, Check, User, DollarSign, Image as ImageIcon, Download
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -54,6 +54,8 @@ interface FlatBillingTicket extends BillingTicketItem {
     estimateNumber: string;
     projectName: string;
 }
+
+const BILLING_TICKET_TEMPLATE_ID = '10I-srE4jryX1mGOEeTRsRPxyWTmmyIl_p51olERbctQ';
 
 export default function BillingTicketsPage() {
     const router = useRouter();
@@ -153,8 +155,13 @@ export default function BillingTicketsPage() {
         }
 
         result.sort((a: any, b: any) => {
-            const valA = a[sortConfig.key];
-            const valB = b[sortConfig.key];
+            let valA = a[sortConfig.key];
+            let valB = b[sortConfig.key];
+
+            if (sortConfig.key === 'date') {
+                valA = new Date(valA).getTime();
+                valB = new Date(valB).getTime();
+            }
 
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -181,6 +188,101 @@ export default function BillingTicketsPage() {
         setEditingTicket(null);
         setSelectedEstimateId('');
         setIsModalOpen(true);
+    };
+
+    const handleDownloadPdf = async (ticket: FlatBillingTicket) => {
+        const est = estimates.find(e => e._id === ticket.estimateId);
+        if (!est) {
+            toast.error('Estimate data not found');
+            return;
+        }
+
+        const toastId = toast.loading('Generating PDF...');
+
+        try {
+            // Construct variables (reused mapping logic)
+            const variables: Record<string, any> = {
+                // Job Info
+                jobAddress: est.jobAddress || '',
+                projectDescription: est.projectDescription || '',
+                prelimAmount: est.prelimAmount || '',
+                date: ticket.date ? new Date(ticket.date).toLocaleDateString() : '',
+                day: ticket.date ? format(new Date(ticket.date), 'EEEE') : '',
+                today: new Date().toLocaleDateString(),
+                
+                // Addresses/Names
+                poName: est.poName || '', PoAddress: est.PoAddress || '', PoPhone: est.PoPhone || '',
+                ocName: est.ocName || '', ocAddress: est.ocAddress || '', ocPhone: est.ocPhone || '',
+                subCName: est.subCName || '', subCAddress: est.subCAddress || '', subCPhone: est.subCPhone || '',
+                liName: est.liName || '', liAddress: est.liAddress || '', liPhone: est.liPhone || '',
+                scName: est.scName || '', scAddress: est.scAddress || '', scPhone: est.scPhone || '',
+                bondNumber: est.bondNumber || '',
+                fbName: est.fbName || '', fbAddress: est.fbAddress || '',
+                
+                // Customer/Project
+                customerName: est.customerName || '',
+                projectName: est.projectName || '',
+                estimate: est.estimate || '',
+                projectId: est.projectId || '',
+                customerJobNo: est.customerJobNo || '',
+
+                // Billing Ticket Specifics
+                billingTerms: ticket.billingTerms || '',
+                otherBillingTerms: ticket.otherBillingTerms || '',
+                lumpSum: ticket.lumpSum ? `$${parseFloat(String(ticket.lumpSum).replace(/[^0-9.-]+/g, '')).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '',
+            };
+
+            // Enhanced Billing Ticket Details with Formatting
+            if (ticket.titleDescriptions && ticket.titleDescriptions.length > 0) {
+                 variables.billingTicketDetails = ticket.titleDescriptions.map((td: any) => {
+                    let itemStr = '';
+                    if (td.title && td.title.trim()) {
+                        itemStr = `● [B][S+]${td.title.trim()}[/S+][/B]`;
+                    }
+                    if (td.description && td.description.trim()) {
+                        const indented = td.description.split('\n').map((l: string) => `   ○ ${l}`).join('\n');
+                        itemStr = itemStr ? `${itemStr}\n${indented}` : indented;
+                    }
+                    return itemStr;
+                }).filter((s: string) => s).join('\n\n');
+            }
+
+            // Creator / Signer Logic
+            const creator = employees.find(e => e.email === ticket.createdBy || e._id === ticket.createdBy);
+            if (creator) {
+                variables.createdBy = `${creator.firstName || ''} ${creator.lastName || ''}`.trim();
+                variables.signature = creator.signature || '';
+                variables.companyPosition = creator.companyPosition || '';
+            }
+
+            const response = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    templateId: BILLING_TICKET_TEMPLATE_ID, 
+                    variables 
+                })
+            });
+
+            if (!response.ok) throw new Error('Generation failed');
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `BillingTicket_${est.estimate}_${ticket.date}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+            
+            toast.dismiss(toastId);
+            toast.success('PDF Downloaded');
+        } catch (err) {
+            console.error(err);
+            toast.dismiss(toastId);
+            toast.error('Failed to generate PDF');
+        }
     };
 
     const handleSave = async (data: BillingTicketData) => {
@@ -408,16 +510,15 @@ export default function BillingTicketsPage() {
                                 </TableHeader>
                                 <TableHeader className="w-[120px]">Term</TableHeader>
                                 <TableHeader className="min-w-[150px]">Lump Sum</TableHeader>
-                                <TableHeader className="min-w-[150px]">Title</TableHeader>
                                 <TableHeader className="w-[120px]">Created By</TableHeader>
-                                <TableHeader className="w-[60px] text-center">Docs</TableHeader>
+                                <TableHeader className="min-w-[100px] text-center">Docs</TableHeader>
                                 <TableHeader className="w-[80px] text-right">Actions</TableHeader>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-48 text-center text-slate-500">
+                                    <TableCell colSpan={8} className="h-48 text-center text-slate-500">
                                         <div className="flex flex-col items-center gap-2">
                                             <Loader2 className="animate-spin text-[#0F4C75]" />
                                             Loading tickets...
@@ -426,7 +527,7 @@ export default function BillingTicketsPage() {
                                 </TableRow>
                             ) : filteredTickets.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={9} className="h-48 text-center text-slate-500">
+                                    <TableCell colSpan={8} className="h-48 text-center text-slate-500">
                                         No billing tickets found.
                                     </TableCell>
                                 </TableRow>
@@ -438,31 +539,29 @@ export default function BillingTicketsPage() {
                                         {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
                                     </TableCell>
                                     <TableCell>
-                                        <span 
-                                            className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                            onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
-                                        >
-                                            {ticket.estimateNumber || 'N/A'}
-                                        </span>
+                                        {can(MODULES.ESTIMATES, ACTIONS.VIEW) ? (
+                                            <span 
+                                                className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
+                                                onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
+                                            >
+                                                {ticket.estimateNumber || 'N/A'}
+                                            </span>
+                                        ) : (
+                                            <span className="font-semibold text-slate-700 text-xs">
+                                                {ticket.estimateNumber || 'N/A'}
+                                            </span>
+                                        )}
                                     </TableCell>
                                     <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={ticket.projectName}>
                                         {ticket.projectName || '-'}
                                     </TableCell>
                                     <TableCell className="text-xs text-slate-700">
-                                        {ticket.billingTerms === 'Other' ? ticket.otherBillingTerms : (ticket.billingTerms || '-')}
+                                        {(ticket.billingTerms === 'Other' || !ticket.billingTerms) 
+                                            ? (ticket.otherBillingTerms || ticket.billingTerms || '-') 
+                                            : ticket.billingTerms}
                                     </TableCell>
                                     <TableCell className="font-mono text-xs text-slate-700 font-bold">
                                          {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-500 max-w-[200px] truncate">
-                                        {(ticket.titleDescriptions && ticket.titleDescriptions.length > 0) ? (
-                                            <div className="flex items-center gap-1">
-                                                <span className="truncate">{ticket.titleDescriptions[0].title}</span>
-                                                {ticket.titleDescriptions.length > 1 && (
-                                                    <span className="text-[10px] bg-slate-100 px-1 rounded-full text-slate-500">+{ticket.titleDescriptions.length - 1}</span>
-                                                )}
-                                            </div>
-                                        ) : '-'}
                                     </TableCell>
                                     <TableCell>
                                         <div className="flex items-center gap-2">
@@ -484,49 +583,61 @@ export default function BillingTicketsPage() {
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                        {(!ticket.uploads || ticket.uploads.length === 0) ? (
-                                            <span className="text-slate-300 text-xs">-</span>
-                                        ) : ticket.uploads.length === 1 ? (
-                                            <a 
-                                                href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url} 
-                                                target="_blank" 
-                                                rel="noreferrer"
-                                                className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                                        <div className="flex items-center justify-center gap-2">
+                                            {/* Generate PDF Button */}
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-7 w-7 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" 
+                                                onClick={() => handleDownloadPdf(ticket)} 
+                                                title="Generate & Download PDF"
                                             >
-                                                <FileText size={16} />
-                                            </a>
-                                        ) : (
-                                            <Popover>
-                                                <PopoverTrigger>
-                                                     <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 cursor-pointer hover:bg-blue-100 transition-colors">
-                                                        <FileText size={16} />
-                                                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] text-white">
-                                                            {ticket.uploads.length}
-                                                        </span>
-                                                     </div>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="w-64 p-2">
-                                                    <div className="flex flex-col gap-1">
-                                                        {ticket.uploads.map((file: any, i: number) => {
-                                                            const url = typeof file === 'string' ? file : file.url;
-                                                            const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
-                                                            return (
-                                                                <a 
-                                                                    key={i} 
-                                                                    href={url} 
-                                                                    target="_blank" 
-                                                                    rel="noreferrer"
-                                                                    className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
-                                                                >
-                                                                    <Link size={12} className="shrink-0" /> 
-                                                                    <span className="line-clamp-2">{name}</span>
-                                                                </a>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </PopoverContent>
-                                            </Popover>
-                                        )}
+                                                <Download size={14} />
+                                            </Button>
+
+                                            {/* Existing Uploads */}
+                                            {(!ticket.uploads || ticket.uploads.length === 0) ? null : ticket.uploads.length === 1 ? (
+                                                <a 
+                                                    href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url} 
+                                                    target="_blank" 
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                                >
+                                                    <FileText size={14} />
+                                                </a>
+                                            ) : (
+                                                <Popover>
+                                                    <PopoverTrigger>
+                                                         <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors relative">
+                                                            <FileText size={14} />
+                                                            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 text-[8px] text-white">
+                                                                {ticket.uploads.length}
+                                                            </span>
+                                                         </div>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-64 p-2">
+                                                        <div className="flex flex-col gap-1">
+                                                            {ticket.uploads.map((file: any, i: number) => {
+                                                                const url = typeof file === 'string' ? file : file.url;
+                                                                const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
+                                                                return (
+                                                                    <a 
+                                                                        key={i} 
+                                                                        href={url} 
+                                                                        target="_blank" 
+                                                                        rel="noreferrer"
+                                                                        className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
+                                                                    >
+                                                                        <Link size={12} className="shrink-0" /> 
+                                                                        <span className="line-clamp-2">{name}</span>
+                                                                    </a>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
+                                        </div>
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -643,6 +754,6 @@ export default function BillingTicketsPage() {
 }
 
 const formatCurrency = (val: string | number) => {
-    const num = typeof val === 'string' ? parseFloat(val) : val;
+    const num = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.-]+/g, "")) : val;
     return isNaN(num) ? '-' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(num);
 };
