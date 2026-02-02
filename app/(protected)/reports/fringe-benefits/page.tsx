@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { 
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2,
-    Briefcase, Info, Search, List, Filter, Download, DollarSign
+    Briefcase, Info, Search, List, Filter, Download, DollarSign, BarChart3
 } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { 
@@ -166,7 +166,6 @@ export default function FringeBenefitsPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
     const [visibleRows, setVisibleRows] = useState(50);
-    const [viewMode, setViewMode] = useState<'hours' | 'amount'>('hours');
     const [groupingMode, setGroupingMode] = useState<'employee' | 'estimate'>('employee');
     const [includeDriveTime, setIncludeDriveTime] = useState(() => {
         const p = params.get('driveTime');
@@ -184,7 +183,7 @@ export default function FringeBenefitsPage() {
                     const filters = data.filters?.['fringe-benefits'];
                     if (filters) {
                          if (filters.groupingMode) setGroupingMode(filters.groupingMode);
-                         if (filters.viewMode) setViewMode(filters.viewMode);
+                         if (filters.groupingMode) setGroupingMode(filters.groupingMode);
                          if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
                             setIncludeDriveTime(filters.includeDriveTime);
                          }
@@ -219,7 +218,6 @@ export default function FringeBenefitsPage() {
         const timer = setTimeout(() => {
             const filters = {
                 groupingMode,
-                viewMode,
                 includeDriveTime,
                 selectedFringe,
                 startStr: startDate.toISOString(),
@@ -237,7 +235,7 @@ export default function FringeBenefitsPage() {
         }, 1000);
 
         return () => clearTimeout(timer);
-    }, [prefsLoaded, groupingMode, viewMode, includeDriveTime, selectedFringe, startDate, endDate]);
+    }, [prefsLoaded, groupingMode, includeDriveTime, selectedFringe, startDate, endDate]);
 
     // Sync URL with dates and filters
     useEffect(() => {
@@ -660,8 +658,8 @@ export default function FringeBenefitsPage() {
                             <div className="flex items-center gap-2">
                                 <Clock size={12} className="text-blue-500" />
                                 <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Hours</span>
-                                    <span className="text-[11px] font-bold text-slate-800">{tableData.reduce((acc, r: any) => acc + r.hoursVal, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Reg</span>
+                                    <span className="text-[11px] font-bold text-slate-800">{tableData.reduce((acc, r: any) => acc + r.regHrs, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
@@ -672,24 +670,17 @@ export default function FringeBenefitsPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                                <DollarSign size={12} className="text-emerald-500" />
+                                <RotateCcw size={12} className="text-red-500" />
                                 <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Reg Amt</span>
-                                    <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.regPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">DT</span>
+                                    <span className="text-[11px] font-bold text-slate-800">{tableData.reduce((acc, r: any) => acc + r.dtHrs, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                                <DollarSign size={12} className="text-orange-600" />
+                                <BarChart3 size={12} className="text-emerald-600" />
                                 <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">OT Amt</span>
-                                    <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.otPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                                <DollarSign size={12} className="text-emerald-700" />
-                                <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Total Amt</span>
-                                    <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.grossPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Total Hrs</span>
+                                    <span className="text-[11px] font-bold text-slate-800">{tableData.reduce((acc, r: any) => acc + r.hoursVal, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
@@ -697,6 +688,13 @@ export default function FringeBenefitsPage() {
                                 <div className="flex flex-col leading-none">
                                     <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Staff</span>
                                     <span className="text-[11px] font-bold text-slate-800">{new Set(tableData.map((r: any) => r.employee)).size}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                                <Briefcase size={12} className="text-violet-500" />
+                                <div className="flex flex-col leading-none">
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Estimates</span>
+                                    <span className="text-[11px] font-bold text-slate-800">{new Set(tableData.map((r: any) => r.estimateRef || r.estimate)).size}</span>
                                 </div>
                             </div>
                         </div>
@@ -728,20 +726,6 @@ export default function FringeBenefitsPage() {
                     <aside className="w-[320px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
                             <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Fringe Benefits</h3>
-                            <div className="flex bg-slate-200/50 p-0.5 rounded-lg">
-                                <button 
-                                    onClick={() => setViewMode('hours')}
-                                    className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${viewMode === 'hours' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    Hrs
-                                </button>
-                                <button 
-                                    onClick={() => setViewMode('amount')}
-                                    className={`px-2 py-0.5 text-[8px] font-bold rounded-md transition-all ${viewMode === 'amount' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    $
-                                </button>
-                            </div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1.5">
                             <button 
@@ -759,10 +743,7 @@ export default function FringeBenefitsPage() {
                                     <span className="text-xs font-semibold">All Fringe Types</span>
                                 </div>
                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                    {viewMode === 'amount' 
-                                        ? `$${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                                        : totals.hours.toLocaleString(undefined, { maximumFractionDigits: 1 })
-                                    }
+                                    {totals.hours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                                 </span>
                             </button>
 
@@ -793,10 +774,7 @@ export default function FringeBenefitsPage() {
                                         <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
                                     </div>
                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                        {viewMode === 'amount'
-                                            ? `$${group.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                                            : group.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })
-                                        }
+                                        {group.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                                     </span>
                                 </button>
                             ))}
@@ -812,15 +790,17 @@ export default function FringeBenefitsPage() {
                                             <>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-12 text-center">#</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">{groupingMode === 'employee' ? 'Employee' : 'Estimate'}</TableHeader>
+                                                {groupingMode === 'estimate' && (
+                                                    <>
+                                                        <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] max-w-[200px] text-left">Project</TableHeader>
+                                                        <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">Count</TableHeader>
+                                                    </>
+                                                )}
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-32">Fringe</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Reg Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">OT Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">DT Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Total Hrs</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">Reg Amt</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">OT Amt</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">DT Amt</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-32">Total Amount</TableHeader>
                                             </>
                                         ) : (
                                             <>
@@ -833,10 +813,6 @@ export default function FringeBenefitsPage() {
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">OT</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">DT</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Total</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">Reg $</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">OT $</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">DT $</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-20">Total $</TableHeader>
                                             </>
                                         )}
                                     </TableRow>
@@ -851,13 +827,16 @@ export default function FringeBenefitsPage() {
                                                 >
                                                     <TableCell className="px-4 py-3 text-center text-[10px] text-slate-400">#</TableCell>
                                                     <TableCell className="px-4 py-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-[11px] text-slate-900 uppercase tracking-wider">
-                                                                {groupingMode === 'employee' ? 'All Staff Combined' : 'All Estimates Combined'}
-                                                            </span>
-                                                            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-transform group-hover:translate-x-0.5" />
-                                                        </div>
+                                                        <span className="text-[11px] text-slate-900 uppercase tracking-wider block">
+                                                            {groupingMode === 'employee' ? 'All Staff Combined' : 'All Estimates Combined'}
+                                                        </span>
                                                     </TableCell>
+                                                    {groupingMode === 'estimate' && (
+                                                        <>
+                                                            <TableCell className="px-4 py-3 text-[11px] font-bold text-slate-300">--</TableCell>
+                                                            <TableCell className="px-4 py-3 text-[11px] font-bold text-slate-300">--</TableCell>
+                                                        </>
+                                                    )}
                                                     <TableCell className="px-4 py-3 text-[11px] font-bold text-slate-300">
                                                         --
                                                     </TableCell>
@@ -872,18 +851,6 @@ export default function FringeBenefitsPage() {
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
                                                         {employeeSummary.reduce((a,b)=>a+(b.totalHours || 0),0).toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-emerald-600 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.regPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-orange-600 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.otPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-600 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.dtPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[12px] text-slate-900 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.gross,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -930,17 +897,6 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{emp.dt > 0 ? emp.dt.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(emp.totalHours || 0).toFixed(2)}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.dtPay > 0 ? emp.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right">
-                                                            <div className="flex items-center justify-end gap-2">
-                                                                <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
-                                                                    ${emp.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                                </span>
-                                                                <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors" />
-                                                            </div>
-                                                        </TableCell>
                                                     </TableRow>
                                                 ))
                                             ) : (
@@ -952,22 +908,21 @@ export default function FringeBenefitsPage() {
                                                     >
                                                         <TableCell className="px-4 py-3 text-center text-[10px] text-slate-300 font-bold">{idx + 1}</TableCell>
                                                         <TableCell className="px-4 py-3">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-500 border border-indigo-100 shadow-sm">
-                                                                    <Briefcase size={12} />
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <p className="text-[11px] font-bold text-slate-800 truncate max-w-[200px]" title={item.title || item.label}>
-                                                                        {item.label}
-                                                                        {item.title && item.title !== 'Unknown Project' && (
-                                                                            <span className="font-normal text-slate-500 ml-1.5 opacity-80">
-                                                                                — {item.title}
-                                                                            </span>
-                                                                        )}
-                                                                    </p>
-                                                                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{item.count} Records</p>
-                                                                </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-[11px] font-medium text-slate-700 truncate max-w-[200px]" title={item.label}>
+                                                                    {item.label}
+                                                                </p>
                                                             </div>
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3">
+                                                            <p className="text-[11px] font-medium text-slate-700 truncate max-w-[200px]" title={item.title}>
+                                                                {item.title && item.title !== 'Unknown Project' ? item.title : '--'}
+                                                            </p>
+                                                        </TableCell>
+                                                        <TableCell className="px-4 py-3 text-right">
+                                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
+                                                                {item.count}
+                                                            </span>
                                                         </TableCell>
                                                         <TableCell className="px-4 py-3">
                                                             <div className="flex items-center gap-2">
@@ -987,17 +942,9 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{item.reg.toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{item.ot > 0 ? item.ot.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{item.dt > 0 ? item.dt.toFixed(2) : '-'}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(item.totalHours || 0).toFixed(2)}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.otPay > 0 ? item.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
-                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.dtPay > 0 ? item.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 tabular-nums">{(item.totalHours || 0).toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right">
-                                                            <div className="flex items-center justify-end gap-2">
-                                                                <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
-                                                                    ${item.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                                                </span>
-                                                                <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors" />
-                                                            </div>
+                                                           <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors inline-block" />
                                                         </TableCell>
                                                     </TableRow>
                                                 ))
@@ -1076,22 +1023,10 @@ export default function FringeBenefitsPage() {
                                                     <TableCell className="px-3 py-2 text-right font-semibold text-blue-600 tabular-nums">
                                                         {record.hoursVal.toFixed(2)}
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right font-medium text-emerald-600 tabular-nums">
-                                                        ${record.regPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right font-medium text-orange-600 tabular-nums">
-                                                        {record.otPay > 0 ? `$${record.otPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right font-medium text-red-600 tabular-nums">
-                                                        {record.dtPay > 0 ? `$${record.dtPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
-                                                    </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right font-bold text-slate-800 tabular-nums">
-                                                        ${record.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                                    </TableCell>
                                                 </TableRow>
                                             )) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="py-20 text-center">
+                                                    <TableCell colSpan={groupingMode === 'estimate' ? 10 : 8} className="py-20 text-center">
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
                                                                 <FileText size={20} className="text-slate-200" />
@@ -1104,7 +1039,7 @@ export default function FringeBenefitsPage() {
 
                                             {displayData.length > visibleRows && (
                                                 <TableRow className="hover:bg-transparent">
-                                                    <TableCell colSpan={8} className="py-6 text-center">
+                                                    <TableCell colSpan={groupingMode === 'estimate' ? 10 : 8} className="py-6 text-center">
                                                         <button 
                                                             onClick={() => setVisibleRows(prev => prev + 50)}
                                                             className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm active:scale-95"
