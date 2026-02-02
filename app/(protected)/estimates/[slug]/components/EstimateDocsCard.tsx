@@ -1424,6 +1424,26 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }, 600);
         }
     };
+    
+    const handleFileDownload = (url: string, fileName: string) => {
+        if (!url) {
+            toast.error('File URL is not available');
+            return;
+        }
+
+        // Use our server-side proxy to force download and bypass CORS/Cloudinary issues
+        const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fileName)}`;
+        
+        const link = document.createElement('a');
+        link.href = proxyUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success('Download starting...');
+    };
+
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = e.target.files;
@@ -2203,15 +2223,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 </div>
                                                 {coiDocument && (
                                                     <div className="flex items-center gap-1">
-                                                        <a 
-                                                            href={coiDocument.url} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer"
+                                                        <button 
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleFileDownload(coiDocument.url, 'COI_Document');
+                                                            }}
                                                             className="p-1.5 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
-                                                            onClick={(e) => e.stopPropagation()}
+                                                            title="Download COI"
                                                         >
                                                             <Download className="w-4 h-4" />
-                                                        </a>
+                                                        </button>
                                                         <button 
                                                             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                             onClick={(e) => {
@@ -2273,15 +2294,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center gap-1 flex-shrink-0">
-                                                                <a 
-                                                                    href={doc.url} 
-                                                                    target="_blank" 
-                                                                    rel="noopener noreferrer"
+                                                                <button 
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleFileDownload(doc.url, doc.name);
+                                                                    }}
                                                                     className="p-1 text-violet-500 hover:bg-violet-100 rounded transition-colors"
-                                                                    onClick={(e) => e.stopPropagation()}
+                                                                    title="Download Document"
                                                                 >
                                                                     <Download className="w-3 h-3" />
-                                                                </a>
+                                                                </button>
                                                                 <button 
                                                                     className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                                                                     onClick={(e) => {
@@ -2758,9 +2780,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="flex items-center gap-1.5 mt-2.5">
                                             <div className="flex -space-x-1.5">
                                                 {item.documents.slice(0, 3).map((doc: any, dIdx: number) => (
-                                                    <div key={dIdx} className="w-5 h-5 rounded-full bg-violet-50 border border-white flex items-center justify-center shadow-sm">
+                                                    <button 
+                                                        key={dIdx} 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleFileDownload(doc.url, doc.name);
+                                                        }}
+                                                        className="w-5 h-5 rounded-full bg-violet-50 border border-white flex items-center justify-center shadow-sm hover:bg-violet-100 hover:border-violet-200 hover:scale-110 transition-all duration-200 z-10"
+                                                        title={`Download ${doc.name}`}
+                                                    >
                                                         <Paperclip className="w-2.5 h-2.5 text-violet-600" />
-                                                    </div>
+                                                    </button>
                                                 ))}
                                             </div>
                                             <span className="text-[8px] font-bold text-slate-400">
@@ -2826,16 +2856,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     {contract.attachments && contract.attachments.length > 0 && (
                                         <div className="flex flex-wrap gap-1.5">
                                             {contract.attachments.slice(0, 4).map((file: any, fIdx: number) => (
-                                                <div 
+                                                <button 
                                                     key={fIdx}
-                                                    className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleFileDownload(file.url, file.name);
+                                                    }}
+                                                    className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200 hover:bg-amber-50 hover:border-amber-200 hover:shadow-sm transition-all duration-200 group/icon"
+                                                    title={`Download ${file.name}`}
                                                 >
                                                     {file.type.startsWith('image/') ? (
-                                                        <ImageIcon className="w-4 h-4 text-amber-600" />
+                                                        <ImageIcon className="w-4 h-4 text-amber-600 group-hover/icon:scale-110 transition-transform" />
                                                     ) : (
-                                                        <Paperclip className="w-4 h-4 text-amber-600" />
+                                                        <Paperclip className="w-4 h-4 text-amber-600 group-hover/icon:scale-110 transition-transform" />
                                                     )}
-                                                </div>
+                                                </button>
                                             ))}
                                             {contract.attachments.length > 4 && (
                                                 <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-200 text-[10px] font-bold text-amber-600">
@@ -3114,12 +3149,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 block">Project Files & Images</label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {selectedViewContract.attachments?.map((file: any, idx: number) => (
-                                    <a 
+                                    <div 
                                         key={idx}
-                                        href={file.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-200 transition-all duration-300 overflow-hidden"
+                                        onClick={() => window.open(file.url, '_blank')}
+                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.thumbnailUrl ? (
@@ -3164,10 +3197,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="text-center w-full">
                                             <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
                                         </div>
-                                        <div className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0">
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleFileDownload(file.url, file.name);
+                                            }}
+                                            className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-10"
+                                            title="Download File"
+                                        >
                                             <Download className="w-3.5 h-3.5 text-[#0F4C75]" />
-                                        </div>
-                                    </a>
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -4183,12 +4223,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block">Attachments ({selectedReceipt.upload?.length || 0})</label>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {selectedReceipt.upload?.map((file: any, idx: number) => (
-                                    <a 
+                                    <div 
                                         key={idx}
-                                        href={file.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-pink-200 transition-all duration-300 overflow-hidden"
+                                        onClick={() => window.open(file.url, '_blank')}
+                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-pink-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.thumbnailUrl ? (
@@ -4208,7 +4246,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="text-center w-full">
                                             <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
                                         </div>
-                                    </a>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleFileDownload(file.url, file.name);
+                                            }}
+                                            className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-10"
+                                            title="Download File"
+                                        >
+                                            <Download className="w-3.5 h-3.5 text-pink-600" />
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
@@ -4421,12 +4469,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block">Attachments ({selectedPlanningItem.documents?.length || 0})</label>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-4">
                                 {selectedPlanningItem.documents?.map((file: any, idx: number) => (
-                                    <a 
+                                    <div 
                                         key={idx}
-                                        href={file.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 overflow-hidden"
+                                        onClick={() => window.open(file.url, '_blank')}
+                                        className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.type?.startsWith('image/') ? (
@@ -4446,7 +4492,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="text-center w-full">
                                             <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
                                         </div>
-                                    </a>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleFileDownload(file.url, file.name);
+                                            }}
+                                            className="absolute top-2 right-2 p-1.5 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 z-10"
+                                            title="Download File"
+                                        >
+                                            <Download className="w-3.5 h-3.5 text-violet-600" />
+                                        </button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
