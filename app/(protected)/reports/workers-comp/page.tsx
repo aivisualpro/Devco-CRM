@@ -654,7 +654,7 @@ export default function WorkersCompPage() {
                     {/* Left Sidebar - Grouping */}
                     <aside className="w-[320px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-50 bg-slate-50/30">
-                            <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Grouping</h3>
+                            <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Classes</h3>
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1.5">
                             
