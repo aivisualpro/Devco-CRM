@@ -48,6 +48,7 @@ const menuStructure: MenuItem[] = [
             { label: 'JHA', href: '/docs/jha', icon: <ClipboardCheck className="w-5 h-5" />, description: 'Job Hazard Analysis forms', colorClass: 'text-rose-500' },
             { label: 'Job Tickets', href: '/docs/job-tickets', icon: <FileCheck className="w-5 h-5" />, description: 'Daily job execution records', colorClass: 'text-violet-500' },
             { label: 'Billing Tickets', href: '/docs/billing-tickets', icon: <DollarSign className="w-5 h-5" />, description: 'Invoicing and billing details', colorClass: 'text-green-500' },
+            { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
             { label: 'Pothole', href: '/docs/pothole', icon: <AlertTriangle className="w-5 h-5" />, description: 'Pothole repair documentation', colorClass: 'text-amber-600' },
             { label: 'Damage Report', href: '/docs/damage-report', icon: <AlertTriangle className="w-5 h-5" />, description: 'Log equipment or site damages', colorClass: 'text-red-500' },
             { label: 'Incidents', href: '/docs/incidents', icon: <AlertTriangle className="w-5 h-5" />, description: 'Safety incident reports', colorClass: 'text-red-600' },
@@ -56,7 +57,6 @@ const menuStructure: MenuItem[] = [
             { label: 'Lubrication', href: '/docs/lubrication', icon: <Wrench className="w-5 h-5" />, description: 'Equipment lubrication logs', colorClass: 'text-slate-600' },
             { label: 'Repair Report', href: '/docs/repair', icon: <Wrench className="w-5 h-5" />, description: 'Maintenance and repair logs', colorClass: 'text-gray-600' },
             { label: 'Scope Change', href: '/docs/scope-change', icon: <FileText className="w-5 h-5" />, description: 'Document change orders', colorClass: 'text-indigo-600' },
-            { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
         ]
     },
     {
@@ -477,7 +477,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
             {/* Mobile Menu Drawer */}
             {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 md:hidden">
+                <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 md:hidden mt-10 shadow-2xl rounded-t-[32px] border-t border-slate-200">
                     <div className="flex flex-col h-full">
                          <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
                             <span className="text-xl font-black text-slate-800 tracking-tight uppercase">Menu</span>
@@ -489,6 +489,63 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             </button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                            <div>
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 pl-1">Navigation</h3>
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={() => {
+                                            router.push('/contacts');
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
+                                            pathname === '/contacts'
+                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
+                                                : 'bg-indigo-50/80 border-indigo-100 hover:bg-indigo-100/80 hover:border-indigo-200'
+                                        }`}
+                                    >
+                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-indigo-100 text-indigo-600 shadow-sm">
+                                            <Contact size={24} />
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <span className={`text-base font-bold block ${
+                                                pathname === '/contacts' ? 'text-[#0F4C75]' : 'text-slate-700'
+                                            }`}>
+                                                Contacts
+                                            </span>
+                                            <span className="text-xs text-slate-500 mt-0.5 block">
+                                                Employee directory & info
+                                            </span>
+                                        </div>
+                                    </button>
+
+                                    <button
+                                        onClick={() => {
+                                            router.push('/docs/jha');
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
+                                            pathname.startsWith('/docs')
+                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
+                                                : 'bg-violet-50/80 border-violet-100 hover:bg-violet-100/80 hover:border-violet-200'
+                                        }`}
+                                    >
+                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-violet-100 text-violet-600 shadow-sm">
+                                            <ClipboardCheck size={24} />
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <span className={`text-base font-bold block ${
+                                                pathname.startsWith('/docs') ? 'text-[#0F4C75]' : 'text-slate-700'
+                                            }`}>
+                                                Docs
+                                            </span>
+                                            <span className="text-xs text-slate-500 mt-0.5 block">
+                                                Compliance & Site Forms
+                                            </span>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+
                             <div>
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 pl-1">Settings</h3>
                                 <div className="space-y-3">
