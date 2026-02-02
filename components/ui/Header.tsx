@@ -603,7 +603,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 maxWidth="2xl"
             >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 max-h-[60vh] overflow-y-auto overscroll-contain px-1 scrollbar-thin scrollbar-thumb-slate-200">
-                    {menuStructure.find(m => m.label === 'DOCS')?.items?.map((item) => (
+                    {menuStructure.find(m => m.label === 'DOCS')?.items?.filter(i => ['Billing Tickets', 'Receipts & Costs'].includes(i.label)).map((item) => (
                         <button
                             key={item.href}
                             onClick={() => {
