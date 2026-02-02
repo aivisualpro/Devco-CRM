@@ -1966,7 +1966,7 @@ function DashboardContent() {
                 }
             />
 
-            <div className="flex-1 overflow-y-auto md:p-4 lg:p-6 pb-0">
+            <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden md:overflow-y-auto' : 'overflow-y-auto'} md:p-4 lg:p-6 pb-0`}>
                 <div className="max-w-[1800px] mx-auto w-full">
                     
                     {/* Main Grid */}
@@ -2479,7 +2479,7 @@ function DashboardContent() {
                                 </div>
                                 
                                 <div 
-                                    className="flex-1 p-4 overflow-y-auto space-y-4 scrollbar-thin"
+                                    className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin"
                                     ref={chatScrollRef}
                                 >
                                     {(chatFilterValue ? messages.filter(msg => {

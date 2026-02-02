@@ -114,7 +114,7 @@ export default function ContactsPage() {
                 />
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0 p-4">
+            <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-4">
                 {loading ? (
                      <>
                         <div className="md:hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
