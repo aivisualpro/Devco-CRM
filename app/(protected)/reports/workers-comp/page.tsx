@@ -135,16 +135,41 @@ export default function WorkersCompPage() {
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [workersCompRates, setWorkersCompRates] = useState<Record<string, number>>({});
     
+    const params = useSearchParams();
+    const router = useRouter();
+    const pathname = usePathname();
+    
     // Filters
     // Initialize with current week
-    const [startDate, setStartDate] = useState<Date>(() => startOfWeek(new Date()));
-    const [endDate, setEndDate] = useState<Date>(() => endOfWeek(new Date()));
+    // Initialize from URL or defaults
+    const [startDate, setStartDate] = useState<Date>(() => {
+        const p = params.get('from');
+        if (p) {
+            const d = new Date(p);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return startOfWeek(new Date());
+    });
+
+    const [endDate, setEndDate] = useState<Date>(() => {
+        const p = params.get('to');
+        if (p) {
+            const d = new Date(p);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return endOfWeek(new Date());
+    });
     
     const [selectedItem, setSelectedItem] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [activityIcons, setActivityIcons] = useState<Record<string, string>>({});
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
+    const [includeDriveTime, setIncludeDriveTime] = useState(() => {
+        const p = params.get('driveTime');
+        return p !== null ? p === 'true' : false;
+    });
     const [visibleRows, setVisibleRows] = useState(50);
+    const [prefsLoaded, setPrefsLoaded] = useState(false);
 
     // Data Fetching
     const fetchData = async () => {
@@ -198,9 +223,94 @@ export default function WorkersCompPage() {
         }
     };
 
+    // Load Preferences
     useEffect(() => {
+        const loadPrefs = async () => {
+            try {
+                const res = await fetch('/api/user/preferences');
+                if (res.ok) {
+                    const data = await res.json();
+                    const filters = data.filters?.['workers-comp'];
+                    if (filters) {
+                         if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
+                            setIncludeDriveTime(filters.includeDriveTime);
+                         }
+                         if (filters.selectedItem) setSelectedItem(filters.selectedItem);
+                         
+                         // Only restore saved dates if URL params are missing
+                         if (!params.get('from') && !params.get('to')) {
+                             if (filters.startStr) {
+                                 const s = new Date(filters.startStr);
+                                 if (!isNaN(s.getTime())) setStartDate(s);
+                             }
+                             if (filters.endStr) {
+                                 const e = new Date(filters.endStr);
+                                 if (!isNaN(e.getTime())) setEndDate(e);
+                             }
+                         }
+                    }
+                }
+            } catch (e) {
+                console.error("Failed to load preferences", e);
+            } finally {
+                setPrefsLoaded(true);
+            }
+        };
         fetchData();
+        loadPrefs();
     }, []);
+
+    // Save Preferences
+    useEffect(() => {
+        if (!prefsLoaded) return;
+        
+        const timer = setTimeout(() => {
+            const filters = {
+                includeDriveTime,
+                selectedItem,
+                startStr: startDate.toISOString(),
+                endStr: endDate.toISOString()
+            };
+            
+            fetch('/api/user/preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    reportName: 'workers-comp',
+                    filters
+                })
+            }).catch(console.error);
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [prefsLoaded, includeDriveTime, selectedItem, startDate, endDate]);
+
+    // Sync URL
+    useEffect(() => {
+        const currentParams = new URLSearchParams(params.toString());
+        const startStr = startDate.toISOString().split('T')[0];
+        const endStr = endDate.toISOString().split('T')[0];
+        const driveTimeStr = String(includeDriveTime);
+        
+        let needsUpdate = false;
+        
+        if (currentParams.get('from') !== startStr) {
+            currentParams.set('from', startStr);
+            needsUpdate = true;
+        }
+        if (currentParams.get('to') !== endStr) {
+            currentParams.set('to', endStr);
+            needsUpdate = true;
+        }
+        if (currentParams.get('driveTime') !== driveTimeStr) {
+            currentParams.set('driveTime', driveTimeStr);
+            needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+            router.replace(`${pathname}?${currentParams.toString()}`, { scroll: false });
+        }
+    }, [startDate, endDate, includeDriveTime, router, pathname, params]);
 
     // Flatten and Filter Records
     const allRecords = useMemo(() => {
@@ -217,8 +327,12 @@ export default function WorkersCompPage() {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
             
             sched.timesheet.forEach((ts: any) => {
-                // Filter: Only "Site Time"
-                if (ts.type?.trim().toLowerCase() !== 'site time'.toLowerCase()) return;
+                // Filter Logic
+                const typeLower = ts.type?.trim().toLowerCase() || '';
+                const isSiteTime = typeLower === 'site time';
+                const isDriveTime = typeLower.includes('drive');
+
+                if (!isSiteTime && !(includeDriveTime && isDriveTime)) return;
                 
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
@@ -234,7 +348,15 @@ export default function WorkersCompPage() {
                 const dt = Math.max(0, hours - 12);
 
                 const empInfo = employeesMap[ts.employee.toLowerCase()] || {};
-                const rate = parseFloat(empInfo.hourlyRateSITE || '45');
+                
+                // Determin Rate based on type
+                let rate = 45;
+                if (isDriveTime) {
+                    rate = parseFloat(empInfo.hourlyRateDrive || empInfo.hourlyRateSITE || '45');
+                } else {
+                    rate = parseFloat(empInfo.hourlyRateSITE || '45');
+                }
+
                 const rRegPay = reg * rate;
                 const rOtPay = ot * rate * 1.5;
                 const rDtPay = dt * rate * 2.0;
@@ -271,7 +393,7 @@ export default function WorkersCompPage() {
         });
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
-    }, [rawSchedules, startDate, endDate, employeesMap, workersCompRates]);
+    }, [rawSchedules, startDate, endDate, employeesMap, workersCompRates, includeDriveTime]);
 
     // Grouping Data
     const groups = useMemo(() => {
@@ -293,7 +415,7 @@ export default function WorkersCompPage() {
     // Reset pagination when filters change
     useEffect(() => {
         setVisibleRows(50);
-    }, [selectedItem, searchQuery, startDate, endDate, expandedEmp]);
+    }, [selectedItem, searchQuery, startDate, endDate, expandedEmp, includeDriveTime]);
 
     const totals = useMemo(() => {
         return allRecords.reduce((acc, r: any) => ({
@@ -331,8 +453,9 @@ export default function WorkersCompPage() {
         tableData.forEach(r => {
             if (!summaryMap[r.employee]) {
                 summaryMap[r.employee] = { 
-                    reg: 0, ot: 0, 
-                    regPay: 0, otPay: 0, 
+                    reg: 0, ot: 0, dt: 0,
+                    totalHours: 0,
+                    regPay: 0, otPay: 0, dtPay: 0,
                     gross: 0, 
                     count: 0,
                     employee: r.employee
@@ -341,8 +464,11 @@ export default function WorkersCompPage() {
             const s = summaryMap[r.employee];
             s.reg += r.regHrs;
             s.ot += r.otHrs;
+            s.dt += r.dtHrs;
+            s.totalHours += r.hoursVal;
             s.regPay += r.regPay;
             s.otPay += r.otPay;
+            s.dtPay += r.dtPay;
             s.gross += r.grossPay;
             s.count += 1;
         });
@@ -434,6 +560,21 @@ export default function WorkersCompPage() {
                                  </div>
                              </div>
                         </div>
+
+                        {/* Drive Time Toggle */}
+                        <button 
+                            onClick={() => setIncludeDriveTime(!includeDriveTime)}
+                            className={`
+                                w-[42px] h-[34px] flex items-center justify-center rounded-xl border shadow-sm transition-all
+                                ${includeDriveTime 
+                                    ? 'bg-blue-50 border-blue-200' 
+                                    : 'bg-white border-slate-200 hover:bg-slate-50'
+                                }
+                            `}
+                            title={includeDriveTime ? "Drive Time Included" : "Drive Time Excluded"}
+                        >
+                            <Truck size={16} className={includeDriveTime ? 'text-[#0F4C75]' : 'text-slate-300'} />
+                        </button>
 
                     <div className="w-3" /> {/* Gap spacer */}
 
@@ -583,8 +724,11 @@ export default function WorkersCompPage() {
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Employee</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Reg Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">OT Hrs</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">DT Hrs</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Total Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">Reg Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">OT Amt</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">DT Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-32">Total Amount</TableHeader>
                                             </>
                                         ) : (
@@ -596,7 +740,12 @@ export default function WorkersCompPage() {
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-24">Estimate</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Reg</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">OT</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-20">Amount</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">DT</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Total</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">Reg $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">OT $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">DT $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-20">Total $</TableHeader>
                                             </>
                                         )}
                                     </TableRow>
@@ -623,11 +772,20 @@ export default function WorkersCompPage() {
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-orange-500 tabular-nums">
                                                         {employeeSummary.reduce((a,b)=>a+b.ot,0).toFixed(2)}
                                                     </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-500 tabular-nums">
+                                                        {employeeSummary.reduce((a,b)=>a+b.dt,0).toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
+                                                        {employeeSummary.reduce((a,b)=>a+b.totalHours,0).toFixed(2)}
+                                                    </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-emerald-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.regPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-orange-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.otPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-600 tabular-nums">
+                                                        ${employeeSummary.reduce((a,b)=>a+b.dtPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[12px] text-slate-900 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.gross,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -659,8 +817,11 @@ export default function WorkersCompPage() {
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{emp.reg.toFixed(2)}</TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{emp.dt > 0 ? emp.dt.toFixed(2) : '-'}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-700 tabular-nums">{emp.totalHours.toFixed(2)}</TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.dtPay > 0 ? emp.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
                                                     <TableCell className="px-4 py-3 text-right">
                                                         <div className="flex items-center justify-end gap-2">
                                                             <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
@@ -750,7 +911,32 @@ export default function WorkersCompPage() {
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-medium text-slate-600 tracking-tight tabular-nums">
+                                                        <span className="text-[10px] font-semibold text-red-500 tracking-tight tabular-nums">
+                                                            {record.dtHrs > 0 ? record.dtHrs.toFixed(2) : '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right">
+                                                        <span className="text-[10px] font-semibold text-blue-600 tracking-tight tabular-nums">
+                                                            {record.hoursVal.toFixed(2)}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right">
+                                                        <span className="text-[10px] font-medium text-emerald-600 tracking-tight tabular-nums">
+                                                            ${record.regPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right">
+                                                        <span className="text-[10px] font-medium text-orange-600 tracking-tight tabular-nums">
+                                                            {record.otPay > 0 ? `$${record.otPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right">
+                                                        <span className="text-[10px] font-medium text-red-600 tracking-tight tabular-nums">
+                                                            {record.dtPay > 0 ? `$${record.dtPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                                                        </span>
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right">
+                                                        <span className="text-[10px] font-bold text-slate-800 tracking-tight tabular-nums">
                                                             ${record.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                         </span>
                                                     </TableCell>

@@ -459,8 +459,8 @@ export default function FringeBenefitsPage() {
         tableData.forEach(r => {
             if (!summaryMap[r.employee]) {
                 summaryMap[r.employee] = { 
-                    reg: 0, ot: 0, totalHours: 0,
-                    regPay: 0, otPay: 0, 
+                    reg: 0, ot: 0, dt: 0, totalHours: 0,
+                    regPay: 0, otPay: 0, dtPay: 0,
                     gross: 0, 
                     count: 0,
                     employee: r.employee
@@ -469,9 +469,11 @@ export default function FringeBenefitsPage() {
             const s = summaryMap[r.employee];
             s.reg += r.regHrs;
             s.ot += r.otHrs;
+            s.dt += r.dtHrs;
             s.totalHours += r.hoursVal;
             s.regPay += r.regPay;
             s.otPay += r.otPay;
+            s.dtPay += r.dtPay;
             s.gross += r.grossPay;
             s.count += 1;
             s.distinctFringes = s.distinctFringes || new Set();
@@ -495,8 +497,8 @@ export default function FringeBenefitsPage() {
             const key = r.estimateRef || 'Unknown';
             if (!summaryMap[key]) {
                 summaryMap[key] = { 
-                    reg: 0, ot: 0, totalHours: 0,
-                    regPay: 0, otPay: 0, 
+                    reg: 0, ot: 0, dt: 0, totalHours: 0,
+                    regPay: 0, otPay: 0, dtPay: 0,
                     gross: 0, 
                     count: 0,
                     id: key,
@@ -507,9 +509,11 @@ export default function FringeBenefitsPage() {
             const s = summaryMap[key];
             s.reg += r.regHrs;
             s.ot += r.otHrs;
+            s.dt += r.dtHrs;
             s.totalHours += r.hoursVal;
             s.regPay += r.regPay;
             s.otPay += r.otPay;
+            s.dtPay += r.dtPay;
             s.gross += r.grossPay;
             s.count += 1;
             s.distinctFringes = s.distinctFringes || new Set();
@@ -811,9 +815,11 @@ export default function FringeBenefitsPage() {
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-32">Fringe</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Reg Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">OT Hrs</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">DT Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Total Hrs</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">Reg Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">OT Amt</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">DT Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-32">Total Amount</TableHeader>
                                             </>
                                         ) : (
@@ -825,7 +831,12 @@ export default function FringeBenefitsPage() {
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-24">Estimate</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Reg</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">OT</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-20">Amount</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">DT</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Total</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">Reg $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">OT $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">DT $</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-20">Total $</TableHeader>
                                             </>
                                         )}
                                     </TableRow>
@@ -856,6 +867,9 @@ export default function FringeBenefitsPage() {
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-orange-500 tabular-nums">
                                                         {employeeSummary.reduce((a,b)=>a+b.ot,0).toFixed(2)}
                                                     </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-500 tabular-nums">
+                                                        {employeeSummary.reduce((a,b)=>a+b.dt,0).toFixed(2)}
+                                                    </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
                                                         {employeeSummary.reduce((a,b)=>a+(b.totalHours || 0),0).toFixed(2)}
                                                     </TableCell>
@@ -864,6 +878,9 @@ export default function FringeBenefitsPage() {
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-orange-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.otPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-600 tabular-nums">
+                                                        ${employeeSummary.reduce((a,b)=>a+b.dtPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[12px] text-slate-900 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.gross,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -911,9 +928,11 @@ export default function FringeBenefitsPage() {
                                                         </TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{emp.reg.toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{emp.dt > 0 ? emp.dt.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(emp.totalHours || 0).toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.dtPay > 0 ? emp.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right">
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
@@ -967,9 +986,11 @@ export default function FringeBenefitsPage() {
                                                         </TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{item.reg.toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{item.ot > 0 ? item.ot.toFixed(2) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{item.dt > 0 ? item.dt.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-blue-500/80 tabular-nums">{(item.totalHours || 0).toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.otPay > 0 ? item.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
+                                                        <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${item.dtPay > 0 ? item.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right">
                                                             <div className="flex items-center justify-end gap-2">
                                                                 <span className="text-[12px] font-black text-[#0F4C75] tabular-nums">
@@ -1049,7 +1070,22 @@ export default function FringeBenefitsPage() {
                                                     <TableCell className="px-3 py-2 text-right font-semibold text-orange-500 tabular-nums">
                                                         {record.otHrs > 0 ? record.otHrs.toFixed(2) : '-'}
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right font-medium text-slate-600 tabular-nums">
+                                                    <TableCell className="px-3 py-2 text-right font-semibold text-red-500 tabular-nums">
+                                                        {record.dtHrs > 0 ? record.dtHrs.toFixed(2) : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right font-semibold text-blue-600 tabular-nums">
+                                                        {record.hoursVal.toFixed(2)}
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right font-medium text-emerald-600 tabular-nums">
+                                                        ${record.regPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right font-medium text-orange-600 tabular-nums">
+                                                        {record.otPay > 0 ? `$${record.otPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right font-medium text-red-600 tabular-nums">
+                                                        {record.dtPay > 0 ? `$${record.dtPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                                                    </TableCell>
+                                                    <TableCell className="px-3 py-2 text-right font-bold text-slate-800 tabular-nums">
                                                         ${record.grossPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                                     </TableCell>
                                                 </TableRow>
