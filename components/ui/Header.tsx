@@ -50,14 +50,6 @@ const menuStructure: MenuItem[] = [
             { label: 'Job Tickets', href: '/docs/job-tickets', icon: <FileCheck className="w-5 h-5" />, description: 'Daily job execution records', colorClass: 'text-violet-500' },
             { label: 'Billing Tickets', href: '/docs/billing-tickets', icon: <DollarSign className="w-5 h-5" />, description: 'Invoicing and billing details', colorClass: 'text-green-500' },
             { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
-            { label: 'Pothole', href: '/docs/pothole', icon: <AlertTriangle className="w-5 h-5" />, description: 'Pothole repair documentation', colorClass: 'text-amber-600' },
-            { label: 'Damage Report', href: '/docs/damage-report', icon: <AlertTriangle className="w-5 h-5" />, description: 'Log equipment or site damages', colorClass: 'text-red-500' },
-            { label: 'Incidents', href: '/docs/incidents', icon: <AlertTriangle className="w-5 h-5" />, description: 'Safety incident reports', colorClass: 'text-red-600' },
-            { label: 'Pre Bore Logs', href: '/docs/pre-bore-logs', icon: <FileText className="w-5 h-5" />, description: 'Drilling and boling logs', colorClass: 'text-blue-600' },
-            { label: 'Vehicle Maint', href: '/docs/vehicle-safety', icon: <Truck className="w-5 h-5" />, description: 'Vehicle safety checklists', colorClass: 'text-orange-600' },
-            { label: 'Lubrication', href: '/docs/lubrication', icon: <Wrench className="w-5 h-5" />, description: 'Equipment lubrication logs', colorClass: 'text-slate-600' },
-            { label: 'Repair Report', href: '/docs/repair', icon: <Wrench className="w-5 h-5" />, description: 'Maintenance and repair logs', colorClass: 'text-gray-600' },
-            { label: 'Scope Change', href: '/docs/scope-change', icon: <FileText className="w-5 h-5" />, description: 'Document change orders', colorClass: 'text-indigo-600' },
         ]
     },
     {
@@ -610,7 +602,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 title="Select Document"
                 maxWidth="2xl"
             >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 max-h-[60vh] overflow-y-auto overscroll-contain px-1 scrollbar-thin scrollbar-thumb-slate-200">
                     {menuStructure.find(m => m.label === 'DOCS')?.items?.map((item) => (
                         <button
                             key={item.href}
