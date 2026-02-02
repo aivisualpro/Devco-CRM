@@ -166,7 +166,7 @@ export default function WorkersCompPage() {
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
     const [includeDriveTime, setIncludeDriveTime] = useState(() => {
         const p = params.get('driveTime');
-        return p !== null ? p === 'true' : false;
+        return p !== null ? p === 'true' : true;
     });
     const [visibleRows, setVisibleRows] = useState(50);
     const [prefsLoaded, setPrefsLoaded] = useState(false);
@@ -582,37 +582,30 @@ export default function WorkersCompPage() {
                     <div className="flex-1 flex items-center justify-between">
                         <div className="flex items-center gap-4 bg-white/50 px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
                             <div className="flex items-center gap-2">
-                                <Clock size={12} className="text-blue-500" />
-                                <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Hours</span>
-                                    <span className="text-[11px] font-bold text-slate-800">{tableData.reduce((acc, r: any) => acc + r.hoursVal, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
-                                <RotateCcw size={12} className="text-orange-500" />
-                                <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">OT</span>
-                                    <span className="text-[11px] font-bold text-slate-800">{tableData.reduce((acc, r: any) => acc + r.otHrs, 0).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</span>
-                                </div>
-                            </div>
-                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
                                 <DollarSign size={12} className="text-emerald-500" />
                                 <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Reg Amt</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Reg $</span>
                                     <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.regPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
                                 <DollarSign size={12} className="text-orange-600" />
                                 <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">OT Amt</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">OT $</span>
                                     <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.otPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                                <DollarSign size={12} className="text-red-600" />
+                                <div className="flex flex-col leading-none">
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">DT $</span>
+                                    <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.dtPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
                                 <DollarSign size={12} className="text-emerald-700" />
                                 <div className="flex flex-col leading-none">
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Total Amt</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Total $</span>
                                     <span className="text-[11px] font-bold text-slate-800">${tableData.reduce((acc, r: any) => acc + r.grossPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                                 </div>
                             </div>
@@ -621,6 +614,13 @@ export default function WorkersCompPage() {
                                 <div className="flex flex-col leading-none">
                                     <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Staff</span>
                                     <span className="text-[11px] font-bold text-slate-800">{new Set(tableData.map((r: any) => r.employee)).size}</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2 border-l border-slate-100 pl-3">
+                                <Briefcase size={12} className="text-violet-500" />
+                                <div className="flex flex-col leading-none">
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Estimates</span>
+                                    <span className="text-[11px] font-bold text-slate-800">{new Set(tableData.map((r: any) => r.estimateRef)).size}</span>
                                 </div>
                             </div>
                         </div>
@@ -722,10 +722,7 @@ export default function WorkersCompPage() {
                                             <>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-12 text-center">#</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em]">Employee</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Reg Hrs</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">OT Hrs</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">DT Hrs</TableHeader>
-                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Total Hrs</TableHeader>
+                                                <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-24">Records</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">Reg Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">OT Amt</TableHeader>
                                                 <TableHeader className="px-4 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-28">DT Amt</TableHeader>
@@ -736,12 +733,8 @@ export default function WorkersCompPage() {
                                                 <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-8">Tag</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-28">Employee</TableHeader>
                                                 <TableHeader className="px-2 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-center w-20">Date</TableHeader>
+                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-28">Estimate</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] max-w-[150px]">Title</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] w-24">Estimate</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Reg</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">OT</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">DT</TableHeader>
-                                                <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-12">Total</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">Reg $</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">OT $</TableHeader>
                                                 <TableHeader className="px-3 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] text-right w-16">DT $</TableHeader>
@@ -766,17 +759,10 @@ export default function WorkersCompPage() {
                                                             <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-transform group-hover:translate-x-0.5" />
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-[#0F4C75] tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.reg,0).toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-orange-500 tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.ot,0).toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-red-500 tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.dt,0).toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.totalHours,0).toFixed(2)}
+                                                    <TableCell className="px-4 py-3 text-right">
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
+                                                            {employeeSummary.reduce((a,b)=>a+b.count,0)}
+                                                        </span>
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-emerald-600 tabular-nums">
                                                         ${employeeSummary.reduce((a,b)=>a+b.regPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -810,15 +796,15 @@ export default function WorkersCompPage() {
                                                                 )}
                                                             </div>
                                                             <div>
-                                                                <p className="text-[11px] font-bold text-slate-800">{employeesMap[emp.employee]?.label || emp.employee}</p>
-                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">{emp.count} Records</p>
+                                                                <p className="text-[11px] font-medium text-slate-800">{employeesMap[emp.employee]?.label || emp.employee}</p>
                                                             </div>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 tabular-nums">{emp.reg.toFixed(2)}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-orange-500/80 tabular-nums">{emp.ot > 0 ? emp.ot.toFixed(2) : '-'}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{emp.dt > 0 ? emp.dt.toFixed(2) : '-'}</TableCell>
-                                                    <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-slate-700 tabular-nums">{emp.totalHours.toFixed(2)}</TableCell>
+                                                    <TableCell className="px-4 py-3 text-right">
+                                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
+                                                            {emp.count}
+                                                        </span>
+                                                    </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.regPay.toLocaleString(undefined, { maximumFractionDigits: 0 })}</TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.otPay > 0 ? emp.otPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] font-medium text-slate-600 tabular-nums">${emp.dtPay > 0 ? emp.dtPay.toLocaleString(undefined, { maximumFractionDigits: 0 }) : '-'}</TableCell>
@@ -879,7 +865,7 @@ export default function WorkersCompPage() {
                                                                 )}
                                                             </div>
                                                             <div>
-                                                                <p className="text-[10px] font-semibold text-slate-800 leading-tight truncate w-24" title={employeesMap[record.employee]?.label || record.employee}>
+                                                                <p className="text-[10px] font-medium text-slate-800 leading-tight truncate w-24" title={employeesMap[record.employee]?.label || record.employee}>
                                                                     {employeesMap[record.employee]?.label || record.employee}
                                                                 </p>
                                                             </div>
@@ -890,35 +876,15 @@ export default function WorkersCompPage() {
                                                             {record.dateLabel}
                                                         </Badge>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 max-w-[150px]">
-                                                        <p className="text-[10px] font-medium text-slate-700 leading-snug truncate" title={record.title}>
-                                                            {record.title}
-                                                        </p>
-                                                    </TableCell>
                                                     <TableCell className="px-3 py-2">
                                                         <p className="text-[10px] font-bold text-slate-400 tracking-tighter uppercase whitespace-nowrap">
                                                             {record.estimateRef}
                                                         </p>
                                                     </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-semibold text-[#0F4C75] tracking-tight tabular-nums">
-                                                            {record.regHrs.toFixed(2)}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-semibold text-orange-500 tracking-tight tabular-nums">
-                                                            {record.otHrs > 0 ? record.otHrs.toFixed(2) : '-'}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-semibold text-red-500 tracking-tight tabular-nums">
-                                                            {record.dtHrs > 0 ? record.dtHrs.toFixed(2) : '-'}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="px-3 py-2 text-right">
-                                                        <span className="text-[10px] font-semibold text-blue-600 tracking-tight tabular-nums">
-                                                            {record.hoursVal.toFixed(2)}
-                                                        </span>
+                                                    <TableCell className="px-3 py-2 max-w-[150px]">
+                                                        <p className="text-[10px] font-medium text-slate-700 leading-snug truncate" title={record.title}>
+                                                            {record.title}
+                                                        </p>
                                                     </TableCell>
                                                     <TableCell className="px-3 py-2 text-right">
                                                         <span className="text-[10px] font-medium text-emerald-600 tracking-tight tabular-nums">
@@ -943,7 +909,7 @@ export default function WorkersCompPage() {
                                                 </TableRow>
                                             )) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={8} className="py-20 text-center">
+                                                    <TableCell colSpan={9} className="py-20 text-center">
                                                         <div className="flex flex-col items-center gap-3">
                                                             <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center">
                                                                 <FileText size={20} className="text-slate-200" />
@@ -957,7 +923,7 @@ export default function WorkersCompPage() {
                                             {/* Load More Button or Infinite Scroll Trigger */}
                                             {displayData.length > visibleRows && (
                                                 <TableRow className="hover:bg-transparent">
-                                                    <TableCell colSpan={8} className="py-6 text-center">
+                                                    <TableCell colSpan={9} className="py-6 text-center">
                                                         <button 
                                                             onClick={() => setVisibleRows(prev => prev + 50)}
                                                             className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm active:scale-95"
