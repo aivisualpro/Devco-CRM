@@ -31,6 +31,10 @@ export function middleware(request: NextRequest) {
     const authToken = request.cookies.get('devco_auth_token');
 
     if (!authToken?.value) {
+        // Return 401 JSON for API routes
+        if (pathname.startsWith('/api/')) {
+             return NextResponse.json({ success: false, message: 'Authentication failed' }, { status: 401 });
+        }
         // Redirect to login if not authenticated
         const loginUrl = new URL('/login', request.url);
         loginUrl.searchParams.set('redirect', pathname);
@@ -47,7 +51,14 @@ export function middleware(request: NextRequest) {
         
         return NextResponse.next();
     } catch {
-        // Invalid token, redirect to login
+        // Invalid token
+        if (pathname.startsWith('/api/')) {
+             const response = NextResponse.json({ success: false, message: 'Invalid token' }, { status: 401 });
+             response.cookies.delete('devco_auth_token');
+             return response;
+        }
+
+        // Redirect to login
         const response = NextResponse.redirect(new URL('/login', request.url));
         // Clear invalid cookie
         response.cookies.delete('devco_auth_token');

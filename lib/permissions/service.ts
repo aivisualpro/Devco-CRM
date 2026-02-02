@@ -10,6 +10,7 @@ import {
     UserPermissions,
     ACTIONS,
     DATA_SCOPE,
+    MODULES,
 } from '@/lib/permissions/types';
 
 // =====================================
@@ -60,6 +61,15 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
         for (const perm of role.permissions) {
             modulePermissions.set(perm.module as ModuleKey, { ...perm } as ModulePermission);
         }
+    }
+
+    // Default Chat Permission Injection (Fix for missing chat access in existing roles)
+    if (!modulePermissions.has(MODULES.CHAT)) {
+        modulePermissions.set(MODULES.CHAT, {
+            module: MODULES.CHAT,
+            actions: [ACTIONS.VIEW, ACTIONS.CREATE] as ActionKey[],
+            dataScope: DATA_SCOPE.SELF as DataScopeKey
+        });
     }
 
     // Apply overrides
