@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
+import { Modal } from './Modal';
 import { usePermissions } from '@/hooks/usePermissions';
 
 interface SubItem {
@@ -119,6 +120,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isMobileDocsOpen, setIsMobileDocsOpen] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -520,7 +522,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                                     <button
                                         onClick={() => {
-                                            router.push('/docs/jha');
+                                            setIsMobileDocsOpen(true);
                                             setIsMobileMenuOpen(false);
                                         }}
                                         className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
@@ -600,6 +602,35 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                     </div>
                 </div>
             )}
+
+            {/* Mobile Docs Modal */}
+            <Modal
+                isOpen={isMobileDocsOpen}
+                onClose={() => setIsMobileDocsOpen(false)}
+                title="Select Document"
+                maxWidth="2xl"
+            >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+                    {menuStructure.find(m => m.label === 'DOCS')?.items?.map((item) => (
+                        <button
+                            key={item.href}
+                            onClick={() => {
+                                router.push(item.href);
+                                setIsMobileDocsOpen(false);
+                            }}
+                            className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 hover:border-[#0F4C75]/30 hover:bg-[#0F4C75]/5 transition-all group"
+                        >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 group-hover:scale-110 transition-transform ${item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100')}`}>
+                                {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 ${item.colorClass}` })}
+                            </div>
+                            <div className="flex-1 text-left overflow-hidden">
+                                <span className="text-sm font-bold block text-slate-800 truncate">{item.label}</span>
+                                <span className="text-[10px] text-slate-500 truncate block">{item.description}</span>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </Modal>
 
             {/* Search Modal Overlay */}
             {searchOpen && (
