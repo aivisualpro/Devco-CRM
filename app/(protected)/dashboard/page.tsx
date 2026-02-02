@@ -765,6 +765,7 @@ function DashboardContent() {
     const [chatFilterValue, setChatFilterValue] = useState(''); 
     const [tagFilters, setTagFilters] = useState<{type: 'user'|'estimate', value: string, label: string}[]>([]);
     const [chatAssignees, setChatAssignees] = useState<string[]>([]);
+    const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
     const [chatEstimate, setChatEstimate] = useState<{value: string, label: string} | null>(null);
     const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
     const [editingMsgText, setEditingMsgText] = useState('');
@@ -1409,15 +1410,22 @@ function DashboardContent() {
         const estimateMatch = newMessage.match(/#(\d+[-A-Za-z0-9]*)/);
         const extractedEstimate = estimateMatch ? estimateMatch[1] : undefined;
 
+        const safeAssignees = chatAssignees.map(val => {
+            const emailStr = typeof val === 'string' ? val : (val as any)?.email || '';
+            if (!emailStr) return { email: '', name: 'Unknown' };
+            const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === emailStr.toLowerCase());
+            return {
+                email: emailStr,
+                name: emp?.label || emailStr
+            };
+        }).filter(a => a.email);
+
         const optimisticMsg: any = {
             _id: `temp-${Date.now()}`,
             sender: userEmail,
             message: newMessage,
             estimate: extractedEstimate,
-            assignees: chatAssignees.map(email => ({
-                email,
-                name: initialData.employees?.find((e: any) => e.value?.toLowerCase() === email.toLowerCase())?.label || email
-            })),
+            assignees: safeAssignees,
             replyTo: replyingTo ? {
                 _id: replyingTo._id,
                 sender: replyingTo.sender,
@@ -1448,10 +1456,7 @@ function DashboardContent() {
                 body: JSON.stringify({
                     message: optimisticMsg.message,
                     estimate: chatEstimate?.value || extractedEstimate,
-                    assignees: chatAssignees.map(email => ({
-                        email,
-                        name: initialData.employees?.find((e: any) => e.value?.toLowerCase() === email.toLowerCase())?.label || email
-                    })),
+                    assignees: safeAssignees,
                     replyTo: optimisticMsg.replyTo
                 })
             });
@@ -2044,11 +2049,11 @@ function DashboardContent() {
                                                             setSelectedDetailSchedule(schedule);
                                                             setIsDetailModalOpen(true);
                                                         }}
-                                                        onEdit={() => {
+                                                        onEdit={canField(MODULES.DASHBOARD, 'widget_upcoming_schedules', 'update') ? () => {
                                                             setEditingSchedule(schedule);
                                                             setEditScheduleOpen(true);
-                                                        }}
-                                                        onCopy={() => {
+                                                        } : undefined}
+                                                        onCopy={canField(MODULES.DASHBOARD, 'widget_upcoming_schedules', 'create') ? () => {
                                                             // Deep clone and shift dates
                                                             const addOneDay = (dateStr: string) => {
                                                                 if (!dateStr) return '';
@@ -2084,11 +2089,11 @@ function DashboardContent() {
 
                                                         setEditingSchedule(cloned);
                                                         setEditScheduleOpen(true);
-                                                    }}
-                                                    onDelete={() => {
+                                                    } : undefined}
+                                                    onDelete={canField(MODULES.DASHBOARD, 'widget_upcoming_schedules', 'delete') ? () => {
                                                         setDeleteScheduleId(schedule._id);
                                                         setIsDeleteConfirmOpen(true);
-                                                    }}
+                                                    } : undefined}
                                                     onViewJHA={(item) => {
                                                         const jhaWithSigs = { 
                                                             ...item.jha, 
@@ -2651,6 +2656,8 @@ function DashboardContent() {
                                                             <button 
                                                                 onClick={() => {
                                                                     setReplyingTo(msg);
+                                                                    setHighlightedMsgId(msg._id);
+                                                                    setTimeout(() => setHighlightedMsgId(null), 2000);
                                                                     chatInputRef.current?.focus();
                                                                 }} 
                                                                 className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
@@ -2662,7 +2669,8 @@ function DashboardContent() {
                                                                 onClick={() => {
                                                                     // Add tagged people to selection
                                                                     if (msg.assignees?.length) {
-                                                                        setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...msg.assignees])));
+                                                                        const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
+                                                                        setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
                                                                     }
                                                                     
                                                                     // Strip mentions from text for the compose box
@@ -2676,7 +2684,6 @@ function DashboardContent() {
                                                                 <Forward size={12} />
                                                             </button>
                                                             <button 
-
                                                                 onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
                                                                 className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
                                                             >
@@ -2691,7 +2698,9 @@ function DashboardContent() {
                                                         </div>
                                                     )}
                                                     
-                                                    <div className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${
+                                                    <div className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative transition-all duration-300 ${
+                                                        highlightedMsgId === msg._id ? 'ring-2 ring-yellow-400 shadow-md scale-[1.02]' : ''
+                                                    } ${
                                                         isMe 
                                                             ? 'bg-[#526D82] text-white rounded-br-none' 
                                                             : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
@@ -2701,7 +2710,14 @@ function DashboardContent() {
                                                         {/* Reply Citation */}
                                                         {msg.replyTo && (
                                                             <div 
-                                                                onClick={() => document.getElementById(msg.replyTo._id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                                                onClick={() => {
+                                                                    const el = document.getElementById(msg.replyTo._id);
+                                                                    if (el) {
+                                                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        setHighlightedMsgId(msg.replyTo._id);
+                                                                        setTimeout(() => setHighlightedMsgId(null), 2000);
+                                                                    }
+                                                                }}
                                                                 className={`mb-1 mx-1 p-1.5 rounded-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity ${
                                                                     isMe 
                                                                         ? 'bg-white/10 border-l-2 border-white/40 text-white/80' 
@@ -2767,6 +2783,36 @@ function DashboardContent() {
                                                         </div>
                                                         )}
                                                     </div>
+                                                    {!isMe && (
+                                                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    setReplyingTo(msg);
+                                                                    chatInputRef.current?.focus();
+                                                                }} 
+                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
+                                                                title="Reply"
+                                                            >
+                                                                <Reply size={12} />
+                                                            </button>
+                                                            <button 
+                                                                onClick={() => {
+                                                                    if (msg.assignees?.length) {
+                                                                        const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
+                                                                        setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
+                                                                    }
+                                                                    
+                                                                    const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
+                                                                    setNewMessage((prev: string) => `Fwd: ${cleanText}\n` + prev);
+                                                                    chatInputRef.current?.focus();
+                                                                }} 
+                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                                title="Forward"
+                                                            >
+                                                                <Forward size={12} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     
 
                                                 </div>
@@ -2861,18 +2907,19 @@ function DashboardContent() {
                                             <div className="flex items-center gap-2 mb-1 px-1">
                                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Assigning:</span>
                                                 <div className="flex -space-x-1.5 overflow-hidden">
-                                                    {chatAssignees.map((email: string, i: number) => {
-                                                        const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === email?.toLowerCase());
+                                                    {chatAssignees.map((val: string, i: number) => {
+                                                        const emailVal = typeof val === 'string' ? val : (val as any).email;
+                                                        const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === emailVal?.toLowerCase());
                                                         return (
                                                             <div 
                                                                 key={i} 
                                                                 className="cursor-pointer hover:scale-110 transition-transform"
-                                                                onClick={() => setChatAssignees(prev => prev.filter(v => v !== email))}
+                                                                onClick={() => setChatAssignees(prev => prev.filter(v => v !== val))}
                                                             >
                                                                 <Avatar className="w-5 h-5 border border-white shrink-0 shadow-sm">
                                                                     <AvatarImage src={emp?.image} />
                                                                     <AvatarFallback className="text-[8px] bg-slate-200">
-                                                                        {(emp?.label || email)[0].toUpperCase()}
+                                                                        {(emp?.label || emailVal || 'U')[0].toUpperCase()}
                                                                     </AvatarFallback>
                                                                 </Avatar>
                                                             </div>
