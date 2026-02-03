@@ -42,6 +42,18 @@ export function ConfirmModal({
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
+                // Check if there are any elements with a higher z-index that might be modals
+                const allModals = Array.from(document.querySelectorAll('.fixed'));
+                const myZ = 20000;
+                const hasHigherZ = allModals.some(el => {
+                    const style = window.getComputedStyle(el);
+                    const z = parseInt(style.zIndex) || 0;
+                    const isVisible = style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0';
+                    return z > myZ && isVisible;
+                });
+
+                if (hasHigherZ) return;
+
                 onClose();
             }
         };
@@ -57,7 +69,7 @@ export function ConfirmModal({
 
     return (
         <div
-            className={`fixed inset-0 z-[200] flex items-start md:items-center justify-center transition-all duration-200 pt-10 md:pt-0 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            className={`fixed inset-0 z-[20000] flex items-start md:items-center justify-center transition-all duration-200 pt-10 md:pt-0 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
         >
             {/* Backdrop */}

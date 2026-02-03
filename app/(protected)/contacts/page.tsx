@@ -48,13 +48,15 @@ export default function ContactsPage() {
 
     const filteredEmployees = useMemo(() => {
         return employees.filter(c => {
+            // Only show active employees
+            if (c.status !== 'Active') return false;
+
             if (search) {
                 const lowerSearch = search.toLowerCase();
                 return (
                     (c.firstName || '').toLowerCase().includes(lowerSearch) ||
                     (c.lastName || '').toLowerCase().includes(lowerSearch) ||
-                    (c.email || '').toLowerCase().includes(lowerSearch) ||
-                    (c.companyPosition || '').toLowerCase().includes(lowerSearch)
+                    (c.email || '').toLowerCase().includes(lowerSearch)
                 );
             }
             return true;
@@ -151,9 +153,8 @@ export default function ContactsPage() {
                                                 (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
                                             )}
                                         </div>
-                                        <div className="flex-1 min-w-0">
+                                         <div className="flex-1 min-w-0">
                                             <h3 className="font-bold text-slate-800 text-sm truncate">{emp.firstName} {emp.lastName}</h3>
-                                            <p className="text-xs text-slate-500 truncate mb-2">{emp.companyPosition || 'No Position'}</p>
                                             
                                             <div className="flex items-center gap-4">
                                                 {emp.mobile && (
@@ -214,9 +215,8 @@ export default function ContactsPage() {
                                                                 (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
                                                             )}
                                                         </div>
-                                                        <div>
+                                                         <div>
                                                             <p className="font-bold">{emp.firstName} {emp.lastName}</p>
-                                                            <p className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">{emp.companyPosition}</p>
                                                         </div>
                                                     </div>
                                                 </TableCell>

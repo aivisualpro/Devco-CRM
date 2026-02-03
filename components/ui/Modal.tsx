@@ -58,6 +58,16 @@ export function Modal({
         const handleEsc = (e: KeyboardEvent) => {
             // Only close on ESC if preventClose is false AND this is the topmost modal
             if (e.key === 'Escape' && isOpen && !preventClose) {
+                // Check if there are any elements with a higher z-index that might be modals
+                const allModals = Array.from(document.querySelectorAll('.fixed.inset-0'));
+                const myZ = 9999;
+                const hasHigherZ = allModals.some(el => {
+                    const z = parseInt(window.getComputedStyle(el).zIndex) || 0;
+                    return z > myZ;
+                });
+
+                if (hasHigherZ) return;
+
                 if (modalStack[modalStack.length - 1] === instanceId) {
                     onClose();
                 }

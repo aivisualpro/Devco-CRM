@@ -50,8 +50,18 @@ export function AddOverheadCatalogueDialogue({
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
-                // Check if this is the topmost modal
-                const modals = Array.from(document.querySelectorAll('.fixed.inset-0.z-\\[10000\\]'));
+                // 1. Check if there's anything with a higher z-index (e.g. nested Selects or ConfirmModals)
+                const allFixed = Array.from(document.querySelectorAll('.fixed'));
+                const hasHigherZ = allFixed.some(el => {
+                    if (el === containerRef.current) return false;
+                    const style = window.getComputedStyle(el);
+                    const z = parseInt(style.zIndex) || 0;
+                    return z > 10000 && style.display !== 'none' && style.visibility !== 'hidden';
+                });
+                if (hasHigherZ) return;
+
+                // 2. Check if this is the topmost among same-level modals
+                const modals = Array.from(document.querySelectorAll('.z-\\[10000\\]'));
                 if (modals.length > 0 && modals[modals.length - 1] === containerRef.current) {
                     onClose();
                 }
