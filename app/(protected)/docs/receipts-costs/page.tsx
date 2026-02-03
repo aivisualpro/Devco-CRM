@@ -26,7 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
-import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { MODULES, ACTIONS, DATA_SCOPE } from '@/lib/permissions/types';
 
 interface Estimate {
     _id: string;
@@ -68,7 +68,7 @@ interface FlatReceipt extends ReceiptItem {
 
 export default function ReceiptsCostsPage() {
     const router = useRouter();
-    const { user, can } = usePermissions();
+    const { user, can, getDataScope } = usePermissions();
     const canApprove = can(MODULES.RECEIPTS_COSTS, ACTIONS.APPROVE);
     const canCreate = can(MODULES.RECEIPTS_COSTS, ACTIONS.CREATE);
     const canEdit = can(MODULES.RECEIPTS_COSTS, ACTIONS.EDIT);
@@ -135,9 +135,24 @@ export default function ReceiptsCostsPage() {
     // Derived State: Flattened Receipts
     const allReceipts = useMemo(() => {
         const flat: FlatReceipt[] = [];
+        const scope = getDataScope(MODULES.RECEIPTS_COSTS);
+        const userEmail = user?.email?.toLowerCase();
+        const userId = user?.userId;
+
         estimates.forEach(est => {
             if (est.receiptsAndCosts && Array.isArray(est.receiptsAndCosts)) {
                 est.receiptsAndCosts.forEach((r, idx) => {
+                    // Row-level security: if scope is SELF, only show creator and tagged users
+                    if (scope === DATA_SCOPE.SELF && !user?.role?.includes('Admin')) {
+                        const isCreator = r.createdBy?.toLowerCase() === userEmail;
+                        const isTagged = (r.tag || []).some(t => {
+                            const tl = t.toLowerCase();
+                            return tl === userEmail || t === userId;
+                        });
+
+                        if (!isCreator && !isTagged) return;
+                    }
+
                     flat.push({
                         ...r,
                         uniqueId: `${est._id}_${idx}`, // Stable-ish key
@@ -149,7 +164,7 @@ export default function ReceiptsCostsPage() {
             }
         });
         return flat;
-    }, [estimates]);
+    }, [estimates, user, getDataScope]);
 
     // Filtering & Sorting
     const filteredReceipts = useMemo(() => {

@@ -7,6 +7,7 @@ import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, DATA_SCOPE } from '@/lib/permissions/types';
 
 // Google Doc Template IDs
 const DOC_TEMPLATES: Record<string, string> = {
@@ -67,7 +68,7 @@ interface EstimateDocsCardProps {
 }
 
 export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient }) => {
-    const { user: currentUser } = usePermissions();
+    const { user: currentUser, getDataScope } = usePermissions();
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
     const [generatingProgress, setGeneratingProgress] = useState(0);
@@ -142,6 +143,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         }
                     });
 
+                    // Filter by data scope
+                    const rScope = getDataScope(MODULES.RECEIPTS_COSTS);
+                    if (rScope === DATA_SCOPE.SELF && !currentUser?.role?.includes('Admin')) {
+                        const userEmail = currentUser?.email?.toLowerCase();
+                        const userId = currentUser?.userId;
+                        allR = allR.filter(r => {
+                            const isCreator = String(r.createdBy || '').toLowerCase() === userEmail;
+                            const isTagged = (r.tag || []).some((t: string) => {
+                                const tl = String(t || '').toLowerCase();
+                                return tl === userEmail || t === userId;
+                            });
+                            return isCreator || isTagged;
+                        });
+                    }
+
                     // Sort by Date Descending
                     allR.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
                     setAggregatedReceipts(allR);
@@ -178,6 +194,23 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             addUniqueBilling(est.billingTickets);
                         }
                     });
+
+                    // Filter by data scope
+                    const bScope = getDataScope(MODULES.BILLING_TICKETS);
+                    if (bScope === DATA_SCOPE.SELF && !currentUser?.role?.includes('Admin')) {
+                        const userEmail = currentUser?.email?.toLowerCase();
+                        const userId = currentUser?.userId;
+                        allB = allB.filter(b => {
+                            // Billing tickets usually use createdBy
+                            const isCreator = String(b.createdBy || '').toLowerCase() === userEmail;
+                            // Check if user is in any tags if billing tickets support tagging (similar to receipts)
+                            const isTagged = (b.tag || []).some((t: string) => {
+                                const tl = String(t || '').toLowerCase();
+                                return tl === userEmail || t === userId;
+                            });
+                            return isCreator || isTagged;
+                        });
+                    }
 
                     allB.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
                     console.log('[EstimateDocsCard] Aggregated Billing Tickets:', allB);

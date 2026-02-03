@@ -124,8 +124,9 @@ export default function CompanyDocsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50/50 pb-20">
+        <div className="flex flex-col h-full bg-slate-50/50">
             <Header />
+            <div className="flex-1 overflow-y-auto pb-20">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
                  <h1 className="text-2xl font-bold text-slate-900">Company Documents</h1>
                  <p className="text-slate-500">Manage and view company training materials and certifications</p>
@@ -222,26 +223,15 @@ export default function CompanyDocsPage() {
                                         href={doc.url}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="mb-4 aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all block"
+                                        className="mb-4 aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all overflow-hidden"
                                     >
-                                        {doc.url?.toLowerCase().endsWith('.pdf') && doc.url.includes('/image/upload/') ? (
-                                            <img 
-                                                src={doc.url.replace('/image/upload/', '/image/upload/pg_1,w_400,h_300,c_fill,g_north/')}
-                                                alt="PDF Preview"
-                                                className="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all rounded-xl"
-                                                onError={(e) => {
-                                                    (e.target as any).style.display = 'none';
-                                                }}
-                                            />
-                                        ) : (
-                                            <>
-                                                <FileText size={32} className="text-slate-300" />
-                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                    {doc.url?.split('.').pop() || 'File'} Document
-                                                </span>
-                                                <span className="text-[10px] text-blue-500">Click to open</span>
-                                            </>
-                                        )}
+                                        <div className="flex flex-col items-center justify-center gap-2 p-4">
+                                            <FileText size={32} className="text-slate-300" />
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                {doc.url?.split('.').pop() || 'File'} Document
+                                            </span>
+                                            <span className="text-[10px] text-blue-500">Click to open</span>
+                                        </div>
                                     </a>
                                 )}
                                 
@@ -368,6 +358,7 @@ export default function CompanyDocsPage() {
                     </div>
                 </div>
             </Modal>
+            </div>
         </div>
     );
 }
