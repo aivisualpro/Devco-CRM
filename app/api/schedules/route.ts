@@ -583,6 +583,9 @@ export async function POST(request: NextRequest) {
                         const updated = await Schedule.findById(scheduleId).lean();
                         const ts = updated?.timesheet?.[tsIndex];
                         if (ts) updateAppSheetTimesheet(ts, "Edit");
+                        return NextResponse.json({ success: true, result: ts });
+                    } else {
+                        return NextResponse.json({ success: false, error: 'Timesheet not found' });
                     }
                 } else {
                     // Starting new
@@ -598,8 +601,9 @@ export async function POST(request: NextRequest) {
                     };
                     await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
                     updateAppSheetTimesheet(newTs, "Add");
+                    return NextResponse.json({ success: true, result: newTs });
                 }
-                return NextResponse.json({ success: true });
+                return NextResponse.json({ success: false, error: 'Unknown state' });
             }
 
             case 'getScheduleActivity': {

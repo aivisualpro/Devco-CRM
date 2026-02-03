@@ -540,12 +540,13 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                             <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Date</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Estimate</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Washout</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Shop</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right">Dist</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right">Hrs</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[140px] pl-4">Project</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Washout</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Shop</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[60px]">Dist</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[60px]">Hrs</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
@@ -566,15 +567,18 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
 
                                                          return (
                                                             <TableRow key={i} className="hover:bg-slate-50">
-                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600 w-[90px] shrink-0">
                                                                     {formatDateOnly(ts.clockIn) || '-'}
                                                                 </TableCell>
-                                                                <TableCell className="text-center">
+                                                                <TableCell className="text-center w-[90px] shrink-0">
                                                                     <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                                         {schedule.estimate ? schedule.estimate.replace(/-[vV]\d+$/, '') : (ts.estimate || '-')}
                                                                     </span>
                                                                 </TableCell>
-                                                                <TableCell className="text-center">
+                                                                <TableCell className="text-left text-[11px] font-medium text-slate-600 w-[140px] shrink-0 max-w-[140px] truncate pl-4">
+                                                                    {schedule.projectName || '-'}
+                                                                </TableCell>
+                                                                <TableCell className="text-center w-[90px] shrink-0">
                                                                     {washoutQty > 0 ? (
                                                                         <span className="text-[10px] font-black uppercase bg-orange-500 text-white px-2 py-1 rounded shadow-sm inline-flex flex-col items-center min-w-[70px] justify-center leading-none gap-0.5">
                                                                             <span className="flex items-center gap-1">WASHOUT <CheckCircle2 size={10} /></span>
@@ -582,7 +586,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                                                         </span>
                                                                     ) : <span className="text-slate-300">-</span>}
                                                                 </TableCell>
-                                                                <TableCell className="text-center">
+                                                                <TableCell className="text-center w-[90px] shrink-0">
                                                                     {shopQty > 0 ? (
                                                                         <span className="text-[10px] font-black uppercase bg-blue-500 text-white px-2 py-1 rounded shadow-sm inline-flex flex-col items-center min-w-[70px] justify-center leading-none gap-0.5">
                                                                             <span className="flex items-center gap-1">SHOP <CheckCircle2 size={10} /></span>
@@ -590,10 +594,10 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                                                         </span>
                                                                     ) : <span className="text-slate-300">-</span>}
                                                                 </TableCell>
-                                                                <TableCell className="text-right text-[11px] font-medium text-slate-600">
+                                                                <TableCell className="text-left text-[11px] font-medium text-slate-600 w-[60px] shrink-0">
                                                                     {distance > 0 ? distance.toFixed(1) : '-'}
                                                                 </TableCell>
-                                                                <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                                <TableCell className="text-left text-[11px] font-black text-slate-800 w-[60px] shrink-0">
                                                                     {hours.toFixed(2)}
                                                                 </TableCell>
                                                             </TableRow>
@@ -618,11 +622,12 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                             <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Date</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Estimate</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">In</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Out</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right">Hrs</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[140px] pl-4">Project</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[60px]">Hrs</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
@@ -630,21 +635,24 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                                         const { hours } = calculateTimesheetData(ts);
                                                         return (
                                                             <TableRow key={i} className="hover:bg-slate-50">
-                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600 w-[90px] shrink-0">
                                                                     {formatDateOnly(ts.clockIn)}
                                                                 </TableCell>
-                                                                <TableCell className="text-center">
+                                                                <TableCell className="text-center w-[90px] shrink-0">
                                                                     <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                                         {schedule.estimate ? schedule.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                                     </span>
                                                                 </TableCell>
-                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                <TableCell className="text-left text-[11px] font-medium text-slate-600 w-[140px] shrink-0 max-w-[140px] truncate pl-4">
+                                                                    {schedule.projectName || '-'}
+                                                                </TableCell>
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600 w-[90px] shrink-0">
                                                                     {formatTimeOnly(ts.clockIn)}
                                                                 </TableCell>
-                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600 w-[90px] shrink-0">
                                                                     {formatTimeOnly(ts.clockOut)}
                                                                 </TableCell>
-                                                                <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                                <TableCell className="text-left text-[11px] font-black text-slate-800 w-[60px] shrink-0">
                                                                     {hours.toFixed(2)}
                                                                 </TableCell>
                                                             </TableRow>

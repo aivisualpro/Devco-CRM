@@ -1386,6 +1386,8 @@ function DashboardContent() {
             console.error('Failed to get location', err);
         }
 
+        let optimisticId: string | undefined;
+
         // Optimistic UI Update
         if (activeTs) {
             // STOP DRIVE TIME
@@ -1400,9 +1402,9 @@ function DashboardContent() {
             }));
         } else {
             // START DRIVE TIME
-            const tempId = `temp-${Date.now()}`;
+            optimisticId = `temp-${Date.now()}`;
             const newTs = {
-                _id: tempId,
+                _id: optimisticId,
                 scheduleId: schedule._id,
                 employee: employeeEmail,
                 clockIn: now,
@@ -1437,8 +1439,21 @@ function DashboardContent() {
             });
             const data = await res.json();
             if (data.success) {
+                // Update with real data from server (CRITICAL for Start action to get real _id)
+                if (data.result) {
+                    setSchedules(prev => prev.map(s => {
+                        if (s._id !== schedule._id) return s;
+                        return {
+                            ...s,
+                            timesheet: (s.timesheet || []).map((ts: any) => {
+                                // Match by optimistic ID if starting, or original ID if stopping
+                                const targetId = activeTs ? activeTs._id : optimisticId;
+                                return ts._id === targetId ? data.result : ts;
+                            })
+                        };
+                    }));
+                }
                 success(activeTs ? 'Drive time stopped' : 'Drive time started');
-                // No fetch needed, keep optimistic state
             } else {
                 showError(data.message || 'Action failed');
                 fetchDashboardData(); // Revert on failure
@@ -1752,15 +1767,25 @@ function DashboardContent() {
     }, [referenceQuery, estimateOptions]);
 
 
+    // Ref for aborting stale fetch requests
+    const fetchAbortRef = useRef<AbortController | null>(null);
+
     // Fetch Data
     const fetchDashboardData = useCallback(async () => {
+        // Abort any previous in-flight request
+        if (fetchAbortRef.current) {
+            fetchAbortRef.current.abort();
+        }
+        const abortController = new AbortController();
+        fetchAbortRef.current = abortController;
+
         setLoading(true);
         try {
             // Use the pre-computed ISO strings to avoid timezone issues
             const startStr = weekRange.startISO;
             const endStr = weekRange.endISO;
             
-            console.log('DEBUG: Fetching schedules for week:', { startStr, endStr, label: weekRange.label });
+            console.log('DEBUG: Fetching schedules for week:', { startStr, endStr, label: weekRange.label, scheduleView });
             
             // Fetch schedules for the week using the schedules API
             const schedRes = await fetch('/api/schedules', {
@@ -1776,8 +1801,12 @@ function DashboardContent() {
                         skipInitialData: initialData.employees.length > 0, // Fetch once if empty
                         userEmail: scheduleView === 'self' ? userEmail : undefined
                     }
-                })
+                }),
+                signal: abortController.signal
             });
+
+            // Check if aborted before processing
+            if (abortController.signal.aborted) return;
 
             if (schedRes.headers.get('content-type')?.includes('application/json')) {
                 const schedData = await schedRes.json();
@@ -1882,7 +1911,12 @@ function DashboardContent() {
 
 
             
-        } catch (err) {
+        } catch (err: any) {
+            // Don't log aborted requests as errors
+            if (err?.name === 'AbortError') {
+                console.log('Dashboard fetch aborted (superseded by new request)');
+                return;
+            }
             console.error('Dashboard fetch error:', err);
         } finally {
             setLoading(false);
@@ -3361,6 +3395,7 @@ function DashboardContent() {
                     customerName: selectedDetailSchedule.customerName || initialData.clients?.find((c: any) => String(c._id) === String(selectedDetailSchedule.customerId))?.name,
                     customerId: selectedDetailSchedule.customerId,
                     jobLocation: selectedDetailSchedule.jobLocation || initialData.estimates?.find((e: any) => e.value === selectedDetailSchedule.estimate)?.jobAddress,
+                    projectName: fetchedEstimate?.projectName || initialData.estimates?.find((e: any) => e.value === selectedDetailSchedule.estimate)?.projectName,
                     projectManager: selectedDetailSchedule.projectManager,
                     foremanName: selectedDetailSchedule.foremanName,
                     assignees: selectedDetailSchedule.assignees,

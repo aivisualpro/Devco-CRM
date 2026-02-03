@@ -1488,66 +1488,8 @@ function TimeCardContent() {
                                 </p>
                             </div>
                             
-                            <div className="flex gap-3 items-center whitespace-nowrap">
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Employee</span>
-                                    <SearchableSelect 
-                                         id="filEmp" 
-                                         placeholder="All Employees" 
-                                         value={filEmployee} 
-                                         onChange={setFilEmployee} 
-                                         options={uniqueEmployees.map(e => ({
-                                             label: employeesMap[e]?.label || e || '', 
-                                             value: e,
-                                             image: employeesMap[e]?.image,
-                                             initials: employeesMap[e]?.initials
-                                         }))}
-                                         className="w-[180px]"
-                                         size="sm"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Project</span>
-                                    <SearchableSelect 
-                                         id="filEst" 
-                                         placeholder="All Projects" 
-                                         value={filEstimate} 
-                                         onChange={setFilEstimate} 
-                                         options={uniqueEstimates}
-                                         className="w-[260px]"
-                                         size="sm"
-                                    />
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Type</span>
-                                    <SearchableSelect 
-                                         id="filType" 
-                                         placeholder="All Types" 
-                                         value={filType} 
-                                         onChange={setFilType} 
-                                         options={uniqueTypes.map(e => ({label: e, value: e}))}
-                                         className="w-[160px]"
-                                         align="right"
-                                         size="sm"
-                                    />
-                                </div>
+                            {/* Filters Removed as per request */}
 
-                                {hasFilters && (
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <button 
-                                                onClick={clearFilters}
-                                                className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
-                                            >
-                                                <RotateCcw size={16} />
-                                            </button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                            <p>Clear all filters</p>
-                                        </TooltipContent>
-                                    </Tooltip>
-                                )}
-                            </div>
                         </div>
 
                         <div className="flex-1 overflow-auto custom-scrollbar p-0 rounded-b-3xl">
@@ -1558,10 +1500,11 @@ function TimeCardContent() {
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[70px]">Type</TableHeader>
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate #</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-left w-[140px]">Project</TableHeader>
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[120px]">In</TableHeader>
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-center w-[120px]">Out</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[90px]">Dist (Mi)</TableHeader>
-                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-left w-[90px]">Dist (Mi)</TableHeader>
+                                        <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-left w-[70px]">Hrs</TableHeader>
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
@@ -1613,6 +1556,11 @@ function TimeCardContent() {
                                                 <TableCell className="text-center">
                                                     <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                         {ts.estimate || '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-left">
+                                                    <span className="text-[11px] font-medium text-slate-600 truncate block max-w-[140px]" title={ts.projectName}>
+                                                        {ts.projectName || '-'}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-center text-xs text-slate-500">
@@ -1685,16 +1633,16 @@ function TimeCardContent() {
                                                         <span className="text-[11px] font-medium text-slate-600 tracking-tight">{formatTimeOnly(ts.clockOut)}</span>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className="text-right text-xs font-medium text-slate-500">
+                                                <TableCell className="text-left text-xs font-medium text-slate-500">
                                                     {isQuickEditing && ts.type?.toLowerCase().includes('drive') ? (
                                                         <input 
                                                             type="number"
-                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-16 text-right"
+                                                            className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-16 text-left"
                                                             value={quickEditForm.manualDistance || ''}
                                                             onChange={e => setQuickEditForm(prev => ({...prev, manualDistance: e.target.value}))}
                                                         />
                                                     ) : (
-                                                        <div className="flex flex-col items-end">
+                                                        <div className="flex flex-col items-start">
                                                             <span className={ts.manualDistance ? "text-orange-600 font-bold" : ""}>
                                                                 {((ts.distanceVal || 0) > 0 ? (ts.distanceVal || 0).toFixed(1) : '-')}
                                                             </span>
@@ -1706,7 +1654,7 @@ function TimeCardContent() {
                                                         </div>
                                                     )}
                                                 </TableCell>
-                                                <TableCell className={`text-right text-xs font-black ${isQuickEditing ? 'text-orange-600 underline decoration-orange-300' : 'text-slate-700'}`}>
+                                                <TableCell className={`text-left text-xs font-black ${isQuickEditing ? 'text-orange-600 underline decoration-orange-300' : 'text-slate-700'}`}>
                                                     {isQuickEditing ? (quickEditLiveStats?.hours || 0).toFixed(2) : (ts.hoursVal || 0).toFixed(2)}
                                                 </TableCell>
                                                 <TableCell className="text-right">
@@ -1774,7 +1722,7 @@ function TimeCardContent() {
                                         );
                                     }) : (
                                         <TableRow>
-                                            <TableCell colSpan={9} className="p-12 text-center text-slate-400">
+                                            <TableCell colSpan={10} className="p-12 text-center text-slate-400">
                                                 <div className="flex flex-col items-center gap-3">
                                                     <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center">
                                                         <CalendarIcon size={20} className="text-slate-300" />
