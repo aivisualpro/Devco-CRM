@@ -32,9 +32,11 @@ export async function GET(request: NextRequest) {
         let query: any = {};
         const andConditions: any[] = [];
         
-        // Scope Check: Restrict if not View All
-        const scope = checker.getScope(MODULES.CHAT);
-        if (scope !== DATA_SCOPE.ALL) {
+        // Scope Check: Use Dashboard's widget_chat field data scope for proper widget-level permissions
+        // This checks if the role has "View All" enabled for the Chat widget under Dashboard Data Scope
+        const chatScope = checker.getFieldScope(MODULES.DASHBOARD, 'widget_chat');
+        
+        if (chatScope !== DATA_SCOPE.ALL) {
             const escapedEmail = user.email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const emailRegex = new RegExp(`^${escapedEmail}$`, 'i');
             

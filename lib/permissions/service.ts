@@ -209,6 +209,28 @@ export function getDataScope(
 }
 
 // =====================================
+// GET FIELD DATA SCOPE
+// Used for widget-level data scope (e.g., Dashboard's widget_chat)
+// =====================================
+export function getFieldDataScope(
+    permissions: UserPermissions | null,
+    module: ModuleKey,
+    field: string
+): DataScopeKey {
+    if (!permissions) return DATA_SCOPE.SELF;
+    
+    // Super Admin sees everything
+    if (permissions.isSuperAdmin) return DATA_SCOPE.ALL;
+
+    const modulePerm = permissions.modules.find(m => m.module === module);
+    if (!modulePerm) return DATA_SCOPE.SELF;
+    
+    // Look for field-specific data scope
+    const fieldPerm = modulePerm.fieldPermissions?.find(f => f.field === field);
+    return (fieldPerm?.dataScope as DataScopeKey) || DATA_SCOPE.SELF;
+}
+
+// =====================================
 // BUILD DATA SCOPE FILTER
 // Returns MongoDB query filter for row-level security
 // =====================================
@@ -389,6 +411,10 @@ export class PermissionChecker {
 
     getScope(module: ModuleKey): DataScopeKey {
         return getDataScope(this.permissions, module);
+    }
+
+    getFieldScope(module: ModuleKey, field: string): DataScopeKey {
+        return getFieldDataScope(this.permissions, module, field);
     }
 
     buildFilter(

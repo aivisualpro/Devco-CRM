@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { 
-    FileText, Eye, Trash2, Plus, Search, Filter 
+    FileText, Eye, Trash2, Plus, Search, Filter, Download 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
@@ -23,6 +23,7 @@ export default function CompanyDocsPage() {
     const [isSavingDoc, setIsSavingDoc] = useState(false);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [previewDoc, setPreviewDoc] = useState<any>(null);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -166,17 +167,35 @@ export default function CompanyDocsPage() {
                                         <FileText size={20} />
                                     </div>
                                     <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                        {/* For images, open modal. For PDFs and others, open in new tab */}
+                                        {doc.url?.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/) ? (
+                                            <button 
+                                                onClick={() => setPreviewDoc(doc)}
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="Preview"
+                                            >
+                                                <Eye size={16} />
+                                            </button>
+                                        ) : (
+                                            <a 
+                                                href={doc.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="View in New Tab"
+                                            >
+                                                <Eye size={16} />
+                                            </a>
+                                        )}
                                         <a 
-                                            href={doc.url?.toLowerCase().endsWith('.pdf') 
-                                                ? `https://docs.google.com/viewer?url=${encodeURIComponent(doc.url)}&embedded=true`
-                                                : doc.url
-                                            } 
-                                            target="_blank" 
+                                            href={doc.url.includes('/image/upload/') ? doc.url.replace('/image/upload/', '/image/upload/fl_attachment/') : doc.url}
+                                            download
+                                            target="_blank"
                                             rel="noopener noreferrer"
-                                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            title="View"
+                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                            title="Download"
                                         >
-                                            <Eye size={16} />
+                                            <Download size={16} />
                                         </a>
                                         {can(MODULES.COMPANY_DOCS, ACTIONS.DELETE) && (
                                             <button 
@@ -190,7 +209,43 @@ export default function CompanyDocsPage() {
                                     </div>
                                 </div>
                                 
-                                <div className="mt-auto">
+                                {doc.url && (doc.url.toLowerCase().endsWith('.jpg') || doc.url.toLowerCase().endsWith('.jpeg') || doc.url.toLowerCase().endsWith('.png') || doc.url.toLowerCase().endsWith('.webp')) ? (
+                                    <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer" onClick={() => setPreviewDoc(doc)}>
+                                        <img 
+                                            src={doc.url} 
+                                            alt={doc.title}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                ) : (
+                                    <a 
+                                        href={doc.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="mb-4 aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all block"
+                                    >
+                                        {doc.url?.toLowerCase().endsWith('.pdf') && doc.url.includes('/image/upload/') ? (
+                                            <img 
+                                                src={doc.url.replace('/image/upload/', '/image/upload/pg_1,w_400,h_300,c_fill,g_north/')}
+                                                alt="PDF Preview"
+                                                className="w-full h-full object-cover opacity-50 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all rounded-xl"
+                                                onError={(e) => {
+                                                    (e.target as any).style.display = 'none';
+                                                }}
+                                            />
+                                        ) : (
+                                            <>
+                                                <FileText size={32} className="text-slate-300" />
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                                    {doc.url?.split('.').pop() || 'File'} Document
+                                                </span>
+                                                <span className="text-[10px] text-blue-500">Click to open</span>
+                                            </>
+                                        )}
+                                    </a>
+                                )}
+                                
+                                <div className="mt-3">
                                     <h3 className="font-bold text-slate-900 truncate mb-1" title={doc.title}>{doc.title}</h3>
                                     <p className="text-xs text-slate-500">
                                         Added {new Date(doc.createdAt).toLocaleDateString()}
@@ -245,6 +300,73 @@ export default function CompanyDocsPage() {
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* Preview Modal */}
+            <Modal 
+                isOpen={!!previewDoc} 
+                onClose={() => setPreviewDoc(null)} 
+                title={previewDoc?.title || 'Document Preview'}
+                maxWidth="5xl"
+            >
+                <div className="h-[80vh] flex flex-col">
+                    <div className="flex-1 bg-slate-100 rounded-xl overflow-hidden relative">
+                        {previewDoc?.url && (previewDoc.url.toLowerCase().endsWith('.jpg') || previewDoc.url.toLowerCase().endsWith('.jpeg') || previewDoc.url.toLowerCase().endsWith('.png') || previewDoc.url.toLowerCase().endsWith('.webp')) ? (
+                            <img 
+                                src={previewDoc.url} 
+                                alt={previewDoc.title}
+                                className="w-full h-full object-contain"
+                            />
+                        ) : previewDoc?.url?.toLowerCase().endsWith('.pdf') ? (
+                            <div className="w-full h-full flex flex-col">
+                                {/* Try native PDF embed first */}
+                                <object 
+                                    data={previewDoc.url} 
+                                    type="application/pdf"
+                                    className="w-full h-full"
+                                >
+                                    {/* Fallback if object doesn't work */}
+                                    <div className="flex flex-col items-center justify-center h-full gap-6 text-slate-500 p-8">
+                                        <FileText size={64} className="text-slate-300" />
+                                        <div className="text-center space-y-2">
+                                            <p className="font-semibold text-lg text-slate-700">PDF Preview Not Available</p>
+                                            <p className="text-sm">Your browser cannot display this PDF inline.</p>
+                                        </div>
+                                        <a 
+                                            href={previewDoc.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-md"
+                                        >
+                                            Open PDF in New Tab
+                                        </a>
+                                    </div>
+                                </object>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
+                                <FileText size={64} />
+                                <p>Preview not available for this file type</p>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex justify-between items-center mt-4 px-2">
+                        <div className="text-sm text-slate-500">
+                            {previewDoc?.title}
+                        </div>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => setPreviewDoc(null)}>Close</Button>
+                            <a 
+                                href={previewDoc?.url?.includes('/image/upload/') ? previewDoc.url.replace('/image/upload/', '/image/upload/fl_attachment/') : previewDoc?.url}
+                                download
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Button>Download File</Button>
+                            </a>
+                        </div>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

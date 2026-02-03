@@ -28,10 +28,17 @@ export async function POST(request: NextRequest) {
         const base64 = buffer.toString('base64');
         const dataUri = `data:${file.type};base64,${base64}`;
 
+        // Determine resource type
+        const isImage = file.type.startsWith('image/');
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        
+        // Use 'raw' for PDFs and others to ensure correct MIME types on delivery
+        const resource_type = isImage ? 'image' : (isPdf ? 'raw' : 'auto');
+
         // Upload to Cloudinary
         const result = await cloudinary.uploader.upload(dataUri, {
             folder: `devcocrm/${folder}`,
-            resource_type: 'auto',
+            resource_type: resource_type,
         });
 
         return NextResponse.json({
@@ -39,10 +46,9 @@ export async function POST(request: NextRequest) {
             url: result.secure_url,
             publicId: result.public_id,
             name: file.name,
-            type: file.type,
+            type: isPdf ? 'application/pdf' : file.type,
             size: file.size,
-            width: result.width,
-            height: result.height
+            resource_type: result.resource_type
         });
 
     } catch (error: any) {
