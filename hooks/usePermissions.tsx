@@ -95,7 +95,7 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
         const modulePerm = permissions.modules.find(m => m.module === module);
         if (!modulePerm) return false;
 
-        // If no field permissions, use module-level
+        // If no field permissions at all, use module-level
         if (!modulePerm.fieldPermissions?.length) {
             const actionMap: Record<FieldActionKey, ActionKey> = {
                 view: ACTIONS.VIEW,
@@ -108,11 +108,18 @@ export function PermissionProvider({ children }: { children: React.ReactNode }) 
 
         const fieldPerm = modulePerm.fieldPermissions.find(f => f.field === field);
         if (fieldPerm) {
+            // Field permission exists - use it strictly
             return fieldPerm.actions.includes(action);
         }
 
-        // Implicit Allow: If field not explicitly strictly, inherit module permission
-        // Since we already checked module access above, we just check if the action maps to a module action
+        // Field not in permissions list - for Dashboard widgets, deny by default
+        // For other modules, inherit module permission
+        if (module === 'dashboard' && field.startsWith('widget_')) {
+            // Dashboard widgets require explicit permission
+            return false;
+        }
+
+        // Implicit Allow for non-widget fields: inherit module permission
         const actionMap: Record<FieldActionKey, ActionKey> = {
             view: ACTIONS.VIEW,
             create: ACTIONS.CREATE,

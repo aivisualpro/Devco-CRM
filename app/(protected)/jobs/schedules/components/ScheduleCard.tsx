@@ -171,40 +171,46 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                         {dayName}
                     </div>
 
-                    <div className="hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onEdit?.(item, e); }}
-                                    className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-[#0F4C75] hover:bg-blue-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                >
-                                    <Edit size={14} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Edit Schedule</p></TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onCopy?.(item, e); }}
-                                    className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-emerald-500 hover:bg-emerald-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                >
-                                    <Copy size={14} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Copy Schedule (+1 Day)</p></TooltipContent>
-                        </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onDelete?.(item, e); }}
-                                    className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-sm border border-slate-100 transition-all active:scale-90"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent><p>Delete Schedule</p></TooltipContent>
-                        </Tooltip>
+                    <div className={`hidden md:flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ${!onEdit && !onCopy && !onDelete ? 'hidden' : ''}`}>
+                        {onEdit && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onEdit(item, e); }}
+                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-[#0F4C75] hover:bg-blue-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                    >
+                                        <Edit size={14} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Edit Schedule</p></TooltipContent>
+                            </Tooltip>
+                        )}
+                        {onCopy && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onCopy(item, e); }}
+                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-emerald-500 hover:bg-emerald-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                    >
+                                        <Copy size={14} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Copy Schedule (+1 Day)</p></TooltipContent>
+                            </Tooltip>
+                        )}
+                        {onDelete && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onDelete(item, e); }}
+                                        className="p-2 bg-white/90 backdrop-blur rounded-xl text-slate-500 hover:text-red-500 hover:bg-red-50 shadow-sm border border-slate-100 transition-all active:scale-90"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent><p>Delete Schedule</p></TooltipContent>
+                            </Tooltip>
+                        )}
                     </div>
                 </div>
 

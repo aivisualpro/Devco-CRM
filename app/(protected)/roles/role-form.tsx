@@ -529,9 +529,10 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                     <div className="w-56 flex-shrink-0 flex flex-col">
                                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 px-2">Modules</p>
                                         <div className="space-y-1 overflow-y-auto flex-1">
-                                            {(permissions || [])
+                                        {(permissions || [])
                                                 .filter((p: any) => p.actions && p.actions.length > 0)
                                                 .map((p: any) => p.module as ModuleKey)
+                                                .filter((mod: ModuleKey) => mod !== 'chat') // Chat is a Dashboard widget, not a standalone module
                                                 .map((mod: ModuleKey) => (
                                                 <button
                                                     key={mod}
