@@ -541,41 +541,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 </div>
                             </div>
 
-                            <div>
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 pl-1">Settings</h3>
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => {
-                                            router.push('/docs/company-docs');
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
-                                            pathname === '/docs/company-docs'
-                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
-                                                : 'bg-amber-50/80 border-amber-100 hover:bg-amber-100/80 hover:border-amber-200'
-                                        }`}
-                                    >
-                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 shadow-sm">
-                                            <FileText size={24} />
-                                        </div>
-                                        <div className="flex-1 text-left">
-                                            <span className={`text-base font-bold block ${
-                                                pathname === '/docs/company-docs' ? 'text-[#0F4C75]' : 'text-slate-700'
-                                            }`}>
-                                                Company Docs
-                                            </span>
-                                            <span className="text-xs text-slate-500 mt-0.5 block">
-                                                Training & Certifications
-                                            </span>
-                                        </div>
-                                        <div className={`w-2 h-2 rounded-full ${
-                                            pathname === '/docs/company-docs'
-                                                ? 'bg-[#0F4C75]' 
-                                                : 'bg-amber-200'
-                                        }`} />
-                                    </button>
-                                </div>
-                            </div>
+
                             
                             <div className="pt-6 border-t border-slate-100">
                                 <button 
