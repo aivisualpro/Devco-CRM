@@ -7,6 +7,9 @@ export function ToasterProvider() {
         <Toaster
             position="bottom-right"
             reverseOrder={false}
+            containerStyle={{
+                zIndex: 100000,
+            }}
             toastOptions={{
                 duration: 4000,
                 style: {

@@ -8,7 +8,8 @@ interface UploadButtonProps {
     onUpload: (url: string) => void;
     folder?: string;
     className?: string;
-    label?: string;
+    label?: React.ReactNode;
+    showIcon?: boolean;
     disabled?: boolean;
     multiple?: boolean;
 }
@@ -18,6 +19,7 @@ export function UploadButton({
     folder = 'uploads',
     className = '',
     label,
+    showIcon = true,
     disabled,
     multiple = false
 }: UploadButtonProps) {
@@ -71,13 +73,12 @@ export function UploadButton({
     };
 
     return (
-        <div className={className}>
+        <div className={className.includes('w-full') ? 'w-full' : ''}>
             <input
                 type="file"
                 ref={fileInputRef}
                 onChange={handleFileChange}
                 className="hidden"
-                
                 multiple={multiple}
                 disabled={uploading || disabled}
             />
@@ -85,15 +86,25 @@ export function UploadButton({
                 type="button"
                 onClick={handleClick}
                 disabled={uploading || disabled}
-                className={`p-2 bg-[#0F4C75] text-white rounded-lg hover:bg-[#0a3a5c] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 ${className}`}
+                className={`transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 justify-center ${
+                    className.includes('p-') ? '' : 'p-2'
+                } ${
+                    className.includes('bg-') ? '' : 'bg-[#0F4C75]'
+                } ${
+                    className.includes('text-') ? '' : 'text-white'
+                } ${
+                    className.includes('rounded') ? '' : 'rounded-lg'
+                } ${
+                    className.includes('hover:bg-') ? '' : 'hover:bg-[#0a3a5c]'
+                } ${className}`}
                 title="Upload Image"
             >
                 {uploading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                 ) : (
-                    <Upload className="w-4 h-4" />
+                    showIcon && <Upload className="w-4 h-4" />
                 )}
-                {label && <span className="text-sm font-medium">{label}</span>}
+                {label && (typeof label === 'string' ? <span className="text-sm font-medium">{label}</span> : label)}
             </button>
         </div>
     );

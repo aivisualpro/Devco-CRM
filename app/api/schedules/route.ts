@@ -206,6 +206,22 @@ export async function POST(request: NextRequest) {
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
+
+                // Propagate images to associated estimates (all versions)
+                if (payload.estimate) {
+                    const estimateUpdate: any = {};
+                    if (payload.aerialImage !== undefined) estimateUpdate.aerialImage = payload.aerialImage;
+                    if (payload.siteLayout !== undefined) estimateUpdate.siteLayout = payload.siteLayout;
+                    
+                    if (Object.keys(estimateUpdate).length > 0) {
+                        try {
+                            await Estimate.updateMany({ estimate: payload.estimate }, { $set: estimateUpdate });
+                        } catch (e) {
+                            console.error('[Schedule API] Failed to propagate images to estimates:', e);
+                        }
+                    }
+                }
+
                 // Sync to AppSheet
                 await updateAppSheetSchedule(doc, "Add");
                 return NextResponse.json({ success: true, result: doc });
@@ -219,6 +235,21 @@ export async function POST(request: NextRequest) {
                     { ...data, updatedAt: new Date() },
                     { new: true }
                 );
+
+                // Propagate images to associated estimates (all versions)
+                if (data.estimate) {
+                    const estimateUpdate: any = {};
+                    if (data.aerialImage !== undefined) estimateUpdate.aerialImage = data.aerialImage;
+                    if (data.siteLayout !== undefined) estimateUpdate.siteLayout = data.siteLayout;
+                    
+                    if (Object.keys(estimateUpdate).length > 0) {
+                        try {
+                            await Estimate.updateMany({ estimate: data.estimate }, { $set: estimateUpdate });
+                        } catch (e) {
+                            console.error('[Schedule API] Failed to propagate images to estimates:', e);
+                        }
+                    }
+                }
                 // Sync to AppSheet (Background)
                 if (result) {
                     updateAppSheetSchedule(result, "Edit");
@@ -282,8 +313,30 @@ export async function POST(request: NextRequest) {
                     ...item,
                     _id: item.recordId || item._id
                 }));
-                // Batch sync
+                // Batch sync to AppSheet
                 await updateAppSheetSchedule(syncItems, "Add");
+
+                // Propagate images to associated estimates (all versions)
+                const estimatesToUpdate = new Map<string, any>();
+                schedules.forEach((s: any) => {
+                    if (s.estimate && (s.aerialImage !== undefined || s.siteLayout !== undefined)) {
+                        const current = estimatesToUpdate.get(s.estimate) || {};
+                        if (s.aerialImage !== undefined) current.aerialImage = s.aerialImage;
+                        if (s.siteLayout !== undefined) current.siteLayout = s.siteLayout;
+                        estimatesToUpdate.set(s.estimate, current);
+                    }
+                });
+
+                if (estimatesToUpdate.size > 0) {
+                    try {
+                        const updatePromises = Array.from(estimatesToUpdate.entries()).map(([estNum, updateData]) => 
+                            Estimate.updateMany({ estimate: estNum }, { $set: updateData })
+                        );
+                        await Promise.all(updatePromises);
+                    } catch (e) {
+                         console.error('[Schedule API] Bulk image propagation failed:', e);
+                    }
+                }
 
                 return NextResponse.json({ success: true, result });
             }
@@ -684,7 +737,7 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color image').lean() : Promise.resolve([]),
-                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals').lean() : Promise.resolve([]),
+                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals aerialImage siteLayout').lean() : Promise.resolve([]),
                     !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? OverheadItem.find().sort({ overhead: 1 }).lean() : Promise.resolve([])
                 ]);
@@ -813,7 +866,9 @@ export async function POST(request: NextRequest) {
                                     })(),
                                     services: e.services || [],
                                     fringe: e.fringe || 'No',
-                                    certifiedPayroll: e.certifiedPayroll || 'No'
+                                    certifiedPayroll: e.certifiedPayroll || 'No',
+                                    aerialImage: e.aerialImage || '',
+                                    siteLayout: e.siteLayout || ''
                                 });
                             }
                         });
@@ -851,7 +906,7 @@ export async function POST(request: NextRequest) {
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone').lean(),
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone aerialImage siteLayout').lean(),
                     EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean(),
                     OverheadItem.find().sort({ overhead: 1 }).lean()
                 ]);
@@ -873,7 +928,9 @@ export async function POST(request: NextRequest) {
                                 jobAddress: e.jobAddress,
                                 contactName: e.contactName || e.contact,
                                 contactPhone: e.contactPhone || e.phone,
-                                contactEmail: e.contactEmail
+                                contactEmail: e.contactEmail,
+                                aerialImage: e.aerialImage || '',
+                                siteLayout: e.siteLayout || ''
                             });
                         }
                     });

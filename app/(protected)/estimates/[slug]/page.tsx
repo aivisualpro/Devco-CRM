@@ -20,7 +20,8 @@ import {
     EstimateDetailsModal,
     EstimateLineItemsCard,
     EstimateDocsCard,
-    EstimateScheduleCard
+    EstimateScheduleCard,
+    EstimateAerialLayoutCard
 } from './components';
 import {
     getLaborBreakdown,
@@ -98,6 +99,8 @@ interface Estimate {
         customPages?: { content: string }[];
         services?: string[];
     }>;
+    aerialImage?: string;
+    siteLayout?: string;
     [key: string]: unknown;
 }
 
@@ -264,6 +267,7 @@ export default function EstimateViewPage() {
     
     // Visibility State
     const [visibleSections, setVisibleSections] = useState({
+        aerialLayout: true,
         estimateDocs: false,
         lineItems: true,
         proposal: true,
@@ -418,7 +422,8 @@ export default function EstimateViewPage() {
                                  estimateDocs: emp.estimateSettings.includes('Job Docs'),
                                  lineItems: emp.estimateSettings.includes('Line Items'),
                                  proposal: emp.estimateSettings.includes('Proposal'),
-                                 schedules: emp.estimateSettings.includes('Schedules')
+                                 schedules: emp.estimateSettings.includes('Schedules'),
+                                 aerialLayout: emp.estimateSettings.includes('Aerial Layout')
                              });
                      }
                 }
@@ -444,6 +449,7 @@ export default function EstimateViewPage() {
              if (visibleSections.lineItems) settings.push('Line Items');
              if (visibleSections.proposal) settings.push('Proposal');
              if (visibleSections.schedules) settings.push('Schedules');
+             if (visibleSections.aerialLayout) settings.push('Aerial Layout');
 
              try {
                  await fetch('/api/webhook/devcoBackend', {
@@ -2008,6 +2014,7 @@ export default function EstimateViewPage() {
                                 multiSelect={true}
                                 positionMode="bottom"
                                 options={[
+                                    { id: 'aerialLayout', label: 'Aerial Layout', value: 'aerialLayout' },
                                     { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
                                     { id: 'schedules', label: 'Schedules', value: 'schedules' },
                                     { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
@@ -2116,6 +2123,21 @@ export default function EstimateViewPage() {
                         onVersionClick={handleVersionClick}
                     />
                     
+                    
+                    {/* Aerial Layout Section */}
+                    {visibleSections.aerialLayout && (
+                        <div className="mt-6 mb-2 animation-fade-in relative z-10">
+                            <EstimateAerialLayoutCard 
+                                formData={formData}
+                                onUpdate={(field, value) => {
+                                    setFormData(prev => prev ? { ...prev, [field]: value } : null);
+                                    setUnsavedChanges(true);
+                                }}
+                                schedules={schedules}
+                            />
+                        </div>
+                    )}
+
                     {/* Estimate Docs Section */}
                     {visibleSections.estimateDocs && (
                         <div className="mt-6 mb-2 animation-fade-in">
@@ -2129,7 +2151,6 @@ export default function EstimateViewPage() {
                         </div>
                     )}
 
-                    {/* Schedules Section */}
                     {visibleSections.schedules && (
                         <div className="mt-6 mb-2 animation-fade-in relative z-0">
                             <EstimateScheduleCard

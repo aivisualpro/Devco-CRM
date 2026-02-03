@@ -720,7 +720,9 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                         scopeOfWork: estimate.scopeOfWork,
                         services: estimate.services,
                         fringe: estimate.fringe,
-                        certifiedPayroll: estimate.certifiedPayroll
+                        certifiedPayroll: estimate.certifiedPayroll,
+                        aerialImage: estimate.aerialImage,
+                        siteLayout: estimate.siteLayout
                     }] : []
                 }}
                 onSave={(savedSchedule, isNew) => {

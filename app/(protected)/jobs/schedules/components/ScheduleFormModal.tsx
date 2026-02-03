@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Upload, MapPin } from 'lucide-react';
-import { Modal } from '@/components/ui';
+import { X, Upload, MapPin, Shield } from 'lucide-react';
+import { Modal, Badge } from '@/components/ui';
 import { SearchableSelect } from '@/components/ui/SearchableSelect';
 import { UploadButton } from '@/components/ui/UploadButton';
 import { useToast } from '@/hooks/useToast';
@@ -232,7 +232,9 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                                 service: Array.isArray(est?.services) ? est.services.join(', ') : (est?.services || prev?.service || ''),
                                                 fringe: est?.fringe || prev?.fringe || 'No',
                                                 certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
-                                                jobLocation: est?.jobAddress || prev?.jobLocation || ''
+                                                jobLocation: est?.jobAddress || prev?.jobLocation || '',
+                                                aerialImage: est?.aerialImage || (val ? '' : prev?.aerialImage),
+                                                siteLayout: est?.siteLayout || (val ? '' : prev?.siteLayout)
                                             }));
                                         }}
                                         onNext={() => {}}
@@ -503,7 +505,21 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                         <div className="grid grid-cols-2 gap-4 mt-4">
                             {/* Aerial Image */}
                             <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
+                                    {(() => {
+                                        const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                        if (est?.aerialImage && editingItem.aerialImage === est.aerialImage) {
+                                            return (
+                                                <Badge variant="info" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1 py-0 px-2 h-5">
+                                                    <Shield size={10} />
+                                                    From Estimate
+                                                </Badge>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
                                 <div className="flex flex-col h-[200px]">
                                     <div className="flex-1 min-h-[140px] mb-2">
                                         {editingItem?.aerialImage ? (
@@ -513,13 +529,21 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                                     alt="Aerial View" 
                                                     className="w-full h-full object-cover rounded-lg border border-slate-200"
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEditingItem({ ...editingItem, aerialImage: '' })}
-                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
+                                                {(() => {
+                                                    const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                                    if (!(est?.aerialImage && editingItem.aerialImage === est.aerialImage)) {
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditingItem({ ...editingItem, aerialImage: '' })}
+                                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         ) : (
                                             <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -531,24 +555,49 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Paste image URL..."
-                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                            value={editingItem?.aerialImage || ''}
-                                            onChange={(e) => setEditingItem({ ...editingItem, aerialImage: e.target.value })}
-                                        />
-                                        <UploadButton 
-                                            onUpload={(url) => setEditingItem({ ...editingItem, aerialImage: url })}
-                                            folder="schedules/aerial"
-                                        />
+                                        {(() => {
+                                            const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                            const isLocked = est?.aerialImage && editingItem.aerialImage === est.aerialImage;
+                                            return (
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Paste image URL..."
+                                                        className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                                                        value={editingItem?.aerialImage || ''}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, aerialImage: e.target.value })}
+                                                        disabled={isLocked}
+                                                    />
+                                                    {!isLocked && (
+                                                        <UploadButton 
+                                                            onUpload={(url) => setEditingItem({ ...editingItem, aerialImage: url })}
+                                                            folder="schedules/aerial"
+                                                        />
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>
                             
                             {/* Site Layout */}
                             <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Site Layout</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-bold text-slate-900">Site Layout</label>
+                                    {(() => {
+                                        const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                        if (est?.siteLayout && editingItem.siteLayout === est.siteLayout) {
+                                            return (
+                                                <Badge variant="success" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1 py-0 px-2 h-5">
+                                                    <Shield size={10} />
+                                                    From Estimate
+                                                </Badge>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
                                 <div className="flex flex-col h-[200px]">
                                     <div className="flex-1 min-h-[140px] mb-2">
                                         {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') ? (() => {
@@ -569,13 +618,21 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                                             loading="lazy"
                                                         />
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
-                                                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                                    >
-                                                        <X className="w-3 h-3" />
-                                                    </button>
+                                                    {(() => {
+                                                        const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                                        if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
+                                                            return (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
+                                                                    className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                                >
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                             ) : (
                                                 <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -593,13 +650,21 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                                     className="w-full h-full object-cover rounded-lg border border-slate-200"
                                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
-                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
+                                                {(() => {
+                                                    const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                                    if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
+                                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         ) : (
                                             <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -611,17 +676,28 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Paste Google Earth URL..."
-                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                            value={editingItem?.siteLayout || ''}
-                                            onChange={(e) => setEditingItem({ ...editingItem, siteLayout: e.target.value })}
-                                        />
-                                        <UploadButton 
-                                            onUpload={(url) => setEditingItem({ ...editingItem, siteLayout: url })}
-                                            folder="schedules/layout"
-                                        />
+                                        {(() => {
+                                            const est = initialData.estimates.find((e: any) => e.value === editingItem.estimate);
+                                            const isLocked = est?.siteLayout && editingItem.siteLayout === est.siteLayout;
+                                            return (
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Paste Google Earth URL..."
+                                                        className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                                                        value={editingItem?.siteLayout || ''}
+                                                        onChange={(e) => setEditingItem({ ...editingItem, siteLayout: e.target.value })}
+                                                        disabled={isLocked}
+                                                    />
+                                                    {!isLocked && (
+                                                        <UploadButton 
+                                                            onUpload={(url) => setEditingItem({ ...editingItem, siteLayout: url })}
+                                                            folder="schedules/layout"
+                                                        />
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>

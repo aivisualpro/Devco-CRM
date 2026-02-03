@@ -26,6 +26,8 @@ export interface IEstimate extends Document {
     prevailingWage?: boolean;
     isChangeOrder?: boolean;
     parentVersionId?: string;
+    aerialImage?: string;
+    siteLayout?: string;
 
     // New fields
     createdBy?: string;
@@ -248,6 +250,8 @@ const EstimateSchema = new Schema({
     prevailingWage: { type: Boolean }, // New field displayed if certifiedPayroll is Yes
     isChangeOrder: { type: Boolean, default: false },
     parentVersionId: { type: String },
+    aerialImage: { type: String },
+    siteLayout: { type: String },
 
     // New fields
     createdBy: { type: String },

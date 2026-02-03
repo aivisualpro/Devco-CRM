@@ -805,23 +805,23 @@ function SchedulePageContent() {
         
         // Base required fields (always required)
         const baseRequiredFields = [
-            { key: 'item', label: 'Tag' },
-            { key: 'fromDate', label: 'From Date' },
-            { key: 'toDate', label: 'To Date' },
+            { key: 'item', label: 'Tag', id: 'schedTag' },
+            { key: 'fromDate', label: 'From Date', id: 'schedFromDate' },
+            { key: 'toDate', label: 'To Date', id: 'schedToDate' },
         ];
         
         // Additional fields required for non-Day Off schedules
         const additionalRequiredFields = [
-            { key: 'customerId', label: 'Client' },
-            { key: 'title', label: 'Title' },
-            { key: 'projectManager', label: 'Project Manager' },
-            { key: 'foremanName', label: 'Foreman' },
-            { key: 'description', label: 'Scope of Work' },
-            { key: 'service', label: 'Service' },
-            { key: 'notifyAssignees', label: 'Notify Assignees' },
-            { key: 'perDiem', label: 'Per Diem' },
-            { key: 'fringe', label: 'Fringe' },
-            { key: 'certifiedPayroll', label: 'Certified Payroll' }
+            { key: 'customerId', label: 'Client', id: 'schedClient' },
+            { key: 'title', label: 'Title', id: 'schedTitle' },
+            { key: 'projectManager', label: 'Project Manager', id: 'schedPM' },
+            { key: 'foremanName', label: 'Foreman', id: 'schedForeman' },
+            { key: 'description', label: 'Scope of Work', id: 'schedDesc' },
+            { key: 'service', label: 'Service', id: 'schedService' },
+            { key: 'notifyAssignees', label: 'Notify Assignees', id: 'schedNotify' },
+            { key: 'perDiem', label: 'Per Diem', id: 'schedPerDiem' },
+            { key: 'fringe', label: 'Fringe', id: 'schedFringe' },
+            { key: 'certifiedPayroll', label: 'Certified Payroll', id: 'schedCP' }
         ];
         
         // Combine fields based on whether it's a Day Off
@@ -830,6 +830,13 @@ function SchedulePageContent() {
         for (const field of requiredFields) {
             if (!(editingItem as any)?.[field.key]) {
                 toastError(`${field.label} is required`);
+                
+                // Scroll to and focus the missing field
+                const el = document.getElementById(field.id);
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.focus();
+                }
                 return;
             }
         }
@@ -3441,7 +3448,7 @@ function SchedulePageContent() {
                                     value={editingItem?.toDate ? formatLocalDateTime(editingItem.toDate) : ''}
                                     onChange={(e) => {
                                         // Store the value directly as string - NO Date object conversion
-                                        setEditingItem({ ...editingItem, toDate: e.target.value });
+                                        setEditingItem(prev => prev ? { ...prev, toDate: e.target.value } : null);
                                     }}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
@@ -3507,7 +3514,7 @@ function SchedulePageContent() {
                                             placeholder="Select proposal"
                                             disableBlank={true}
                                             options={initialData.estimates
-                                                .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem.customerId.toString()))
+                                                .filter(e => !editingItem?.customerId || (e.customerId && e.customerId.toString() === editingItem?.customerId?.toString()))
                                                 .map(e => ({ label: e.label, value: e.value }))}
                                             value={editingItem?.estimate || ''}
                                             onChange={(val) => {
@@ -3531,7 +3538,9 @@ function SchedulePageContent() {
                                                     fringe: est?.fringe || prev?.fringe || 'No',
                                                     certifiedPayroll: est?.certifiedPayroll || prev?.certifiedPayroll || 'No',
                                                     // Store jobLocation for display
-                                                    jobLocation: est?.jobAddress || prev?.jobLocation || ''
+                                                    jobLocation: est?.jobAddress || prev?.jobLocation || '',
+                                                    aerialImage: est?.aerialImage || (val ? '' : prev?.aerialImage),
+                                                    siteLayout: est?.siteLayout || (val ? '' : prev?.siteLayout)
                                                 }));
                                             }}
                                             onNext={() => {}}
@@ -3549,7 +3558,7 @@ function SchedulePageContent() {
                                     className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all h-[42px]"
                                     placeholder={editingItem?.item === 'Day Off' ? "Enter reason..." : "Project Main Phase"}
                                     value={editingItem?.title || ''}
-                                    onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                                    onChange={(e) => setEditingItem(prev => prev ? { ...prev, title: e.target.value } : null)}
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter') {
                                             e.preventDefault();
@@ -3566,7 +3575,7 @@ function SchedulePageContent() {
                                                 type="checkbox" 
                                                 className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 hover:border-slate-400 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1"
                                                 checked={editingItem?.isDayOffApproved === true}
-                                                onChange={(e) => setEditingItem({...editingItem, isDayOffApproved: e.target.checked})}
+                                                onChange={(e) => setEditingItem(prev => prev ? {...prev, isDayOffApproved: e.target.checked} : null)}
                                             />
                                             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
@@ -3585,7 +3594,7 @@ function SchedulePageContent() {
 
                         {/* Job Location - Read Only (shown when estimate is selected) */}
                         {editingItem?.estimate && (() => {
-                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                            const est = initialData.estimates.find(e => e.value === editingItem?.estimate);
                             const jobAddr = est?.jobAddress || editingItem?.jobLocation;
                             if (!jobAddr) return null;
                             return (
@@ -3614,7 +3623,7 @@ function SchedulePageContent() {
                                             image: emp.image
                                         }))}
                                     value={editingItem?.projectManager || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, projectManager: val })}
+                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, projectManager: val } : null)}
                                     onNext={() => {}}
                                 />
                             </div>
@@ -3632,7 +3641,7 @@ function SchedulePageContent() {
                                             image: emp.image
                                         }))}
                                     value={editingItem?.foremanName || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, foremanName: val })}
+                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, foremanName: val } : null)}
                                     onNext={() => {}}
                                 />
                             </div>
@@ -3659,7 +3668,7 @@ function SchedulePageContent() {
                                     onChange={(val) => {
                                          // val is string[] from multiple select
                                          const strVal = Array.isArray(val) ? val.join(', ') : val;
-                                         setEditingItem({ ...editingItem, service: strVal });
+                                         setEditingItem(prev => prev ? { ...prev, service: strVal } : null);
                                     }}
                                     onNext={() => {}}
                                 />
@@ -3698,7 +3707,7 @@ function SchedulePageContent() {
                                     ]}
                                     value={editingItem?.perDiem === true ? 'Yes' : (editingItem?.perDiem === false ? 'No' : (editingItem?.perDiem || 'No'))}
                                     onChange={(val) => {
-                                        setEditingItem({ ...editingItem, perDiem: val });
+                                        setEditingItem(prev => prev ? { ...prev, perDiem: val } : null);
                                     }}
                                     onNext={() => {}}
                                 />
@@ -3716,7 +3725,7 @@ function SchedulePageContent() {
                                         color: c.color
                                     }))}
                                     value={editingItem?.fringe || ''}
-                                    onChange={(val) => setEditingItem({ ...editingItem, fringe: val })}
+                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, fringe: val } : null)}
                                     onNext={() => {}}
                                 />
                             </div>
@@ -3733,7 +3742,7 @@ function SchedulePageContent() {
                                         color: c.color
                                     }))}
                                     value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
-                                    onChange={(val) => setEditingItem({ ...editingItem, certifiedPayroll: val })}
+                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, certifiedPayroll: val } : null)}
                                     onNext={() => {}}
                                 />
                             </div>
@@ -3755,7 +3764,7 @@ function SchedulePageContent() {
                                                 e.preventDefault();
                                                 const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
                                                 const newObjective: Objective = { text: val, completed: false };
-                                                setEditingItem({ ...editingItem, todayObjectives: [...current, newObjective] });
+                                                setEditingItem(prev => prev ? { ...prev, todayObjectives: [...current, newObjective] } : null);
                                                 e.currentTarget.value = '';
                                             }
                                         }
@@ -3770,7 +3779,7 @@ function SchedulePageContent() {
                                             const val = input.value.trim();
                                             const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
                                             const newObjective: Objective = { text: val, completed: false };
-                                            setEditingItem({ ...editingItem, todayObjectives: [...current, newObjective] });
+                                            setEditingItem(prev => prev ? { ...prev, todayObjectives: [...current, newObjective] } : null);
                                             input.value = '';
                                         }
                                     }}
@@ -3790,7 +3799,7 @@ function SchedulePageContent() {
                                                 className="text-slate-400 hover:text-red-500 transition-colors"
                                                 onClick={() => {
                                                     const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                                    setEditingItem({ ...editingItem, todayObjectives: current.filter((_: Objective | string, i: number) => i !== idx) });
+                                                    setEditingItem(prev => prev ? { ...prev, todayObjectives: current.filter((_: Objective | string, i: number) => i !== idx) } : null);
                                                 }}
                                             >
                                                 <X size={14} />
@@ -3810,7 +3819,7 @@ function SchedulePageContent() {
                                 className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-y placeholder:text-slate-400"
                                 placeholder="Enter scope of work..."
                                 value={editingItem?.description || ''}
-                                onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })}
+                                onChange={(e) => setEditingItem(prev => prev ? { ...prev, description: e.target.value } : null)}
                             />
                         </div>
 
@@ -3820,24 +3829,47 @@ function SchedulePageContent() {
                         <div className="grid grid-cols-2 gap-4 mt-4">
                             {/* Aerial Image */}
                             <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
+                                    {(() => {
+                                        if (!editingItem) return null;
+                                        const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                        if (est?.aerialImage && editingItem.aerialImage === est.aerialImage) {
+                                            return (
+                                                <Badge variant="info" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1 py-0 px-2 h-5">
+                                                    <Shield size={10} />
+                                                    From Estimate
+                                                </Badge>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
                                 <div className="flex flex-col h-[200px]">
-                                    {/* Preview area - fixed height */}
                                     <div className="flex-1 min-h-[140px] mb-2">
                                         {editingItem?.aerialImage ? (
                                             <div className="relative group h-full">
                                                 <img 
-                                                    src={editingItem.aerialImage} 
+                                                    src={editingItem?.aerialImage} 
                                                     alt="Aerial View" 
                                                     className="w-full h-full object-cover rounded-lg border border-slate-200"
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEditingItem({ ...editingItem, aerialImage: '' })}
-                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
+                                                {(() => {
+                                                    if (!editingItem) return null;
+                                                    const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                    if (!(est?.aerialImage && editingItem.aerialImage === est.aerialImage)) {
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditingItem(prev => prev ? { ...prev, aerialImage: '' } : null)}
+                                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         ) : (
                                             <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -3848,30 +3880,56 @@ function SchedulePageContent() {
                                             </div>
                                         )}
                                     </div>
-                                    {/* Input area */}
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Paste image URL..."
-                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                            value={editingItem?.aerialImage || ''}
-                                            onChange={(e) => setEditingItem({ ...editingItem, aerialImage: e.target.value })}
-                                        />
-                                        <UploadButton 
-                                            onUpload={(url) => setEditingItem({ ...editingItem, aerialImage: url })}
-                                            folder="schedules/aerial"
-                                        />
+                                        {(() => {
+                                            if (!editingItem) return null;
+                                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                            const isLocked = est?.aerialImage && editingItem.aerialImage === est.aerialImage;
+                                            return (
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Paste image URL..."
+                                                        className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                                                        value={editingItem?.aerialImage || ''}
+                                                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, aerialImage: e.target.value } : null)}
+                                                        disabled={isLocked}
+                                                    />
+                                                    {!isLocked && (
+                                                        <UploadButton 
+                                                            onUpload={(url) => setEditingItem(prev => prev ? { ...prev, aerialImage: url } : null)}
+                                                            folder="schedules/aerial"
+                                                        />
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>
                             
                             {/* Site Layout */}
                             <div className="space-y-2">
-                                <label className="block text-sm font-bold text-slate-900">Site Layout</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="block text-sm font-bold text-slate-900">Site Layout</label>
+                                    {(() => {
+                                        if (!editingItem) return null;
+                                        const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                        if (est?.siteLayout && editingItem.siteLayout === est.siteLayout) {
+                                            return (
+                                                <Badge variant="success" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1 py-0 px-2 h-5">
+                                                    <Shield size={10} />
+                                                    From Estimate
+                                                </Badge>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+                                </div>
                                 <div className="flex flex-col h-[200px]">
-                                    {/* Preview area - fixed height */}
                                     <div className="flex-1 min-h-[140px] mb-2">
                                         {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') ? (() => {
+                                            if (!editingItem) return null;
                                             const coordsMatch = editingItem.siteLayout.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
                                             const lat = coordsMatch?.[1];
                                             const lng = coordsMatch?.[2];
@@ -3889,13 +3947,22 @@ function SchedulePageContent() {
                                                             loading="lazy"
                                                         />
                                                     </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
-                                                        className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                                    >
-                                                        <X className="w-3 h-3" />
-                                                    </button>
+                                                    {(() => {
+                                                        if (!editingItem) return null;
+                                                        const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                        if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
+                                                            return (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setEditingItem(prev => prev ? { ...prev, siteLayout: '' } : null)}
+                                                                    className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                                >
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            );
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </div>
                                             ) : (
                                                 <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -3908,18 +3975,27 @@ function SchedulePageContent() {
                                         })() : editingItem?.siteLayout ? (
                                             <div className="relative group h-full">
                                                 <img 
-                                                    src={editingItem.siteLayout} 
+                                                    src={editingItem?.siteLayout} 
                                                     alt="Site Layout" 
                                                     className="w-full h-full object-cover rounded-lg border border-slate-200"
                                                     onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                                 />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setEditingItem({ ...editingItem, siteLayout: '' })}
-                                                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                >
-                                                    <X className="w-3 h-3" />
-                                                </button>
+                                                {(() => {
+                                                    if (!editingItem) return null;
+                                                    const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                    if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setEditingItem(prev => prev ? { ...prev, siteLayout: '' } : null)}
+                                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })()}
                                             </div>
                                         ) : (
                                             <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
@@ -3930,19 +4006,30 @@ function SchedulePageContent() {
                                             </div>
                                         )}
                                     </div>
-                                    {/* Input area */}
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Paste Google Earth URL..."
-                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                            value={editingItem?.siteLayout || ''}
-                                            onChange={(e) => setEditingItem({ ...editingItem, siteLayout: e.target.value })}
-                                        />
-                                        <UploadButton 
-                                            onUpload={(url) => setEditingItem({ ...editingItem, siteLayout: url })}
-                                            folder="schedules/layout"
-                                        />
+                                        {(() => {
+                                            if (!editingItem) return null;
+                                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                            const isLocked = est?.siteLayout && editingItem.siteLayout === est.siteLayout;
+                                            return (
+                                                <>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Paste Google Earth URL..."
+                                                        className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                                                        value={editingItem?.siteLayout || ''}
+                                                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, siteLayout: e.target.value } : null)}
+                                                        disabled={isLocked}
+                                                    />
+                                                    {!isLocked && (
+                                                        <UploadButton 
+                                                            onUpload={(url) => setEditingItem(prev => prev ? { ...prev, siteLayout: url } : null)}
+                                                            folder="schedules/layout"
+                                                        />
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>

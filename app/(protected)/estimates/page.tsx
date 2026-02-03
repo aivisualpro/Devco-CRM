@@ -353,7 +353,7 @@ export default function EstimatesPage() {
             const s = search.toLowerCase();
             filtered = filtered.filter((e) =>
                 (e.estimate || '').toLowerCase().includes(s) ||
-                (e.customerName || '').toLowerCase().includes(s) ||
+                (getCustomerName(e)).toLowerCase().includes(s) ||
                 (e.proposalNo || '').toLowerCase().includes(s) ||
                 (e.projectName || '').toLowerCase().includes(s)
             );
