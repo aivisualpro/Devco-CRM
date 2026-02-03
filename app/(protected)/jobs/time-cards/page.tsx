@@ -611,9 +611,21 @@ function TimeCardContent() {
     const triggerSpecialFieldModal = (ts: TimesheetEntry, field: 'dumpWashout' | 'shopTime') => {
         setSpecialFieldModal({ ts, field });
         // Try to pre-fill qty if it exists
-        const existing = String(field === 'dumpWashout' ? ts.dumpWashout : ts.shopTime);
-        const match = existing.match(/\((\d+)\s+qty\)/);
-        setSpecialQty(match ? match[1] : "1");
+        let qty = "1";
+        if (field === 'dumpWashout') {
+             if (typeof ts.dumpQty === 'number' && ts.dumpQty > 0) qty = String(ts.dumpQty);
+             else {
+                 const match = String(ts.dumpWashout || '').match(/\((\d+)\s+qty\)/);
+                 if (match) qty = match[1];
+             }
+        } else {
+             if (typeof ts.shopQty === 'number' && ts.shopQty > 0) qty = String(ts.shopQty);
+             else {
+                 const match = String(ts.shopTime || '').match(/\((\d+)\s+qty\)/);
+                 if (match) qty = match[1];
+             }
+        }
+        setSpecialQty(qty);
     };
 
     const handleSpecialQtyChange = (val: string) => {
@@ -634,7 +646,8 @@ function TimeCardContent() {
                 ...s,
                 timesheet: (s.timesheet || []).map((t: any) => {
                     if ((t._id || t.recordId) === recordId) {
-                        return { ...t, [field]: calculatedValue };
+                        const numericField = field === 'dumpWashout' ? 'dumpQty' : 'shopQty';
+                        return { ...t, [field]: calculatedValue, [numericField]: qty };
                     }
                     return t;
                 })
@@ -682,7 +695,8 @@ function TimeCardContent() {
             const schedule = dataGet.result;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === recordId) {
-                    return { ...t, [field]: calculatedValue };
+                    const numericField = field === 'dumpWashout' ? 'dumpQty' : 'shopQty';
+                    return { ...t, [field]: calculatedValue, [numericField]: qty };
                 }
                 return t;
             });
@@ -1990,16 +2004,17 @@ function TimeCardContent() {
                                         className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
                                         placeholder="0"
                                         value={(() => {
+                                            if (typeof editForm.dumpQty === 'number' && editForm.dumpQty > 0) return String(editForm.dumpQty);
                                             const match = String(editForm.dumpWashout || '').match(/\((\d+)\s+qty\)/);
                                             return match?.[1] || (editForm.dumpWashout === true || String(editForm.dumpWashout).toLowerCase() === 'true' || String(editForm.dumpWashout).toLowerCase() === 'yes' ? "1" : "");
                                         })()}
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
                                             if (isNaN(qty) || qty <= 0) {
-                                                setEditForm(prev => ({...prev, dumpWashout: ""}));
+                                                setEditForm(prev => ({...prev, dumpWashout: "", dumpQty: 0}));
                                             } else {
                                                 const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
-                                                setEditForm(prev => ({...prev, dumpWashout: val}));
+                                                setEditForm(prev => ({...prev, dumpWashout: val, dumpQty: qty}));
                                             }
                                         }}
                                     />
@@ -2011,16 +2026,17 @@ function TimeCardContent() {
                                         className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
                                         placeholder="0"
                                         value={(() => {
+                                            if (typeof editForm.shopQty === 'number' && editForm.shopQty > 0) return String(editForm.shopQty);
                                             const match = String(editForm.shopTime || '').match(/\((\d+)\s+qty\)/);
                                             return match?.[1] || (editForm.shopTime === true || String(editForm.shopTime).toLowerCase() === 'true' || String(editForm.shopTime).toLowerCase() === 'yes' ? "1" : "");
                                         })()}
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
                                             if (isNaN(qty) || qty <= 0) {
-                                                setEditForm(prev => ({...prev, shopTime: ""}));
+                                                setEditForm(prev => ({...prev, shopTime: "", shopQty: 0}));
                                             } else {
                                                 const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
-                                                setEditForm(prev => ({...prev, shopTime: val}));
+                                                setEditForm(prev => ({...prev, shopTime: val, shopQty: qty}));
                                             }
                                         }}
                                     />
