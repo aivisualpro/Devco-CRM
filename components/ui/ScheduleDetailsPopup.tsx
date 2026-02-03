@@ -8,8 +8,9 @@ import {
     ArrowLeft, ChevronRight, ExternalLink, Image as ImageIcon,
     FileCheck, Briefcase, MessageSquare
 } from 'lucide-react';
-import { Modal, Badge } from '@/components/ui';
+import { Modal, Badge, Table, TableHead, TableBody, TableRow, TableHeader, TableCell } from '@/components/ui';
 import { EstimateChat } from '@/components/ui/EstimateChat';
+import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
 
 export interface ConstantData {
     _id?: string;
@@ -62,28 +63,23 @@ interface ScheduleDetailsPopupProps {
     currentUserEmail?: string;
 }
 
+// Local helpers replaced by robust utils
 const formatDate = (d: string | Date | undefined) => {
-    if (!d) return '-';
+    // Keep this for header display (e.g. "Mon, Jan 1") as it's different format than the table
+     if (!d) return '-';
     try {
         const date = new Date(d);
         return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     } catch { return String(d); }
 };
 
-const formatTime = (d: string | Date | undefined) => {
+const formatTimeHeader = (d: string | Date | undefined) => {
+    // Keep this for header display
     if (!d) return '--:--';
     try {
         const date = new Date(d);
         return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     } catch { return String(d); }
-};
-
-const calculateTimesheetHours = (ts: any) => {
-    let hours = ts.hours || 0;
-    if (!hours && ts.clockIn && ts.clockOut) {
-        hours = (new Date(ts.clockOut).getTime() - new Date(ts.clockIn).getTime()) / (1000 * 60 * 60);
-    }
-    return Math.max(0, hours);
 };
 
 export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
@@ -203,7 +199,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                             <div className="flex items-center gap-2 bg-slate-50 px-3 rounded-lg border border-slate-100 h-full">
                                 <Clock size={14} className="text-slate-500" />
                                 <span className="text-sm font-bold text-slate-600">
-                                    {formatTime(schedule.fromDate)} - {formatTime(schedule.toDate)}
+                                    {formatTimeHeader(schedule.fromDate)} - {formatTimeHeader(schedule.toDate)}
                                 </span>
                             </div>
                         </div>
@@ -531,96 +527,131 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                         {/* TAB 3: TIME CARD */}
                         {activeTab === 'timecard' && (
                             <div className="space-y-6">
-                                {siteTimeEntries.length > 0 && (
+                                {driveTimeEntries.length > 0 && (
                                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                                        <div className="bg-emerald-50 px-4 py-3 border-b border-emerald-100 flex items-center justify-between">
+                                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <Calendar size={16} className="text-emerald-700" />
-                                                <h3 className="text-sm font-bold text-emerald-800 uppercase tracking-wide">Site Work</h3>
+                                                <Car size={16} className="text-blue-500" />
+                                                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide">Drive & Shop Time</h3>
                                             </div>
-                                            <Badge className="bg-emerald-100 text-emerald-700 border-none">{siteTimeEntries.length} Entries</Badge>
+                                            <Badge className="bg-blue-50 text-blue-700 border-blue-100">{driveTimeEntries.length} Entries</Badge>
                                         </div>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
-                                                    <tr>
-                                                        <th className="px-4 py-3">Employee</th>
-                                                        <th className="px-4 py-3 text-center">Clock In</th>
-                                                        <th className="px-4 py-3 text-center">Clock Out</th>
-                                                        <th className="px-4 py-3 text-right">Hours</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100">
-                                                    {siteTimeEntries.map((ts: any, i: number) => {
-                                                        const emp = resolveEmployee(ts.employee);
-                                                        const hours = calculateTimesheetHours(ts);
-                                                        return (
-                                                            <tr key={i} className="hover:bg-slate-50">
-                                                                <td className="px-4 py-3 font-medium text-slate-700 flex items-center gap-2">
-                                                                    <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden">
-                                                                        {emp?.image && <img src={emp.image} className="w-full h-full object-cover" />}
-                                                                    </div>
-                                                                    {emp?.label || ts.employee}
-                                                                </td>
-                                                                <td className="px-4 py-3 text-center text-slate-500">{formatTime(ts.clockIn)}</td>
-                                                                <td className="px-4 py-3 text-center text-slate-500">{ts.clockOut ? formatTime(ts.clockOut) : 'Active'}</td>
-                                                                <td className="px-4 py-3 text-right font-bold text-slate-700">{hours.toFixed(2)}</td>
-                                                            </tr>
-                                                        );
+                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                                <TableHead>
+                                                    <TableRow className="hover:bg-transparent border-slate-100">
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Washout</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Shop</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right">Dist</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right">Hrs</TableHeader>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {driveTimeEntries.map((ts: any, i: number) => {
+                                                         const { hours, distance } = calculateTimesheetData(ts);
+                                                         
+                                                         const getQty = (val: any, numericQty?: number) => {
+                                                             if (typeof numericQty === 'number' && numericQty > 0) return numericQty;
+                                                             const str = String(val || '');
+                                                             const match = str.match(/\((\d+)\s+qty\)/);
+                                                             if (match) return parseFloat(match[1]);
+                                                             if (val === true || str.toLowerCase() === 'true' || str.toLowerCase() === 'yes') return 1;
+                                                             return 0;
+                                                         };
+
+                                                         const washoutQty = getQty(ts.dumpWashout, ts.dumpQty);
+                                                         const shopQty = getQty(ts.shopTime, ts.shopQty);
+
+                                                         return (
+                                                            <TableRow key={i} className="hover:bg-slate-50">
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                    {formatDateOnly(ts.clockIn) || '-'}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                        {schedule.estimate ? schedule.estimate.replace(/-[vV]\d+$/, '') : (ts.estimate || '-')}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    {washoutQty > 0 ? (
+                                                                        <span className="text-[10px] font-black uppercase bg-orange-500 text-white px-2 py-1 rounded shadow-sm inline-flex flex-col items-center min-w-[70px] justify-center leading-none gap-0.5">
+                                                                            <span className="flex items-center gap-1">WASHOUT <CheckCircle2 size={10} /></span>
+                                                                            <span className="text-[9px] opacity-90">{washoutQty} QTY</span>
+                                                                        </span>
+                                                                    ) : <span className="text-slate-300">-</span>}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    {shopQty > 0 ? (
+                                                                        <span className="text-[10px] font-black uppercase bg-blue-500 text-white px-2 py-1 rounded shadow-sm inline-flex flex-col items-center min-w-[70px] justify-center leading-none gap-0.5">
+                                                                            <span className="flex items-center gap-1">SHOP <CheckCircle2 size={10} /></span>
+                                                                            <span className="text-[9px] opacity-90">{shopQty} QTY</span>
+                                                                        </span>
+                                                                    ) : <span className="text-slate-300">-</span>}
+                                                                </TableCell>
+                                                                <TableCell className="text-right text-[11px] font-medium text-slate-600">
+                                                                    {distance > 0 ? distance.toFixed(1) : '-'}
+                                                                </TableCell>
+                                                                <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                                    {hours.toFixed(2)}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                         );
                                                     })}
-                                                </tbody>
-                                            </table>
+                                                </TableBody>
+                                            </Table>
                                         </div>
                                     </div>
                                 )}
 
-                                {driveTimeEntries.length > 0 && (
+                                {siteTimeEntries.length > 0 && (
                                     <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-                                        <div className="bg-blue-50 px-4 py-3 border-b border-blue-100 flex items-center justify-between">
+                                        <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
-                                                <Car size={16} className="text-blue-700" />
-                                                <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wide">Drive & Shop Time</h3>
+                                                <MapPin size={16} className="text-emerald-500" />
+                                                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide">Site Time</h3>
                                             </div>
-                                            <Badge className="bg-blue-100 text-blue-700 border-none">{driveTimeEntries.length} Entries</Badge>
+                                            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-100">{siteTimeEntries.length} Entries</Badge>
                                         </div>
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase">
-                                                    <tr>
-                                                        <th className="px-4 py-3">Employee</th>
-                                                        <th className="px-4 py-3">Type</th>
-                                                        <th className="px-4 py-3 text-center">Start</th>
-                                                        <th className="px-4 py-3 text-center">End</th>
-                                                        <th className="px-4 py-3 text-right">Hours</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-slate-100">
-                                                    {driveTimeEntries.map((ts: any, i: number) => {
-                                                        const emp = resolveEmployee(ts.employee);
-                                                        const hours = calculateTimesheetHours(ts);
-                                                        const isWashout = ts.dumpWashout === 'Yes' || ts.type === 'dumpWashout';
-                                                        const isShop = ts.shopTime === 'Yes' || ts.type === 'shopTime';
+                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                                <TableHead>
+                                                    <TableRow className="hover:bg-transparent border-slate-100">
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">In</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center">Out</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right">Hrs</TableHeader>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {siteTimeEntries.map((ts: any, i: number) => {
+                                                        const { hours } = calculateTimesheetData(ts);
                                                         return (
-                                                            <tr key={i} className="hover:bg-slate-50">
-                                                                <td className="px-4 py-3 font-medium text-slate-700 flex items-center gap-2">
-                                                                    <div className="w-6 h-6 rounded-full bg-slate-200 overflow-hidden">
-                                                                        {emp?.image && <img src={emp.image} className="w-full h-full object-cover" />}
-                                                                    </div>
-                                                                    {emp?.label || ts.employee}
-                                                                </td>
-                                                                <td className="px-4 py-3">
-                                                                    {isWashout && <Badge className="bg-teal-50 text-teal-700 border-none">Washout</Badge>}
-                                                                    {isShop && <Badge className="bg-amber-50 text-amber-700 border-none">Shop</Badge>}
-                                                                    {!isWashout && !isShop && <Badge className="bg-blue-50 text-blue-700 border-none">Drive</Badge>}
-                                                                </td>
-                                                                <td className="px-4 py-3 text-center text-slate-500">{formatTime(ts.clockIn)}</td>
-                                                                <td className="px-4 py-3 text-center text-slate-500">{ts.clockOut ? formatTime(ts.clockOut) : 'Active'}</td>
-                                                                <td className="px-4 py-3 text-right font-bold text-slate-700">{hours.toFixed(2)}</td>
-                                                            </tr>
+                                                            <TableRow key={i} className="hover:bg-slate-50">
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                    {formatDateOnly(ts.clockIn)}
+                                                                </TableCell>
+                                                                <TableCell className="text-center">
+                                                                    <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                        {schedule.estimate ? schedule.estimate.replace(/-[vV]\d+$/, '') : '-'}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                    {formatTimeOnly(ts.clockIn)}
+                                                                </TableCell>
+                                                                <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                                    {formatTimeOnly(ts.clockOut)}
+                                                                </TableCell>
+                                                                <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                                    {hours.toFixed(2)}
+                                                                </TableCell>
+                                                            </TableRow>
                                                         );
                                                     })}
-                                                </tbody>
-                                            </table>
+                                                </TableBody>
+                                            </Table>
                                         </div>
                                     </div>
                                 )}

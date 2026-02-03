@@ -1357,12 +1357,34 @@ function DashboardContent() {
         }
     };
 
+    const getLocation = (): Promise<string | null> => {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve(null);
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (pos) => resolve(`${pos.coords.latitude},${pos.coords.longitude}`),
+                () => resolve(null),
+                { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+            );
+        });
+    };
+
     const executeDriveTimeToggle = async (schedule: Schedule, activeTs?: any, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         if (!currentUser) return;
 
         const now = new Date().toISOString();
         const employeeEmail = currentUser.email;
+
+        // Fetch location
+        let location: string | null = null;
+        try {
+            location = await getLocation();
+        } catch (err) {
+            console.error('Failed to get location', err);
+        }
 
         // Optimistic UI Update
         if (activeTs) {
@@ -1372,7 +1394,7 @@ function DashboardContent() {
                 return {
                     ...s,
                     timesheet: (s.timesheet || []).map((ts: any) => 
-                        ts._id === activeTs._id ? { ...ts, clockOut: now } : ts
+                        ts._id === activeTs._id ? { ...ts, clockOut: now, locationOut: location } : ts
                     )
                 };
             }));
@@ -1384,6 +1406,7 @@ function DashboardContent() {
                 scheduleId: schedule._id,
                 employee: employeeEmail,
                 clockIn: now,
+                locationIn: location,
                 type: 'Drive Time',
                 status: 'Pending',
                 createdAt: now
@@ -1407,7 +1430,8 @@ function DashboardContent() {
                         scheduleId: schedule._id,
                         employee: employeeEmail,
                         timesheetId: activeTs?._id,
-                        date: now
+                        date: now,
+                        location: location // Add location to payload
                     }
                 })
             });
@@ -1472,9 +1496,9 @@ function DashboardContent() {
             isOpen: true,
             title: `${type}`,
             message: isDumpWashout 
-                ? 'Did you Dump / Washout today? If yes, how many dumps after site time?'
+                ? 'Did you Dump / Washout today after Site Time Today? If yes, How Many? "Washout time is 30 minute increments and only used AFTER site time has been clocked out."'
                 : isShopTime 
-                    ? 'Did you shop time today? If yes, how many shop time after site time?'
+                    ? 'Did you have shop time BEFORE and/or AFTER site time today, and how many? "Shop Time is 15 minute increments."'
                     : `Are you sure you want to ${actionWord} ${type}?`,
             confirmText: 'Confirm',
             variant: 'primary',

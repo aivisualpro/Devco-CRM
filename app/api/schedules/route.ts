@@ -566,7 +566,7 @@ export async function POST(request: NextRequest) {
             }
 
             case 'toggleDriveTime': {
-                const { scheduleId, employee, timesheetId, date } = payload || {};
+                const { scheduleId, employee, timesheetId, date, location } = payload || {};
                 const schedule = await Schedule.findById(scheduleId);
                 if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
 
@@ -576,6 +576,7 @@ export async function POST(request: NextRequest) {
                     if (tsIndex > -1) {
                         const updateObj: any = {};
                         updateObj[`timesheet.${tsIndex}.clockOut`] = date || new Date().toISOString();
+                        if (location) updateObj[`timesheet.${tsIndex}.locationOut`] = location;
                         updateObj.updatedAt = new Date();
                         await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
                         
@@ -590,6 +591,7 @@ export async function POST(request: NextRequest) {
                         scheduleId,
                         employee,
                         clockIn: date || new Date().toISOString(),
+                        locationIn: location,
                         type: 'Drive Time',
                         status: 'Pending',
                         createdAt: new Date().toISOString()
