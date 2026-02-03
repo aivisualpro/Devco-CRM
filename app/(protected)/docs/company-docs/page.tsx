@@ -1,12 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-    FileText, Eye, Trash2, Plus, Search, Filter, Download 
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
-import { UploadButton } from '@/components/ui/UploadButton';
+import { ExternalLink, Trash2, Plus, FileText, Loader2 } from 'lucide-react';
+import { Header, Modal, Button, Input, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
@@ -14,31 +10,14 @@ import { MODULES, ACTIONS } from '@/lib/permissions/types';
 export default function CompanyDocsPage() {
     const { success, error: showError } = useToast();
     const { user, can } = usePermissions();
-    const [currentUser, setCurrentUser] = useState<any>(null);
-    const userEmail = user?.email || currentUser?.email || '';
+    const userEmail = user?.email || '';
 
     const [companyDocs, setCompanyDocs] = useState<any[]>([]);
     const [isDocModalOpen, setIsDocModalOpen] = useState(false);
-    const [docForm, setDocForm] = useState({ title: '', url: '' });
+    const [docForm, setDocForm] = useState({ title: '', file: null as File | null });
     const [isSavingDoc, setIsSavingDoc] = useState(false);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [previewDoc, setPreviewDoc] = useState<any>(null);
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const storedUser = localStorage.getItem('devco_user');
-            if (storedUser) {
-                try {
-                    setCurrentUser(JSON.parse(storedUser));
-                } catch (e) {
-                    console.error('Failed to parse user', e);
-                }
-            } else if (user) {
-                setCurrentUser(user);
-            }
-        }
-    }, [user]);
 
     const fetchDocs = async () => {
         setLoading(true);
@@ -62,21 +41,44 @@ export default function CompanyDocsPage() {
         fetchDocs();
     }, []);
 
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0] || null;
+        setDocForm({ ...docForm, file });
+    };
+
     const handleSaveDoc = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!docForm.title || !docForm.url) {
-            showError('Please provide both title and document');
+        if (!docForm.title || !docForm.file) {
+            showError('Please provide both title and file');
             return;
         }
 
         setIsSavingDoc(true);
         try {
+            // Upload file to R2
+            const formData = new FormData();
+            formData.append('file', docForm.file);
+            formData.append('folder', 'company-docs');
+
+            const uploadRes = await fetch('/api/upload-r2', {
+                method: 'POST',
+                body: formData
+            });
+            const uploadData = await uploadRes.json();
+
+            if (!uploadData.success) {
+                throw new Error(uploadData.error || 'Upload failed');
+            }
+
+            // Save document record
             const res = await fetch('/api/company-docs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     title: docForm.title,
-                    url: docForm.url,
+                    url: uploadData.url,
+                    r2Key: uploadData.key,
+                    type: uploadData.type,
                     uploadedBy: userEmail
                 })
             });
@@ -85,20 +87,20 @@ export default function CompanyDocsPage() {
             if (data.success) {
                 success('Document added successfully');
                 setIsDocModalOpen(false);
-                setDocForm({ title: '', url: '' });
+                setDocForm({ title: '', file: null });
                 fetchDocs();
             } else {
                 showError(data.error || 'Failed to save document');
             }
-        } catch (err) {
-            showError('Error saving document');
+        } catch (err: any) {
+            showError(err.message || 'Error saving document');
         } finally {
             setIsSavingDoc(false);
         }
     };
 
-    const handleDeleteDoc = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this document?')) return;
+    const handleDeleteDoc = async (id: string, title: string) => {
+        if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
         
         try {
             const res = await fetch(`/api/company-docs?id=${id}`, { method: 'DELETE' });
@@ -119,138 +121,100 @@ export default function CompanyDocsPage() {
         doc.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    if (loading) {
-        return <div className="p-8 flex items-center justify-center">Loading...</div>;
-    }
-
     return (
         <div className="flex flex-col h-full bg-slate-50/50">
-            <Header />
-            <div className="flex-1 overflow-y-auto pb-20">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-                 <h1 className="text-2xl font-bold text-slate-900">Company Documents</h1>
-                 <p className="text-slate-500">Manage and view company training materials and certifications</p>
-            </div>
-            
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-                
-                {/* Actions Bar */}
-                <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
-                    <div className="relative w-full sm:w-96">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <input 
-                            type="text"
+            <Header 
+                rightContent={
+                    <div className="flex items-center gap-3">
+                        <SearchInput 
                             placeholder="Search documents..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all"
                         />
+                        {can(MODULES.COMPANY_DOCS, ACTIONS.CREATE) && (
+                            <button
+                                onClick={() => setIsDocModalOpen(true)}
+                                className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center shrink-0"
+                                title="Add Document"
+                            >
+                                <Plus size={20} />
+                            </button>
+                        )}
                     </div>
-                    
-                    {can(MODULES.COMPANY_DOCS, ACTIONS.CREATE) && (
-                        <button
-                            onClick={() => setIsDocModalOpen(true)}
-                            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95"
-                        >
-                            <Plus size={18} />
-                            <span className="font-medium text-sm">Add Document</span>
-                        </button>
-                    )}
-                </div>
-
-                {/* Documents Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredDocs.length > 0 ? (
-                        filteredDocs.map(doc => (
-                            <div key={doc._id} className="group relative flex flex-col p-4 rounded-2xl border border-slate-100 bg-white hover:bg-slate-50 hover:border-slate-200 hover:shadow-md transition-all">
-                                <div className="flex items-start justify-between gap-3 mb-3">
-                                    <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                                        <FileText size={20} />
-                                    </div>
-                                    <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                        {/* For images, open modal. For PDFs and others, open in new tab */}
-                                        {doc.url?.toLowerCase().match(/\.(jpg|jpeg|png|webp|gif)$/) ? (
-                                            <button 
-                                                onClick={() => setPreviewDoc(doc)}
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="Preview"
-                                            >
-                                                <Eye size={16} />
-                                            </button>
-                                        ) : (
-                                            <a 
-                                                href={doc.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                title="View in New Tab"
-                                            >
-                                                <Eye size={16} />
-                                            </a>
-                                        )}
-                                        <a 
-                                            href={doc.url.includes('/image/upload/') ? doc.url.replace('/image/upload/', '/image/upload/fl_attachment/') : doc.url}
-                                            download
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                                            title="Download"
-                                        >
-                                            <Download size={16} />
-                                        </a>
-                                        {can(MODULES.COMPANY_DOCS, ACTIONS.DELETE) && (
-                                            <button 
-                                                onClick={() => handleDeleteDoc(doc._id)}
-                                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                {doc.url && (doc.url.toLowerCase().endsWith('.jpg') || doc.url.toLowerCase().endsWith('.jpeg') || doc.url.toLowerCase().endsWith('.png') || doc.url.toLowerCase().endsWith('.webp')) ? (
-                                    <div className="mb-4 aspect-video rounded-xl overflow-hidden bg-slate-100 border border-slate-200 cursor-pointer" onClick={() => setPreviewDoc(doc)}>
-                                        <img 
-                                            src={doc.url} 
-                                            alt={doc.title}
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
+                }
+            />
+            
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="max-w-5xl mx-auto">
+                    {/* Simple Table */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <table className="w-full">
+                            <thead>
+                                <tr className="bg-slate-50 border-b border-slate-200">
+                                    <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">File Name</th>
+                                    <th className="text-center px-4 py-4 text-sm font-semibold text-slate-700 w-24">View</th>
+                                    <th className="text-center px-4 py-4 text-sm font-semibold text-slate-700 w-24">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {loading ? (
+                                    <tr>
+                                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
+                                            <Loader2 className="animate-spin mx-auto mb-2" size={24} />
+                                            Loading documents...
+                                        </td>
+                                    </tr>
+                                ) : filteredDocs.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
+                                            <FileText className="mx-auto mb-2 text-slate-300" size={32} />
+                                            No documents found
+                                        </td>
+                                    </tr>
                                 ) : (
-                                    <a 
-                                        href={doc.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="mb-4 aspect-video rounded-xl bg-slate-50 border border-dashed border-slate-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-100 hover:border-slate-300 transition-all overflow-hidden"
-                                    >
-                                        <div className="flex flex-col items-center justify-center gap-2 p-4">
-                                            <FileText size={32} className="text-slate-300" />
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                {doc.url?.split('.').pop() || 'File'} Document
-                                            </span>
-                                            <span className="text-[10px] text-blue-500">Click to open</span>
-                                        </div>
-                                    </a>
+                                    filteredDocs.map((doc) => (
+                                        <tr key={doc._id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-slate-900">{doc.title}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Added {new Date(doc.createdAt).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                <a 
+                                                    href={doc.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
+                                                    title="Open in new tab"
+                                                >
+                                                    <ExternalLink size={18} />
+                                                </a>
+                                            </td>
+                                            <td className="px-4 py-4 text-center">
+                                                {can(MODULES.COMPANY_DOCS, ACTIONS.DELETE) && (
+                                                    <button 
+                                                        onClick={() => handleDeleteDoc(doc._id, doc.title)}
+                                                        className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
                                 )}
-                                
-                                <div className="mt-3">
-                                    <h3 className="font-bold text-slate-900 truncate mb-1" title={doc.title}>{doc.title}</h3>
-                                    <p className="text-xs text-slate-500">
-                                        Added {new Date(doc.createdAt).toLocaleDateString()}
-                                    </p>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="col-span-full py-12 text-center bg-white rounded-2xl border border-dashed border-slate-200">
-                            <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <FileText className="text-slate-300" />
-                            </div>
-                            <p className="text-slate-400">No documents found</p>
-                        </div>
-                    )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -269,96 +233,33 @@ export default function CompanyDocsPage() {
                     
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Upload File</label>
-                        <div className="w-full">
-                            <UploadButton 
-                                onUpload={(url: string) => setDocForm({ ...docForm, url })}
-                                className="w-full"
-                            />
-                        </div>
-                        {docForm.url && (
-                             <div className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
-                                 <FileText size={12} />
-                                 File uploaded ready to save
-                             </div>
+                        <input 
+                            type="file"
+                            onChange={handleFileChange}
+                            className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all bg-slate-50 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
+                            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.gif,.webp"
+                        />
+                        {docForm.file && (
+                            <p className="mt-2 text-xs text-emerald-600 flex items-center gap-1">
+                                <FileText size={12} />
+                                {docForm.file.name} ready to upload
+                            </p>
                         )}
                     </div>
 
                     <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="outline" onClick={() => setIsDocModalOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={isSavingDoc || !docForm.url}>
-                            {isSavingDoc ? 'Saving...' : 'Save Document'}
+                        <Button type="submit" disabled={isSavingDoc || !docForm.file}>
+                            {isSavingDoc ? (
+                                <>
+                                    <Loader2 className="animate-spin mr-2" size={16} />
+                                    Uploading...
+                                </>
+                            ) : 'Save Document'}
                         </Button>
                     </div>
                 </form>
             </Modal>
-
-            {/* Preview Modal */}
-            <Modal 
-                isOpen={!!previewDoc} 
-                onClose={() => setPreviewDoc(null)} 
-                title={previewDoc?.title || 'Document Preview'}
-                maxWidth="5xl"
-            >
-                <div className="h-[80vh] flex flex-col">
-                    <div className="flex-1 bg-slate-100 rounded-xl overflow-hidden relative">
-                        {previewDoc?.url && (previewDoc.url.toLowerCase().endsWith('.jpg') || previewDoc.url.toLowerCase().endsWith('.jpeg') || previewDoc.url.toLowerCase().endsWith('.png') || previewDoc.url.toLowerCase().endsWith('.webp')) ? (
-                            <img 
-                                src={previewDoc.url} 
-                                alt={previewDoc.title}
-                                className="w-full h-full object-contain"
-                            />
-                        ) : previewDoc?.url?.toLowerCase().endsWith('.pdf') ? (
-                            <div className="w-full h-full flex flex-col">
-                                {/* Try native PDF embed first */}
-                                <object 
-                                    data={previewDoc.url} 
-                                    type="application/pdf"
-                                    className="w-full h-full"
-                                >
-                                    {/* Fallback if object doesn't work */}
-                                    <div className="flex flex-col items-center justify-center h-full gap-6 text-slate-500 p-8">
-                                        <FileText size={64} className="text-slate-300" />
-                                        <div className="text-center space-y-2">
-                                            <p className="font-semibold text-lg text-slate-700">PDF Preview Not Available</p>
-                                            <p className="text-sm">Your browser cannot display this PDF inline.</p>
-                                        </div>
-                                        <a 
-                                            href={previewDoc.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 transition-colors shadow-md"
-                                        >
-                                            Open PDF in New Tab
-                                        </a>
-                                    </div>
-                                </object>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col items-center justify-center h-full gap-4 text-slate-400">
-                                <FileText size={64} />
-                                <p>Preview not available for this file type</p>
-                            </div>
-                        )}
-                    </div>
-                    <div className="flex justify-between items-center mt-4 px-2">
-                        <div className="text-sm text-slate-500">
-                            {previewDoc?.title}
-                        </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" onClick={() => setPreviewDoc(null)}>Close</Button>
-                            <a 
-                                href={previewDoc?.url?.includes('/image/upload/') ? previewDoc.url.replace('/image/upload/', '/image/upload/fl_attachment/') : previewDoc?.url}
-                                download
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                <Button>Download File</Button>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </Modal>
-            </div>
         </div>
     );
 }

@@ -3,6 +3,8 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IDevcoCompanyDoc extends Document {
     title: string;
     url: string;
+    r2Key?: string;
+    thumbnailUrl?: string;
     type?: string;
     uploadedBy?: string;
     createdAt: Date;
@@ -12,6 +14,8 @@ export interface IDevcoCompanyDoc extends Document {
 const DevcoCompanyDocSchema = new Schema<IDevcoCompanyDoc>({
     title: { type: String, required: true },
     url: { type: String, required: true },
+    r2Key: { type: String },
+    thumbnailUrl: { type: String },
     type: { type: String },
     uploadedBy: { type: String },
     createdAt: { type: Date, default: Date.now },

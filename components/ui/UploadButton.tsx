@@ -5,7 +5,7 @@ import { Upload, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 
 interface UploadButtonProps {
-    onUpload: (url: string) => void;
+    onUpload: (url: string, data?: any) => void;
     folder?: string;
     className?: string;
     label?: React.ReactNode;
@@ -58,7 +58,7 @@ export function UploadButton({
                 }
 
                 if (data.success && data.url) {
-                    onUpload(data.url);
+                    onUpload(data.url, data);
                 }
             }
         } catch (err: any) {
