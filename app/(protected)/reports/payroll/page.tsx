@@ -746,6 +746,11 @@ function PayrollReportContent() {
             return;
         }
 
+        if (!filterCertified || filterEstimate === 'all') {
+             toastError("Please select an Estimate and enable Certified Payroll filter to generate this report.");
+             return;
+        }
+
         try {
             setLoading(true);
             const totalAmount = reportData.reduce((acc, emp) => acc + emp.totalAmount, 0);
@@ -760,6 +765,10 @@ function PayrollReportContent() {
                     endDate={formatDate(weekEnd, 'MM/dd/yy')}
                     totalAmount={totalAmount}
                     weekNumber={weekNum}
+                    customerName={estimatesMap[filterEstimate]?.customerName}
+                    proposal={estimatesMap[filterEstimate]?.value}
+                    projectName={estimatesMap[filterEstimate]?.projectName || estimatesMap[filterEstimate]?.projectTitle}
+                    projectId={estimatesMap[filterEstimate]?.projectId}
                 />
             ).toBlob();
 
@@ -1019,12 +1028,20 @@ function PayrollReportContent() {
 
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <button onClick={handleExportPDF} className="p-3 bg-[#F4F7FA] rounded-2xl text-red-500 transition-all neu-outset hover:neu-pressed active:scale-95">
+                                    <button 
+                                        onClick={handleExportPDF} 
+                                        disabled={!filterCertified || filterEstimate === 'all'}
+                                        className={`p-3 rounded-2xl transition-all neu-outset active:scale-95 ${
+                                            (!filterCertified || filterEstimate === 'all') 
+                                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                                            : 'bg-[#F4F7FA] text-red-500 hover:neu-pressed'
+                                        }`}
+                                    >
                                         <Printer size={18} />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>Download PDF Report</p>
+                                    <p>{(!filterCertified || filterEstimate === 'all') ? "Select Estimate & Enable CP to Print" : "Download PDF Report"}</p>
                                 </TooltipContent>
                             </Tooltip>
                         </div>

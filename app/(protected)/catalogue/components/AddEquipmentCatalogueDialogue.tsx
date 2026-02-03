@@ -1,9 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, ChevronDown } from 'lucide-react';
-import { MyDropDown } from '@/components/ui/MyDropDown';
-import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface AddEquipmentCatalogueDialogueProps {
     isOpen: boolean;
@@ -25,6 +31,7 @@ export function AddEquipmentCatalogueDialogue({
     const [formData, setFormData] = useState<any>({});
     const [isSaving, setIsSaving] = useState(false);
     const [activeField, setActiveField] = useState<string | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (isOpen) {
@@ -45,7 +52,11 @@ export function AddEquipmentCatalogueDialogue({
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
-                onClose();
+                // Check if this is the topmost modal
+                const modals = Array.from(document.querySelectorAll('.fixed.inset-0.z-\\[10000\\]'));
+                if (modals.length > 0 && modals[modals.length - 1] === containerRef.current) {
+                    onClose();
+                }
             }
         };
         window.addEventListener('keydown', handleEsc);
@@ -102,32 +113,35 @@ export function AddEquipmentCatalogueDialogue({
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-start md:items-center justify-center p-2 md:p-4 overflow-hidden pt-4 md:pt-0">
-            <div className="absolute inset-0 bg-black/60 backdrop-blur-xl" onClick={onClose}></div>
-            <div className="relative w-[75%] h-[96vh] bg-white rounded-3xl shadow-2xl overflow-hidden animate-modal flex flex-col" >
+        <div ref={containerRef} className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
+            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
+                
                 {/* Header */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
-                    <h2 className="text-lg font-bold text-gray-900">
-                        {isEditing ? 'Edit Equipment' : 'Add New Equipment'}
-                    </h2>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors text-gray-400 hover:text-gray-600">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-white sticky top-0 z-10">
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-900 tracking-tight">
+                            {isEditing ? 'Edit Equipment' : 'Add New Equipment'}
+                        </h2>
+                        <p className="text-sm text-gray-500 mt-0.5">Manage equipment details and costs.</p>
+                    </div>
+                    <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="px-4 pb-4 flex-1 overflow-y-auto">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Equipment / Machine</label>
-                            <input
-                                id="field-equipment"
-                                type="text"
+                <div className="p-6 overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="col-span-1 md:col-span-2">
+                            <Input
+                                label="Equipment / Machine"
                                 value={formData.equipmentMachine || ''}
                                 onChange={(e) => setFormData({ ...formData, equipmentMachine: e.target.value })}
-                                placeholder="Enter equipment / machine"
-                                className="w-full p-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                placeholder="e.g. Excavator 305"
                                 autoFocus={!isEditing}
+                                id="field-equipment"
+                                className="w-full"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault();
@@ -138,150 +152,93 @@ export function AddEquipmentCatalogueDialogue({
                         </div>
 
                         <div className="col-span-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                Classification
-                            </label>
-                            <div
-                                id="field-classification"
-                                className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
-                                onClick={() => setActiveField('classification')}
-                            >
-                                {formData.classification || '-'}
-                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                            </div>
-                            <MyDropDown
-                                isOpen={activeField === 'classification'}
-                                onClose={() => setActiveField(null)}
-                                options={getOptions('classification').map(opt => ({ id: opt, label: opt, value: opt }))}
-                                selectedValues={formData.classification ? [formData.classification] : []}
-                                onSelect={(val) => {
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Classification</label>
+                            <Select
+                                value={formData.classification || '-'}
+                                onValueChange={(val) => {
                                     setFormData({ ...formData, classification: val });
-                                    setActiveField(null);
                                     focusNextField(1);
                                 }}
-                                onAdd={async (val) => {
-                                    setFormData({ ...formData, classification: val });
-                                    setActiveField(null);
-                                    focusNextField(1);
-                                }}
-                                placeholder="Select or add classification..."
-                                width="w-full"
-                                anchorId="field-classification"
-                                positionMode="overlay"
-                            />
+                            >
+                                <SelectTrigger id="field-classification" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
+                                    <SelectValue placeholder="Select classification..." />
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]">
+                                    {getOptions('classification').map(opt => (
+                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="col-span-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                Sub Classification
-                            </label>
-                            <div
-                                id="field-subClassification"
-                                className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
-                                onClick={() => setActiveField('subClassification')}
-                            >
-                                {formData.subClassification || '-'}
-                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                            </div>
-                            <MyDropDown
-                                isOpen={activeField === 'subClassification'}
-                                onClose={() => setActiveField(null)}
-                                options={getOptions('subClassification').map(opt => ({ id: opt, label: opt, value: opt }))}
-                                selectedValues={formData.subClassification ? [formData.subClassification] : []}
-                                onSelect={(val) => {
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Sub Classification</label>
+                            <Select
+                                value={formData.subClassification || '-'}
+                                onValueChange={(val) => {
                                     setFormData({ ...formData, subClassification: val });
-                                    setActiveField(null);
                                     focusNextField(2);
                                 }}
-                                onAdd={async (val) => {
-                                    setFormData({ ...formData, subClassification: val });
-                                    setActiveField(null);
-                                    focusNextField(2);
-                                }}
-                                placeholder="Select or add sub-classification..."
-                                width="w-full"
-                                anchorId="field-subClassification"
-                                positionMode="overlay"
-                            />
+                            >
+                                <SelectTrigger id="field-subClassification" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
+                                    <SelectValue placeholder="Select sub-class..." />
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]">
+                                    {getOptions('subClassification').map(opt => (
+                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="col-span-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                Supplier
-                            </label>
-                            <div
-                                id="field-supplier"
-                                className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
-                                onClick={() => setActiveField('supplier')}
-                            >
-                                {formData.supplier || '-'}
-                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                            </div>
-                            <MyDropDown
-                                isOpen={activeField === 'supplier'}
-                                onClose={() => setActiveField(null)}
-                                options={getOptions('supplier').map(opt => ({ id: opt, label: opt, value: opt }))}
-                                selectedValues={formData.supplier ? [formData.supplier] : []}
-                                onSelect={(val) => {
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Supplier</label>
+                            <Select
+                                value={formData.supplier || '-'}
+                                onValueChange={(val) => {
                                     setFormData({ ...formData, supplier: val });
-                                    setActiveField(null);
                                     focusNextField(3);
                                 }}
-                                onAdd={async (val) => {
-                                    setFormData({ ...formData, supplier: val });
-                                    setActiveField(null);
-                                    focusNextField(3);
-                                }}
-                                placeholder="Select or add supplier..."
-                                width="w-full"
-                                anchorId="field-supplier"
-                                positionMode="overlay"
-                            />
-                        </div>
-
-                        <div className="col-span-1">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                UOM
-                            </label>
-                            <div
-                                id="field-uom"
-                                className="w-full h-10 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 cursor-pointer flex items-center justify-between"
-                                onClick={() => setActiveField('uom')}
                             >
-                                {formData.uom || '-'}
-                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                            </div>
-                            <MyDropDown
-                                isOpen={activeField === 'uom'}
-                                onClose={() => setActiveField(null)}
-                                options={getOptions('uom').map(opt => ({ id: opt, label: opt, value: opt }))}
-                                selectedValues={formData.uom ? [formData.uom] : []}
-                                onSelect={(val) => {
-                                    setFormData({ ...formData, uom: val });
-                                    setActiveField(null);
-                                    focusNextField(4);
-                                }}
-                                onAdd={async (val) => {
-                                    setFormData({ ...formData, uom: val });
-                                    setActiveField(null);
-                                    focusNextField(4);
-                                }}
-                                placeholder="Select or add UOM..."
-                                width="w-full"
-                                anchorId="field-uom"
-                                positionMode="overlay"
-                            />
+                                <SelectTrigger id="field-supplier" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
+                                    <SelectValue placeholder="Select supplier..." />
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]">
+                                    {getOptions('supplier').map(opt => (
+                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
 
                         <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Daily Cost</label>
-                            <input
-                                id="field-dailyCost"
+                            <label className="block text-sm font-medium text-gray-700 mb-1.5">UOM</label>
+                            <Select
+                                value={formData.uom || '-'}
+                                onValueChange={(val) => {
+                                    setFormData({ ...formData, uom: val });
+                                    focusNextField(4);
+                                }}
+                            >
+                                <SelectTrigger id="field-uom" className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 hover:bg-white transition-colors focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 h-auto">
+                                    <SelectValue placeholder="Select UOM..." />
+                                </SelectTrigger>
+                                <SelectContent className="z-[10001]">
+                                    {getOptions('uom').map(opt => (
+                                        <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="col-span-1">
+                            <Input
+                                label="Daily Cost"
                                 type="number"
                                 value={formData.dailyCost || ''}
                                 onChange={(e) => setFormData({ ...formData, dailyCost: e.target.value })}
-                                placeholder="Enter daily cost"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                id="field-dailyCost"
+                                placeholder="0.00"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault();
@@ -292,14 +249,13 @@ export function AddEquipmentCatalogueDialogue({
                         </div>
 
                         <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Weekly Cost</label>
-                            <input
-                                id="field-weeklyCost"
+                            <Input
+                                label="Weekly Cost"
                                 type="number"
                                 value={formData.weeklyCost || ''}
                                 onChange={(e) => setFormData({ ...formData, weeklyCost: e.target.value })}
-                                placeholder="Enter weekly cost"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                id="field-weeklyCost"
+                                placeholder="0.00"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault();
@@ -310,14 +266,13 @@ export function AddEquipmentCatalogueDialogue({
                         </div>
 
                         <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Monthly Cost</label>
-                            <input
-                                id="field-monthlyCost"
+                            <Input
+                                label="Monthly Cost"
                                 type="number"
                                 value={formData.monthlyCost || ''}
                                 onChange={(e) => setFormData({ ...formData, monthlyCost: e.target.value })}
-                                placeholder="Enter monthly cost"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                id="field-monthlyCost"
+                                placeholder="0.00"
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                         e.preventDefault();
@@ -328,19 +283,15 @@ export function AddEquipmentCatalogueDialogue({
                         </div>
 
                         <div className="col-span-1">
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5">Tax %</label>
-                            <input
-                                id="field-tax"
+                            <Input
+                                label="Tax (%)"
                                 type="number"
                                 value={formData.tax || ''}
                                 onChange={(e) => setFormData({ ...formData, tax: e.target.value })}
-                                placeholder="0%"
-                                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-gray-50/50 hover:bg-white"
+                                id="field-tax"
+                                placeholder="0"
                                 onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleSave();
-                                    }
+                                    if (e.key === 'Enter') handleSave();
                                 }}
                             />
                         </div>
@@ -348,19 +299,30 @@ export function AddEquipmentCatalogueDialogue({
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-100 bg-gray-50/50 flex-shrink-0">
+                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-all font-sans"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="px-5 py-2.5 text-sm font-medium text-white bg-green-500 hover:bg-green-600 rounded-xl transition-colors shadow-sm shadow-green-500/30 flex items-center gap-2"
+                        className={`px-6 py-2 text-sm font-medium text-white rounded-lg transition-all shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 font-sans ${
+                            isSaving 
+                            ? 'bg-gray-300 cursor-not-allowed' 
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                        }`}
                     >
-                        {isSaving ? 'Saving...' : (isEditing ? 'Update Cost' : 'Save the cost')}
+                        {isSaving ? (
+                            <span className="flex items-center gap-2">
+                                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"/>
+                                Saving...
+                            </span>
+                        ) : (
+                            isEditing ? 'Update Item' : 'Add Item'
+                        )}
                     </button>
                 </div>
             </div>

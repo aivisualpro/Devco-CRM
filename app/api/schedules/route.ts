@@ -737,7 +737,7 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color image').lean() : Promise.resolve([]),
-                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals aerialImage siteLayout').lean() : Promise.resolve([]),
+                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone scopeOfWork proposal services fringe certifiedPayroll projectDescription proposals aerialImage siteLayout').lean() : Promise.resolve([]),
                     !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? OverheadItem.find().sort({ overhead: 1 }).lean() : Promise.resolve([])
                 ]);
@@ -789,9 +789,13 @@ export async function POST(request: NextRequest) {
                                     value: e.estimate, 
                                     label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                     customerId: e.customerId,
-                                    customerName: e.customerName || e.customer || '',
+                                    customerName: (() => {
+                                        const client = clients?.find((c: any) => String(c._id) === String(e.customerId));
+                                        return client?.name || e.customerName || e.customer || '';
+                                    })(),
                                     projectTitle: pName,
                                     projectName: pName,
+                                    projectId: e.projectId,
                                     jobAddress: e.jobAddress,
                                     contactName: e.contactName || e.contact,
                                     contactPhone: e.contactPhone || e.phone,
@@ -906,7 +910,7 @@ export async function POST(request: NextRequest) {
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName jobAddress contactName contactPhone contactEmail contact phone aerialImage siteLayout').lean(),
+                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone aerialImage siteLayout').lean(),
                     EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean(),
                     OverheadItem.find().sort({ overhead: 1 }).lean()
                 ]);
@@ -922,9 +926,13 @@ export async function POST(request: NextRequest) {
                                 value: e.estimate, 
                                 label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
                                 customerId: e.customerId,
-                                customerName: e.customerName || e.customer || '',
+                                customerName: (() => {
+                                    const client = clients?.find((c: any) => String(c._id) === String(e.customerId));
+                                    return client?.name || e.customerName || e.customer || '';
+                                })(),
                                 projectTitle: pName,
                                 projectName: pName,
+                                projectId: e.projectId,
                                 jobAddress: e.jobAddress,
                                 contactName: e.contactName || e.contact,
                                 contactPhone: e.contactPhone || e.phone,

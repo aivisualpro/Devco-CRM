@@ -1510,6 +1510,50 @@ export default function EstimateViewPage() {
         setItemToDelete({ section, item });
     };
 
+    const handleDuplicateItem = async (section: SectionConfig, item: LineItem) => {
+        if (!estimate) return;
+        const { _id, ...rest } = item;
+        const newItem = {
+            ...rest,
+            _id: `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            estimateId: estimate?._id
+        };
+        
+        const items = (estimate[section.key] as LineItem[]) || [];
+        const index = items.findIndex(i => i._id === item._id);
+        const newItems = [...items];
+        if (index !== -1) {
+            newItems.splice(index + 1, 0, newItem);
+        } else {
+            newItems.push(newItem);
+        }
+        
+        const updatedEstimate = { ...estimate, [section.key]: newItems };
+        setEstimate(updatedEstimate);
+        
+        // Recalculate chartData locally for immediate save
+        const calculatedSections = calculateSections(updatedEstimate, fringeConstants);
+        const slices = calculatedSections.map(s => ({
+            id: s.id,
+            label: s.title,
+            value: s.items.reduce((sum, i) => sum + (i.total || 0), 0),
+            color: s.color
+        }));
+        const subTotal = slices.reduce((sum, s) => sum + s.value, 0);
+        const markupPct = parseNum(formData?.bidMarkUp || updatedEstimate?.bidMarkUp);
+        const grandTotal = subTotal * (1 + markupPct / 100);
+        const updatedChartData = { slices, subTotal, grandTotal, markupPct };
+
+        // Save immediately
+        await handleGlobalSave({ 
+            silent: true, 
+            overrideEstimate: updatedEstimate, 
+            overrideChartData: updatedChartData 
+        });
+        
+        success('Item duplicated');
+    };
+
     const confirmDeleteItem = () => {
         if (!itemToDelete) return;
         const { section, item } = itemToDelete;
@@ -1529,30 +1573,32 @@ export default function EstimateViewPage() {
         setExplanationItem(item);
     };
 
-    const handleGlobalSave = async (options: { silent?: boolean } = {}) => {
-        if (!estimate || !formData || !catalogsLoaded) return;
+    const handleGlobalSave = async (options: { silent?: boolean, overrideEstimate?: any, overrideChartData?: any } = {}) => {
+        const targetEstimate = options.overrideEstimate || estimate;
+        const targetChartData = options.overrideChartData || chartData;
+        if (!targetEstimate || !formData || !catalogsLoaded) return;
         if (!options.silent) setSaving(true);
         try {
             const payload = {
-                id: estimate._id,
+                id: targetEstimate._id,
                 ...formData,
                 fringe: formData.fringe,
                 bidMarkUp: String(formData.bidMarkUp).includes('%') ? formData.bidMarkUp : `${formData.bidMarkUp}%`,
-                subTotal: chartData.subTotal,
-                margin: (chartData.grandTotal || 0) - (chartData.subTotal || 0),
-                grandTotal: chartData.grandTotal,
+                subTotal: targetChartData.subTotal,
+                margin: (targetChartData.grandTotal || 0) - (targetChartData.subTotal || 0),
+                grandTotal: targetChartData.grandTotal,
                 contactEmail: formData.contactEmail,
                 contactPhone: formData.contactPhone,
                 jobAddress: formData.jobAddress,
 
-                labor: estimate.labor,
-                equipment: estimate.equipment,
-                material: estimate.material,
-                tools: estimate.tools,
-                overhead: estimate.overhead,
-                subcontractor: estimate.subcontractor,
-                disposal: estimate.disposal,
-                miscellaneous: estimate.miscellaneous,
+                labor: targetEstimate.labor,
+                equipment: targetEstimate.equipment,
+                material: targetEstimate.material,
+                tools: targetEstimate.tools,
+                overhead: targetEstimate.overhead,
+                subcontractor: targetEstimate.subcontractor,
+                disposal: targetEstimate.disposal,
+                miscellaneous: targetEstimate.miscellaneous,
                 prevailingWage: formData.certifiedPayroll === 'Yes' ? formData.prevailingWage : false
             };
 
@@ -2193,6 +2239,10 @@ export default function EstimateViewPage() {
                         onDeleteItem={(sectionId, item) => {
                             const section = sections.find(s => s.id === sectionId);
                             if (section) handleDeleteItem(section, item);
+                        }}
+                        onDuplicateItem={(sectionId, item) => {
+                            const section = sections.find(s => s.id === sectionId);
+                            if (section) handleDuplicateItem(section, item);
                         }}
                         onExplain={handleExplain}
                     />

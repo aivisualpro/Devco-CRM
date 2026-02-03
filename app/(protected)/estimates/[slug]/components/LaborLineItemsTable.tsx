@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2, Info } from 'lucide-react';
+import { Trash2, Info, Copy } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { getFringeRate, type FringeConstant } from '@/lib/estimateCalculations';
 
@@ -14,6 +14,7 @@ interface LaborLineItemsTableProps {
     onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
     onExplain?: (item: LineItem) => void;
     onDelete?: (item: LineItem) => void;
+    onDuplicate?: (item: LineItem) => void;
     fringeRate?: number; // Global fringe rate
     fringeConstants?: FringeConstant[];
 }
@@ -93,6 +94,7 @@ function LaborRow({
     onUpdateItem,
     onExplain,
     onDelete,
+    onDuplicate,
     fringeRate = 0,
     fringeConstants = []
 }: {
@@ -101,6 +103,7 @@ function LaborRow({
     onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
     onExplain?: (item: LineItem) => void;
     onDelete?: (item: LineItem) => void;
+    onDuplicate?: (item: LineItem) => void;
     fringeRate?: number;
     fringeConstants?: FringeConstant[];
 }) {
@@ -230,6 +233,18 @@ function LaborRow({
             <td className="p-1 text-xs text-gray-400 text-center font-medium">
                 {index + 1}
             </td>
+            <td className="p-0.5 w-4">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicate?.(item);
+                    }}
+                    className="text-gray-300 hover:text-blue-600 transition-colors p-1"
+                    title="Duplicate Row"
+                >
+                    <Copy className="w-3 h-3" />
+                </button>
+            </td>
             <td className="p-1 text-xs text-gray-700" style={{ width: '40%' }}>
                 <LiveInput
                     value={localValues.labor}
@@ -340,6 +355,7 @@ export function LaborLineItemsTable({
     onUpdateItem,
     onExplain,
     onDelete,
+    onDuplicate,
     fringeRate = 0,
     fringeConstants = []
 }: LaborLineItemsTableProps) {
@@ -359,6 +375,7 @@ export function LaborLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8">
                             #
                         </th>
+                        <th className="p-1 w-4" />
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '30%' }}>
                             Labor
                         </th>
@@ -401,6 +418,7 @@ export function LaborLineItemsTable({
                             onUpdateItem={onUpdateItem}
                             onExplain={onExplain}
                             onDelete={onDelete}
+                            onDuplicate={onDuplicate}
                             fringeRate={fringeRate}
                             fringeConstants={fringeConstants}
                         />

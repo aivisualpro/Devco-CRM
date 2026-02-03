@@ -14,16 +14,32 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     fontWeight: 'bold',
   },
-  summaryBlock: {
-    flexDirection: 'row',
+  summaryTable: {
     border: '1pt solid black',
     marginBottom: 10,
+    width: '100%',
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    borderBottom: '1pt solid black',
+  },
+  summaryRowLast: {
+    flexDirection: 'row',
+    borderBottom: 0,
   },
   summaryCol: {
     flex: 1,
     padding: 5,
     borderRight: '1pt solid black',
     textAlign: 'center',
+    justifyContent: 'center',
+  },
+  summaryColLast: {
+    flex: 1,
+    padding: 5,
+    borderRight: 0,
+    textAlign: 'center',
+    justifyContent: 'center',
   },
   summaryLabel: {
     fontSize: 10,
@@ -31,7 +47,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   summaryValue: {
-    fontSize: 12,
+    fontSize: 10,
   },
   employeeHeader: {
     fontSize: 12,
@@ -112,9 +128,24 @@ interface PayrollPDFProps {
   endDate: string;
   totalAmount: number;
   weekNumber: number;
+  customerName?: string;
+  proposal?: string;
+  projectName?: string;
+  projectId?: string;
 }
 
-export const PayrollPDF = ({ data, weekRange, startDate, endDate, totalAmount, weekNumber }: PayrollPDFProps) => {
+export const PayrollPDF = ({ 
+  data, 
+  weekRange, 
+  startDate, 
+  endDate, 
+  totalAmount, 
+  weekNumber,
+  customerName,
+  proposal,
+  projectName,
+  projectId
+}: PayrollPDFProps) => {
   const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   return (
@@ -122,14 +153,37 @@ export const PayrollPDF = ({ data, weekRange, startDate, endDate, totalAmount, w
       <Page size="A4" style={styles.page}>
         <Text style={styles.header}>Certified Payroll Report</Text>
 
-        <View style={styles.summaryBlock}>
-          <View style={styles.summaryCol}>
-            <Text style={styles.summaryLabel}>Week: {new Date().getFullYear()}-{weekNumber}</Text>
-            <Text style={styles.summaryValue}>From: {startDate} To: {endDate}</Text>
+        <View style={styles.summaryTable}>
+          {/* Row 1: Week and Total Amount */}
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Week: {new Date().getFullYear()}-{weekNumber}</Text>
+              <Text style={styles.summaryValue}>From: {startDate} To: {endDate}</Text>
+            </View>
+            <View style={styles.summaryColLast}>
+              <Text style={styles.summaryLabel}>Total Amount:</Text>
+              <Text style={styles.summaryValue}>${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+            </View>
           </View>
-          <View style={[styles.summaryCol, { borderRight: 0 }]}>
-            <Text style={styles.summaryLabel}>Total Amount:</Text>
-            <Text style={styles.summaryValue}>${totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+          
+          {/* Row 2: Customer, Proposal, Project Name, Project ID */}
+          <View style={styles.summaryRowLast}>
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Customer:</Text>
+              <Text style={styles.summaryValue}>{customerName || '--'}</Text>
+            </View>
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Proposal #:</Text>
+              <Text style={styles.summaryValue}>{proposal || '--'}</Text>
+            </View>
+            <View style={styles.summaryCol}>
+              <Text style={styles.summaryLabel}>Project Name:</Text>
+              <Text style={styles.summaryValue}>{projectName || '--'}</Text>
+            </View>
+            <View style={styles.summaryColLast}>
+              <Text style={styles.summaryLabel}>Project ID:</Text>
+              <Text style={styles.summaryValue}>{projectId || '--'}</Text>
+            </View>
           </View>
         </View>
 

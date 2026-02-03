@@ -1,6 +1,6 @@
 'use client';
 
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 
 interface LineItem {
@@ -12,6 +12,7 @@ interface MiscellaneousLineItemsTableProps {
     items: LineItem[];
     onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
     onDelete?: (item: LineItem) => void;
+    onDuplicate?: (item: LineItem) => void;
 }
 
 // Input component that updates on change but only saves on blur
@@ -91,12 +92,14 @@ function MiscellaneousRow({
     item,
     index,
     onUpdateItem,
-    onDelete
+    onDelete,
+    onDuplicate
 }: {
     item: LineItem;
     index: number;
     onUpdateItem?: (item: LineItem, field: string, value: string | number) => void;
     onDelete?: (item: LineItem) => void;
+    onDuplicate?: (item: LineItem) => void;
 }) {
     // Local state for real-time updates
     const [localValues, setLocalValues] = useState({
@@ -161,6 +164,18 @@ function MiscellaneousRow({
         <tr className="hover:bg-gray-50/50 transition-colors group">
             <td className="p-1 text-xs text-gray-400 text-center font-medium">
                 {index + 1}
+            </td>
+            <td className="p-0.5 w-4">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onDuplicate?.(item);
+                    }}
+                    className="text-gray-300 hover:text-blue-600 transition-colors p-1"
+                    title="Duplicate Row"
+                >
+                    <Copy className="w-3 h-3" />
+                </button>
             </td>
             <td className="p-1 text-xs text-gray-700" style={{ width: '30%' }}>
                 <LiveInput
@@ -244,7 +259,8 @@ function MiscellaneousRow({
 export function MiscellaneousLineItemsTable({
     items,
     onUpdateItem,
-    onDelete
+    onDelete,
+    onDuplicate
 }: MiscellaneousLineItemsTableProps) {
     if (!items || items.length === 0) {
         return (
@@ -262,6 +278,7 @@ export function MiscellaneousLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8">
                             #
                         </th>
+                        <th className="p-1 w-4" />
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '30%' }}>
                             Item
                         </th>
@@ -294,6 +311,7 @@ export function MiscellaneousLineItemsTable({
                             index={i}
                             onUpdateItem={onUpdateItem}
                             onDelete={onDelete}
+                            onDuplicate={onDuplicate}
                         />
                     ))}
                 </tbody>
