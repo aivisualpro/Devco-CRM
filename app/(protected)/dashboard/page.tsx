@@ -181,7 +181,9 @@ const TodoColumn = ({
     onCopy,
     onStatusChange,
     onDelete,
-    employees
+    employees,
+    currentUserEmail,
+    isSuperAdmin
 }: { 
     title: string; 
     items: TodoItem[]; 
@@ -194,6 +196,8 @@ const TodoColumn = ({
     onStatusChange: (item: TodoItem, newStatus: TodoItem['status']) => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
     employees: DashboardEmployee[];
+    currentUserEmail: string;
+    isSuperAdmin: boolean;
 }) => (
     <div 
         className="flex-1 min-w-[200px] bg-slate-100 rounded-xl p-3"
@@ -251,67 +255,80 @@ const TodoColumn = ({
 
                         {/* Actions - Bottom Right (Inline) */}
                         <div className="flex items-center gap-1">
-                            <TooltipProvider>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const statusMap: Record<string, TodoItem['status']> = {
-                                                    'todo': 'in progress',
-                                                    'in progress': 'done',
-                                                    'done': 'todo'
-                                                };
-                                                onStatusChange(item, statusMap[item.status] || 'todo');
-                                            }}
-                                            className={`p-1.5 rounded-lg transition-colors border ${
-                                                item.status === 'todo' ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600' :
-                                                item.status === 'in progress' ? 'hover:bg-emerald-50 text-blue-500 hover:text-emerald-600' :
-                                                'hover:bg-slate-50 text-emerald-500 hover:text-slate-600'
-                                            }`}
-                                        >
-                                            <ActivityIcon size={12} />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p className="text-[10px]">Change Status</p></TooltipContent>
-                                </Tooltip>
+                            {(() => {
+                                const isOwner = item.createdBy?.toLowerCase().trim() === currentUserEmail?.toLowerCase().trim();
+                                const canManage = isOwner || isSuperAdmin;
 
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button 
-                                            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
-                                        >
-                                            <Edit size={12} />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p className="text-[10px]">Edit Task</p></TooltipContent>
-                                </Tooltip>
+                                return (
+                                    <TooltipProvider>
+                                            {/* Status Change - Available to everyone */}
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button 
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const statusMap: Record<string, TodoItem['status']> = {
+                                                                'todo': 'in progress',
+                                                                'in progress': 'done',
+                                                                'done': 'todo'
+                                                            };
+                                                            onStatusChange(item, statusMap[item.status] || 'todo');
+                                                        }}
+                                                        className={`p-1.5 rounded-lg transition-colors border ${
+                                                            item.status === 'todo' ? 'hover:bg-blue-50 text-slate-400 hover:text-blue-600' :
+                                                            item.status === 'in progress' ? 'hover:bg-emerald-50 text-blue-500 hover:text-emerald-600' :
+                                                            'hover:bg-slate-50 text-emerald-500 hover:text-slate-600'
+                                                        }`}
+                                                    >
+                                                        <ActivityIcon size={12} />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent><p className="text-[10px]">Change Status</p></TooltipContent>
+                                            </Tooltip>
 
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button 
-                                            onClick={(e) => onCopy(item, e)}
-                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
-                                        >
-                                            <Copy size={12} />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p className="text-[10px]">Copy Task</p></TooltipContent>
-                                </Tooltip>
+                                        {/* Edit, Copy, Delete - Only for owner or Super Admin */}
+                                        {canManage && (
+                                            <>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); onEdit(item); }}
+                                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"
+                                                        >
+                                                            <Edit size={12} />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p className="text-[10px]">Edit Task</p></TooltipContent>
+                                                </Tooltip>
 
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button 
-                                            onClick={(e) => onDelete(item._id, e)}
-                                            className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
-                                        >
-                                            <Trash2 size={12} />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent><p className="text-[10px]">Delete Task</p></TooltipContent>
-                                </Tooltip>
-                            </TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button 
+                                                            onClick={(e) => onCopy(item, e)}
+                                                            className="p-1.5 hover:bg-slate-100 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors"
+                                                        >
+                                                            <Copy size={12} />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p className="text-[10px]">Copy Task</p></TooltipContent>
+                                                </Tooltip>
+
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button 
+                                                            onClick={(e) => onDelete(item._id, e)}
+                                                            className="p-1.5 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
+                                                        >
+                                                            <Trash2 size={12} />
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent><p className="text-[10px]">Delete Task</p></TooltipContent>
+                                                </Tooltip>
+                                            </>
+                                        )}
+                                    </TooltipProvider>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>
@@ -368,14 +385,20 @@ const TaskFormModal = ({
     onClose, 
     onSave, 
     editingTask,
-    employees
+    employees,
+    currentUserEmail,
+    isSuperAdmin
 }: { 
     isOpen: boolean; 
     onClose: () => void; 
     onSave: (data: Partial<TodoItem>) => void;
     editingTask?: TodoItem | null;
     employees: any[];
+    currentUserEmail: string;
+    isSuperAdmin: boolean;
 }) => {
+    const isEditing = !!editingTask?._id;
+    const canEdit = !isEditing || (editingTask?.createdBy === currentUserEmail) || isSuperAdmin;
     const [formData, setFormData] = useState<Partial<TodoItem>>({
         task: '',
         dueDate: '',
@@ -421,6 +444,7 @@ const TaskFormModal = ({
                         placeholder="What needs to be done?"
                         value={formData.task}
                         onChange={(e) => setFormData({ ...formData, task: e.target.value })}
+                        disabled={!canEdit}
                     />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -431,6 +455,7 @@ const TaskFormModal = ({
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                             value={formData.dueDate}
                             onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                            disabled={!canEdit}
                         />
                     </div>
                     <div>
@@ -439,6 +464,7 @@ const TaskFormModal = ({
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none"
                             value={formData.status}
                             onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                            disabled={!canEdit}
                         >
                             <option value="todo">To Do</option>
                             <option value="in progress">In Progress</option>
@@ -450,8 +476,8 @@ const TaskFormModal = ({
                     <label className="block text-sm font-bold text-slate-700 mb-1">Assign To</label>
                     <div 
                         id="assignee-trigger"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm flex items-center justify-between cursor-pointer hover:border-blue-300 transition-all min-h-[50px]"
-                        onClick={() => setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
+                        className={`w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm flex items-center justify-between cursor-pointer hover:border-blue-300 transition-all min-h-[50px] ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        onClick={() => canEdit && setIsAssigneeDropdownOpen(!isAssigneeDropdownOpen)}
                     >
                         <div className="flex -space-x-2 overflow-hidden py-0.5">
                             {(formData.assignees || []).length > 0 ? (
@@ -493,6 +519,7 @@ const TaskFormModal = ({
                         selectedValues={formData.assignees || []}
                         multiSelect={true}
                         onSelect={(val) => {
+                            if (!canEdit) return;
                             const current = formData.assignees || [];
                             const next = current.includes(val) 
                                 ? current.filter(v => v !== val)
@@ -505,8 +532,8 @@ const TaskFormModal = ({
                     <Button variant="outline" onClick={onClose}>Cancel</Button>
                     <Button 
                         onClick={() => onSave(formData)}
-                        disabled={!formData.task?.trim()}
-                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        disabled={!formData.task?.trim() || !canEdit}
+                        className={`bg-blue-600 hover:bg-blue-700 text-white ${!canEdit ? 'hidden' : ''}`}
                     >
                         {editingTask ? 'Update Task' : 'Create Task'}
                     </Button>
@@ -526,7 +553,11 @@ function DashboardContent() {
     
     const searchParams = useSearchParams();
     
-    // Week Navigation
+    useEffect(() => {
+        console.log('DEBUG: Identity - userEmail:', userEmail, 'isSuperAdmin:', isSuperAdmin);
+    }, [userEmail, isSuperAdmin]);
+
+    // Update URL and localStorage when weekRange.label changes
     const [currentWeekDate, setCurrentWeekDate] = useState(() => {
         // Only use searchParams for initialization to avoid hydration mismatch
         const week = searchParams.get('week');
@@ -1746,15 +1777,16 @@ function DashboardContent() {
             });
 
             if (!res.ok) {
+                const data = await res.json();
                 // Revert on error
                 setTodos(prev => prev.map(t => t._id === item._id ? item : t));
-                showError('Failed to update status');
+                showError(data.error || 'Failed to update status');
             } else {
                 success('Status updated');
             }
-        } catch (err) {
+        } catch (err: any) {
             setTodos(prev => prev.map(t => t._id === item._id ? item : t));
-            showError('Failed to update status');
+            showError(err.message || 'Failed to update status');
         }
     };
 
@@ -1773,29 +1805,33 @@ function DashboardContent() {
     const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         
-        toast('Are you sure you want to delete this task?', {
-            action: {
-                label: 'Delete',
-                onClick: async () => {
-                    try {
-                        const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
-                        if (res.ok) {
-                            setTodos(prev => prev.filter(t => t._id !== id));
-                            success('Task deleted successfully');
-                        } else {
-                            showError('Failed to delete task');
-                        }
-                    } catch (err) {
-                        showError('Failed to delete task');
-                    }
-                }
-            },
-        });
+        console.log('DEBUG: Attempting to delete task:', id);
+        console.log('DEBUG: Current userEmail:', userEmail);
+
+        if (!window.confirm('Are you sure you want to delete this task?')) return;
+        
+        try {
+            console.log('DEBUG: Sending DELETE request for task:', id);
+            const res = await fetch(`/api/tasks?id=${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if (res.ok) {
+                setTodos(prev => prev.filter(t => t._id !== id));
+                success('Task deleted successfully');
+            } else {
+                console.error('DEBUG: Delete failed:', data.error);
+                showError(data.error || 'Failed to delete task');
+            }
+        } catch (err: any) {
+            console.error('DEBUG: Delete error:', err);
+            showError(err.message || 'Failed to delete task');
+        }
     };
 
     const handleSaveTask = async (taskData: Partial<TodoItem>) => {
         try {
-            const method = editingTask ? 'PATCH' : 'POST';
+            const isCopy = !editingTask?._id;
+            const method = isCopy ? 'POST' : 'PATCH';
             
             // Clean up the data to avoid 500 errors (e.g. empty strings for Dates)
             const cleanedData = { ...taskData };
@@ -1804,8 +1840,8 @@ function DashboardContent() {
             }
             if (!cleanedData.assignees) cleanedData.assignees = [];
 
-            const body = editingTask 
-                ? { ...cleanedData, id: editingTask._id, lastUpdatedBy: userEmail || 'System' } 
+            const body = !isCopy 
+                ? { ...cleanedData, id: editingTask?._id, lastUpdatedBy: userEmail || 'System' } 
                 : { ...cleanedData, createdBy: userEmail || 'System' };
             
             const res = await fetch('/api/tasks', {
@@ -1887,10 +1923,11 @@ function DashboardContent() {
     // Filtered todos by status
     // Filtered todos by status
     const todosByStatus = useMemo(() => {
+        const lowerEmail = userEmail.toLowerCase().trim();
         const filteredTodos = todos.filter(t => {
             if (taskView === 'self') {
-                const isCreator = t.createdBy === userEmail;
-                const isAssignee = t.assignees?.includes(userEmail);
+                const isCreator = t.createdBy?.toLowerCase().trim() === lowerEmail;
+                const isAssignee = t.assignees?.some(email => email.toLowerCase().trim() === lowerEmail);
                 return isCreator || isAssignee;
             }
             return true;
@@ -2197,6 +2234,8 @@ function DashboardContent() {
                                 onSave={handleSaveTask}
                                 editingTask={editingTask}
                                 employees={initialData.employees}
+                                currentUserEmail={userEmail}
+                                isSuperAdmin={isSuperAdmin}
                             />
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
@@ -2948,6 +2987,8 @@ function DashboardContent() {
                                 onStatusChange={handleStatusChange}
                                 onDelete={handleDeleteTask}
                                 employees={initialData.employees}
+                                currentUserEmail={userEmail}
+                                isSuperAdmin={isSuperAdmin}
                             />
                             <TodoColumn 
                                 title="In Progress" 
@@ -2961,6 +3002,8 @@ function DashboardContent() {
                                 onStatusChange={handleStatusChange}
                                 onDelete={handleDeleteTask}
                                 employees={initialData.employees}
+                                currentUserEmail={userEmail}
+                                isSuperAdmin={isSuperAdmin}
                             />
                             <TodoColumn 
                                 title="Done" 
@@ -2974,6 +3017,8 @@ function DashboardContent() {
                                 onStatusChange={handleStatusChange}
                                 onDelete={handleDeleteTask}
                                 employees={initialData.employees}
+                                currentUserEmail={userEmail}
+                                isSuperAdmin={isSuperAdmin}
                             />
                         </div>
                         
