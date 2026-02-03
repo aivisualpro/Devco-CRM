@@ -546,9 +546,17 @@ export async function POST(request: NextRequest) {
 
                 // 1. Date Filter (Range or Week View)
                 if (startDate && endDate) {
+                    const startD = new Date(startDate);
+                    const endD = new Date(endDate);
+                    console.log('[API] Schedule date filter:', { 
+                        startDate, 
+                        endDate, 
+                        parsedStart: startD.toISOString(), 
+                        parsedEnd: endD.toISOString() 
+                    });
                     matchStage.fromDate = {
-                        $gte: new Date(startDate),
-                        $lte: new Date(endDate)
+                        $gte: startD,
+                        $lte: endD
                     };
                 } else if (selectedDates && selectedDates.length > 0) {
                      // Match fromDate stringified to YYYY-MM-DD in the selectedDates array

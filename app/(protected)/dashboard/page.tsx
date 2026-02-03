@@ -31,7 +31,8 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
 
 // Week utilities
-const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label: string } => {
+// Returns { start, end, label, startISO, endISO } where startISO/endISO are date-only strings
+const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label: string; startISO: string; endISO: string } => {
     const d = new Date(date);
     const day = d.getDay();
     const diff = day === 0 ? -6 : 1 - day; // Monday start
@@ -46,8 +47,29 @@ const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label:
     
     const fmt = (dt: Date) => `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
     
+    // Format as YYYY-MM-DDT00:00:00 to preserve local date when sent to server
+    const toLocalISOStart = (dt: Date) => {
+        const year = dt.getFullYear();
+        const month = String(dt.getMonth() + 1).padStart(2, '0');
+        const day = String(dt.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}T00:00:00.000Z`;
+    };
+    
+    const toLocalISOEnd = (dt: Date) => {
+        const year = dt.getFullYear();
+        const month = String(dt.getMonth() + 1).padStart(2, '0');
+        const day = String(dt.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}T23:59:59.999Z`;
+    };
+    
     // Format: MM/DD-MM/DD
-    return { start, end, label: `${fmt(start)}-${fmt(end)}` };
+    return { 
+        start, 
+        end, 
+        label: `${fmt(start)}-${fmt(end)}`,
+        startISO: toLocalISOStart(start),
+        endISO: toLocalISOEnd(end)
+    };
 };
 
 const shiftWeek = (current: Date, direction: number): Date => {
@@ -1602,8 +1624,11 @@ function DashboardContent() {
     const fetchDashboardData = useCallback(async () => {
         setLoading(true);
         try {
-            const startStr = weekRange.start.toISOString();
-            const endStr = weekRange.end.toISOString();
+            // Use the pre-computed ISO strings to avoid timezone issues
+            const startStr = weekRange.startISO;
+            const endStr = weekRange.endISO;
+            
+            console.log('DEBUG: Fetching schedules for week:', { startStr, endStr, label: weekRange.label });
             
             // Fetch schedules for the week using the schedules API
             const schedRes = await fetch('/api/schedules', {
