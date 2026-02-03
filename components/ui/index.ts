@@ -38,3 +38,5 @@ export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tool
 export { UploadButton } from './UploadButton';
 export { Switch } from './switch';
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './accordion';
+export { ScheduleDetailsPopup } from './ScheduleDetailsPopup';
+export type { SchedulePopupData } from './ScheduleDetailsPopup';

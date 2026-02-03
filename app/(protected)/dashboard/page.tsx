@@ -20,7 +20,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES } from '@/lib/permissions/types';
-import { ScheduleDetailModal } from './components/ScheduleDetailModal';
+import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { ScheduleCard, ScheduleItem } from '../jobs/schedules/components/ScheduleCard';
 import { ScheduleFormModal } from '../jobs/schedules/components/ScheduleFormModal';
 import { JHAModal } from '../jobs/schedules/components/JHAModal';
@@ -759,6 +759,36 @@ function DashboardContent() {
     const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
     const [newMessage, setNewMessage] = useState('');
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+    
+    // Fetch full data for ScheduleDetailsPopup
+    const [fetchedEstimate, setFetchedEstimate] = useState<any>(null);
+    useEffect(() => {
+        if (selectedDetailSchedule?._id) {
+            const fetchDetails = async () => {
+                try {
+                    // Fetch full schedule to get all flags/fields
+                    const sRes = await fetch(`/api/schedules/${selectedDetailSchedule._id}`);
+                    if (sRes.ok && sRes.headers.get('content-type')?.includes('application/json')) {
+                        const sData = await sRes.json();
+                        if (sData.success && sData.schedule) {
+                             setSelectedDetailSchedule(prev => prev ? ({ ...prev, ...sData.schedule }) : sData.schedule);
+                             
+                             // If the API provided the estimate details (populates), use them
+                             if (sData.estimate) {
+                                 setFetchedEstimate(sData.estimate);
+                             } else {
+                                 // Just in case we didn't get it, default to null (or keep previous if any)
+                                 // setFetchedEstimate(null); 
+                             }
+                        }
+                    }
+                } catch (e) { console.error('Error fetching detail data', e); }
+            };
+            fetchDetails();
+        } else {
+            setFetchedEstimate(null);
+        }
+    }, [selectedDetailSchedule?._id]);
     
     // JHA States
     const [jhaModalOpen, setJhaModalOpen] = useState(false);
@@ -3216,15 +3246,100 @@ function DashboardContent() {
                 </div>
             </div>
 
-            {/* Schedule Detail Modal */}
-            <ScheduleDetailModal 
+            {/* Schedule Details Popup */}
+            <ScheduleDetailsPopup 
                 isOpen={isDetailModalOpen}
                 onClose={() => setIsDetailModalOpen(false)}
-                schedule={selectedDetailSchedule}
-                initialData={initialData}
-                onOpenMedia={(type, url, title) => {
-                    setMediaModalContent({ type, url, title });
-                    setIsMediaModalOpen(true);
+                schedule={selectedDetailSchedule ? {
+                    _id: selectedDetailSchedule._id,
+                    title: selectedDetailSchedule.title, // Ensure title is passed
+                    estimate: selectedDetailSchedule.estimate,
+                    fromDate: selectedDetailSchedule.fromDate,
+                    toDate: selectedDetailSchedule.toDate, // Ensure toDate is passed
+                    customerName: selectedDetailSchedule.customerName || initialData.clients?.find((c: any) => String(c._id) === String(selectedDetailSchedule.customerId))?.name,
+                    customerId: selectedDetailSchedule.customerId,
+                    jobLocation: selectedDetailSchedule.jobLocation || initialData.estimates?.find((e: any) => e.value === selectedDetailSchedule.estimate)?.jobAddress,
+                    projectManager: selectedDetailSchedule.projectManager,
+                    foremanName: selectedDetailSchedule.foremanName,
+                    assignees: selectedDetailSchedule.assignees,
+                    description: selectedDetailSchedule.description,
+                    service: selectedDetailSchedule.service || selectedDetailSchedule.item,
+                    notifyAssignees: selectedDetailSchedule.notifyAssignees,
+                    perDiem: selectedDetailSchedule.perDiem,
+                    certifiedPayroll: selectedDetailSchedule.certifiedPayroll,
+                    fringe: selectedDetailSchedule.fringe,
+                    hasJHA: selectedDetailSchedule.hasJHA,
+                    hasDJT: selectedDetailSchedule.hasDJT,
+                    todayObjectives: selectedDetailSchedule.todayObjectives,
+                    timesheet: selectedDetailSchedule.timesheet,
+                    aerialImage: selectedDetailSchedule.aerialImage || initialData.estimates?.find((e: any) => e.value === selectedDetailSchedule.estimate)?.aerialImage,
+                    siteLayout: selectedDetailSchedule.siteLayout || initialData.estimates?.find((e: any) => e.value === selectedDetailSchedule.estimate)?.siteLayout,
+                    jobPlanningDocs: fetchedEstimate?.jobPlanningDocs || initialData.estimates?.find((e: any) => e.value === selectedDetailSchedule.estimate)?.jobPlanningDocs
+                } : null}
+                employees={initialData.employees}
+                constants={initialData.constants}
+                currentUserEmail={userEmail}
+                onToggleObjective={async (scheduleId, index, currentStatus) => {
+                    const newStatus = !currentStatus;
+                    const timestamp = newStatus ? new Date().toISOString() : undefined;
+                    const completedBy = newStatus ? userEmail : undefined;
+
+                    // Optimistic update
+                    const updatedSchedules = schedules.map(s => {
+                        if (s._id === scheduleId) {
+                            const newObjs = [...(s.todayObjectives || [])];
+                            if (newObjs[index]) {
+                                newObjs[index] = { 
+                                    ...newObjs[index], 
+                                    completed: newStatus,
+                                    completedAt: timestamp,
+                                    completedBy: completedBy
+                                };
+                            }
+                            return { ...s, todayObjectives: newObjs };
+                        }
+                        return s;
+                    });
+                    setSchedules(updatedSchedules);
+                    
+                    if (selectedDetailSchedule?._id === scheduleId) {
+                        const newObjs = [...(selectedDetailSchedule.todayObjectives || [])];
+                        if (newObjs[index]) {
+                            newObjs[index] = { 
+                                ...newObjs[index], 
+                                completed: newStatus,
+                                completedAt: timestamp,
+                                completedBy: completedBy
+                            };
+                        }
+                        setSelectedDetailSchedule({ ...selectedDetailSchedule, todayObjectives: newObjs });
+                    }
+
+                    // API Call
+                    try {
+                        const schedule = schedules.find(s => s._id === scheduleId);
+                        if (!schedule) return;
+                        // Use the updated objects from the optimistic state logic (replicated here to be safe)
+                        const newObjs = [...(schedule.todayObjectives || [])];
+                        if (newObjs[index]) {
+                             newObjs[index] = { 
+                                ...newObjs[index], 
+                                completed: newStatus,
+                                completedAt: timestamp,
+                                completedBy: completedBy
+                            };
+                        }
+                        
+                        // Pass the full updated array to the API
+                        await fetch(`/api/schedules/${scheduleId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ todayObjectives: newObjs })
+                        });
+                    } catch (error) {
+                        console.error('Failed to update objective', error);
+                        // Revert logic could be added here
+                    }
                 }}
             />
 

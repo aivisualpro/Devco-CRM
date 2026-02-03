@@ -18,9 +18,9 @@ export async function GET(req: NextRequest) {
         const tasks = await DevcoTask.find(query).sort({ createdAt: -1 });
         
         // Debug: Log task owners to server console
-        console.log(`[API] Fetched ${tasks.length} tasks. Creators present:`, 
-            Array.from(new Set(tasks.map(t => t.createdBy || 'undefined')))
-        );
+        // console.log(`[API] Fetched ${tasks.length} tasks. Creators present:`, 
+        //     Array.from(new Set(tasks.map((t: any) => t.createdBy || 'undefined')))
+        // );
 
         return NextResponse.json({ success: true, tasks });
     } catch (error: any) {

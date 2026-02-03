@@ -615,7 +615,7 @@ function PayrollReportContent() {
                 }
             } as EmployeeReport;
         }).filter(emp => emp.totalHrs > 0 || filterEmployee !== 'all').sort((a, b) => a.name.localeCompare(b.name));
-    }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee, filterCertified]);
+    }, [rawSchedules, currentWeekStart, employeesMap, estimatesMap, filterEmployee, filterEstimate, filterCertified]);
 
     const weekDays = Array.from({ length: 7 }, (_, i) => {
         const d = new Date(currentWeekStart.getTime());

@@ -6,7 +6,7 @@ import { ScheduleCard, ScheduleItem } from '@/app/(protected)/jobs/schedules/com
 import { ScheduleFormModal } from '@/app/(protected)/jobs/schedules/components/ScheduleFormModal';
 import { JHAModal } from '@/app/(protected)/jobs/schedules/components/JHAModal';
 import { DJTModal } from '@/app/(protected)/jobs/schedules/components/DJTModal';
-import { ScheduleDetailModal } from '@/app/(protected)/dashboard/components/ScheduleDetailModal';
+import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/hooks/useToast';
 import { Modal } from '@/components/ui';
@@ -43,6 +43,8 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
     const [editingSchedule, setEditingSchedule] = useState<ScheduleItem | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+
 
     // Media viewer state for ScheduleDetailModal
     const [mediaModalOpen, setMediaModalOpen] = useState(false);
@@ -665,24 +667,74 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                 variant={actionConfirm.variant}
             />
 
-            {/* Schedule Detail Modal - Reusing dashboard component */}
-            <ScheduleDetailModal
+            <ScheduleDetailsPopup
                 isOpen={scheduleDetailOpen}
                 onClose={() => {
                     setScheduleDetailOpen(false);
                     setSelectedSchedule(null);
                 }}
-                schedule={selectedSchedule}
-                initialData={{
-                    employees: normalizedEmployees,
-                    clients: normalizedClients,
-                    constants: allConstants,
-                    estimates: estimate ? [{ value: estimate.estimate, jobAddress: estimate.jobAddress }] : []
-                }}
-                onOpenMedia={(type, url, title) => {
-                    setMediaUrl(url);
-                    setMediaTitle(title);
-                    setMediaModalOpen(true);
+                schedule={selectedSchedule ? {
+                    _id: selectedSchedule._id,
+                    title: selectedSchedule.title, // Add title
+                    estimate: selectedSchedule.estimate,
+                    fromDate: selectedSchedule.fromDate, // Renamed from date
+                    toDate: selectedSchedule.toDate, // Added toDate
+                    customerName: selectedSchedule.customerName || estimate?.customerName,
+                    customerId: selectedSchedule.customerId,
+                    contactName: estimate?.contactName,
+                    contactEmail: estimate?.contactEmail,
+                    contactPhone: estimate?.contactPhone,
+                    jobLocation: selectedSchedule.jobLocation || estimate?.jobAddress, // Renamed from jobAddress to match interface
+                    projectManager: selectedSchedule.projectManager,
+                    foremanName: selectedSchedule.foremanName,
+                    assignees: selectedSchedule.assignees,
+                    description: selectedSchedule.description,
+                    service: selectedSchedule.service || selectedSchedule.item, // Use service/item from schedule
+                    notifyAssignees: selectedSchedule.notifyAssignees,
+                    perDiem: selectedSchedule.perDiem,
+                    certifiedPayroll: selectedSchedule.certifiedPayroll,
+                    fringe: selectedSchedule.fringe || estimate?.fringe,
+                    hasJHA: selectedSchedule.hasJHA,
+                    hasDJT: selectedSchedule.hasDJT,
+                    timesheet: selectedSchedule.timesheet,
+                    todayObjectives: selectedSchedule.todayObjectives,
+                    aerialImage: selectedSchedule.aerialImage || estimate?.aerialImage,
+                    siteLayout: selectedSchedule.siteLayout || estimate?.siteLayout,
+                    jobPlanningDocs: estimate?.jobPlanningDocs,
+                    projectName: selectedSchedule.title || estimate?.projectName,
+                } : null}
+                employees={normalizedEmployees} // Passed normalized list
+                constants={allConstants}
+                currentUserEmail={currentUser?.email}
+                onToggleObjective={async (scheduleId, index, currentStatus) => {
+                    const newStatus = !currentStatus;
+                    setSchedules(prev => prev.map(s => {
+                        if (s._id === scheduleId) {
+                            const newObjs = [...(s.todayObjectives || [])];
+                            if (newObjs[index]) newObjs[index] = { ...newObjs[index], completed: newStatus };
+                            return { ...s, todayObjectives: newObjs };
+                        }
+                        return s;
+                    }));
+                    
+                    if (selectedSchedule?._id === scheduleId) {
+                        const newObjs = [...(selectedSchedule.todayObjectives || [])];
+                        if (newObjs[index]) newObjs[index] = { ...newObjs[index], completed: newStatus };
+                        setSelectedSchedule({ ...selectedSchedule, todayObjectives: newObjs });
+                    }
+
+                    try {
+                        const s = schedules.find(x => x._id === scheduleId);
+                        if (!s) return;
+                        const newObjs = [...(s.todayObjectives || [])];
+                        if(newObjs[index]) newObjs[index] = { ...newObjs[index], completed: newStatus };
+
+                        await fetch(`/api/schedules/${scheduleId}`, { 
+                            method: 'PUT', 
+                            headers: {'Content-Type': 'application/json'}, 
+                            body: JSON.stringify({ todayObjectives: newObjs }) 
+                        });
+                    } catch(e) { console.error('Failed to update objective', e); }
                 }}
             />
 
