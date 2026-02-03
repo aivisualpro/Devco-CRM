@@ -119,8 +119,8 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
             return 0;
         };
 
-        const washoutQty = getQty(ts.dumpWashout);
-        const shopQty = getQty(ts.shopTime);
+        const washoutQty = (typeof ts.dumpQty === 'number') ? ts.dumpQty : getQty(ts.dumpWashout);
+        const shopQty = (typeof ts.shopQty === 'number') ? ts.shopQty : getQty(ts.shopTime);
         const specialHrs = (washoutQty * 0.5) + (shopQty * 0.25);
 
         // Priority 1: Manual Distance (ignores calculated if set)

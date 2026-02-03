@@ -821,13 +821,19 @@ function DashboardContent() {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
     // Action Confirmation State (for Drive Time, Dump Washout, Shop Time)
+    const [inputValue, setInputValue] = useState('');
+
+    // Action Confirmation State (for Drive Time, Dump Washout, Shop Time)
     const [actionConfirm, setActionConfirm] = useState<{
         isOpen: boolean;
         title: string;
-        message: string;
+        message: React.ReactNode;
         confirmText: string;
         variant: 'danger' | 'primary' | 'dark';
         onConfirm: () => void;
+        showInput?: boolean;
+        mode?: 'default' | 'quickTimesheet';
+        data?: any;
     }>({
         isOpen: false,
         title: '',
@@ -897,36 +903,77 @@ function DashboardContent() {
         }
     };
 
+
     const executeQuickTimesheet = async (schedule: Schedule, type: string) => {
         if (!currentUser) return;
         
-        const unitHours = type === 'Dump Washout' ? 0.50 : 0.25;
+        const unitHoursType = type === 'Dump Washout' ? 0.50 : 0.25;
+        const val = parseFloat(inputValue);
+        const quantity = !isNaN(val) && val >= 0 ? val : 1;
+        
         const now = new Date();
         const clockOut = now.toISOString();
 
-        // Optimistic update
+        // Calculate changes based on current schedule state
+        const timesheets = schedule.timesheet || [];
+        const userEmail = currentUser.email.toLowerCase();
+        
+        // Find existing record
+        const existingIndex = timesheets.findIndex(ts => 
+            ts.employee.toLowerCase() === userEmail && 
+            ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) || 
+             (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
+        );
+
+        let newDumpQty = 0;
+        let newShopQty = 0;
+        let totalHours = 0;
+        let clockIn = '';
+
+        if (existingIndex > -1) {
+            const existingTs = timesheets[existingIndex];
+            const currentDumpQty = (existingTs.dumpQty !== undefined) ? existingTs.dumpQty : 
+                                  (existingTs.dumpWashout ? 1 : 0);
+            const currentShopQty = (existingTs.shopQty !== undefined) ? existingTs.shopQty : 
+                                  (existingTs.shopTime ? 1 : 0);
+            
+            newDumpQty = currentDumpQty;
+            newShopQty = currentShopQty;
+
+            if (type === 'Dump Washout') newDumpQty = quantity;
+            if (type === 'Shop Time') newShopQty = quantity;
+
+            totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
+            // Update clockIn based on new duration (ending at NOW)
+            clockIn = new Date(now.getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
+        } else {
+            const isDump = type === 'Dump Washout';
+            newDumpQty = isDump ? quantity : 0;
+            newShopQty = !isDump ? quantity : 0;
+            totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
+            clockIn = new Date(now.getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
+        }
+
+        // Optimistic Update
         setSchedules(prev => prev.map(s => {
             if (s._id !== schedule._id) return s;
             
-            const timesheets = s.timesheet || [];
-            const userEmail = currentUser.email.toLowerCase();
-            const existingIndex = timesheets.findIndex(ts => 
-                ts.employee.toLowerCase() === userEmail && 
-                ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true')) ||
-                 (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true')))
-            );
-
+            const currentTimesheets = [...(s.timesheet || [])];
+            
             if (existingIndex > -1) {
-                const updatedTimesheets = [...timesheets];
-                const existingTs = updatedTimesheets[existingIndex];
-                updatedTimesheets[existingIndex] = {
+                const existingTs = currentTimesheets[existingIndex];
+                currentTimesheets[existingIndex] = {
                     ...existingTs,
-                    qty: (existingTs.qty || 1) + 1,
-                    hours: parseFloat(((existingTs.hours || 0) + unitHours).toFixed(2))
+                    dumpWashout: newDumpQty > 0 ? 'true' : undefined,
+                    shopTime: newShopQty > 0 ? 'true' : undefined,
+                    dumpQty: newDumpQty,
+                    shopQty: newShopQty,
+                    qty: newDumpQty + newShopQty,
+                    hours: parseFloat(totalHours.toFixed(2)),
+                    clockOut: clockOut,
+                    clockIn: clockIn
                 };
-                return { ...s, timesheet: updatedTimesheets };
             } else {
-                const clockIn = new Date(now.getTime() - (unitHours * 60 * 60 * 1000)).toISOString();
                 const newTs = {
                     _id: `ts-${Date.now()}`,
                     scheduleId: s._id,
@@ -934,17 +981,21 @@ function DashboardContent() {
                     clockIn: clockIn,
                     clockOut: clockOut,
                     type: 'Drive Time',
-                    hours: unitHours,
-                    qty: 1,
-                    dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
-                    shopTime: type === 'Shop Time' ? 'true' : undefined,
+                    hours: parseFloat(totalHours.toFixed(2)),
+                    qty: newDumpQty + newShopQty,
+                    dumpWashout: newDumpQty > 0 ? 'true' : undefined,
+                    shopTime: newShopQty > 0 ? 'true' : undefined,
+                    dumpQty: newDumpQty,
+                    shopQty: newShopQty,
                     status: 'Pending',
                     createdAt: now.toISOString()
                 };
-                return { ...s, timesheet: [...timesheets, newTs] };
+                currentTimesheets.push(newTs);
             }
+            return { ...s, timesheet: currentTimesheets };
         }));
 
+        // API Call
         try {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
@@ -955,7 +1006,9 @@ function DashboardContent() {
                         scheduleId: schedule._id,
                         employee: currentUser.email,
                         type,
-                        date: clockOut
+                        date: clockOut,
+                        dumpQty: newDumpQty,
+                        shopQty: newShopQty
                     }
                 })
             });
@@ -1379,7 +1432,9 @@ function DashboardContent() {
         setActionConfirm({
             isOpen: true,
             title: isStopping ? 'Stop Drive Time' : 'Start Drive Time',
-            message: `Are you sure you want to ${isStopping ? 'STOP' : 'START'} Drive Time?`,
+            message: isStopping 
+                ? 'Are you sure you want to STOP Drive Time?'
+                : 'Drive Time is paid at 1.1 minute per mile (55mph). Are you eligible for Drive Time today? Location must be turned on.',
             confirmText: isStopping ? 'Stop' : 'Start',
             variant: isStopping ? 'danger' : 'primary',
             onConfirm: () => executeDriveTimeToggle(schedule, activeTs, e)
@@ -1389,21 +1444,44 @@ function DashboardContent() {
     const handleQuickTimesheet = (schedule: Schedule, type: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         
-        const isIncrement = (schedule.timesheet || []).some((ts: any) => 
+        const existingTs = (schedule.timesheet || []).find((ts: any) => 
             ts.employee?.toLowerCase() === (currentUser?.email?.toLowerCase() || '') &&
-            ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
-             (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
+            ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) ||
+             (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
         );
         
-        const actionWord = isIncrement ? 'INCREMENT' : 'REGISTER';
+        const isDumpWashout = type === 'Dump Washout';
+        const isShopTime = type === 'Shop Time';
+
+        let currentQty = '';
+        if (existingTs) {
+            // Check specific quantity fields first
+            if (isDumpWashout) {
+                currentQty = existingTs.dumpQty !== undefined ? String(existingTs.dumpQty) : (existingTs.dumpWashout ? '1' : '');
+            } else if (isShopTime) {
+                currentQty = existingTs.shopQty !== undefined ? String(existingTs.shopQty) : (existingTs.shopTime ? '1' : '');
+            }
+        }
+        
+        const actionWord = (currentQty && currentQty !== '0') ? 'UPDATE' : 'REGISTER';
+        
+        // Pre-fill existing quantity if available
+        setInputValue(currentQty);
 
         setActionConfirm({
             isOpen: true,
             title: `${type}`,
-            message: `Are you sure you want to ${actionWord} ${type}?`,
+            message: isDumpWashout 
+                ? 'Did you Dump / Washout today? If yes, how many dumps after site time?'
+                : isShopTime 
+                    ? 'Did you shop time today? If yes, how many shop time after site time?'
+                    : `Are you sure you want to ${actionWord} ${type}?`,
             confirmText: 'Confirm',
             variant: 'primary',
-            onConfirm: () => executeQuickTimesheet(schedule, type)
+            showInput: isDumpWashout || isShopTime,
+            mode: 'quickTimesheet',
+            data: { schedule, type },
+            onConfirm: () => {} // Placeholder, handled by mode
         });
     };
 
@@ -3458,16 +3536,35 @@ function DashboardContent() {
             />
 
             {/* Action Confirmation Modal (Drive Time, Dump Washout, Shop Time) */}
+            {/* Action Confirmation Modal (Drive Time, Dump Washout, Shop Time) */}
             <ConfirmModal
                 isOpen={actionConfirm.isOpen}
                 onClose={() => setActionConfirm(prev => ({ ...prev, isOpen: false }))}
-                onConfirm={actionConfirm.onConfirm}
+                onConfirm={() => {
+                    if (actionConfirm.mode === 'quickTimesheet' && actionConfirm.data) {
+                        executeQuickTimesheet(actionConfirm.data.schedule, actionConfirm.data.type);
+                    } else if (actionConfirm.onConfirm) {
+                        actionConfirm.onConfirm();
+                    }
+                }}
                 title={actionConfirm.title}
                 message={actionConfirm.message}
                 confirmText={actionConfirm.confirmText}
                 cancelText="Cancel"
                 variant={actionConfirm.variant}
-            />
+            >
+                {actionConfirm.showInput && (
+                    <Input
+                        type="number"
+                        min="0"
+                        placeholder="Enter quantity"
+                        value={inputValue}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
+                        className="w-full text-center text-lg mt-2"
+                        autoFocus
+                    />
+                )}
+            </ConfirmModal>
 
             {/* Document Upload Modal */}
             <Modal

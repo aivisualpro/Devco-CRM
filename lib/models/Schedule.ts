@@ -91,6 +91,8 @@ export interface ITimesheet {
     distance?: number;
     hours?: number;
     qty?: number;
+    dumpQty?: number;
+    shopQty?: number;
 }
 
 const TimesheetSchema = new Schema({
@@ -119,7 +121,9 @@ const TimesheetSchema = new Schema({
     manualDuration: { type: String },
     distance: { type: Number },
     hours: { type: Number },
-    qty: { type: Number, default: 1 }
+    qty: { type: Number, default: 1 },
+    dumpQty: { type: Number },
+    shopQty: { type: Number }
 });
 
 const ScheduleSchema = new Schema({

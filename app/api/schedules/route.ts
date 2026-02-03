@@ -466,39 +466,81 @@ export async function POST(request: NextRequest) {
             }
 
             case 'quickTimesheet': {
-                const { scheduleId, employee, type, date } = payload || {};
+                const { scheduleId, employee, type, date, dumpQty, shopQty } = payload || {};
                 const schedule = await Schedule.findById(scheduleId);
                 if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
 
-                const unitHours = type === 'Dump Washout' ? 0.50 : 0.25;
                 const empEmail = String(employee).toLowerCase();
                 
-                // Find existing record for this employee and type within this schedule
+                // Find existing record for this employee acting as Dump/Shop container
                 const existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
                     String(ts.employee).toLowerCase() === empEmail && 
-                    ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true')) ||
-                     (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true')))
+                    ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) ||
+                     (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
                 );
+
+                const clockOut = new Date(date || new Date()).toISOString();
+                let finalDumpQty = (dumpQty !== undefined) ? dumpQty : 0;
+                let finalShopQty = (shopQty !== undefined) ? shopQty : 0;
+                
+                // If specific quantities not provided in payload (legacy call?), fallback to increment logic (simplified)
+                if (dumpQty === undefined && shopQty === undefined) {
+                     // Fallback for safety, though frontend sends them now
+                     if (type === 'Dump Washout') finalDumpQty = 1; 
+                }
 
                 if (existingIndex > -1 && schedule.timesheet) {
                     const ts = schedule.timesheet[existingIndex];
-                    const newQty = (ts.qty || 1) + 1;
-                    const newHours = parseFloat(((ts.hours || 0) + unitHours).toFixed(2));
                     
+                    // If payload didn't have both quantities, maybe merge with existing?
+                    // Frontend sends both calculated values, so we trust payload if present.
+                    // But if dumpQty is present and shopQty is missing, we should probably keep existing shopQty.
+                    // However, frontend sends BOTH newDumpQty and newShopQty.
+                    
+                    const newDumpQty = (dumpQty !== undefined) ? dumpQty : (ts.dumpQty || (ts.dumpWashout ? 1 : 0));
+                    const newShopQty = (shopQty !== undefined) ? shopQty : (ts.shopQty || (ts.shopTime ? 1 : 0));
+                    
+                    // Increment logic if strictly strictly legacy? 
+                    // No, let's assume valid payload or simple defaults.
+
+                    const totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
+                    const newQty = newDumpQty + newShopQty;
+                    // Recalculate clockIn based on new duration ending at clockOut
+                    const clockIn = new Date(new Date(clockOut).getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
+
                     const updateObj: any = {};
                     updateObj[`timesheet.${existingIndex}.qty`] = newQty;
-                    updateObj[`timesheet.${existingIndex}.hours`] = newHours;
+                    updateObj[`timesheet.${existingIndex}.dumpQty`] = newDumpQty;
+                    updateObj[`timesheet.${existingIndex}.shopQty`] = newShopQty;
+                    updateObj[`timesheet.${existingIndex}.dumpWashout`] = newDumpQty > 0 ? 'true' : undefined;
+                    updateObj[`timesheet.${existingIndex}.shopTime`] = newShopQty > 0 ? 'true' : undefined;
+                    updateObj[`timesheet.${existingIndex}.hours`] = parseFloat(totalHours.toFixed(2));
+                    updateObj[`timesheet.${existingIndex}.clockOut`] = clockOut;
+                    updateObj[`timesheet.${existingIndex}.clockIn`] = clockIn;
                     updateObj[`timesheet.${existingIndex}.updatedAt`] = new Date().toISOString();
                     updateObj.updatedAt = new Date();
                     
-                    await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
+                    await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj, $unset: { [`timesheet.${existingIndex}.dumpWashout`]: newDumpQty <= 0 ? "" : undefined, [`timesheet.${existingIndex}.shopTime`]: newShopQty <= 0 ? "" : undefined } });
                     
-                    const updatedTs = { ...ts, qty: newQty, hours: newHours };
+                    const updatedTs = { 
+                        ...ts, 
+                        qty: newQty, 
+                        hours: parseFloat(totalHours.toFixed(2)), 
+                        dumpQty: newDumpQty, 
+                        shopQty: newShopQty,
+                        clockIn,
+                        clockOut,
+                        dumpWashout: newDumpQty > 0 ? 'true' : undefined,
+                        shopTime: newShopQty > 0 ? 'true' : undefined
+                    };
                     updateAppSheetTimesheet(updatedTs, "Edit");
                     return NextResponse.json({ success: true, result: updatedTs });
                 } else {
-                    const clockOut = new Date(date || new Date()).toISOString();
-                    const clockIn = new Date(new Date(clockOut).getTime() - (unitHours * 60 * 60 * 1000)).toISOString();
+                    const newDumpQty = (dumpQty !== undefined) ? dumpQty : (type === 'Dump Washout' ? 1 : 0);
+                    const newShopQty = (shopQty !== undefined) ? shopQty : (type === 'Shop Time' ? 1 : 0);
+                    
+                    const totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
+                    const clockIn = new Date(new Date(clockOut).getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
 
                     const newTs = {
                         _id: new mongoose.Types.ObjectId().toString(),
@@ -507,10 +549,12 @@ export async function POST(request: NextRequest) {
                         clockIn,
                         clockOut,
                         type: 'Drive Time',
-                        hours: unitHours,
-                        qty: 1,
-                        dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
-                        shopTime: type === 'Shop Time' ? 'true' : undefined,
+                        hours: parseFloat(totalHours.toFixed(2)),
+                        qty: newDumpQty + newShopQty,
+                        dumpWashout: newDumpQty > 0 ? 'true' : undefined,
+                        shopTime: newShopQty > 0 ? 'true' : undefined,
+                        dumpQty: newDumpQty,
+                        shopQty: newShopQty,
                         status: 'Pending',
                         createdAt: new Date().toISOString()
                     };

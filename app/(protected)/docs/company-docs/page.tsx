@@ -152,21 +152,20 @@ export default function CompanyDocsPage() {
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200">
                                     <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">File Name</th>
-                                    <th className="text-center px-4 py-4 text-sm font-semibold text-slate-700 w-24">View</th>
                                     <th className="text-center px-4 py-4 text-sm font-semibold text-slate-700 w-24">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
+                                        <td colSpan={2} className="px-6 py-12 text-center text-slate-400">
                                             <Loader2 className="animate-spin mx-auto mb-2" size={24} />
                                             Loading documents...
                                         </td>
                                     </tr>
                                 ) : filteredDocs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={3} className="px-6 py-12 text-center text-slate-400">
+                                        <td colSpan={2} className="px-6 py-12 text-center text-slate-400">
                                             <FileText className="mx-auto mb-2 text-slate-300" size={32} />
                                             No documents found
                                         </td>
@@ -175,27 +174,21 @@ export default function CompanyDocsPage() {
                                     filteredDocs.map((doc) => (
                                         <tr key={doc._id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
                                             <td className="px-6 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
-                                                        <FileText size={20} />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium text-slate-900">{doc.title}</p>
-                                                        <p className="text-xs text-slate-500">
-                                                            Added {new Date(doc.createdAt).toLocaleDateString()}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-4 text-center">
                                                 <a 
                                                     href={doc.url}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
-                                                    className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 hover:bg-emerald-200 transition-colors"
-                                                    title="Open in new tab"
+                                                    className="flex items-center gap-3 group"
                                                 >
-                                                    <ExternalLink size={18} />
+                                                    <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-blue-200 transition-colors">
+                                                        <FileText size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">{doc.title}</p>
+                                                        <p className="text-xs text-slate-500">
+                                                            Added {new Date(doc.createdAt).toLocaleDateString()}
+                                                        </p>
+                                                    </div>
                                                 </a>
                                             </td>
                                             <td className="px-4 py-4 text-center">

@@ -38,6 +38,8 @@ interface TimesheetEntry {
     manualDuration?: string | number;
     distance?: number;
     hours?: number;
+    dumpQty?: number; // New Consolidated
+    shopQty?: number; // New Consolidated
     
     // Computed locally
     hoursVal?: number;
@@ -89,19 +91,29 @@ const shiftWeek = (current: Date, direction: number): Date => {
 const getDayName = (dateStr?: string) => {
     if (!dateStr) return '';
     try {
-        const d = new Date(dateStr);
-        return d.toLocaleDateString('en-US', { weekday: 'short' });
+        // Use UTC to avoid timezone conversion
+        const normalized = robustNormalizeISO(dateStr);
+        const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            const [, year, month, day] = match;
+            const d = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day)));
+            return d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' });
+        }
+        return '';
     } catch { return ''; }
 };
 
 const toLocalISO = (dateStr?: string) => {
     if (!dateStr) return '';
     try {
-        // Assume dateStr is UTC/ISO. We want to display it as is in local time inputs, locally adjusted or just sliced
-        if (dateStr.endsWith('Z')) {
-             return dateStr.slice(0, 16);
+        // Parse the ISO string directly without timezone conversion
+        const normalized = robustNormalizeISO(dateStr);
+        const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (match) {
+            // Return in the format expected by datetime-local input (YYYY-MM-DDTHH:mm)
+            return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
         }
-        return new Date(dateStr).toISOString().slice(0, 16);
+        return '';
     } catch { return ''; }
 };
 
@@ -1601,7 +1613,7 @@ function TimeCardContent() {
                                                                 <span>{ts.dumpWashout ? 'Washout ✓' : 'Washout'}</span>
                                                                 {ts.dumpWashout && (
                                                                     <span className="text-[7px] leading-tight opacity-90">
-                                                                        {String(ts.dumpWashout).match(/\((\d+)\s+qty\)/)?.[1] || ''} Qty
+                                                                        {ts.dumpQty !== undefined ? ts.dumpQty : (String(ts.dumpWashout).match(/\((\d+)\s+qty\)/)?.[1] || 1)} Qty
                                                                     </span>
                                                                 )}
                                                             </button>
@@ -1636,7 +1648,7 @@ function TimeCardContent() {
                                                                 <span>{ts.shopTime ? 'Shop ✓' : 'Shop'}</span>
                                                                 {ts.shopTime && (
                                                                     <span className="text-[7px] leading-tight opacity-90">
-                                                                        {String(ts.shopTime).match(/\((\d+)\s+qty\)/)?.[1] || ''} Qty
+                                                                        {ts.shopQty !== undefined ? ts.shopQty : (String(ts.shopTime).match(/\((\d+)\s+qty\)/)?.[1] || 1)} Qty
                                                                     </span>
                                                                 )}
                                                             </button>
@@ -1875,7 +1887,8 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, clockIn: val + ':00.000Z'}));
+                                            // Convert YYYY-MM-DDTHH:mm to YYYY-MM-DDTHH:mm:00.000Z
+                                            setEditForm(prev => ({...prev, clockIn: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />
@@ -1890,7 +1903,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, lunchStart: val + ':00.000Z'}));
+                                            setEditForm(prev => ({...prev, lunchStart: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />
@@ -1905,7 +1918,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, lunchEnd: val + ':00.000Z'}));
+                                            setEditForm(prev => ({...prev, lunchEnd: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />
@@ -1920,7 +1933,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, clockOut: val + ':00.000Z'}));
+                                            setEditForm(prev => ({...prev, clockOut: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />
@@ -2207,7 +2220,7 @@ function TimeCardContent() {
                                                 
                                                 setAddForm(prev => ({
                                                     ...prev,
-                                                    clockIn: val + ':00.000Z',
+                                                    clockIn: `${val}:00.000Z`,
                                                     clockOut: clockOutVal,
                                                     lunchStart: lunchStartVal,
                                                     lunchEnd: lunchEndVal
@@ -2227,7 +2240,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, lunchStart: val + ':00.000Z'}));
+                                            setAddForm(prev => ({...prev, lunchStart: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />
@@ -2243,7 +2256,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, lunchEnd: val + ':00.000Z'}));
+                                            setAddForm(prev => ({...prev, lunchEnd: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />
@@ -2258,7 +2271,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, clockOut: val + ':00.000Z'}));
+                                            setAddForm(prev => ({...prev, clockOut: `${val}:00.000Z`}));
                                         }
                                     }}
                                 />

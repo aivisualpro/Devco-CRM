@@ -427,14 +427,18 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                                         }}
                                                     >
                                                         <Droplets size={14} strokeWidth={2.5} />
-                                                        {(dwTs?.qty || 1) > 1 && (
-                                                            <span className="text-[10px] font-black">
-                                                                x{dwTs.qty}
-                                                            </span>
-                                                        )}
+                                                        {(() => {
+                                                            if (!dwTs) return null;
+                                                            const count = dwTs.dumpQty !== undefined ? dwTs.dumpQty : (dwTs.qty || 1);
+                                                            return count > 1 && (
+                                                                <span className="text-[10px] font-black">
+                                                                    x{count}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </TooltipTrigger>
-                                                <TooltipContent><p>{dwTs ? `Increment Dump Washout (${dwTs.qty || 1})` : 'Register Dump Washout'}</p></TooltipContent>
+                                                <TooltipContent><p>{dwTs ? `Update Dump Washout (${dwTs.dumpQty !== undefined ? dwTs.dumpQty : (dwTs.qty || 1)})` : 'Register Dump Washout'}</p></TooltipContent>
                                             </Tooltip>
                                         </div>
 
@@ -449,14 +453,18 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                                         }}
                                                     >
                                                         <Warehouse size={14} strokeWidth={2.5} />
-                                                        {(stTs?.qty || 1) > 1 && (
-                                                            <span className="text-[10px] font-black">
-                                                                x{stTs.qty}
-                                                            </span>
-                                                        )}
+                                                        {(() => {
+                                                            if (!stTs) return null;
+                                                            const count = stTs.shopQty !== undefined ? stTs.shopQty : (stTs.qty || 1);
+                                                            return count > 1 && (
+                                                                <span className="text-[10px] font-black">
+                                                                    x{count}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </TooltipTrigger>
-                                                <TooltipContent><p>{stTs ? `Increment Shop Time (${stTs.qty || 1})` : 'Register Shop Time'}</p></TooltipContent>
+                                                <TooltipContent><p>{stTs ? `Update Shop Time (${stTs.shopQty !== undefined ? stTs.shopQty : (stTs.qty || 1)})` : 'Register Shop Time'}</p></TooltipContent>
                                             </Tooltip>
                                         </div>
                                     </>

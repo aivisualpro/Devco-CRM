@@ -7,11 +7,12 @@ interface ConfirmModalProps {
     onClose: () => void;
     onConfirm: () => void;
     title: string;
-    message: string;
+    message: React.ReactNode;
     confirmText?: string;
     cancelText?: string;
     variant?: 'danger' | 'primary' | 'dark';
     icon?: React.ElementType;
+    children?: React.ReactNode;
 }
 
 import { AlertTriangle, Trash2, X } from 'lucide-react';
@@ -26,7 +27,8 @@ export function ConfirmModal({
     confirmText = 'Delete',
     cancelText = 'Cancel',
     variant = 'danger',
-    icon
+    icon,
+    children
 }: ConfirmModalProps) {
     const [isVisible, setIsVisible] = useState(false);
 
@@ -107,9 +109,15 @@ export function ConfirmModal({
                         {title}
                     </h3>
 
-                    <p className="text-sm text-gray-500 mb-8 leading-relaxed px-4">
+                    <div className="text-sm text-gray-500 mb-6 leading-relaxed px-4">
                         {message}
-                    </p>
+                    </div>
+
+                    {children && (
+                        <div className="w-full mb-6">
+                            {children}
+                        </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-3 w-full">
