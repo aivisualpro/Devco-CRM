@@ -616,9 +616,17 @@ function DashboardContent() {
     
     const searchParams = useSearchParams();
     
+    // Track if permissions have loaded (stabilizes initial fetch)
+    const [permissionsReady, setPermissionsReady] = useState(false);
+    const permissionsLoadedRef = useRef(false);
+    
     useEffect(() => {
-        console.log('DEBUG: Identity - userEmail:', userEmail, 'isSuperAdmin:', isSuperAdmin);
-    }, [userEmail, isSuperAdmin]);
+        // Only set to ready once we have user info (permissions loaded)
+        if (user?.email && !permissionsLoadedRef.current) {
+            permissionsLoadedRef.current = true;
+            setPermissionsReady(true);
+        }
+    }, [user?.email]);
 
     // Update URL and localStorage when weekRange.label changes
     const [currentWeekDate, setCurrentWeekDate] = useState(() => {
@@ -746,6 +754,9 @@ function DashboardContent() {
     
     // UI States
     const [loading, setLoading] = useState(true);
+    
+    // Debounce ref to prevent rapid re-fetches
+    const fetchDebounceRef = useRef<NodeJS.Timeout | null>(null);
     const [scheduleView, setScheduleView] = useState<'all' | 'self'>('self');
 
     // Determine Upcoming Schedules Scope
@@ -758,19 +769,18 @@ function DashboardContent() {
         return widgetPerm?.dataScope || 'self'; 
     }, [permissions, isSuperAdmin]);
 
-    // Enforce Scope
+    // Initialize schedule view based on permissions (run only once when permissions are ready)
+    const scheduleViewInitialized = useRef(false);
     useEffect(() => {
-        if (upcomingSchedulesScope !== 'all' && scheduleView !== 'self') {
-            setScheduleView('self');
+        if (permissionsReady && !scheduleViewInitialized.current) {
+            scheduleViewInitialized.current = true;
+            if (isSuperAdmin || upcomingSchedulesScope === 'all') {
+                setScheduleView('all');
+            } else {
+                setScheduleView('self');
+            }
         }
-    }, [upcomingSchedulesScope, scheduleView]);
-
-    // Default to 'all' if super admin
-    useEffect(() => {
-        if (isSuperAdmin) {
-            setScheduleView('all');
-        }
-    }, [isSuperAdmin]);
+    }, [permissionsReady, isSuperAdmin, upcomingSchedulesScope]);
 
     const [taskView, setTaskView] = useState<'all' | 'self'>('self');
 
@@ -784,19 +794,18 @@ function DashboardContent() {
         return widgetPerm?.dataScope || 'self'; 
     }, [permissions, isSuperAdmin]);
 
-    // Enforce Task Scope
+    // Initialize task view based on permissions (run only once when permissions are ready)
+    const taskViewInitialized = useRef(false);
     useEffect(() => {
-        if (tasksScope !== 'all' && taskView !== 'self') {
-            setTaskView('self');
+        if (permissionsReady && !taskViewInitialized.current) {
+            taskViewInitialized.current = true;
+            if (isSuperAdmin || tasksScope === 'all') {
+                setTaskView('all');
+            } else {
+                setTaskView('self');
+            }
         }
-    }, [tasksScope, taskView]);
-
-    // Default to 'all' if super admin
-    useEffect(() => {
-        if (isSuperAdmin) {
-            setTaskView('all');
-        }
-    }, [isSuperAdmin]);
+    }, [permissionsReady, isSuperAdmin, tasksScope]);
     // const [chatFilter, setChatFilter] = useState(''); // Removed, using tagFilters and local state
 
     const [selectedDetailSchedule, setSelectedDetailSchedule] = useState<Schedule | null>(null);
@@ -1978,8 +1987,11 @@ function DashboardContent() {
     // Ref for aborting stale fetch requests
     const fetchAbortRef = useRef<AbortController | null>(null);
 
-    // Fetch Data
+    // Fetch Data - Optimized with parallel API calls
     const fetchDashboardData = useCallback(async () => {
+        // Don't fetch until permissions are ready to avoid wasted requests
+        if (!permissionsReady) return;
+        
         // Abort any previous in-flight request
         if (fetchAbortRef.current) {
             fetchAbortRef.current.abort();
@@ -1993,44 +2005,6 @@ function DashboardContent() {
             const startStr = weekRange.startISO;
             const endStr = weekRange.endISO;
             
-            console.log('DEBUG: Fetching schedules for week:', { startStr, endStr, label: weekRange.label, scheduleView });
-            
-            // Fetch schedules for the week using the schedules API
-            const schedRes = await fetch('/api/schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'getSchedulesPage',
-                    payload: { 
-                        startDate: startStr,
-                        endDate: endStr,
-                        page: 1,
-                        limit: 100,
-                        skipInitialData: initialData.employees.length > 0, // Fetch once if empty
-                        userEmail: scheduleView === 'self' ? userEmail : undefined
-                    }
-                }),
-                signal: abortController.signal
-            });
-
-            // Check if aborted before processing
-            if (abortController.signal.aborted) return;
-
-            if (schedRes.headers.get('content-type')?.includes('application/json')) {
-                const schedData = await schedRes.json();
-                if (schedData.success) {
-                    const scheds = schedData.result?.schedules || [];
-                    setSchedules(scheds);
-                    if (schedData.result?.initialData) {
-                        setInitialData(schedData.result.initialData);
-                    }
-                }
-            } else {
-                console.error('Schedules API returned non-JSON:', await schedRes.text());
-            }
-            
-            // Fetch estimate stats using aggregate
-            // Fetch estimate stats using aggregate
             // Calculate date range for estimate stats
             let estStart = null;
             let estEnd = null;
@@ -2054,85 +2028,125 @@ function DashboardContent() {
                     estEnd = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
                     break;
                 default:
-                    // 'all' - no filter
                     break;
             }
 
-            const estRes = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'getEstimateStats',
-                    payload: { startDate: estStart, endDate: estEnd } // Pass filter to backend
-                })
-            });
-            
-            let estData: any = { success: false };
+            // Execute ALL API calls in parallel for maximum speed
+            const [schedRes, estRes, tasksRes] = await Promise.all([
+                // Schedules API
+                fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        action: 'getSchedulesPage',
+                        payload: { 
+                            startDate: startStr,
+                            endDate: endStr,
+                            page: 1,
+                            limit: 100,
+                            skipInitialData: initialData.employees.length > 0,
+                            userEmail: scheduleView === 'self' ? userEmail : undefined
+                        }
+                    }),
+                    signal: abortController.signal
+                }),
+                // Estimate Stats API
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        action: 'getEstimateStats',
+                        payload: { startDate: estStart, endDate: estEnd }
+                    }),
+                    signal: abortController.signal
+                }),
+                // Tasks API
+                fetch('/api/tasks', { signal: abortController.signal })
+            ]);
+
+            // Check if aborted before processing
+            if (abortController.signal.aborted) return;
+
+            // Process schedules response
+            if (schedRes.headers.get('content-type')?.includes('application/json')) {
+                const schedData = await schedRes.json();
+                if (schedData.success) {
+                    const scheds = schedData.result?.schedules || [];
+                    setSchedules(scheds);
+                    if (schedData.result?.initialData) {
+                        setInitialData(schedData.result.initialData);
+                    }
+                }
+            }
+
+            // Process estimate stats response
             if (estRes.headers.get('content-type')?.includes('application/json')) {
-                estData = await estRes.json();
-            } else {
-                console.error('Estimates API returned non-JSON:', await estRes.text());
-            }
-            if (estData.success && estData.result?.length > 0) {
-                // Merge statuses
-                const merged = estData.result.reduce((acc: any[], curr: any) => {
-                     let status = curr.status;
-                     // Normalize statuses - check loosely 
-                     const lower = status.toLowerCase();
-                     if (lower === 'pending' || lower === 'in progress') {
-                         status = 'Pending';
-                     } else {
-                        // Capitalize others
-                        status = status.charAt(0).toUpperCase() + status.slice(1);
-                     }
-                     
-                     const existing = acc.find((i: any) => i.status === status);
-                     if (existing) {
-                         existing.count += curr.count;
-                         existing.total += curr.total;
-                     } else {
-                         acc.push({ status, count: curr.count, total: curr.total });
-                     }
-                     return acc;
-                }, []);
-                setEstimateStats(merged);
-            } else {
-                // Fallback mock data for demo
-                setEstimateStats([
-                    { status: 'Pending', count: 12, total: 87936000 },
-                    { status: 'Won', count: 8, total: 6056000 },
-                    { status: 'Completed', count: 15, total: 2274000 },
-                    { status: 'Lost', count: 3, total: 402000 },
-                ]);
+                const estData = await estRes.json();
+                if (estData.success && estData.result?.length > 0) {
+                    const merged = estData.result.reduce((acc: any[], curr: any) => {
+                        let status = curr.status;
+                        const lower = status.toLowerCase();
+                        if (lower === 'pending' || lower === 'in progress') {
+                            status = 'Pending';
+                        } else {
+                            status = status.charAt(0).toUpperCase() + status.slice(1);
+                        }
+                        
+                        const existing = acc.find((i: any) => i.status === status);
+                        if (existing) {
+                            existing.count += curr.count;
+                            existing.total += curr.total;
+                        } else {
+                            acc.push({ status, count: curr.count, total: curr.total });
+                        }
+                        return acc;
+                    }, []);
+                    setEstimateStats(merged);
+                } else {
+                    setEstimateStats([
+                        { status: 'Pending', count: 12, total: 87936000 },
+                        { status: 'Won', count: 8, total: 6056000 },
+                        { status: 'Completed', count: 15, total: 2274000 },
+                        { status: 'Lost', count: 3, total: 402000 },
+                    ]);
+                }
             }
             
-            // Fetch tasks from API
-            const tasksRes = await fetch('/api/tasks');
+            // Process tasks response
             if (tasksRes.headers.get('content-type')?.includes('application/json')) {
                 const tasksData = await tasksRes.json();
                 if (tasksData.success) {
                     setTodos(tasksData.tasks);
                 }
-            } else {
-                console.error('Tasks API returned non-JSON:', await tasksRes.text());
             }
-
-
             
         } catch (err: any) {
-            // Don't log aborted requests as errors
             if (err?.name === 'AbortError') {
-                console.log('Dashboard fetch aborted (superseded by new request)');
-                return;
+                return; // Silent abort - no logging needed
             }
             console.error('Dashboard fetch error:', err);
         } finally {
             setLoading(false);
         }
-    }, [weekRange, scheduleView, userEmail, isSuperAdmin, estimateFilter, initialData.employees.length]);
+    }, [weekRange, scheduleView, userEmail, estimateFilter, initialData.employees.length, permissionsReady]);
 
+    // Debounced fetch trigger to prevent rapid re-fetches
     useEffect(() => {
-        fetchDashboardData();
+        // Clear any pending debounce
+        if (fetchDebounceRef.current) {
+            clearTimeout(fetchDebounceRef.current);
+        }
+        
+        // Debounce the fetch by 50ms to batch rapid state changes
+        fetchDebounceRef.current = setTimeout(() => {
+            fetchDashboardData();
+        }, 50);
+        
+        return () => {
+            if (fetchDebounceRef.current) {
+                clearTimeout(fetchDebounceRef.current);
+            }
+        };
     }, [fetchDashboardData]);
 
     // Todo drag handlers
