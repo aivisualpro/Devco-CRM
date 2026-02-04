@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ExternalLink, Trash2, Plus, FileText, Loader2, Truck, Edit } from 'lucide-react';
+import { ExternalLink, Trash2, Plus, FileText, Loader2, Truck, Edit, X, Download, Calendar, User } from 'lucide-react';
 import { Header, Modal, Button, Input, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -21,6 +21,8 @@ export default function VehicleEquipmentDocsPage() {
         vinSerialNumber: '',
         files: null as FileList | null 
     });
+    const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isSavingDoc, setIsSavingDoc] = useState(false);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -146,6 +148,45 @@ export default function VehicleEquipmentDocsPage() {
         setIsDocModalOpen(true);
     };
 
+    const handleViewDocs = (doc: any) => {
+        setSelectedVehicle(doc);
+        setIsViewModalOpen(true);
+    };
+
+    const handleDeleteFile = async (e: React.MouseEvent, vehicleId: string, fileId: string, fileName: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
+
+        try {
+            const res = await fetch(`/api/vehicle-docs?id=${vehicleId}&fileId=${fileId}`, { 
+                method: 'DELETE' 
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                // Update local state
+                if (data.doc) {
+                    // Update the selected vehicle in the modal
+                    setSelectedVehicle(data.doc);
+                    // Update the main docs list
+                    setDocs(prev => prev.map(d => d._id === vehicleId ? data.doc : d));
+                } else {
+                    // If no doc returned (e.g. somehow entire doc deleted), close modal
+                     setIsViewModalOpen(false);
+                     fetchDocs();
+                }
+                success('Document deleted');
+            } else {
+                showError(data.error || 'Failed to delete file');
+            }
+        } catch (err) {
+            console.error(err);
+            showError('Error deleting file');
+        }
+    };
+
     const filteredDocs = docs.filter(doc => 
         doc.unit.toLowerCase().includes(searchTerm.toLowerCase()) ||
         doc.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -207,7 +248,11 @@ export default function VehicleEquipmentDocsPage() {
                                     </tr>
                                 ) : (
                                     filteredDocs.map((doc) => (
-                                        <tr key={doc._id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                                        <tr 
+                                            key={doc._id} 
+                                            className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                                            onClick={() => handleViewDocs(doc)}
+                                        >
                                             <td className="px-6 py-4">
                                                 <p className="font-bold text-slate-900">{doc.unit}</p>
                                             </td>
@@ -223,7 +268,7 @@ export default function VehicleEquipmentDocsPage() {
                                                     {doc.documents?.length || 0}
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-4 text-center">
+                                            <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-center gap-2">
                                                     {/* Edit Action */}
                                                     {can(MODULES.COMPANY_DOCS, ACTIONS.EDIT) && (
@@ -323,6 +368,82 @@ export default function VehicleEquipmentDocsPage() {
                         </Button>
                     </div>
                 </form>
+            </Modal>
+
+            {/* View Documents Modal */}
+            <Modal 
+                isOpen={isViewModalOpen} 
+                onClose={() => setIsViewModalOpen(false)} 
+                title={selectedVehicle ? `${selectedVehicle.unit} #${selectedVehicle.unitNumber}` : 'Vehicle Documents'}
+            >
+                <div className="p-6">
+                     <div className="mb-6 pb-4 border-b border-slate-100">
+                        <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
+                            <span>VIN / Serial Number</span>
+                            <span className="font-mono bg-slate-100 px-2 py-1 rounded">{selectedVehicle?.vinSerialNumber}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-slate-500">
+                            <span>Total Documents</span>
+                            <span className="font-semibold text-slate-700">{selectedVehicle?.documents?.length || 0}</span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-3">
+                        {selectedVehicle?.documents?.length > 0 ? (
+                            selectedVehicle.documents.map((file: any, index: number) => (
+                                <a 
+                                    key={index} 
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all group cursor-pointer"
+                                >
+                                    <div className="w-12 h-12 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                                        <FileText size={24} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-semibold text-slate-900 truncate" title={file.fileName}>{file.fileName}</p>
+                                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
+                                            <span className="flex items-center gap-1">
+                                                <Calendar size={12} />
+                                                {file.uploadedAt ? new Date(file.uploadedAt).toLocaleDateString() : 'Unknown date'}
+                                            </span>
+                                            {file.uploadedBy && (
+                                                <span className="flex items-center gap-1">
+                                                    <User size={12} />
+                                                    {file.uploadedBy.split('@')[0]}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="p-2 text-slate-400 group-hover:text-blue-600 transition-colors">
+                                            <ExternalLink size={20} />
+                                        </div>
+                                        {can(MODULES.COMPANY_DOCS, ACTIONS.DELETE) && (
+                                            <button
+                                                onClick={(e) => handleDeleteFile(e, selectedVehicle._id, file._id, file.fileName)}
+                                                className="p-2 rounded-lg text-slate-400 hover:bg-red-100 hover:text-red-600 transition-colors z-10"
+                                                title="Delete File"
+                                            >
+                                                <Trash2 size={20} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </a>
+                            ))
+                        ) : (
+                            <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                                <FileText className="mx-auto mb-2 opacity-50" size={32} />
+                                <p>No documents uploaded</p>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-end pt-6 mt-4 border-t border-slate-50">
+                        <Button variant="outline" onClick={() => setIsViewModalOpen(false)}>Close</Button>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

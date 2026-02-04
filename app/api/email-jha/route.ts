@@ -1,7 +1,10 @@
+
 import { NextRequest, NextResponse } from 'next/server';
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { connectToDatabase } from '@/lib/db';
 import { JHA, Schedule } from '@/lib/models';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
     try {
@@ -9,42 +12,37 @@ export async function POST(req: NextRequest) {
         const { emailTo, subject, emailBody, attachment, jhaId, scheduleId } = body;
 
         if (!emailTo || !attachment || !jhaId) {
+            console.error('Missing fields:', { hasEmailTo: !!emailTo, hasAttachment: !!attachment, hasJhaId: !!jhaId });
             return NextResponse.json({ success: false, error: 'Missing required fields' }, { status: 400 });
         }
 
-        // 1. Setup Transporter
-        const smtpUser = process.env.SMTP_USER;
-        const smtpPass = process.env.SMTP_PASS;
-
-        if (!smtpUser || !smtpPass) {
-            console.error('Missing SMTP credentials. Please set SMTP_USER and SMTP_PASS in your environment variables.');
-             return NextResponse.json({ success: false, error: 'Email service not configured (missing credentials)' }, { status: 500 });
+        // 1. Send Email via Resend
+        if (!process.env.RESEND_API_KEY) {
+            console.error('Missing RESEND_API_KEY');
+            return NextResponse.json({ success: false, error: 'Email service configuration missing' }, { status: 500 });
         }
 
-        const transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.gmail.com',
-            port: Number(process.env.SMTP_PORT) || 465,
-            secure: true, 
-            auth: {
-                user: smtpUser, 
-                pass: smtpPass,
-            },
-        });
+        // Remove the data:application/pdf;base64, prefix if present for the buffer
+        const base64Content = attachment.includes('base64,') ? attachment.split('base64,')[1] : attachment;
+        const buffer = Buffer.from(base64Content, 'base64');
 
-        // 2. Send Email
-        await transporter.sendMail({
-            from: process.env.SMTP_FROM || '"Devco CRM" <adeel@devco-inc.com>',
+        const { data, error } = await resend.emails.send({
+            from: 'Devco CRM <info@devco.email>',
             to: emailTo,
             subject: subject || 'JHA Document',
-            text: emailBody || 'Please find attached JHA document',
+            html: (emailBody || 'Please find attached JHA document').replace(/\n/g, '<br>'),
             attachments: [
                 {
                     filename: 'JHA_Document.pdf',
-                    content: attachment.split('base64,')[1],
-                    encoding: 'base64',
+                    content: buffer,
                 },
             ],
         });
+
+        if (error) {
+            console.error('Resend Error:', error);
+            return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+        }
 
         // 3. Update Database
         await connectToDatabase();
@@ -62,9 +60,6 @@ export async function POST(req: NextRequest) {
         const updatedJHA = await JHA.findByIdAndUpdate(jhaId, updatePayload, { new: true });
         
         if (scheduleId) {
-            // Also update the embedded JHA in Schedule to keep it in sync
-            // Note: We need to pull the updated JHA emails or just push the new one
-            // Ideally replace the whole jha object or update specific fields
              await Schedule.findOneAndUpdate(
                 { _id: scheduleId },
                 { 
@@ -74,7 +69,7 @@ export async function POST(req: NextRequest) {
              );
         }
 
-        return NextResponse.json({ success: true, jha: updatedJHA });
+        return NextResponse.json({ success: true, jha: updatedJHA, emailId: data?.id });
     } catch (error: any) {
         console.error('Email JHA Error:', error);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -1088,6 +1088,9 @@ function DashboardContent() {
             const data = await res.json();
             if (data.success) {
                 success('JHA Saved Successfully');
+                if (data.result) {
+                    setSelectedJHA((prev: any) => ({ ...prev, ...data.result }));
+                }
                 fetchDashboardData();
                 setIsJhaEditMode(false);
             } else {
@@ -1232,7 +1235,10 @@ function DashboardContent() {
         try {
             const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
             const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
-            const estimate = initialData.estimates.find((e: any) => (e.estimate || e.estimateNum) === schedule?.estimate);
+            const estimate = initialData.estimates.find((e: any) => {
+                const estNum = e.value || e.estimate || e.estimateNum;
+                return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+            });
             const client = initialData.clients.find((c: any) => c._id === schedule?.customerId || c.name === schedule?.customerName);
             
             const variables: Record<string, any> = {
@@ -1241,14 +1247,25 @@ function DashboardContent() {
                 contactName: estimate?.contactName || estimate?.contact || '',
                 contactPhone: estimate?.contactPhone || estimate?.phone || '',
                 jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
+                estimate: schedule?.estimate || '',
+                estimateNum: schedule?.estimate || '',
                 customerName: schedule?.customerName || '',
                 jobLocation: schedule?.jobLocation || '',
-                estimateNum: schedule?.estimate || '',
                 foremanName: schedule?.foremanName || '',
+                projectName: estimate?.projectTitle || estimate?.projectName || '',
                 date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
+                day: new Date(selectedJHA.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
 
-            const booleanFields = ['operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork', 'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd', 'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness', 'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting', 'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards', 'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed', 'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'];
+            const booleanFields = [
+                 'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                 'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                 'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                 'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                 'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                 'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                 'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+            ];
             booleanFields.forEach(f => {
                 variables[f] = (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') ? '✔️' : '';
             });
@@ -1266,7 +1283,10 @@ function DashboardContent() {
                     variables[`sig_img_${idx}`] = sig.signature;
                     variables[`Print Name_${idx}`] = empName;
                     variables[`_ComputedName_${idx}`] = empName;
+                    if (idx === 1) variables[`_ComputedName`] = empName; 
                 });
+            } else {
+                variables.hasSignatures = false;
             }
 
             const pdfRes = await fetch('/api/generate-google-pdf', {

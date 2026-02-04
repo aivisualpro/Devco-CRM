@@ -539,6 +539,32 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                             </span>
                                         </div>
                                     </button>
+
+                                    <button
+                                        onClick={() => {
+                                            router.push('/mobile-docs/vehicle-equipment');
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
+                                            pathname.startsWith('/mobile-docs/vehicle-equipment')
+                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
+                                                : 'bg-amber-50/80 border-amber-100 hover:bg-amber-100/80 hover:border-amber-200'
+                                        }`}
+                                    >
+                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 shadow-sm">
+                                            <Truck size={24} />
+                                        </div>
+                                        <div className="flex-1 text-left">
+                                            <span className={`text-base font-bold block ${
+                                                pathname.startsWith('/mobile-docs/vehicle-equipment') ? 'text-[#0F4C75]' : 'text-slate-700'
+                                            }`}>
+                                                Vehicle & Equip.
+                                            </span>
+                                            <span className="text-xs text-slate-500 mt-0.5 block">
+                                                 compliance docs
+                                            </span>
+                                        </div>
+                                    </button>
                                 </div>
                             </div>
 
@@ -569,11 +595,15 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 maxWidth="2xl"
             >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 max-h-[60vh] overflow-y-auto overscroll-contain px-1 scrollbar-thin scrollbar-thumb-slate-200">
-                    {menuStructure.find(m => m.label === 'DOCS')?.items?.filter(i => ['Receipts & Costs', 'Company Docs'].includes(i.label)).map((item) => (
+                    {menuStructure.find(m => m.label === 'DOCS')?.items?.filter(i => ['Receipts & Costs', 'Company Docs', 'Vehicle & Equipment Docs'].includes(i.label)).map((item) => (
                         <button
                             key={item.href}
                             onClick={() => {
-                                router.push(item.href);
+                                if (item.href === '/docs/vehicle-equipment') {
+                                    router.push('/mobile-docs/vehicle-equipment');
+                                } else {
+                                    router.push(item.href);
+                                }
                                 setIsMobileDocsOpen(false);
                             }}
                             className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 hover:border-[#0F4C75]/30 hover:bg-[#0F4C75]/5 transition-all group"

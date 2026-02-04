@@ -125,17 +125,31 @@ export async function DELETE(request: NextRequest) {
         await connectToDatabase();
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
+        const fileId = searchParams.get('fileId');
 
         if (!id) {
             return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
         }
 
-        // Delete the entire vehicle entry
-        // In a real app, we should also delete all associated files from R2
-        // For now, we just delete the DB record
-        await VehicleDoc.findByIdAndDelete(id);
+        if (fileId) {
+            // Delete specific file from documents array
+            const updatedDoc = await VehicleDoc.findByIdAndUpdate(
+                id,
+                { $pull: { documents: { _id: fileId } } },
+                { new: true }
+            );
+            
+            if (!updatedDoc) {
+                return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 });
+            }
 
-        return NextResponse.json({ success: true });
+            return NextResponse.json({ success: true, doc: updatedDoc });
+        } else {
+            // Delete the entire vehicle entry
+            // In a real app, we should also delete all associated files from R2
+            await VehicleDoc.findByIdAndDelete(id);
+            return NextResponse.json({ success: true });
+        }
     } catch (error: any) {
         console.error('Error deleting doc:', error);
         return NextResponse.json({ success: false, error: 'Failed to delete doc' }, { status: 500 });
