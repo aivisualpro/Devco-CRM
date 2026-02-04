@@ -168,6 +168,10 @@ const ScheduleSchema = new Schema({
             updatedAt: { type: Date },
             clientEmail: { type: String },
             emailCounter: { type: Number },
+            djtEmails: [{
+                emailto: { type: String },
+                createdAt: { type: Date, default: Date.now }
+            }],
             djtCost: { type: Number, default: 0 }
         }, 
         default: null 

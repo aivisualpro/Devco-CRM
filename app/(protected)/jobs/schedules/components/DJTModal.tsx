@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     CheckCircle2, Edit, FilePlus, Clock, Download, Loader2, 
-    Plus, Trash2, Image as ImageIcon, UserCheck, Info, XCircle
+    Plus, Trash2, Image as ImageIcon, UserCheck, Info, XCircle, Mail
 } from 'lucide-react';
 import { Modal, EmptyState, Tooltip, TooltipTrigger, TooltipContent, UploadButton, SearchableSelect, Badge } from '@/components/ui';
 import SignaturePad from '../SignaturePad';
@@ -22,6 +22,7 @@ interface DJTModalProps {
     isSavingSignature?: boolean;
     isGeneratingPDF?: boolean;
     handleDownloadPDF?: () => void;
+    setEmailModalOpen?: (open: boolean) => void;
 }
 
 export const DJTModal = ({
@@ -39,7 +40,8 @@ export const DJTModal = ({
     setActiveSignatureEmployee,
     isSavingSignature = false,
     isGeneratingPDF = false,
-    handleDownloadPDF
+    handleDownloadPDF,
+    setEmailModalOpen
 }: DJTModalProps) => {
     const [lunchStart, setLunchStart] = useState('12:00');
     const [lunchEnd, setLunchEnd] = useState('12:30');
@@ -381,14 +383,25 @@ export const DJTModal = ({
                         <div className="p-6 flex-1 flex flex-col min-h-0 overflow-y-auto w-full">
                                 <div className="flex items-center justify-end mb-4 gap-2">
                                     {handleDownloadPDF && (
-                                        <button
-                                            onClick={handleDownloadPDF}
-                                            disabled={isGeneratingPDF}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 hover:text-black hover:border-slate-300 transition-all disabled:opacity-50"
-                                        >
-                                            {isGeneratingPDF ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
-                                            PDF
-                                        </button>
+                                        <>
+                                            {setEmailModalOpen && (
+                                                <button
+                                                    onClick={() => setEmailModalOpen(true)}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 hover:text-[#0F4C75] hover:border-[#0F4C75] transition-all"
+                                                >
+                                                    <Mail size={12} />
+                                                    EMAIL
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={handleDownloadPDF}
+                                                disabled={isGeneratingPDF}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 hover:text-black hover:border-slate-300 transition-all disabled:opacity-50"
+                                            >
+                                                {isGeneratingPDF ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                                                PDF
+                                            </button>
+                                        </>
                                     )}
                                     <button
                                         onClick={() => setIsEditMode(true)}
@@ -400,6 +413,54 @@ export const DJTModal = ({
                                 </div>
 
                                 <div className="space-y-5">
+                                    {/* Ticket Info Section */}
+                                    <div className="grid grid-cols-2 gap-4 bg-slate-50/50 p-4 rounded-xl border border-slate-100 mb-4">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Created By</p>
+                                            {(() => {
+                                                const creator = initialData.employees.find((e: any) => e.value === selectedDJT.createdBy);
+                                                if (creator) {
+                                                    return (
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                                                                {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-slate-500">{creator.label?.[0]}</div>}
+                                                            </div>
+                                                            <p className="text-sm font-bold text-slate-700 truncate">{creator.label}</p>
+                                                        </div>
+                                                    );
+                                                }
+                                                return <p className="text-sm font-bold text-slate-700 truncate">{selectedDJT.createdBy || 'Unknown'}</p>;
+                                            })()}
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Date</p>
+                                            <p className="text-sm font-bold text-slate-700">{selectedDJT.createdAt ? new Date(selectedDJT.createdAt).toLocaleDateString() : 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Client Email</p>
+                                            <p className="text-sm font-bold text-slate-700">{selectedDJT.clientEmail || '-'}</p>
+                                        </div>
+                                         <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Emailed</p>
+                                            <div className="flex items-center gap-2 mt-0.5 group relative">
+                                                <p className="text-sm font-bold text-slate-700">{selectedDJT.emailCounter || 0} times</p>
+                                                {selectedDJT.emailCounter > 0 && selectedDJT.djtEmails && (
+                                                    <div className="hidden group-hover:block absolute top-full left-0 mt-2 z-50 w-64 bg-slate-800 text-white p-3 rounded-xl shadow-xl text-xs">
+                                                        <p className="font-bold border-b border-slate-700 pb-1 mb-2">Email History</p>
+                                                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                            {selectedDJT.djtEmails.slice().reverse().map((email: any, idx: number) => (
+                                                                <div key={idx} className="flex justify-between items-start gap-2">
+                                                                    <span className="truncate flex-1 text-slate-300">{email.emailto}</span>
+                                                                    <span className="text-[10px] text-slate-500 shrink-0">{new Date(email.createdAt).toLocaleDateString()}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     {/* Today's Progress */}
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-2 block">Today's Progress</label>

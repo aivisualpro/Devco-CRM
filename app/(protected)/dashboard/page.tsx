@@ -908,6 +908,7 @@ function DashboardContent() {
     
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
+    const [activeEmailType, setActiveEmailType] = useState<'jha' | 'djt'>('jha');
 
     // Load User
     useEffect(() => {
@@ -1325,6 +1326,147 @@ function DashboardContent() {
             };
         } catch (error: any) {
             showError(error.message);
+            setIsSendingEmail(false);
+        }
+    };
+
+    const prepareDjtVariables = () => {
+        if (!selectedDJT) return {};
+        const schedule = schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id)) || selectedDJT.scheduleRef;
+        const estimate = initialData.estimates.find((e: any) => {
+             const estNum = e.value || e.estimate || e.estimateNum;
+             return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+        });
+        const client = initialData.clients.find((c: any) => c._id === schedule?.customerId || c.name === schedule?.customerName);
+
+        const variables: Record<string, any> = {
+            ...selectedDJT,
+            customerId: client?.name || schedule?.customerName || '',
+            contactName: estimate?.contactName || estimate?.contact || '',
+            contactPhone: estimate?.contactPhone || estimate?.phone || '',
+            jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
+            estimate: schedule?.estimate || '',
+            customerName: schedule?.customerName || '',
+            jobLocation: schedule?.jobLocation || '',
+            foremanName: schedule?.foremanName || '',
+            date: selectedDJT.createdAt ? new Date(selectedDJT.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+            day: new Date(selectedDJT.createdAt || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+        };
+
+        // Equipment
+        if (selectedDJT.equipmentUsed?.length > 0) {
+            selectedDJT.equipmentUsed.forEach((item: any, index: number) => {
+                const idx = index + 1;
+                const eqItem = initialData.equipmentItems?.find((e: any) => e.value === item.equipment);
+                variables[`eq_name_${idx}`] = eqItem?.label || item.equipment;
+                variables[`eq_type_${idx}`] = item.type;
+                variables[`eq_qty_${idx}`] = item.qty;
+            });
+             variables.hasEquipment = true;
+        }
+
+        // Crew Signatures
+        if (selectedDJT.signatures?.length > 0) {
+            variables.hasSignatures = true;
+            selectedDJT.signatures.forEach((sig: any, index: number) => {
+                const empName = initialData.employees.find((e: any) => e.value === sig.employee)?.label || sig.employee;
+                const idx = index + 1;
+                variables[`sig_name_${idx}`] = empName;
+                variables[`sig_img_${idx}`] = sig.signature;
+            });
+        }
+        
+        // Photos
+        if (selectedDJT.djtimages?.length > 0) {
+             variables.hasPhotos = true;
+             selectedDJT.djtimages.forEach((url: string, index: number) => {
+                 variables[`photo_${index + 1}`] = url;
+             });
+        }
+
+        return variables;
+    };
+
+    const handleDownloadDjtPdf = async () => {
+        if (!selectedDJT) return;
+        setIsGeneratingDJTPDF(true);
+        try {
+            // TODO: Update this with actual DJT Template ID
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258'; // Placeholder - borrowing JHA for now as requested "same functionality" but likely needs specific one
+            const variables = prepareDjtVariables();
+
+            const response = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!response.ok) throw new Error('Failed to generate PDF');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `DJT_${selectedDJT.customerPrintName || 'Report'}.pdf`;
+            a.click();
+            success('DJT PDF downloaded!');
+        } catch (error: any) {
+            showError(error.message || 'Download failed');
+        } finally {
+            setIsGeneratingDJTPDF(false);
+        }
+    };
+
+    const handleEmailDjtPdf = async (e: any) => {
+        e.preventDefault();
+        if (!selectedDJT || !emailTo) return;
+        setIsSendingEmail(true);
+        try {
+            // TODO: Update this with actual DJT Template ID
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258'; 
+            const variables = prepareDjtVariables();
+
+            const pdfRes = await fetch('/api/generate-google-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ templateId, variables })
+            });
+
+            if (!pdfRes.ok) throw new Error('PDF generation failed');
+            const blob = await pdfRes.blob();
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string; 
+                const emailRes = await fetch('/api/email-djt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emailTo,
+                        subject: 'Daily Job Ticket Document',
+                        emailBody: 'Please find attached Daily Job Ticket document',
+                        attachment: base64data,
+                        djtId: selectedDJT._id,
+                        scheduleId: selectedDJT.schedule_id || selectedDJT.scheduleRef?._id
+                    })
+                });
+                const emailData = await emailRes.json();
+                if (emailData.success) {
+                    success('Email sent!');
+                    setEmailModalOpen(false);
+                    // Update local state to reflect email count increment
+                    setSelectedDJT((prev: any) => ({
+                        ...prev,
+                        emailCounter: (prev.emailCounter || 0) + 1,
+                        djtEmails: [...(prev.djtEmails || []), { emailto: emailTo, createdAt: new Date() }]
+                    }));
+                } else {
+                    showError(emailData.error || 'Failed to send email');
+                }
+            };
+        } catch (error: any) {
+            console.error('Error sending DJT email:', error);
+            showError(error.message || 'Failed to send DJT email');
+        } finally {
             setIsSendingEmail(false);
         }
     };
@@ -2441,7 +2583,8 @@ function DashboardContent() {
                                                             jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
                                                             emailCounter: 0,
                                                             signatures: [],
-                                                            scheduleRef: item
+                                                            scheduleRef: item,
+                                                            createdBy: userEmail
                                                         });
                                                         setIsJhaEditMode(true);
                                                         setJhaModalOpen(true);
@@ -3642,7 +3785,10 @@ function DashboardContent() {
                 handleSaveSignature={handleSaveJHASignature}
                 isGeneratingPDF={isGeneratingJHAPDF}
                 handleDownloadPDF={handleDownloadJhaPdf}
-                setEmailModalOpen={setEmailModalOpen}
+                setEmailModalOpen={(open) => {
+                    setActiveEmailType('jha');
+                    setEmailModalOpen(open);
+                }}
                 initialData={initialData}
                 schedules={schedules}
                 activeSignatureEmployee={activeSignatureEmployee}
@@ -3663,6 +3809,12 @@ function DashboardContent() {
                 schedules={schedules}
                 activeSignatureEmployee={activeSignatureEmployee}
                 setActiveSignatureEmployee={setActiveSignatureEmployee}
+                isGeneratingPDF={isGeneratingDJTPDF}
+                handleDownloadPDF={handleDownloadDjtPdf}
+                setEmailModalOpen={(open) => {
+                    setActiveEmailType('djt');
+                    setEmailModalOpen(open);
+                }}
             />
 
             {/* Timesheet Modal */}
@@ -3794,21 +3946,22 @@ function DashboardContent() {
                 </form>
             </Modal>
 
+
             {/* Email Modal */}
             <Modal
                 isOpen={emailModalOpen}
                 onClose={() => !isSendingEmail && setEmailModalOpen(false)}
-                title="Email JHA Document"
+                title={activeEmailType === 'jha' ? "Email JHA Document" : "Email Daily Job Ticket"}
                 maxWidth="md"
             >
-                <form onSubmit={handleEmailJhaPdf} className="space-y-4">
+                <form onSubmit={activeEmailType === 'jha' ? handleEmailJhaPdf : handleEmailDjtPdf} className="space-y-4">
                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-start gap-3">
                         <div className="bg-blue-100 p-2 rounded-full text-[#0F4C75]">
                             <Mail size={20} />
                         </div>
                         <div>
-                            <p className="text-sm font-bold text-[#0F4C75]">Send PDF via Email</p>
-                            <p className="text-xs text-blue-800/70 mt-1">The JHA document will be attached as a PDF and sent to the recipient below.</p>
+                            <p className="text-sm font-bold text-[#0F4C75]">{activeEmailType === 'jha' ? 'Send JHA via Email' : 'Send DJT via Email'}</p>
+                            <p className="text-xs text-blue-800/70 mt-1">The document will be attached as a PDF and sent to the recipient below.</p>
                         </div>
                     </div>
                     
