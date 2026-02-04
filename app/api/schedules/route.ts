@@ -952,7 +952,10 @@ export async function POST(request: NextRequest) {
                     };
                 }
 
-                return NextResponse.json({ success: true, result: finalResult });
+                const response = NextResponse.json({ success: true, result: finalResult });
+                // Cache for 30 seconds, stale for up to 2 minutes (schedule data changes frequently)
+                response.headers.set('Cache-Control', 'private, s-maxage=30, stale-while-revalidate=120');
+                return response;
             }
 
             case 'getInitialData': {

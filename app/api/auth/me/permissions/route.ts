@@ -25,7 +25,9 @@ export async function GET(request: NextRequest) {
         // Also return cached version for quick checks
         const cached = createCachedPermissions(permissions);
 
-        return NextResponse.json({
+        // Add cache headers for faster subsequent loads
+        // stale-while-revalidate: serve cached immediately, refresh in background
+        const response = NextResponse.json({
             success: true,
             permissions,
             cached,
@@ -35,6 +37,11 @@ export async function GET(request: NextRequest) {
                 role: user.role
             }
         });
+        
+        // Cache for 60 seconds, stale for up to 5 minutes
+        response.headers.set('Cache-Control', 'private, s-maxage=60, stale-while-revalidate=300');
+        
+        return response;
     } catch (error) {
         console.error('Error fetching permissions:', error);
         return NextResponse.json(
@@ -43,3 +50,4 @@ export async function GET(request: NextRequest) {
         );
     }
 }
+
