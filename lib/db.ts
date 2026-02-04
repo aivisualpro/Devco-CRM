@@ -24,20 +24,13 @@ if (!global.mongoose) {
 }
 
 export async function connectToDatabase(): Promise<typeof mongoose> {
-    // Return existing connection if it's ready
     if (cached.conn) {
         return cached.conn;
     }
 
     if (!cached.promise) {
-        // Balanced settings for Vercel serverless - not too aggressive
         const opts = {
             bufferCommands: false,
-            maxPoolSize: 10,
-            // Use reasonable timeouts (default 30s is too long, 5s is too short)
-            serverSelectionTimeoutMS: 15000,  // 15s - enough for cold starts
-            socketTimeoutMS: 45000,
-            connectTimeoutMS: 15000,
         };
 
         cached.promise = mongoose.connect(MONGODB_URI!, opts).then((mongoose) => {
@@ -56,4 +49,5 @@ export async function connectToDatabase(): Promise<typeof mongoose> {
 }
 
 export default connectToDatabase;
+
 
