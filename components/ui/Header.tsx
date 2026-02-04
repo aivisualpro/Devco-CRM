@@ -22,7 +22,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -51,6 +51,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Billing Tickets', href: '/docs/billing-tickets', icon: <DollarSign className="w-5 h-5" />, description: 'Invoicing and billing details', colorClass: 'text-green-500' },
             { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
             { label: 'Company Docs', href: '/docs/company-docs', icon: <FileText className="w-5 h-5" />, description: 'Training & Certifications', colorClass: 'text-blue-600' },
+            { label: 'Vehicle & Equipment Docs', href: '/docs/vehicle-equipment', icon: <Truck className="w-5 h-5" />, description: 'Unit compliance & registration', colorClass: 'text-amber-600' },
         ]
     },
     {

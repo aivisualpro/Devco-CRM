@@ -78,7 +78,48 @@ const shiftWeek = (current: Date, direction: number): Date => {
     return newDate;
 };
 
+// Generate weeks for week picker (Monday-based)
+const getWeekNumber = (d: Date): number => {
+    const date = new Date(d);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+    const yearStart = new Date(date.getFullYear(), 0, 1);
+    return Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
 
+const generateWeeksForPicker = (): { id: string; label: string; value: string; weekNum: number; startDate: Date; isCurrentWeek: boolean }[] => {
+    const weeks: { id: string; label: string; value: string; weekNum: number; startDate: Date; isCurrentWeek: boolean }[] = [];
+    const now = new Date();
+    const currentWeekRange = getWeekRange(now);
+    
+    // Generate 20 weeks in past, current week, and 10 weeks in future
+    for (let i = -20; i <= 10; i++) {
+        const weekDate = new Date(now);
+        weekDate.setDate(weekDate.getDate() + (i * 7));
+        const range = getWeekRange(weekDate);
+        const weekNum = getWeekNumber(range.start);
+        const isCurrentWeek = range.label === currentWeekRange.label;
+        
+        const formatDateFull = (d: Date) => {
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            const y = String(d.getFullYear()).slice(-2);
+            return `${m}/${day}/${y}`;
+        };
+        
+        weeks.push({
+            id: range.label,
+            label: `${formatDateFull(range.start)} to ${formatDateFull(range.end)}${isCurrentWeek ? ' (Current)' : ''}`,
+            value: range.label,
+            weekNum,
+            startDate: range.start,
+            isCurrentWeek
+        });
+    }
+    
+    // Sort by date descending (newest first)
+    return weeks.sort((a, b) => b.startDate.getTime() - a.startDate.getTime());
+};
 
 
 
@@ -654,6 +695,11 @@ function DashboardContent() {
 
     // Estimate Filter State
     const [estimateFilter, setEstimateFilter] = useState('all'); // all, this_month, last_month, ytd, last_year
+
+    // Week Picker State
+    const [isWeekPickerOpen, setIsWeekPickerOpen] = useState(false);
+    const [weekPickerAnchor, setWeekPickerAnchor] = useState<'mobile' | 'desktop'>('desktop');
+    const weekOptions = useMemo(() => generateWeeksForPicker(), [currentWeekDate]);
 
     // Computed Time Cards for Dashboard Table
     const dashboardTimeCards = useMemo(() => {
@@ -2143,7 +2189,7 @@ function DashboardContent() {
             <Header 
                 hideLogo={false}
                 centerContent={
-                    <div className="flex xl:hidden items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
+                    <div className="flex xl:hidden items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200 relative">
                         <button 
                             onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
                             className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
@@ -2151,11 +2197,16 @@ function DashboardContent() {
                             <ChevronLeft className="w-4 h-4" />
                         </button>
                         <button 
-                            onClick={() => setCurrentWeekDate(new Date())}
-                            className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors"
-                            title="Go to Today"
+                            id="week-picker-trigger-mobile"
+                            onClick={() => {
+                                setWeekPickerAnchor('mobile');
+                                setIsWeekPickerOpen(!isWeekPickerOpen);
+                            }}
+                            className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
+                            title="Click to select week"
                         >
                             <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                            <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isWeekPickerOpen ? 'rotate-180' : ''}`} />
                         </button>
                         <button 
                             onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
@@ -2166,28 +2217,69 @@ function DashboardContent() {
                     </div>
                 }
                 rightContent={
-                    <div className="hidden xl:flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200">
-                        <button 
-                            onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
-                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <button 
+                    <>
+                        <div className="hidden xl:flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200 relative">
+                            <button 
+                                onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
+                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button 
+                                id="week-picker-trigger-desktop"
+                                onClick={() => {
+                                    setWeekPickerAnchor('desktop');
+                                    setIsWeekPickerOpen(!isWeekPickerOpen);
+                                }}
+                                className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
+                                title="Click to select week"
+                            >
+                                <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isWeekPickerOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            <button 
+                                onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
+                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <button
                             onClick={() => setCurrentWeekDate(new Date())}
-                            className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors"
+                            className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#0F4C75] bg-[#0F4C75]/10 hover:bg-[#0F4C75]/20 rounded-lg transition-colors"
                             title="Go to Today"
                         >
-                            <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                            Go to Today
                         </button>
-                        <button 
-                            onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
-                            className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
-                    </div>
+                    </>
                 }
+            />
+
+            {/* Single Week Picker Dropdown - rendered once and positioned to the clicked trigger */}
+            <MyDropDown
+                isOpen={isWeekPickerOpen}
+                onClose={() => setIsWeekPickerOpen(false)}
+                anchorId={weekPickerAnchor === 'desktop' ? "week-picker-trigger-desktop" : "week-picker-trigger-mobile"}
+                positionMode="bottom"
+                options={weekOptions.map(w => ({
+                    id: w.id,
+                    label: w.label,
+                    value: w.value,
+                    badge: String(w.weekNum).padStart(2, '0'),
+                    color: w.isCurrentWeek ? '#10b981' : '#0F4C75'
+                }))}
+                selectedValues={[weekRange.label]}
+                onSelect={(value) => {
+                    const selected = weekOptions.find(w => w.value === value);
+                    if (selected) {
+                        setCurrentWeekDate(selected.startDate);
+                    }
+                    setIsWeekPickerOpen(false);
+                }}
+                placeholder="Search weeks..."
+                emptyMessage="No weeks found"
+                width="w-80"
+                hideSelectionIndicator={true}
             />
 
             <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden md:overflow-y-auto' : 'overflow-y-auto'} md:p-4 lg:p-6 pb-0`}>
