@@ -404,7 +404,8 @@ export default function WorkersCompPage() {
                 if (clockInDate < filterStart || clockInDate > filterEnd) return;
 
                 const typeLower = ts.type?.trim().toLowerCase() || '';
-                const isSiteTime = typeLower === 'site time';
+                // Relaxed check to match Payroll's includes('site') logic
+                const isSiteTime = typeLower.includes('site');
                 const isDriveTime = typeLower.includes('drive');
 
                 if (!isSiteTime && !(includeDriveTime && isDriveTime)) return;
@@ -544,9 +545,21 @@ export default function WorkersCompPage() {
             });
         });
 
-        // Debug: show total
+        // Debug: show total and per-employee breakdown
         const total = flat.reduce((s, r) => s + r.grossPay, 0);
+        
+        // Group totals by employee for easy comparison
+        const empTotals: Record<string, number> = {};
+        flat.forEach(r => {
+            const name = r.employee || 'Unknown';
+            empTotals[name] = (empTotals[name] || 0) + r.grossPay;
+        });
+        
         console.log('[WC] Total:', total.toFixed(2), 'Records:', flat.length);
+        console.log('[WC] Employee Breakdown:', Object.entries(empTotals)
+            .sort(([,a], [,b]) => b - a)
+            .map(([name, amt]) => `${name}: $${amt.toFixed(2)}`)
+        );
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
     }, [rawSchedules, startDate, endDate, employeesMap, workersCompRates, includeDriveTime]);
