@@ -3877,6 +3877,21 @@ function DashboardContent() {
                 handleDownloadPDF={handleDownloadJhaPdf}
                 setEmailModalOpen={(open) => {
                     setActiveEmailType('jha');
+                    if (open && selectedJHA) {
+                        // Find the schedule for this JHA
+                        const schedule = schedules.find(s => s._id === (selectedJHA.schedule_id || selectedJHA._id)) || selectedJHA.scheduleRef;
+                        // Find the estimate to get contactEmail
+                        const estimate = initialData.estimates.find((e: any) => {
+                            const estNum = e.value || e.estimate || e.estimateNum;
+                            return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+                        });
+                        // Pre-fill email with contactEmail from estimate
+                        if (estimate?.contactEmail) {
+                            setEmailTo(estimate.contactEmail);
+                        } else {
+                            setEmailTo('');
+                        }
+                    }
                     setEmailModalOpen(open);
                 }}
                 initialData={initialData}
@@ -3903,6 +3918,21 @@ function DashboardContent() {
                 handleDownloadPDF={handleDownloadDjtPdf}
                 setEmailModalOpen={(open) => {
                     setActiveEmailType('djt');
+                    if (open && selectedDJT) {
+                        // Find the schedule for this DJT
+                        const schedule = schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id)) || selectedDJT.scheduleRef;
+                        // Find the estimate to get contactEmail
+                        const estimate = initialData.estimates.find((e: any) => {
+                            const estNum = e.value || e.estimate || e.estimateNum;
+                            return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
+                        });
+                        // Pre-fill email with contactEmail from estimate
+                        if (estimate?.contactEmail) {
+                            setEmailTo(estimate.contactEmail);
+                        } else {
+                            setEmailTo('');
+                        }
+                    }
                     setEmailModalOpen(open);
                 }}
             />
