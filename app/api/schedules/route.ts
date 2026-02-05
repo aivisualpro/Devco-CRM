@@ -1250,7 +1250,10 @@ export async function POST(request: NextRequest) {
                          "timesheet.0": { $exists: true } 
                     }},
                     { $unwind: "$timesheet" },
+                    // First, extract the clockIn as a Date object for grouping
                     { $addFields: {
+                        // Convert clockIn string to Date object for date operations
+                        clockInDate: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
                         hoursNum: {
                             $cond: {
                                 if: { $gt: [{ $ifNull: ["$timesheet.hours", 0] }, 0] },
@@ -1285,15 +1288,22 @@ export async function POST(request: NextRequest) {
                                     }
                                 }
                             }
-                        },
-                        year: { $year: "$fromDate" },
-                        week: { $isoWeek: "$fromDate" },
-                        // Extract YYYY-MM-DD string directly to avoid timezone shifts
-                        // Prefer timesheet clockIn, fallback to schedule fromDate
+                        }
+                    }},
+                    // Use clockIn for year/week/date grouping instead of fromDate
+                    // Extract date string directly from clockIn to avoid timezone shifts
+                    { $addFields: {
+                        // Use clockIn date for year/week calculations (fallback to fromDate if clockIn is null)
+                        dateForGrouping: { $ifNull: ["$clockInDate", { $convert: { input: "$fromDate", to: "date", onError: new Date(), onNull: new Date() } }] },
+                        // Extract YYYY-MM-DD string directly from clockIn to avoid timezone shifts
                         rawDateStr: { $toString: { $ifNull: ["$timesheet.clockIn", "$fromDate"] } }
                     }},
                     { $addFields: {
-                        dateStr: { $substrCP: ["$rawDateStr", 0, 10] } 
+                        // Extract year and isoWeek from the clockIn date
+                        year: { $year: "$dateForGrouping" },
+                        week: { $isoWeek: "$dateForGrouping" },
+                        // Extract just the date portion (YYYY-MM-DD) - takes first 10 chars
+                        dateStr: { $substrCP: ["$rawDateStr", 0, 10] }
                     }},
                     { $group: {
                         _id: {
@@ -1303,7 +1313,7 @@ export async function POST(request: NextRequest) {
                             date: "$dateStr"
                         },
                         totalHours: { $sum: "$hoursNum" },
-                        refDate: { $min: "$fromDate" }
+                        refDate: { $min: "$dateForGrouping" }
                     }},
                     { $sort: { 
                         "_id.year": -1, 

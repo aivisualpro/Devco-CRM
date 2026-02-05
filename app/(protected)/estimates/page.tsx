@@ -345,12 +345,40 @@ export default function EstimatesPage() {
 
 
     // Base filter: Finals (Latest Version) vs All
-    // If showFinals is TRUE: only show latest version of each estimate.
-    // If showFinals is FALSE: show ALL history.
+    // If showFinals is FALSE: only show latest/final version of each estimate.
+    // If showFinals is TRUE: show ALL versions/history.
     const filteredEstimates = useMemo(() => {
-        // Since filtering and searching are handled server-side, 
-        // we just perform client-side sorting on the fetched pages.
         let filtered = [...estimates];
+
+        // When Finals toggle is OFF, only show the highest version of each estimate
+        if (!showFinals) {
+            // Group estimates by their base estimate number
+            const groupedByEstimate = new Map<string, Estimate[]>();
+            
+            filtered.forEach(est => {
+                const baseEstimate = est.estimate || est._id;
+                if (!groupedByEstimate.has(baseEstimate)) {
+                    groupedByEstimate.set(baseEstimate, []);
+                }
+                groupedByEstimate.get(baseEstimate)!.push(est);
+            });
+
+            // For each group, keep only the highest version number
+            filtered = [];
+            groupedByEstimate.forEach(group => {
+                if (group.length === 1) {
+                    filtered.push(group[0]);
+                } else {
+                    // Find the one with the highest version number
+                    const highest = group.reduce((max, current) => {
+                        const maxVersion = max.versionNumber || 1;
+                        const currentVersion = current.versionNumber || 1;
+                        return currentVersion > maxVersion ? current : max;
+                    });
+                    filtered.push(highest);
+                }
+            });
+        }
 
         // Sort strictly by user selection (multi-level)
         filtered.sort((a, b) => {
@@ -389,7 +417,7 @@ export default function EstimatesPage() {
         });
 
         return filtered;
-    }, [estimates, sortConfig]);
+    }, [estimates, sortConfig, showFinals]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
