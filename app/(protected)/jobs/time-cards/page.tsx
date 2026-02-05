@@ -12,7 +12,7 @@ import {
     SearchableSelect, Card, Pagination,
     Table, TableHead, TableBody, TableRow, TableHeader, TableCell,
     Badge, Tooltip, TooltipTrigger, TooltipContent,
-    ConfirmModal
+    ConfirmModal, Skeleton
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 
@@ -302,6 +302,7 @@ function TimeCardContent() {
     const [filEstimate, setFilEstimate] = useState('');
     const [filType, setFilType] = useState('');
     const [groupingStats, setGroupingStats] = useState<any[]>([]);
+    const [isStatsLoading, setIsStatsLoading] = useState(true);
 
     // Tree Selection
     // nodeType: 'ROOT' | 'YEAR' | 'WEEK' | 'EMPLOYEE' | 'DATE'
@@ -424,6 +425,7 @@ function TimeCardContent() {
     // Fetch Grouping Stats (Tree Data)
     useEffect(() => {
         const fetchStats = async () => {
+            setIsStatsLoading(true);
             try {
                 const res = await fetch('/api/schedules', {
                     method: 'POST',
@@ -436,6 +438,8 @@ function TimeCardContent() {
                 }
             } catch (e) {
                 console.error("Failed to fetch grouping stats", e);
+            } finally {
+                setIsStatsLoading(false);
             }
         };
         fetchStats();
@@ -1407,7 +1411,23 @@ function TimeCardContent() {
                             </div>
 
                             {/* Years */}
-                            {Object.values(treeData.years).sort((a: any, b: any) => b.label.localeCompare(a.label)).map((year: any) => {
+                            {isStatsLoading ? (
+                                <div className="space-y-3 pt-2">
+                                    {[1,2,3].map(i => (
+                                        <div key={i} className="mb-2">
+                                            <div className="flex items-center gap-2 p-2">
+                                                <Skeleton className="w-5 h-5 rounded-md" />
+                                                <Skeleton className="h-4 flex-1 rounded-md" />
+                                                <Skeleton className="w-12 h-4 rounded-md" />
+                                            </div>
+                                            <div className="pl-6 space-y-2 mt-1">
+                                                <Skeleton className="h-3 w-3/4 rounded-md" />
+                                                <Skeleton className="h-3 w-2/3 rounded-md" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : Object.values(treeData.years).sort((a: any, b: any) => b.label.localeCompare(a.label)).map((year: any) => {
                                 const isExpanded = expandedNodes.has(year.id);
                                 return (
                                     <div key={year.id} className="mb-1">
@@ -1569,8 +1589,23 @@ function TimeCardContent() {
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
-                                <TableBody>
-                                    {paginatedData.length > 0 ? paginatedData.map((ts, idx) => {
+                                    <TableBody>
+                                        {loading ? (
+                                            Array.from({ length: 8 }).map((_, i) => (
+                                                <TableRow key={`skeleton-${i}`}>
+                                                    <TableCell><div className="flex items-center gap-2"><Skeleton className="w-6 h-6 rounded-full" /><Skeleton className="h-3 w-24" /></div></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-5 w-6 mx-auto rounded-lg" /></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-24" /></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-10 mx-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-3 w-10 ml-auto" /></TableCell>
+                                                    <TableCell><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                                                </TableRow>
+                                            ))
+                                        ) : paginatedData.length > 0 ? paginatedData.map((ts, idx) => {
                                         const recordId = ts._id || ts.recordId;
                                         const isQuickEditing = quickEditingId === recordId;
 

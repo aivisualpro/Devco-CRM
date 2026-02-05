@@ -616,9 +616,7 @@ function DashboardContent() {
     
     const searchParams = useSearchParams();
     
-    useEffect(() => {
-        console.log('DEBUG: Identity - userEmail:', userEmail, 'isSuperAdmin:', isSuperAdmin);
-    }, [userEmail, isSuperAdmin]);
+
     
     // Track if permissions have loaded (stabilizes initial fetch)
     const [permissionsReady, setPermissionsReady] = useState(false);
