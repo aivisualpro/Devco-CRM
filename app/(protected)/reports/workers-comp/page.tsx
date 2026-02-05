@@ -378,36 +378,35 @@ export default function WorkersCompPage() {
         }
     }, [startDate, endDate, includeDriveTime, router, pathname, params]);
 
-    // Flatten and Filter Records - EXACTLY match Payroll's calculation methodology
+    // Flatten and Filter Records - EXACT COPY of Payroll calculation logic
     const allRecords = useMemo(() => {
         const filterStart = new Date(startDate);
         filterStart.setHours(0, 0, 0, 0);
-        
         const filterEnd = new Date(endDate);
         filterEnd.setHours(23, 59, 59, 999);
 
-        const parseRate = (val: any) => {
+        const parseRate = (val: any): number | null => {
             if (val === null || val === undefined) return null;
             const parsed = parseFloat(val);
             return isNaN(parsed) || parsed === 0 ? null : parsed;
         };
 
-        // Step 1: Group by employee + day (like Payroll does)
-        const employeeDays: Record<string, any> = {}; // key = "empKey|dateKey"
-        
+        // Step 1: Group by employee+day (exactly like Payroll)
+        const employeeDays: Record<string, any> = {};
+
         rawSchedules.forEach(sched => {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
-            
+
             sched.timesheet.forEach((ts: any) => {
+                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
+                if (isNaN(clockInDate.getTime())) return;
+                if (clockInDate < filterStart || clockInDate > filterEnd) return;
+
                 const typeLower = ts.type?.trim().toLowerCase() || '';
                 const isSiteTime = typeLower === 'site time';
                 const isDriveTime = typeLower.includes('drive');
 
                 if (!isSiteTime && !(includeDriveTime && isDriveTime)) return;
-                
-                const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
-                if (isNaN(clockInDate.getTime())) return;
-                if (clockInDate < filterStart || clockInDate > filterEnd) return;
 
                 const { hours } = calculateTimesheetData(ts, sched.fromDate);
                 const empKey = (ts.employee || '').toLowerCase();
@@ -418,33 +417,34 @@ export default function WorkersCompPage() {
                     employeeDays[dayKey] = {
                         empKey,
                         dateKey,
-                        employee: ts.employee,
                         siteHrs: 0,
                         travelHrs: 0,
-                        dayRateSite: null,
-                        dayRateTravel: null,
+                        diem: 0,
+                        dayRateSite: null as number | null,
+                        dayRateDrive: null as number | null,
                         entries: []
                     };
                 }
 
-                const empInfo = employeesMap[empKey] || {};
-                const profileSiteRate = parseRate(empInfo.hourlyRateSITE) ?? 45;
-                const profileDriveRate = parseRate(empInfo.hourlyRateDrive) ?? (profileSiteRate * 0.75);
-
-                // Capture daily rates from entries if present (last entry wins, like Payroll)
-                const entrySiteRate = parseRate(ts.hourlyRateSITE);
-                const entryDriveRate = parseRate(ts.hourlyRateDrive);
-                if (entrySiteRate !== null) employeeDays[dayKey].dayRateSite = entrySiteRate;
-                if (entryDriveRate !== null) employeeDays[dayKey].dayRateTravel = entryDriveRate;
-
-                // Aggregate hours
+                // Aggregate hours (exactly like Payroll lines 476-480)
                 if (isSiteTime) {
                     employeeDays[dayKey].siteHrs += hours;
                 } else if (isDriveTime) {
                     employeeDays[dayKey].travelHrs += hours;
                 }
 
-                // Store entry details
+                // Per Diem (exactly like Payroll lines 482-485)
+                if (ts.perDiem) {
+                    employeeDays[dayKey].diem += (parseFloat(ts.perDiem) || 0);
+                }
+
+                // Capture daily rates from entries (exactly like Payroll lines 487-491)
+                const rateS = parseRate(ts.hourlyRateSITE);
+                const rateD = parseRate(ts.hourlyRateDrive);
+                if (rateS !== null) employeeDays[dayKey].dayRateSite = rateS;
+                if (rateD !== null) employeeDays[dayKey].dayRateDrive = rateD;
+
+                // Store entry for table display
                 employeeDays[dayKey].entries.push({
                     _id: ts._id || ts.recordId,
                     employee: ts.employee,
@@ -458,75 +458,75 @@ export default function WorkersCompPage() {
                     item: sched.item || 'Uncategorized',
                     dateLabel: formatDateOnly(ts.clockIn),
                     title: sched.projectTitle || sched.title || sched.jobTitle || 'Unknown Project',
-                    estimateRef: sched.estimate || sched.quoteNumber || sched.quote_number || sched.quoteRef || sched.estimateNo || sched.estimateRef || sched.quote_ref || sched.projectQuoteRef || '--',
-                    wcRatePer100: workersCompRates[String(sched.item || '').toLowerCase()] || 0,
-                    profileSiteRate,
-                    profileDriveRate
+                    estimateRef: sched.estimate || sched.quoteNumber || '--',
+                    wcRatePer100: workersCompRates[String(sched.item || '').toLowerCase()] || 0
                 });
             });
         });
 
-        // Step 2: Calculate daily reg/OT/DT (like Payroll) and expand back to entries
+        // Step 2: Calculate amounts per day (EXACTLY like Payroll lines 528-554)
         const flat: TimesheetRecord[] = [];
 
         Object.values(employeeDays).forEach((day: any) => {
             const empInfo = employeesMap[day.empKey] || {};
-            const profileSiteRate = parseRate(empInfo.hourlyRateSITE) ?? 45;
-            const profileDriveRate = parseRate(empInfo.hourlyRateDrive) ?? (profileSiteRate * 0.75);
+            
+            // Rate lookups (exactly like Payroll lines 520-521)
+            const rateSite = parseRate(empInfo.hourlyRateSITE) ?? 45;
+            const rateTravel = parseRate(empInfo.hourlyRateDrive) ?? (rateSite * 0.75);
+            
+            // Day-specific rates override profile rates (exactly like Payroll lines 548-549)
+            const dayRateSite = day.dayRateSite ?? rateSite;
+            const dayRateTravel = day.dayRateDrive ?? rateTravel;
 
-            // Use day rates if set, otherwise profile rates (EXACTLY like Payroll)
-            const dayRateSite = day.dayRateSite ?? profileSiteRate;
-            const dayRateTravel = day.dayRateTravel ?? profileDriveRate;
-
-            // Calculate DAILY reg/OT/DT from siteHrs (EXACTLY like Payroll)
+            // Calculate daily reg/OT/DT from siteHrs (exactly like Payroll lines 529-538)
             const rawReg = Math.min(8, day.siteHrs);
             const rawOt = Math.min(4, Math.max(0, day.siteHrs - 8));
             const rawDt = Math.max(0, day.siteHrs - 12);
             const rawTravel = day.travelHrs;
 
-            // Round to 2 decimals (like Payroll's WYSIWYG)
             const dailyReg = Number(rawReg.toFixed(2));
             const dailyOt = Number(rawOt.toFixed(2));
             const dailyDt = Number(rawDt.toFixed(2));
             const dailyTravel = Number(rawTravel.toFixed(2));
 
-            // Calculate amounts at DAILY level (like Payroll)
+            // Calculate amounts (EXACTLY like Payroll lines 551-554)
             const dailyRegAmount = dailyReg * dayRateSite;
             const dailyOtAmount = dailyOt * dayRateSite * 1.5;
             const dailyDtAmount = dailyDt * dayRateSite * 2.0;
             const dailyTravelAmount = dailyTravel * dayRateTravel;
+            
+            // Total amount (EXACTLY like Payroll line 590)
+            const dailyTotalAmount = dailyRegAmount + dailyOtAmount + dailyDtAmount + dailyTravelAmount + day.diem;
 
             // Sort entries chronologically for progressive attribution
             day.entries.sort((a: any, b: any) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime());
 
-            // Attribute reg/OT/DT to individual entries progressively
+            // Attribute to individual entries
             let dayTally = 0;
             day.entries.forEach((entry: any) => {
-                if (!entry.isSiteTime && !entry.isDriveTime) return;
-
-                let regHrs = 0, otHrs = 0, dtHrs = 0, rate = 0;
+                let regHrs = 0, otHrs = 0, dtHrs = 0;
+                let regPay = 0, otPay = 0, dtPay = 0, travelPay = 0;
 
                 if (entry.isSiteTime) {
                     const startTally = dayTally;
                     const endTally = startTally + entry.hoursVal;
                     dayTally = endTally;
 
-                    // Progressive attribution (like Payroll)
                     regHrs = Number(Math.max(0, Math.min(8, endTally) - Math.min(8, startTally)).toFixed(2));
                     otHrs = Number(Math.max(0, Math.min(12, endTally) - Math.min(12, Math.max(8, startTally))).toFixed(2));
                     dtHrs = Number(Math.max(0, endTally - Math.max(12, startTally)).toFixed(2));
-                    rate = dayRateSite;
+
+                    regPay = regHrs * dayRateSite;
+                    otPay = otHrs * dayRateSite * 1.5;
+                    dtPay = dtHrs * dayRateSite * 2.0;
                 } else if (entry.isDriveTime) {
-                    regHrs = Number(entry.hoursVal.toFixed(2));
-                    rate = dayRateTravel;
+                    // Travel is NOT reg/OT/DT - it's separate (like Payroll line 554)
+                    travelPay = entry.hoursVal * dayRateTravel;
                 }
 
-                const regPay = regHrs * rate;
-                const otPay = otHrs * rate * 1.5;
-                const dtPay = dtHrs * rate * 2.0;
-                const grossPay = regPay + otPay + dtPay;
-                
-                const subjectWages = entry.hoursVal * rate;
+                // grossPay includes travel (like Payroll's totalAmount)
+                const grossPay = regPay + otPay + dtPay + travelPay;
+                const subjectWages = entry.hoursVal * (entry.isSiteTime ? dayRateSite : dayRateTravel);
                 const estimatedCompCost = (subjectWages * entry.wcRatePer100) / 100;
 
                 flat.push({
@@ -554,20 +554,9 @@ export default function WorkersCompPage() {
             });
         });
 
-        // DEBUG: Log total to compare with Payroll
-        const debugTotal = flat.reduce((sum, r) => sum + r.grossPay, 0);
-        const debugRegTotal = flat.reduce((sum, r) => sum + r.regPay, 0);
-        const debugOtTotal = flat.reduce((sum, r) => sum + r.otPay, 0);
-        const debugDtTotal = flat.reduce((sum, r) => sum + r.dtPay, 0);
-        console.log('[Workers Comp Debug]', {
-            totalRecords: flat.length,
-            totalGross: debugTotal.toFixed(2),
-            regTotal: debugRegTotal.toFixed(2),
-            otTotal: debugOtTotal.toFixed(2),
-            dtTotal: debugDtTotal.toFixed(2),
-            dateRange: { start: startDate, end: endDate },
-            includeDriveTime
-        });
+        // DEBUG
+        const total = flat.reduce((s, r) => s + r.grossPay, 0);
+        console.log('[WC] Total:', total.toFixed(2), 'Records:', flat.length);
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
     }, [rawSchedules, startDate, endDate, employeesMap, workersCompRates, includeDriveTime]);
