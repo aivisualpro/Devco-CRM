@@ -1186,6 +1186,44 @@ export async function POST(request: NextRequest) {
                 }
             }
 
+            case 'getScheduleStats': {
+                await connectToDatabase();
+                const results = await Schedule.aggregate([
+                    { $match: { 
+                         "timesheet.0": { $exists: true } 
+                    }},
+                    { $unwind: "$timesheet" },
+                    { $addFields: {
+                        hoursNum: { $ifNull: ["$timesheet.hours", 0] },
+                        year: { $year: "$fromDate" },
+                        week: { $isoWeek: "$fromDate" },
+                        // Extract YYYY-MM-DD string directly to avoid timezone shifts
+                        // Prefer timesheet clockIn, fallback to schedule fromDate
+                        rawDateStr: { $toString: { $ifNull: ["$timesheet.clockIn", "$fromDate"] } }
+                    }},
+                    { $addFields: {
+                        dateStr: { $substrCP: ["$rawDateStr", 0, 10] } 
+                    }},
+                    { $group: {
+                        _id: {
+                            year: "$year",
+                            week: "$week",
+                            employee: "$timesheet.employee",
+                            date: "$dateStr"
+                        },
+                        totalHours: { $sum: "$hoursNum" },
+                        refDate: { $min: "$fromDate" }
+                    }},
+                    { $sort: { 
+                        "_id.year": -1, 
+                        "_id.week": -1, 
+                        "_id.employee": 1,
+                        "_id.date": 1
+                    }}
+                ]);
+                return NextResponse.json({ success: true, result: results });
+            }
+
             case 'syncAllTimesheets': {
                 // Only sync to AppSheet on production (Vercel)
                 if (process.env.NODE_ENV !== 'production') {

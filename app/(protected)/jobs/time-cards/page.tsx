@@ -301,6 +301,7 @@ function TimeCardContent() {
     const [filEmployee, setFilEmployee] = useState('');
     const [filEstimate, setFilEstimate] = useState('');
     const [filType, setFilType] = useState('');
+    const [groupingStats, setGroupingStats] = useState<any[]>([]);
 
     // Tree Selection
     // nodeType: 'ROOT' | 'YEAR' | 'WEEK' | 'EMPLOYEE' | 'DATE'
@@ -336,22 +337,7 @@ function TimeCardContent() {
     });
     const weekRange = useMemo(() => getWeekRange(currentWeekDate), [currentWeekDate]);
 
-    // Update URL and localStorage when weekRange.label changes
-    useEffect(() => {
-        const newLabel = weekRange.label;
-        const currentWeekParam = searchParams.get('week');
-        
-        // Sync with localStorage
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('selected_week', newLabel);
-        }
-
-        if (newLabel !== currentWeekParam) {
-            const params = new URLSearchParams(searchParams.toString());
-            params.set('week', newLabel);
-            router.replace(`?${params.toString()}`, { scroll: false });
-        }
-    }, [weekRange.label, router, searchParams]);
+    // URL Sync Removed
 
     const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -434,6 +420,26 @@ function TimeCardContent() {
 
     // Note: Using the global toLocalISO function defined above (timezone-agnostic)
 
+
+    // Fetch Grouping Stats (Tree Data)
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getScheduleStats' })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setGroupingStats(data.result);
+                }
+            } catch (e) {
+                console.error("Failed to fetch grouping stats", e);
+            }
+        };
+        fetchStats();
+    }, []);
 
     // Data Fetching
     const fetchTimeCards = async () => {
@@ -523,60 +529,68 @@ function TimeCardContent() {
         return { drive, site };
     }, [filteredRecords]);
 
-    // 2. Build Tree Structure
+    // 2. Build Tree Structure from Grouping Stats
     const treeData = useMemo(() => {
         const root: any = { years: {} };
         
-        filteredRecords.forEach(r => {
-            if (!r.clockIn) return;
-            // Use robust normalization for consistent parsing
-            const dStr = robustNormalizeISO(r.clockIn);
-            const d = new Date(dStr);
-            if (isNaN(d.getTime())) return;
-
-            const year = d.getUTCFullYear();
-            const weekNo = getWeekNumber(d);
-            const weekRange = getWeekRangeString(d);
+        groupingStats.forEach(stat => {
+            const { year, week, employee } = stat._id;
+            const hours = stat.totalHours || 0;
             
+            // Calculate week range string safely
+            // We use the same week logic as before using the refDate or Year/Week
+            // Simple approach: Use refDate returned from backend if efficient
+            const refDate = new Date(stat.refDate);
+            const weekRange = getWeekRangeString(refDate);
+
             // Year Node
             if (!root.years[year]) root.years[year] = { 
                 id: `Y-${year}`, label: `${year}`, totalHours: 0, weeks: {} 
             };
-            root.years[year].totalHours += (r.hoursVal || 0);
+            root.years[year].totalHours += hours;
 
             // Week Node
-            const weekKey = `${year}-${weekNo}`;
+            const weekKey = `${year}-${week}`;
             if (!root.years[year].weeks[weekKey]) root.years[year].weeks[weekKey] = {
-                id: `W-${weekKey}`, label: `(${weekNo}) ${weekRange}`, totalHours: 0, employees: {}, weekNo // Add weekNo for sorting
+                id: `W-${weekKey}`, label: `(${week}) ${weekRange}`, totalHours: 0, employees: {}, weekNo: week 
             };
-            root.years[year].weeks[weekKey].totalHours += (r.hoursVal || 0);
+            root.years[year].weeks[weekKey].totalHours += hours;
 
             // Employee Node
-            const empKey = r.employee;
-            const empLabel = employeesMap[empKey]?.label || empKey; // Lookup name
+            const empKey = employee;
+            const empLabel = employeesMap[empKey]?.label || empKey; 
             
             if (!root.years[year].weeks[weekKey].employees[empKey]) {
                 root.years[year].weeks[weekKey].employees[empKey] = {
                     id: `E-${weekKey}-${empKey}`, label: empLabel, email: empKey, totalHours: 0, dates: {}, records: []
                 };
             }
-            root.years[year].weeks[weekKey].employees[empKey].totalHours += (r.hoursVal || 0);
-            root.years[year].weeks[weekKey].employees[empKey].records.push(r);
+            root.years[year].weeks[weekKey].employees[empKey].totalHours += hours;
 
             // Date Node under Employee
-            const dateStr = formatDateOnly(r.clockIn); // MM/DD/YYYY format
-            const dateKey = `${empKey}-${dateStr}`;
-            if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
-                root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
-                    id: `D-${weekKey}-${dateKey}`, label: dateStr, totalHours: 0, records: []
-                };
+            // _id.date is "YYYY-MM-DD" (from backend string extraction)
+            const dateStrRaw = stat._id.date || '';
+            if (dateStrRaw) {
+                // Format directly from string to avoid timezone shifts: MM/DD
+                const parts = dateStrRaw.split('-');
+                let dateLabel = dateStrRaw;
+                if (parts.length === 3) {
+                    dateLabel = `${parts[1]}/${parts[2]}`; // MM/DD
+                }
+
+                const dateKey = `${empKey}-${dateStrRaw}`;
+                if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
+                    root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
+                        id: `D-${weekKey}-${dateKey}`, label: dateLabel, totalHours: 0, 
+                        records: [] // No records here, just aggregate stats
+                    };
+                }
+                root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours += hours;
             }
-            root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours += (r.hoursVal || 0);
-            root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].records.push(r);
         });
 
         return root;
-    }, [filteredRecords, employeesMap]);
+    }, [groupingStats, employeesMap]);
 
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {
@@ -588,20 +602,24 @@ function TimeCardContent() {
             if (isNaN(d.getTime())) return false;
             
             const year = d.getUTCFullYear();
-            const weekNo = getWeekNumber(d);
-            const weekKey = `${year}-${weekNo}`;
-
+            
             if (selectedNode.type === 'YEAR') return `Y-${year}` === selectedNode.value;
-            if (selectedNode.type === 'WEEK') return `W-${weekKey}` === selectedNode.value;
-            if (selectedNode.type === 'EMPLOYEE') return `E-${weekKey}-${r.employee}` === selectedNode.value;
+            // Since we lazy-load data for the specific week, we can assume all records belong to the selected week
+            if (selectedNode.type === 'WEEK') return true; 
+            // Filter by employee email
+            if (selectedNode.type === 'EMPLOYEE') return selectedEmployeeEmail ? r.employee === selectedEmployeeEmail : true;
+            
             if (selectedNode.type === 'DATE') {
-                const dateStr = formatDateOnly(r.clockIn);
-                const dateKey = `${r.employee}-${dateStr}`;
-                return `D-${weekKey}-${dateKey}` === selectedNode.value;
+                // Robust filtering: Match Date and Employee
+                const targetDate = selectedNode.value.slice(-10);
+                const rDate = dStr.split('T')[0];
+                
+                if (selectedEmployeeEmail && r.employee !== selectedEmployeeEmail) return false;
+                return rDate === targetDate;
             }
             return true;
         });
-    }, [filteredRecords, selectedNode]);
+    }, [filteredRecords, selectedNode, selectedEmployeeEmail]);
 
     // Reset pagination
     useEffect(() => {
@@ -1121,6 +1139,41 @@ function TimeCardContent() {
             setSelectedEmployeeEmail(employeeEmail || '');
         } else {
             setSelectedEmployeeEmail('');
+        }
+
+        // Logic to switch week when clicking sidebar
+        let year = 0, week = 0;
+        if (type === 'WEEK') {
+            // value: W-2024-5
+            const parts = value.split('-');
+            year = parseInt(parts[1]);
+            week = parseInt(parts[2]);
+        } else if (type === 'EMPLOYEE') {
+            // value: E-2024-5-email
+            const parts = value.split('-');
+            year = parseInt(parts[1]);
+            week = parseInt(parts[2]);
+        } else if (type === 'DATE') {
+            // value: D-2024-5-email-date
+            const parts = value.split('-');
+            year = parseInt(parts[1]);
+            week = parseInt(parts[2]);
+        }
+
+        if (year && week) {
+            // Calculate Monday of that week
+            // ISO Week calculation logic
+            // Jan 4th is always in Week 1
+            const d = new Date(year, 0, 4);
+            const day = d.getDay() || 7; // Sunday=7
+            const mondayOfWeek1 = new Date(d);
+            mondayOfWeek1.setDate(d.getDate() - day + 1);
+            
+            const targetMonday = new Date(mondayOfWeek1);
+            targetMonday.setDate(mondayOfWeek1.getDate() + (week - 1) * 7);
+            
+            // Update state -> triggers fetchTimeCards
+            setCurrentWeekDate(targetMonday);
         }
     };
 
