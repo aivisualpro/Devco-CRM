@@ -175,15 +175,23 @@ export default function WorkersCompPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Fetch all schedules for the year (or wider range if needed)
+            // Extend date range slightly to capture timesheets on boundary dates
+            const extendedStart = new Date(startDate);
+            extendedStart.setDate(extendedStart.getDate() - 7);
+            const extendedEnd = new Date(endDate);
+            extendedEnd.setDate(extendedEnd.getDate() + 7);
+
+            // Fetch schedules with date range filtering
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: { 
-                        limit: 10000,
-                        includeTimesheets: true // Required for workers comp calculations
+                        limit: 5000,
+                        includeTimesheets: true,
+                        startDate: extendedStart.toISOString(),
+                        endDate: extendedEnd.toISOString()
                     } 
                 }) 
             });
@@ -259,9 +267,15 @@ export default function WorkersCompPage() {
                 setPrefsLoaded(true);
             }
         };
-        fetchData();
         loadPrefs();
     }, []);
+
+    // Fetch data when preferences are loaded or dates change
+    useEffect(() => {
+        if (prefsLoaded) {
+            fetchData();
+        }
+    }, [prefsLoaded, startDate, endDate]);
 
     // Save Preferences
     useEffect(() => {
