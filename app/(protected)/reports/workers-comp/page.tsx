@@ -410,11 +410,13 @@ export default function WorkersCompPage() {
                 const dateKey = clockInDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
                 const empInfo = employeesMap[empKey] || {};
-                let rate = 45;
+                const siteRate = parseFloat(empInfo.hourlyRateSITE || '45');
+                let rate = siteRate;
+                
                 if (isDriveTime) {
-                    rate = parseFloat(empInfo.hourlyRateDrive || empInfo.hourlyRateSITE || '45');
-                } else {
-                    rate = parseFloat(empInfo.hourlyRateSITE || '45');
+                    // Match payroll: use hourlyRateDrive if set, otherwise 75% of site rate
+                    const driveRate = parseFloat(empInfo.hourlyRateDrive || '0');
+                    rate = driveRate > 0 ? driveRate : (siteRate * 0.75);
                 }
 
                 rawEntries.push({
