@@ -206,8 +206,10 @@ export default function EstimatesPage() {
 
     useEffect(() => {
         const controller = new AbortController();
+        
+        // OPTION 1: Original (4 separate API calls)
         fetchEstimates(controller.signal);
-
+        
         // Fetch supporting data
         const fetchSupportingData = async () => {
             try {
@@ -240,6 +242,40 @@ export default function EstimatesPage() {
         };
 
         fetchSupportingData();
+
+        // OPTION 2: OPTIMIZED (1 combined API call - uncomment to use)
+        // This reduces function invocations from 4 to 1, saving CPU and reducing load time
+        /*
+        const fetchAllData = async () => {
+            setLoading(true);
+            try {
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getEstimatesPageData' }),
+                    signal: controller.signal
+                });
+                const data = await res.json();
+                if (data.success) {
+                    setEstimates(data.result.estimates || []);
+                    setConstants(data.result.constants || []);
+                    setEmployees(data.result.employees || []);
+                    setClients(data.result.clients || []);
+                } else {
+                    toastError('Failed to fetch data');
+                }
+            } catch (err: any) {
+                if (err.name === 'AbortError') return;
+                console.error(err);
+                toastError('Failed to fetch data');
+            } finally {
+                if (!controller.signal.aborted) {
+                    setLoading(false);
+                }
+            }
+        };
+        fetchAllData();
+        */
 
         return () => controller.abort();
     }, []);

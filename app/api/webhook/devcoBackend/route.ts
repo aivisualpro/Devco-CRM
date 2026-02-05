@@ -482,6 +482,37 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: estimates });
             }
 
+            case 'getEstimatesPageData': {
+                // COMBINED ENDPOINT: Fetch all data needed for estimates page in ONE request
+                // This reduces function invocations from 4 to 1, saving CPU time
+                try {
+                    const [estimates, constants, employees, clients] = await Promise.all([
+                        Estimate.find()
+                            .select('-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions')
+                            .sort({ updatedAt: -1 })
+                            .limit(1000)
+                            .lean(),
+                        Constant.find().lean(),
+                        Employee.find().select('_id name email profileImage status').lean(),
+                        Client.find().select('_id name businessAddress').lean()
+                    ]);
+
+                    return NextResponse.json({ 
+                        success: true, 
+                        result: {
+                            estimates,
+                            constants,
+                            employees,
+                            clients
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error fetching estimates page data:', error);
+                    return NextResponse.json({ success: false, error: 'Failed to fetch data' }, { status: 500 });
+                }
+            }
+
+
             case 'getEstimateStats': {
                 // Aggregate estimates by status with count and total grandTotal
                 const { startDate, endDate } = payload || {};
