@@ -265,8 +265,8 @@ export const DJTModal = ({
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-50">
                                                             {(initialData.equipmentItems || []).map((eq: any) => {
-                                                                const currentItem = (selectedDJT.equipmentUsed || []).find((i: any) => i.equipment === eq.value);
-                                                                const qty = currentItem?.qty || 0;
+                                                                    const currentItem = (selectedDJT.equipmentUsed || []).find((i: any) => i.equipment === eq.value);
+                                                                    const qty = currentItem?.qty;
                                                                 const type = currentItem?.type || 'owned';
 
                                                                 const updateEquipment = (updates: any) => {
@@ -306,8 +306,8 @@ export const DJTModal = ({
                                                                                 type="number"
                                                                                 min="0"
                                                                                 className="w-16 text-xs font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded p-1.5 focus:outline-none focus:border-black"
-                                                                                value={qty}
-                                                                                onChange={(e) => updateEquipment({ qty: Number(e.target.value) })}
+                                                                                value={qty ?? ''}
+                                                                                onChange={(e) => updateEquipment({ qty: e.target.value === '' ? undefined : Number(e.target.value) })}
                                                                                 onWheel={(e) => e.currentTarget.blur()}
                                                                             />
                                                                         </td>
