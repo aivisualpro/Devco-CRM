@@ -751,7 +751,7 @@ export async function POST(request: NextRequest) {
                 if (filters.client) matchStage.customerId = filters.client; // Assuming client ID passed
                 if (filters.service) matchStage.service = filters.service;
                 if (filters.tag) matchStage.item = filters.tag;
-                if (filters.certifiedPayroll) matchStage.certifiedPayroll = filters.certifiedPayroll;
+                // Note: certifiedPayroll filter is handled via $lookup on Estimate collection (see pipeline below)
                 
                 if (filters.employee) {
                      const empQuery = [
@@ -790,8 +790,45 @@ export async function POST(request: NextRequest) {
 
                 const skip = (page - 1) * limit;
 
+                // Build pipeline stages
+                const pipelineStages: any[] = [
+                    { $match: matchStage }
+                ];
+
+                // If filtering by certifiedPayroll, lookup from Estimate collection
+                if (filters.certifiedPayroll) {
+                    pipelineStages.push(
+                        // Lookup estimate by estimate field (schedule.estimate matches estimate.estimate)
+                        {
+                            $lookup: {
+                                from: 'estimatesdb',
+                                let: { scheduleEstimate: '$estimate' },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: ['$estimate', '$$scheduleEstimate'] } } },
+                                    { $project: { certifiedPayroll: 1 } }
+                                ],
+                                as: 'estimateLookup'
+                            }
+                        },
+                        // Unwind the lookup result (single match expected)
+                        { $unwind: { path: '$estimateLookup', preserveNullAndEmptyArrays: true } },
+                        // Filter by certifiedPayroll from estimate
+                        {
+                            $match: {
+                                $or: [
+                                    { 'estimateLookup.certifiedPayroll': filters.certifiedPayroll },
+                                    // Also match schedule's own certifiedPayroll as fallback
+                                    { certifiedPayroll: filters.certifiedPayroll }
+                                ]
+                            }
+                        },
+                        // Remove the lookup field to not bloat response
+                        { $project: { estimateLookup: 0 } }
+                    );
+                }
+
                 const pipeline: any[] = [
-                    { $match: matchStage },
+                    ...pipelineStages,
                     {
                         $facet: {
                             metadata: [{ $count: "total" }],
