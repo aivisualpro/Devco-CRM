@@ -128,9 +128,42 @@ const generateWeeksForYear = (year: number) => {
     return weeks;
 };
 
+// Skeleton components for loading states
+const SidebarSkeleton = () => (
+    <div className="p-3 space-y-2 animate-pulse">
+        {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-100">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-slate-200" />
+                    <div className="w-24 h-3 bg-slate-200 rounded" />
+                </div>
+                <div className="w-12 h-4 bg-slate-200 rounded-lg" />
+            </div>
+        ))}
+    </div>
+);
+
+const TableSkeleton = () => (
+    <div className="p-4 space-y-2 animate-pulse">
+        {[...Array(8)].map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-3 rounded-xl bg-slate-50">
+                <div className="w-8 h-8 rounded-full bg-slate-200" />
+                <div className="flex-1 space-y-2">
+                    <div className="w-32 h-3 bg-slate-200 rounded" />
+                    <div className="w-48 h-2 bg-slate-100 rounded" />
+                </div>
+                <div className="w-16 h-4 bg-slate-200 rounded" />
+                <div className="w-16 h-4 bg-slate-200 rounded" />
+                <div className="w-20 h-4 bg-slate-200 rounded" />
+            </div>
+        ))}
+    </div>
+);
+
 export default function WorkersCompPage() {
     const { success: toastSuccess, error: toastError } = useToast();
-    const [loading, setLoading] = useState(true);
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [rawSchedules, setRawSchedules] = useState<any[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [workersCompRates, setWorkersCompRates] = useState<Record<string, number>>({});
@@ -172,8 +205,12 @@ export default function WorkersCompPage() {
     const [prefsLoaded, setPrefsLoaded] = useState(false);
 
     // Data Fetching
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (isInitial = false) => {
+        if (isInitial) {
+            setIsInitialLoad(true);
+        } else {
+            setIsRefreshing(true);
+        }
         try {
             // Extend date range slightly to capture timesheets on boundary dates
             const extendedStart = new Date(startDate);
@@ -230,7 +267,8 @@ export default function WorkersCompPage() {
             console.error(err);
             toastError("Failed to fetch data");
         } finally {
-            setLoading(false);
+            setIsInitialLoad(false);
+            setIsRefreshing(false);
         }
     };
 
@@ -270,12 +308,23 @@ export default function WorkersCompPage() {
         loadPrefs();
     }, []);
 
-    // Fetch data when preferences are loaded or dates change
+    // Fetch data when preferences are loaded (initial load)
     useEffect(() => {
-        if (prefsLoaded) {
-            fetchData();
+        if (prefsLoaded && isInitialLoad) {
+            fetchData(true);
         }
-    }, [prefsLoaded, startDate, endDate]);
+    }, [prefsLoaded]);
+
+    // Debounced fetch for date changes (refresh, not initial)
+    useEffect(() => {
+        if (!prefsLoaded || isInitialLoad) return;
+        
+        const timer = setTimeout(() => {
+            fetchData(false);
+        }, 300); // Debounce 300ms to avoid rapid refetches
+        
+        return () => clearTimeout(timer);
+    }, [startDate, endDate]);
 
     // Save Preferences
     useEffect(() => {
@@ -517,7 +566,8 @@ export default function WorkersCompPage() {
         link.click();
     };
 
-    if (loading) return <Loading />;
+    // Only show full-page loading on initial load
+    if (isInitialLoad && !rawSchedules.length) return <Loading />;
 
     return (
         <div className="flex flex-col h-full bg-[#f4f7fa]">
@@ -670,11 +720,20 @@ export default function WorkersCompPage() {
                     
                     {/* Left Sidebar - Grouping */}
                     <aside className="w-[320px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
-                        <div className="p-3 border-b border-slate-50 bg-slate-50/30">
+                        <div className="p-3 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
                             <h3 className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Classes</h3>
+                            {isRefreshing && (
+                                <div className="flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+                                    <span className="text-[8px] font-bold text-blue-500">Updating...</span>
+                                </div>
+                            )}
                         </div>
                         <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-1.5">
-                            
+                            {isRefreshing && !groups.length ? (
+                                <SidebarSkeleton />
+                            ) : (
+                            <>
                             {/* All Categories Button */}
                             <button 
                                 onClick={() => setSelectedItem('All')}
@@ -725,6 +784,8 @@ export default function WorkersCompPage() {
                                     </span>
                                 </button>
                             ))}
+                            </>
+                            )}
                         </div>
                     </aside>
 

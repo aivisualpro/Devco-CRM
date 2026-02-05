@@ -423,9 +423,21 @@ function TimeCardContent() {
             if (!estMap.has(base)) estMap.set(base, e.projectTitle);
         });
 
+        // Filter boundaries for the selected week (not the extended fetch range)
+        const weekStart = weekRange.start;
+        const weekEnd = weekRange.end;
+
         rawSchedules.forEach(sched => {
             if (sched.timesheet && Array.isArray(sched.timesheet)) {
                 sched.timesheet.forEach(ts => {
+                    // Filter: Only include timesheets with clockIn within the selected week
+                    if (ts.clockIn) {
+                        const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
+                        if (clockInDate < weekStart || clockInDate > weekEnd) {
+                            return; // Skip timesheets outside the selected week
+                        }
+                    }
+
                     const { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, sched.fromDate);
                     const scheduleBase = normalizeEst(sched.estimate);
                     const pName = (sched as any).projectName || (sched as any).project || estMap.get(scheduleBase) || '';
@@ -443,7 +455,7 @@ function TimeCardContent() {
             }
         });
         return flat.sort((a, b) => new Date(b.clockIn || 0).getTime() - new Date(a.clockIn || 0).getTime());
-    }, [rawSchedules, estimatesOptions]);
+    }, [rawSchedules, estimatesOptions, weekRange]);
 
     // Note: Using the global toLocalISO function defined above (timezone-agnostic)
 
@@ -476,9 +488,15 @@ function TimeCardContent() {
     const fetchTimeCards = async () => {
         setLoading(true);
         try {
-            // CRITICAL OPTIMIZATION: Only fetch schedules for the selected week
-            // This reduces the dataset from 10,000 to ~50-200 records
             const { start, end } = weekRange;
+            
+            // Extend date range by 1 week in each direction to capture timesheets
+            // whose schedule fromDate might be in adjacent weeks but clockIn is in selected week
+            // This matches the payroll report behavior for consistency
+            const extendedStart = new Date(start);
+            extendedStart.setUTCDate(extendedStart.getUTCDate() - 7);
+            const extendedEnd = new Date(end);
+            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 7);
             
             const res = await fetch('/api/schedules', {
                 method: 'POST',
@@ -486,10 +504,10 @@ function TimeCardContent() {
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: { 
-                        limit: 10000, // Keep high limit but filter by date range
-                        includeTimesheets: true, // CRITICAL: Tell backend to include timesheet data
-                        startDate: start.toISOString(), // Filter by week start
-                        endDate: end.toISOString() // Filter by week end
+                        limit: 10000,
+                        includeTimesheets: true,
+                        startDate: extendedStart.toISOString(),
+                        endDate: extendedEnd.toISOString()
                     } 
                 }) 
             });
