@@ -328,7 +328,8 @@ function PayrollReportContent() {
                 setRawSchedules(data.result.schedules || []);
                 const emps = data.result.initialData?.employees || [];
                 const eMap: Record<string, any> = {};
-                emps.forEach((e: any) => eMap[e.value] = e);
+                // Use lowercase keys to match the lookup in reportData calculation
+                emps.forEach((e: any) => eMap[String(e.value || '').toLowerCase()] = e);
                 setEmployeesMap(eMap);
 
                 const estimates = data.result.initialData?.estimates || [];
