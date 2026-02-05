@@ -192,6 +192,11 @@ export async function POST(request: NextRequest) {
                      return NextResponse.json({ success: false, error: 'Daily Job Ticket not found. Please save the ticket content first.' }, { status: 404 });
                 }
 
+                // Patch missing createdBy if needed (legacy docs or incomplete creations)
+                if (!djt.createdBy) {
+                    djt.createdBy = createdBy || employee || 'system';
+                }
+
                 // Update Signature
                 const newSignature = {
                     employee,
