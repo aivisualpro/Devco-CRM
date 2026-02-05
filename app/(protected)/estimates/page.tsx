@@ -345,13 +345,13 @@ export default function EstimatesPage() {
 
 
     // Base filter: Finals (Latest Version) vs All
-    // If showFinals is FALSE: only show latest/final version of each estimate.
-    // If showFinals is TRUE: show ALL versions/history.
+    // If showFinals is TRUE: only show latest/final version of each estimate.
+    // If showFinals is FALSE: show ALL versions/history.
     const filteredEstimates = useMemo(() => {
         let filtered = [...estimates];
 
-        // When Finals toggle is OFF, only show the highest version of each estimate
-        if (!showFinals) {
+        // When Finals toggle is ON, only show the highest version of each estimate
+        if (showFinals) {
             // Group estimates by their base estimate number
             const groupedByEstimate = new Map<string, Estimate[]>();
             
