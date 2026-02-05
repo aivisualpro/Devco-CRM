@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, Loader2, Lock } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
@@ -73,32 +73,83 @@ export default function EstimatesPage() {
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'estimate', direction: 'desc' });
     const itemsPerPage = 15;
 
-    const fetchEstimates = async (signal?: AbortSignal) => {
-        setLoading(true);
+    // Pagination State
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const observer = useRef<IntersectionObserver | null>(null);
+
+    // Debounced Search & Filter Effect
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            // Reset to page 1 on search/filter change
+            fetchEstimates(1, false);
+        }, 500);
+        return () => clearTimeout(timeoutId);
+    }, [search, activeFilter]);
+
+    const fetchEstimates = async (pageToFetch = 1, isLoadMore = false) => {
+        if (isLoadMore) setIsFetchingMore(true);
+        else setLoading(true);
+
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEstimates' }),
-                signal
+                body: JSON.stringify({ 
+                    action: 'getEstimates',
+                    payload: { 
+                        page: pageToFetch, 
+                        limit: 30, 
+                        search, 
+                        filter: activeFilter 
+                    }
+                })
             });
             const data = await res.json();
             if (data.success) {
-                setEstimates(data.result || []);
+                const newEstimates = data.result || [];
+                
+                if (isLoadMore) {
+                    setEstimates(prev => {
+                        // Prevent duplicates just in case
+                        const ids = new Set(prev.map(e => e._id));
+                        const uniqueNew = newEstimates.filter((e: any) => !ids.has(e._id));
+                        return [...prev, ...uniqueNew];
+                    });
+                } else {
+                    setEstimates(newEstimates);
+                }
+
+                setHasMore(newEstimates.length >= 30);
+                setPage(pageToFetch);
             } else {
                 toastError('Failed to fetch estimates');
             }
         } catch (err: any) {
-            if (err.name === 'AbortError') return;
             console.error(err);
             toastError('Failed to fetch estimates');
         } finally {
-            if (!signal?.aborted) {
-                setLoading(false);
-            }
+            setLoading(false);
+            setIsFetchingMore(false);
         }
     };
-    
+
+    // Infinite Scroll Observer Trigger
+    const lastEstimateRef = useCallback((node: HTMLDivElement) => {
+        if (loading || isFetchingMore) return;
+        if (observer.current) observer.current.disconnect();
+        
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                fetchEstimates(page + 1, true);
+            }
+        });
+        
+        if (node) observer.current.observe(node);
+    }, [loading, isFetchingMore, hasMore, page, search, activeFilter]);
+
+        
     const statusOptions = useMemo(() => {
         return constants
             .filter((c: any) => {
@@ -204,13 +255,10 @@ export default function EstimatesPage() {
         return isWithinInterval(date, { start: lastMonthStart, end: lastMonthEnd });
     };
 
+    // Initial Load of Supporting Data
     useEffect(() => {
         const controller = new AbortController();
         
-        // OPTION 1: Original (4 separate API calls)
-        fetchEstimates(controller.signal);
-        
-        // Fetch supporting data
         const fetchSupportingData = async () => {
             try {
                 const [constRes, empRes, clientRes] = await Promise.all([
@@ -242,40 +290,6 @@ export default function EstimatesPage() {
         };
 
         fetchSupportingData();
-
-        // OPTION 2: OPTIMIZED (1 combined API call - uncomment to use)
-        // This reduces function invocations from 4 to 1, saving CPU and reducing load time
-        /*
-        const fetchAllData = async () => {
-            setLoading(true);
-            try {
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEstimatesPageData' }),
-                    signal: controller.signal
-                });
-                const data = await res.json();
-                if (data.success) {
-                    setEstimates(data.result.estimates || []);
-                    setConstants(data.result.constants || []);
-                    setEmployees(data.result.employees || []);
-                    setClients(data.result.clients || []);
-                } else {
-                    toastError('Failed to fetch data');
-                }
-            } catch (err: any) {
-                if (err.name === 'AbortError') return;
-                console.error(err);
-                toastError('Failed to fetch data');
-            } finally {
-                if (!controller.signal.aborted) {
-                    setLoading(false);
-                }
-            }
-        };
-        fetchAllData();
-        */
 
         return () => controller.abort();
     }, []);
@@ -333,67 +347,10 @@ export default function EstimatesPage() {
     // Base filter: Finals (Latest Version) vs All
     // If showFinals is TRUE: only show latest version of each estimate.
     // If showFinals is FALSE: show ALL history.
-    const visibleEstimates = useMemo(() => {
-        let baseList = [...estimates];
-
-        // If Change Orders toggle is ON, only show change orders
-        if (showChangeOrders) {
-            baseList = baseList.filter(e => e.isChangeOrder);
-        } else {
-            // Normal mode: may include both, but showFinals usually wants to collapse them
-        }
-
-        if (!showFinals) return baseList;
-
-        const latestVersions = new Map<string, Estimate>();
-        baseList.forEach(e => {
-            // Unique key for an estimate version "branch"
-            // For base estimates, the key is the estimate number.
-            // For change orders, we might want to see them as their own thing or group them.
-            // Requirement implies we want to filter to representative results.
-            const key = e.estimate || e._id;
-            if (!latestVersions.has(key)) {
-                latestVersions.set(key, e);
-            } else {
-                const current = latestVersions.get(key)!;
-                if ((e.versionNumber || 0) > (current.versionNumber || 0)) {
-                    latestVersions.set(key, e);
-                }
-            }
-        });
-
-        return Array.from(latestVersions.values());
-    }, [estimates, showFinals, showChangeOrders]);
-
-    // Filter and search on top of visibleEstimates
     const filteredEstimates = useMemo(() => {
-        let filtered = [...visibleEstimates];
-
-        // Apply date filter
-        if (activeFilter === 'thisMonth') {
-            filtered = filtered.filter((e) => isThisMonth(e.date || ''));
-        } else if (activeFilter === 'lastMonth') {
-            filtered = filtered.filter((e) => isLastMonth(e.date || ''));
-        } else if (activeFilter === 'pending') {
-            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'pending' || (e.status || '').toLowerCase() === 'draft');
-        } else if (activeFilter === 'completed') {
-            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'completed' || (e.status || '').toLowerCase() === 'confirmed');
-        } else if (activeFilter === 'lost') {
-            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'lost');
-        } else if (activeFilter === 'won') {
-            filtered = filtered.filter((e) => (e.status || '').toLowerCase() === 'won' || (e.status || '').toLowerCase() === 'confirmed');
-        }
-
-        // Apply search
-        if (search) {
-            const s = search.toLowerCase();
-            filtered = filtered.filter((e) =>
-                (e.estimate || '').toLowerCase().includes(s) ||
-                (getCustomerName(e)).toLowerCase().includes(s) ||
-                (e.proposalNo || '').toLowerCase().includes(s) ||
-                (e.projectName || '').toLowerCase().includes(s)
-            );
-        }
+        // Since filtering and searching are handled server-side, 
+        // we just perform client-side sorting on the fetched pages.
+        let filtered = [...estimates];
 
         // Sort strictly by user selection (multi-level)
         filtered.sort((a, b) => {
@@ -428,27 +385,11 @@ export default function EstimatesPage() {
                 return dir === 'asc' ? comp : -comp;
             };
 
-            // Primary Sort
-            let result = compareValues(key, direction);
-            if (result !== 0) return result;
-
-            // Secondary Sorts (Only apply if primary is 'date')
-            if (key === 'date') {
-                // Secondary: Customer Name (Ascending)
-                const sec = compareValues('customerName', 'asc');
-                if (sec !== 0) return sec;
-
-                // Tertiary: Version Number (Descending - newest version first)
-                const vA = (a.versionNumber || 0);
-                const vB = (b.versionNumber || 0);
-                return vB - vA;
-            }
-
-            return result;
+            return compareValues(key, direction);
         });
 
         return filtered;
-    }, [visibleEstimates, activeFilter, search, sortConfig]);
+    }, [estimates, sortConfig]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -464,41 +405,17 @@ export default function EstimatesPage() {
             : <ArrowDown className="w-3 h-3 text-[#0F4C75] ml-1" />;
     };
 
-    useEffect(() => {
-        setVisibleCount(itemsPerPage);
-    }, [activeFilter, search, showFinals, showChangeOrders, sortConfig]);
-
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            entries => {
-                if (entries[0].isIntersecting) {
-                    setVisibleCount(prev => Math.min(prev + itemsPerPage, filteredEstimates.length));
-                }
-            },
-            { threshold: 1.0 }
-        );
-
-        if (observerTarget.current) {
-            observer.observe(observerTarget.current);
-        }
-
-        return () => {
-            if (observerTarget.current) {
-                observer.unobserve(observerTarget.current);
-            }
-        };
-    }, [filteredEstimates]);
-
-    const paginatedEstimates = filteredEstimates.slice(0, visibleCount);
+    // NO slicing, infinite scroll instead
+    const paginatedEstimates = filteredEstimates;
 
     const filterTabs = [
-        { id: 'all', label: 'All', count: visibleEstimates.length },
-        { id: 'thisMonth', label: 'This Month', count: visibleEstimates.filter((e) => isThisMonth(e.date || '')).length },
-        { id: 'lastMonth', label: 'Last Month', count: visibleEstimates.filter((e) => isLastMonth(e.date || '')).length },
-        { id: 'pending', label: 'Pending', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'pending' || (e.status || '').toLowerCase() === 'draft').length },
-        { id: 'completed', label: 'Completed', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'completed' || (e.status || '').toLowerCase() === 'confirmed').length },
-        { id: 'won', label: 'Won', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'won' || (e.status || '').toLowerCase() === 'confirmed').length },
-        { id: 'lost', label: 'Lost', count: visibleEstimates.filter((e) => (e.status || '').toLowerCase() === 'lost').length }
+        { id: 'all', label: 'All', count: paginatedEstimates.length },
+        { id: 'thisMonth', label: 'This Month', count: undefined },
+        { id: 'lastMonth', label: 'Last Month', count: undefined },
+        { id: 'pending', label: 'Pending', count: undefined },
+        { id: 'completed', label: 'Completed', count: undefined },
+        { id: 'won', label: 'Won', count: undefined },
+        { id: 'lost', label: 'Lost', count: undefined }
     ];
 
     const [isCreating, setIsCreating] = useState(false);
@@ -751,7 +668,7 @@ export default function EstimatesPage() {
                             footer={
                                 <div className="flex flex-col items-center justify-center p-2 text-xs text-gray-500 w-full">
                                     <span>
-                                        Showing {Math.min(visibleCount, filteredEstimates.length)} of {filteredEstimates.length} records
+                                        Showing {paginatedEstimates.length} records {hasMore ? '(Loading more...)' : ''}
                                     </span>
                                 </div>
                             }
@@ -821,7 +738,7 @@ export default function EstimatesPage() {
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    paginatedEstimates.map((est) => {
+                                    paginatedEstimates.map((est, index) => {
                                         const services = [
                                             { value: 'Directional Drilling', label: 'DD', color: 'bg-blue-500' },
                                             { value: 'Excavation & Backfill', label: 'EB', color: 'bg-green-500' },
@@ -830,6 +747,7 @@ export default function EstimatesPage() {
                                             { value: 'Asphalt & Concrete', label: 'AC', color: 'bg-red-500' }
                                         ].filter(s => est.services?.includes(s.value));
 
+                                        const isLast = index === paginatedEstimates.length - 1;
 
                                         return (
                                             <TableRow
@@ -841,7 +759,9 @@ export default function EstimatesPage() {
                                                 }}
                                             >
                                                 <TableCell className="font-medium text-gray-900 text-[10px] whitespace-nowrap">
-                                                    {est.estimate || '-'}
+                                                    <div ref={isLast ? lastEstimateRef : undefined}>
+                                                        {est.estimate || '-'}
+                                                    </div>
                                                 </TableCell>
                                                 {!showFinals && (
                                                     <TableCell>

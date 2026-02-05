@@ -470,16 +470,55 @@ export async function POST(request: NextRequest) {
 
             case 'getEstimates': {
                 // Aggressive optimization: exclude ALL heavy/embedded fields and arrays
-                // This reduces payload size from MB to KB by removing:
-                // - All line item arrays (labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous)
-                // - All embedded documents (proposals, receiptsAndCosts, billingTickets, jobPlanningDocs, releases, intentToLien, legalDocs)
-                // - Heavy string fields (aerialImage, siteLayout, scopeOfWork, htmlContent, customVariables)
-                const estimates = await Estimate.find()
+                const { page = 1, limit = 30, search = '', filter = 'all' } = payload || {};
+                const skip = (page - 1) * limit;
+
+                // Build Query
+                const query: any = { status: { $ne: 'deleted' } }; // Exclude deleted by default if applicable, or just standard query
+
+                // 1. Status Filter
+                if (filter && filter !== 'all') {
+                    const f = filter.toLowerCase();
+                    if (f === 'active') {
+                        query.status = { $nin: ['Lost', 'Won', 'Completed', 'Confirmed', 'lost', 'won', 'completed', 'confirmed'] };
+                    } else if (f === 'pending') {
+                        query.status = 'Pending';
+                    } else if (f === 'completed') {
+                        query.status = { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] };
+                    } else if (f === 'lost') {
+                        query.status = { $in: ['Lost', 'lost'] };
+                    } else if (f === 'won') {
+                        query.status = { $in: ['Won', 'Confirmed', 'won', 'confirmed'] };
+                    }
+                }
+
+                // 2. Search
+                if (search) {
+                     const regex = { $regex: search, $options: 'i' };
+                     query.$or = [
+                         { estimate: regex },
+                         { customerName: regex },
+                         { projectTitle: regex },
+                         { projectName: regex },
+                         { proposalNo: regex },
+                         { contactName: regex }
+                     ];
+                     
+                     // Optimization: If searching by estimate #, try exact match or prefix for better index usage potentially
+                     // But regex is flexible.
+                }
+
+                const estimates = await Estimate.find(query)
                     .select('-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions')
                     .sort({ updatedAt: -1 })
-                    .limit(1000)
+                    .skip(skip)
+                    .limit(limit)
                     .lean();
-                return NextResponse.json({ success: true, result: estimates });
+                
+                // Return total count for frontend pagination logic
+                const total = await Estimate.countDocuments(query);
+
+                return NextResponse.json({ success: true, result: estimates, total, page, limit });
             }
 
             case 'getEstimatesPageData': {
