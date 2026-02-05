@@ -348,18 +348,18 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
                     {/* Bottom: Actions & Personnel */}
                     <div className={`flex items-center justify-between mt-auto pt-2 border-t border-slate-100 ${item.item === 'Day Off' ? 'hidden' : ''}`}>
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 sm:gap-1">
                             {/* JHA */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div 
-                                        className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${item.hasJHA ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'}`} 
+                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${item.hasJHA ? 'bg-orange-100 text-orange-600 hover:bg-orange-200' : 'bg-slate-100 text-slate-400 hover:bg-orange-100 hover:text-orange-600'}`} 
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             item.hasJHA ? onViewJHA?.(item, e) : onCreateJHA?.(item, e);
                                         }}
                                     >
-                                        {item.hasJHA ? <ShieldCheck size={12} strokeWidth={2.5} /> : <Shield size={12} strokeWidth={2.5} />}
+                                        {item.hasJHA ? <ShieldCheck className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} /> : <Shield className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />}
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent><p>{item.hasJHA ? 'View JHA' : 'Create JHA'}</p></TooltipContent>
@@ -369,13 +369,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <div 
-                                        className={`relative z-10 flex items-center justify-center w-7 h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600'}`} 
+                                        className={`relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200' : 'bg-slate-100 text-slate-400 hover:bg-indigo-100 hover:text-indigo-600'}`} 
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             (item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? onViewDJT?.(item, e) : onCreateDJT?.(item, e);
                                         }}
                                     >
-                                        {(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? <FileCheck size={12} strokeWidth={2.5} /> : <FilePlus size={12} strokeWidth={2.5} />}
+                                        {(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? <FileCheck className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} /> : <FilePlus className="w-5 h-5 sm:w-3 sm:h-3" strokeWidth={2.5} />}
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent><p>{(item.hasDJT || (item.djt && Object.keys(item.djt).length > 0)) ? 'View DJT' : 'Create DJT'}</p></TooltipContent>
@@ -392,13 +392,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <div 
-                                                        className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
+                                                        className="relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors cursor-pointer border-2 border-white shadow-sm animate-pulse" 
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
                                                             onToggleDriveTime?.(item, activeDriveTime, e);
                                                         }}
                                                     >
-                                                        <StopCircle size={14} strokeWidth={2.5} />
+                                                        <StopCircle className="w-6 h-6 sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                                                     </div>
                                                 </TooltipTrigger>
                                                 <TooltipContent><p>Stop Drive Time</p></TooltipContent>
@@ -407,13 +407,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <div 
-                                                        className="relative z-10 flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
+                                                        className="relative z-10 flex items-center justify-center w-10 h-10 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-sky-100 hover:text-sky-600 transition-colors cursor-pointer border-2 border-white shadow-sm" 
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
                                                             onToggleDriveTime?.(item, null, e); 
                                                         }}
                                                     >
-                                                        <Car size={14} strokeWidth={2.5} />
+                                                        <Car className="w-6 h-6 sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                                                     </div>
                                                 </TooltipTrigger>
                                                 <TooltipContent><p>Start Drive Time</p></TooltipContent>
@@ -424,13 +424,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <div 
-                                                        className={`relative z-10 flex items-center gap-1.5 px-2 h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${dwTs ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600'}`} 
+                                                        className={`relative z-10 flex items-center gap-1.5 px-3 sm:px-2 h-10 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${dwTs ? 'bg-teal-500 text-white hover:bg-teal-600' : 'bg-slate-100 text-slate-400 hover:bg-teal-100 hover:text-teal-600'}`} 
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
                                                             onQuickTimesheet?.(item, 'Dump Washout', e); 
                                                         }}
                                                     >
-                                                        <Droplets size={14} strokeWidth={2.5} />
+                                                        <Droplets className="w-6 h-6 sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                                                         {(() => {
                                                             if (!dwTs) return null;
                                                             const count = dwTs.dumpQty !== undefined ? dwTs.dumpQty : (dwTs.qty || 1);
@@ -450,13 +450,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                     <div 
-                                                        className={`relative z-10 flex items-center gap-1.5 px-2 h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${stTs ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600'}`} 
+                                                        className={`relative z-10 flex items-center gap-1.5 px-3 sm:px-2 h-10 sm:h-7 rounded-full transition-colors border-2 border-white shadow-sm cursor-pointer ${stTs ? 'bg-amber-500 text-white hover:bg-amber-600' : 'bg-slate-100 text-slate-400 hover:bg-amber-100 hover:text-amber-600'}`} 
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
                                                             onQuickTimesheet?.(item, 'Shop Time', e); 
                                                         }}
                                                     >
-                                                        <Warehouse size={14} strokeWidth={2.5} />
+                                                        <Warehouse className="w-6 h-6 sm:w-3.5 sm:h-3.5" strokeWidth={2.5} />
                                                         {(() => {
                                                             if (!stTs) return null;
                                                             const count = stTs.shopQty !== undefined ? stTs.shopQty : (stTs.qty || 1);
