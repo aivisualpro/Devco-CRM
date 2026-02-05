@@ -13,6 +13,7 @@ interface UploadButtonProps {
     disabled?: boolean;
     multiple?: boolean;
     accept?: string;
+    capture?: 'user' | 'environment' | boolean;
 }
 
 export function UploadButton({
@@ -23,7 +24,8 @@ export function UploadButton({
     showIcon = true,
     disabled,
     multiple = false,
-    accept
+    accept,
+    capture
 }: UploadButtonProps) {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,6 +76,11 @@ export function UploadButton({
         }
     };
 
+    // Determine capture value for iOS camera support
+    // When capture is explicitly set, use it. Otherwise leave undefined 
+    // to let iOS show the standard "Take Photo or Choose from Library" dialog
+    const captureValue = capture !== undefined ? capture : undefined;
+
     return (
         <div className={className.includes('w-full') ? 'w-full' : ''}>
             <input
@@ -83,6 +90,7 @@ export function UploadButton({
                 className="hidden"
                 multiple={multiple}
                 accept={accept}
+                capture={captureValue as any}
                 disabled={uploading || disabled}
             />
             <button
@@ -112,3 +120,4 @@ export function UploadButton({
         </div>
     );
 }
+
