@@ -71,6 +71,7 @@ const MODULE_ICONS: Record<string, React.ReactNode> = {
     constants: <Settings className="w-4 h-4" />,
     chat: <MessageSquare className="w-4 h-4" />,
     receipts_costs: <DollarSign className="w-4 h-4" />,
+    vehicle_equipment: <Truck className="w-4 h-4" />,
 };
 
 // Module icon colors
@@ -86,6 +87,7 @@ const MODULE_COLORS: Record<string, string> = {
     schedules: '#14b8a6',
     time_cards: '#84cc16',
     quickbooks: '#22c55e',
+    vehicle_equipment: '#d97706',
 };
 
 // Color presets

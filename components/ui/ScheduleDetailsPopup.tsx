@@ -171,35 +171,36 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                         
                         {/* ROW 1: Item Image | Customer | Location */}
                         <div className="flex items-start gap-4">
-                            {(() => {
-                                const constant = constants.find(c => c.description === schedule.item || c.value === schedule.item);
-                                const tagImage = constant?.image;
-                                const tagColor = constant?.color;
-                                const tagLabel = schedule.item || schedule.service || 'S';
+                                {(() => {
+                                    const itemName = schedule.item?.trim();
+                                    const constant = constants.find(c => c.description === itemName || c.value === itemName);
+                                    const tagImage = constant?.image;
+                                    const tagColor = constant?.color;
+                                    const tagLabel = itemName || schedule.service || 'S';
 
-                                if (tagImage) {
-                                    return (
-                                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 overflow-hidden shadow-sm">
-                                            <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
-                                        </div>
-                                    );
-                                } else if (tagColor) {
-                                    return (
-                                        <div 
-                                            className="w-16 h-16 rounded-xl flex items-center justify-center border border-slate-200 shrink-0 text-white font-black text-xl shadow-[inset_5px_5px_10px_rgba(0,0,0,0.1)]"
-                                            style={{ backgroundColor: tagColor }}
-                                        >
-                                            {tagLabel.substring(0, 2).toUpperCase()}
-                                        </div>
-                                    );
-                                } else {
-                                    return (
-                                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 text-slate-400">
-                                            <Briefcase size={32} />
-                                        </div>
-                                    );
-                                }
-                            })()}
+                                    if (tagImage) {
+                                        return (
+                                            <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 overflow-hidden shadow-sm">
+                                                <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                            </div>
+                                        );
+                                    } else if (tagColor) {
+                                        return (
+                                            <div 
+                                                className="w-16 h-16 rounded-xl flex items-center justify-center border border-slate-200 shrink-0 text-white font-black text-xl shadow-[inset_5px_5px_10px_rgba(0,0,0,0.1)]"
+                                                style={{ backgroundColor: tagColor }}
+                                            >
+                                                {tagLabel.substring(0, 2).toUpperCase()}
+                                            </div>
+                                        );
+                                    } else {
+                                        return (
+                                            <div className="w-16 h-16 rounded-xl bg-[#E6EEF8] flex items-center justify-center border border-slate-200 shrink-0 text-[#0F4C75] font-black text-xl shadow-[inset_5px_5px_10px_#d1d9e6,inset_-5px_-5px_10px_#ffffff]">
+                                                {tagLabel.substring(0, 2).toUpperCase()}
+                                            </div>
+                                        );
+                                    }
+                                })()}
                             <div className="flex-1 min-w-0">
                                 <h2 className="text-xl md:text-2xl font-black text-slate-800 truncate">
                                     {schedule.customerName || 'Unknown Customer'}

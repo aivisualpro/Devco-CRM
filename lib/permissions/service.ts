@@ -81,6 +81,15 @@ export async function getUserPermissions(userId: string): Promise<UserPermission
         });
     }
 
+    // Default Vehicle Equipment Permission Injection
+    if (!modulePermissions.has(MODULES.VEHICLE_EQUIPMENT)) {
+        modulePermissions.set(MODULES.VEHICLE_EQUIPMENT, {
+            module: MODULES.VEHICLE_EQUIPMENT,
+            actions: [ACTIONS.VIEW] as ActionKey[],
+            dataScope: DATA_SCOPE.ALL as DataScopeKey
+        });
+    }
+
     // Apply overrides
     for (const override of overrides) {
         const existing = modulePermissions.get(override.module as ModuleKey);

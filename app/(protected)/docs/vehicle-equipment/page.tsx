@@ -5,7 +5,7 @@ import { ExternalLink, Trash2, Plus, FileText, Loader2, Truck, Edit, X, Download
 import { Header, Modal, Button, Input, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
-// Using COMPANY_DOCS permissions as a fallback/proxy for now since this is a similar doc type
+// Using proper VEHICLE_EQUIPMENT permissions
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 export default function VehicleEquipmentDocsPage() {
@@ -203,8 +203,8 @@ export default function VehicleEquipmentDocsPage() {
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
-                        {/* Reuse Company Docs permission for now as it makes sense for general docs */}
-                        {can(MODULES.COMPANY_DOCS, ACTIONS.CREATE) && (
+                        {/* Proper Vehicle Equipment permissions */}
+                        {can(MODULES.VEHICLE_EQUIPMENT, ACTIONS.CREATE) && (
                             <button
                                 onClick={() => setIsDocModalOpen(true)}
                                 className="p-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center shrink-0"
@@ -271,7 +271,7 @@ export default function VehicleEquipmentDocsPage() {
                                             <td className="px-4 py-4 text-center" onClick={(e) => e.stopPropagation()}>
                                                 <div className="flex items-center justify-center gap-2">
                                                     {/* Edit Action */}
-                                                    {can(MODULES.COMPANY_DOCS, ACTIONS.EDIT) && (
+                                                    {can(MODULES.VEHICLE_EQUIPMENT, ACTIONS.EDIT) && (
                                                         <button 
                                                             onClick={() => handleEditDoc(doc)}
                                                             className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
@@ -281,7 +281,7 @@ export default function VehicleEquipmentDocsPage() {
                                                         </button>
                                                     )}
                                                     {/* Delete Action */}
-                                                    {can(MODULES.COMPANY_DOCS, ACTIONS.DELETE) && (
+                                                    {can(MODULES.VEHICLE_EQUIPMENT, ACTIONS.DELETE) && (
                                                         <button 
                                                             onClick={() => handleDeleteDoc(doc._id, doc.unit)}
                                                             className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -420,7 +420,7 @@ export default function VehicleEquipmentDocsPage() {
                                         <div className="p-2 text-slate-400 group-hover:text-blue-600 transition-colors">
                                             <ExternalLink size={20} />
                                         </div>
-                                        {can(MODULES.COMPANY_DOCS, ACTIONS.DELETE) && (
+                                        {can(MODULES.VEHICLE_EQUIPMENT, ACTIONS.DELETE) && (
                                             <button
                                                 onClick={(e) => handleDeleteFile(e, selectedVehicle._id, file._id, file.fileName)}
                                                 className="p-2 rounded-lg text-slate-400 hover:bg-red-100 hover:text-red-600 transition-colors z-10"

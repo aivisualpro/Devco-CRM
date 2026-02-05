@@ -41,6 +41,7 @@ export const MODULES = {
     REPAIR: 'repair',
     SCOPE_CHANGE: 'scope_change',
     RECEIPTS_COSTS: 'receipts_costs',
+    VEHICLE_EQUIPMENT: 'vehicle_equipment',
     
     // MISC
     CONSTANTS: 'constants',
@@ -283,6 +284,7 @@ export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     [MODULES.REPAIR]: ['equipment', 'issue', 'solution', 'status', 'date', 'technician'],
     [MODULES.SCOPE_CHANGE]: ['title', 'description', 'status', 'requestedBy', 'approvedBy', 'date'],
     [MODULES.RECEIPTS_COSTS]: ['vendor', 'date', 'cost', 'description', 'category', 'status', 'approvalStatus'],
+    [MODULES.VEHICLE_EQUIPMENT]: ['unit', 'unitNumber', 'vinSerialNumber', 'documents'],
     [MODULES.CONSTANTS]: ['name', 'value', 'category', 'description'],
     [MODULES.CHAT]: ['message', 'attachments'],
     [MODULES.COMPANY_DOCS]: ['title', 'url', 'status'],
@@ -313,7 +315,7 @@ export const PERMISSION_GROUPS = {
             MODULES.JHA, MODULES.JOB_TICKETS, MODULES.BILLING_TICKETS, MODULES.POTHOLE,
             MODULES.DAMAGE_REPORT, MODULES.INCIDENTS, MODULES.PRE_BORE_LOGS,
             MODULES.VEHICLE_SAFETY, MODULES.LUBRICATION, MODULES.REPAIR, MODULES.SCOPE_CHANGE,
-            MODULES.RECEIPTS_COSTS, MODULES.COMPANY_DOCS
+            MODULES.RECEIPTS_COSTS, MODULES.VEHICLE_EQUIPMENT, MODULES.COMPANY_DOCS
         ],
         color: '#7c3aed',
     },
@@ -356,6 +358,7 @@ export const MODULE_LABELS: Record<ModuleKey, string> = {
     [MODULES.REPAIR]: 'Repair Report',
     [MODULES.SCOPE_CHANGE]: 'Scope Change',
     [MODULES.RECEIPTS_COSTS]: 'Receipts & Costs',
+    [MODULES.VEHICLE_EQUIPMENT]: 'Vehicle Equipment',
     [MODULES.CONSTANTS]: 'Constants',
     [MODULES.CHAT]: 'Chat',
     [MODULES.COMPANY_DOCS]: 'Company Docs',
@@ -408,6 +411,7 @@ export const URL_TO_MODULE: Record<string, ModuleKey> = {
     '/docs/repair': MODULES.REPAIR,
     '/docs/scope-change': MODULES.SCOPE_CHANGE,
     '/docs/receipts-costs': MODULES.RECEIPTS_COSTS,
+    '/docs/vehicle-equipment': MODULES.VEHICLE_EQUIPMENT,
     '/constants': MODULES.CONSTANTS,
     '/chat': MODULES.CHAT,
     '/docs/company-docs': MODULES.COMPANY_DOCS,
