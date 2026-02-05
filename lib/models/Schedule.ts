@@ -172,6 +172,7 @@ const ScheduleSchema = new Schema({
                 emailto: { type: String },
                 createdAt: { type: Date, default: Date.now }
             }],
+            signatures: { type: [], default: [] },
             djtCost: { type: Number, default: 0 }
         }, 
         default: null 

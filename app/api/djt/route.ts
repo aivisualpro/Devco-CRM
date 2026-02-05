@@ -175,6 +175,54 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true });
             }
             
+            case 'saveDJTSignature': {
+                const { schedule_id, employee, signature, location, createdBy } = payload;
+                if (!schedule_id || !employee || !signature) {
+                    return NextResponse.json({ success: false, error: 'Missing required signature data' }, { status: 400 });
+                }
+
+                // Find DJT by schedule_id or _id
+                let djt = await DailyJobTicket.findOne({ 
+                    $or: [{ _id: schedule_id }, { schedule_id: schedule_id }] 
+                });
+
+                if (!djt) {
+                     // If standard save hasn't happened yet, we might have an issue.
+                     // But usually DJT is created before signing.
+                     return NextResponse.json({ success: false, error: 'Daily Job Ticket not found. Please save the ticket content first.' }, { status: 404 });
+                }
+
+                // Update Signature
+                const newSignature = {
+                    employee,
+                    signature,
+                    date: new Date(),
+                    location: location || 'Unknown',
+                    signedBy: createdBy
+                };
+
+                // Remove existing signature for this employee if any
+                const existingSignatures = djt.signatures || [];
+                const updatedSignatures = existingSignatures.filter((s: any) => s.employee !== employee);
+                updatedSignatures.push(newSignature);
+
+                djt.signatures = updatedSignatures;
+                await djt.save();
+
+                // Sync to Schedule
+                if (djt.schedule_id) {
+                    await Schedule.updateOne(
+                        { _id: djt.schedule_id },
+                        { $set: { 
+                            'djt.signatures': updatedSignatures,
+                            'DJTSignatures': updatedSignatures 
+                        } }
+                    );
+                }
+
+                return NextResponse.json({ success: true, result: djt });
+            }
+
             default:
                 return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
         }

@@ -12,6 +12,7 @@ interface UploadButtonProps {
     showIcon?: boolean;
     disabled?: boolean;
     multiple?: boolean;
+    accept?: string;
 }
 
 export function UploadButton({
@@ -21,7 +22,8 @@ export function UploadButton({
     label,
     showIcon = true,
     disabled,
-    multiple = false
+    multiple = false,
+    accept
 }: UploadButtonProps) {
     const [uploading, setUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -80,6 +82,7 @@ export function UploadButton({
                 onChange={handleFileChange}
                 className="hidden"
                 multiple={multiple}
+                accept={accept}
                 disabled={uploading || disabled}
             />
             <button

@@ -45,7 +45,7 @@ export const DJTModal = ({
 }: DJTModalProps) => {
     const [lunchStart, setLunchStart] = useState('12:00');
     const [lunchEnd, setLunchEnd] = useState('12:30');
-    const [activeTab, setActiveTab] = useState<'client' | 'info'>('client');
+    const [activeTab, setActiveTab] = useState<'client' | 'info'>('info');
     const [enlargedImage, setEnlargedImage] = useState<string | null>(null);
 
     useEffect(() => {
@@ -70,6 +70,15 @@ export const DJTModal = ({
                     {isEditMode && (
                         <div className="flex bg-slate-50 border-b border-slate-100 sticky top-0 z-10">
                             <button
+                                onClick={() => setActiveTab('info')}
+                                className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'info' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <Info size={16} className={activeTab === 'info' ? 'text-black' : 'text-slate-400'} />
+                                    <span className={`text-xs font-bold uppercase tracking-wider ${activeTab === 'info' ? 'text-black' : 'text-slate-500'}`}>Devco</span>
+                                </div>
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('client')}
                                 className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'client' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
                             >
@@ -82,15 +91,6 @@ export const DJTModal = ({
                                         <CheckCircle2 size={12} />
                                     </div>
                                 )}
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('info')}
-                                className={`flex-1 flex flex-col items-center justify-center gap-1 py-1.5 text-center transition-all relative ${activeTab === 'info' ? 'bg-white border-b-2 border-black' : 'hover:bg-slate-100/50'}`}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <Info size={16} className={activeTab === 'info' ? 'text-black' : 'text-slate-400'} />
-                                    <span className={`text-xs font-bold uppercase tracking-wider ${activeTab === 'info' ? 'text-black' : 'text-slate-500'}`}>Devco</span>
-                                </div>
                             </button>
                         </div>
                     )}
@@ -325,6 +325,7 @@ export const DJTModal = ({
                                                     <label className="block text-xs font-black text-slate-500 uppercase tracking-widest">4. Site Images</label>
                                                     <UploadButton 
                                                         multiple={true}
+                                                        accept="image/*"
                                                         onUpload={(url) => {
                                                             setSelectedDJT((prev: any) => ({
                                                                 ...prev,
@@ -332,7 +333,7 @@ export const DJTModal = ({
                                                             }));
                                                         }}
                                                         label="Upload Photos"
-                                                        className="h-8 !px-3 !bg-slate-900 rounded-lg text-[10px] font-black uppercase"
+                                                        className="h-8 !px-3 !bg-slate-900 rounded-lg text-[10px] !text-white font-black uppercase"
                                                     />
                                                 </div>
                                                 

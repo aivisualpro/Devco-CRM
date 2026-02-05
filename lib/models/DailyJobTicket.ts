@@ -11,6 +11,13 @@ export interface IDailyJobTicket extends Document {
     emailCounter?: number;
     equipmentUsed?: IEquipmentUsed[];
     djtimages?: string[];
+    signatures?: {
+        employee: string;
+        signature: string;
+        date: Date;
+        location: string;
+        signedBy: string;
+    }[];
     djtEmails?: { emailto: string; createdAt: Date }[];
     createdAt?: Date;
     updatedAt?: Date;
@@ -32,6 +39,13 @@ const DailyJobTicketSchema: Schema = new Schema({
         cost: { type: Number }
     }],
     djtimages: { type: [String], default: [] },
+    signatures: [{
+        employee: { type: String },
+        signature: { type: String },
+        date: { type: Date, default: Date.now },
+        location: { type: String },
+        signedBy: { type: String }
+    }],
     djtEmails: [{
         emailto: { type: String },
         createdAt: { type: Date, default: Date.now }
