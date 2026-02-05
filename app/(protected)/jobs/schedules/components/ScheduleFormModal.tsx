@@ -65,12 +65,17 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
         setIsSaving(true);
         try {
             const isNew = !editingItem._id;
+            // Create payload excluding non-editable heavy fields to prevent overwriting with partial data
+            const { djt, jha, timesheet, JHASignatures, DJTSignatures, ...cleanPayload } = editingItem;
+            
+            const payload = isNew ? cleanPayload : { ...cleanPayload, id: editingItem._id };
+            
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: isNew ? 'createSchedule' : 'updateSchedule',
-                    payload: isNew ? editingItem : { id: editingItem._id, ...editingItem }
+                    payload: payload
                 })
             });
             const data = await res.json();

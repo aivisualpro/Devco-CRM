@@ -2594,13 +2594,35 @@ function DashboardContent() {
                                                         setIsDeleteConfirmOpen(true);
                                                     } : undefined}
                                                     onViewJHA={(item) => {
-                                                        const jhaWithSigs = { 
-                                                            ...item.jha, 
-                                                            signatures: item.JHASignatures || [] 
-                                                        };
-                                                        setSelectedJHA(jhaWithSigs);
-                                                        setIsJhaEditMode(false);
-                                                        setJhaModalOpen(true);
+                                                        const loadingId = toast.loading('Loading JHA details...');
+                                                        fetch('/api/schedules', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                                        })
+                                                        .then(r => r.json())
+                                                        .then(data => {
+                                                            toast.dismiss(loadingId);
+                                                            if (data.success && data.result) {
+                                                                const fullSchedule = data.result;
+                                                                const jhaWithSigs = { 
+                                                                    ...fullSchedule.jha, 
+                                                                    signatures: fullSchedule.JHASignatures || fullSchedule.jha?.signatures || [] 
+                                                                };
+                                                                if (!jhaWithSigs.schedule_id) jhaWithSigs.schedule_id = fullSchedule._id;
+                                                                
+                                                                setSelectedJHA(jhaWithSigs);
+                                                                setIsJhaEditMode(false);
+                                                                setJhaModalOpen(true);
+                                                            } else {
+                                                                toast.error('Failed to load JHA details');
+                                                            }
+                                                        })
+                                                        .catch(e => {
+                                                            console.error(e);
+                                                            toast.dismiss(loadingId);
+                                                            toast.error('Error loading JHA details');
+                                                        });
                                                     }}
                                                     onCreateJHA={(item) => {
                                                         setSelectedJHA({
@@ -2616,14 +2638,36 @@ function DashboardContent() {
                                                         setJhaModalOpen(true);
                                                     }}
                                                     onViewDJT={(item) => {
-                                                        const djtWithSigs = { 
-                                                            ...item.djt, 
-                                                            schedule_id: item._id,
-                                                            signatures: item.DJTSignatures || [] 
-                                                        };
-                                                        setSelectedDJT(djtWithSigs);
-                                                        setIsDjtEditMode(false);
-                                                        setDjtModalOpen(true);
+                                                        const loadingId = toast.loading('Loading DJT details...');
+                                                        fetch('/api/schedules', {
+                                                            method: 'POST',
+                                                            headers: { 'Content-Type': 'application/json' },
+                                                            body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                                        })
+                                                        .then(r => r.json())
+                                                        .then(data => {
+                                                            toast.dismiss(loadingId);
+                                                            if (data.success && data.result) {
+                                                                const fullSchedule = data.result;
+                                                                const djtWithSigs = { 
+                                                                    ...fullSchedule.djt, 
+                                                                    signatures: fullSchedule.DJTSignatures || fullSchedule.djt?.signatures || [] 
+                                                                };
+                                                                // Ensure we pass the schedule_id if it's missing in djt object (for safety)
+                                                                if (!djtWithSigs.schedule_id) djtWithSigs.schedule_id = fullSchedule._id;
+                                                                
+                                                                setSelectedDJT(djtWithSigs);
+                                                                setIsDjtEditMode(false);
+                                                                setDjtModalOpen(true);
+                                                            } else {
+                                                                toast.error('Failed to load DJT details');
+                                                            }
+                                                        })
+                                                        .catch(e => {
+                                                            console.error(e);
+                                                            toast.dismiss(loadingId);
+                                                            toast.error('Error loading DJT details');
+                                                        });
                                                     }}
                                                     onCreateDJT={(item) => {
                                                         setSelectedDJT({

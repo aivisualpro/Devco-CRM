@@ -813,18 +813,33 @@ export async function POST(request: NextRequest) {
                                     customerName: 1, customerId: 1,
                                     createdAt: 1, updatedAt: 1
                                 } : {
-                                    // SCHEDULE LIST MODE: Exclude timesheet array
+                                    // SCHEDULE LIST MODE: Exclude timesheet array and heavy signature data
                                     title: 1, estimate: 1, customerId: 1, customerName: 1, 
                                     fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1, 
                                     assignees: 1, service: 1, item: 1, perDiem: 1, fringe: 1, 
                                     certifiedPayroll: 1, notifyAssignees: 1, description: 1, 
                                     jobLocation: 1, aerialImage: 1, siteLayout: 1, 
-                                    jha: 1, djt: 1, 
+                                    // Project heavy objects partially
+                                    jha: { 
+                                        _id: 1, 
+                                        status: 1, 
+                                        // Exclude signatures and images 
+                                    }, 
+                                    djt: { 
+                                        _id: 1, 
+                                        dailyJobDescription: 1,
+                                        equipmentUsed: 1,
+                                        // Exclude signatures and images
+                                    }, 
                                     timesheet: 1, // Included for status icons & assignee colors
-                                    JHASignatures: 1, DJTSignatures: 1,
+                                    // Exclude top-level signature arrays
+                                    // JHASignatures: 0, 
+                                    // DJTSignatures: 0,
                                     todayObjectives: 1, syncedToAppSheet: 1, isDayOffApproved: 1,
                                     createdAt: 1, updatedAt: 1,
-                                    hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] }
+                                    hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] },
+                                    hasJHA: { $and: [{ $ifNull: ['$jha', false] }, { $ne: ['$jha', {}] }] },
+                                    hasDJT: { $and: [{ $ifNull: ['$djt', false] }, { $ne: ['$djt', {}] }] }
                                 }}
                             ],
                             counts: [
