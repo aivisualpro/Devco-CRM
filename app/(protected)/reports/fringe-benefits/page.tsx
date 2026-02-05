@@ -273,7 +273,10 @@ export default function FringeBenefitsPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
-                    payload: { limit: 10000 } 
+                    payload: { 
+                        limit: 10000,
+                        includeTimesheets: true // Required for fringe benefit calculations
+                    } 
                 }) 
             });
             const data = await res.json();
@@ -361,7 +364,22 @@ export default function FringeBenefitsPage() {
                 const grossPay = rRegPay + rOtPay + rDtPay;
                 
                 const subjectWages = hours * rate;
-                const fringeVal = estimatesMap[sched.estimate]?.fringe || sched.fringe || 'No';
+                
+                // Robust Fringe Lookup
+                let est = estimatesMap[sched.estimate];
+                if (!est && sched.estimate) {
+                    // Try case-insensitive specific match
+                    const key = Object.keys(estimatesMap).find(k => k.toLowerCase() === sched.estimate.toLowerCase());
+                    if (key) est = estimatesMap[key];
+                    
+                    // Try fuzzy/starts-with match if still not found
+                    if (!est) {
+                         const fuzzyKey = Object.keys(estimatesMap).find(k => k.startsWith(sched.estimate) || sched.estimate.startsWith(k));
+                         if (fuzzyKey) est = estimatesMap[fuzzyKey];
+                    }
+                }
+                
+                const fringeVal = est?.fringe || sched.fringe || 'No';
 
                 flat.push({
                     _id: ts._id || ts.recordId,

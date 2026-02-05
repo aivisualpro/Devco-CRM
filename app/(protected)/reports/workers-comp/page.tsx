@@ -181,7 +181,10 @@ export default function WorkersCompPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
-                    payload: { limit: 10000 } 
+                    payload: { 
+                        limit: 10000,
+                        includeTimesheets: true // Required for workers comp calculations
+                    } 
                 }) 
             });
             const data = await res.json();

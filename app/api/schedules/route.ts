@@ -804,9 +804,13 @@ export async function POST(request: NextRequest) {
                                 // For schedule list view: exclude massive timesheet arrays
                                 // For time-cards view: include ONLY timesheets, exclude other heavy data
                                 { $project: includeTimesheets ? {
-                                    // TIME-CARDS MODE: Only include minimal fields + timesheet
+                                    // REPORTS/TIME-CARDS MODE: Include timesheet + fields needed for reports
                                     estimate: 1, fromDate: 1, toDate: 1,  
                                     timesheet: 1,
+                                    // Additional fields needed for payroll/fringe/workers-comp reports
+                                    title: 1, projectTitle: 1, jobTitle: 1,
+                                    item: 1, fringe: 1, certifiedPayroll: 1,
+                                    customerName: 1, customerId: 1,
                                     createdAt: 1, updatedAt: 1
                                 } : {
                                     // SCHEDULE LIST MODE: Exclude timesheet array
@@ -841,7 +845,7 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Employee.find().select('firstName lastName email hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]), 
                     !skipInitialData ? Constant.find().select('type description color').lean() : Promise.resolve([]),
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
-                        .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')
+                        .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll')
                         .sort({ updatedAt: -1 })
                         .limit(1000)
                         .lean() : Promise.resolve([]),
