@@ -449,6 +449,14 @@ const EstimateSchema = new Schema({
     collection: 'estimatesdb'
 });
 
+// Add indexes for better query performance
+EstimateSchema.index({ updatedAt: -1 });
+EstimateSchema.index({ createdAt: -1 });
+EstimateSchema.index({ estimate: 1 });
+EstimateSchema.index({ status: 1 });
+EstimateSchema.index({ customerId: 1 });
+
+
 // Force model recompilation to ensure schema changes are picked up
 if (mongoose.models.Estimate) {
     delete mongoose.models.Estimate;

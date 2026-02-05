@@ -469,9 +469,14 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getEstimates': {
+                // Aggressive optimization: exclude ALL heavy/embedded fields and arrays
+                // This reduces payload size from MB to KB by removing:
+                // - All line item arrays (labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous)
+                // - All embedded documents (proposals, receiptsAndCosts, billingTickets, jobPlanningDocs, releases, intentToLien, legalDocs)
+                // - Heavy string fields (aerialImage, siteLayout, scopeOfWork, htmlContent, customVariables)
                 const estimates = await Estimate.find()
-                    .select('-aerialImage -siteLayout -scopeOfWork -htmlContent')
-                    .sort({ createdAt: -1 })
+                    .select('-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions')
+                    .sort({ updatedAt: -1 })
                     .limit(1000)
                     .lean();
                 return NextResponse.json({ success: true, result: estimates });
