@@ -787,7 +787,11 @@ export async function POST(request: NextRequest) {
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? Employee.find().select('firstName lastName email hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]), 
                     !skipInitialData ? Constant.find().select('type description color').lean() : Promise.resolve([]),
-                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone').lean() : Promise.resolve([]),
+                    !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
+                        .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')
+                        .sort({ updatedAt: -1 })
+                        .limit(1000)
+                        .lean() : Promise.resolve([]),
                     !skipInitialData ? EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean() : Promise.resolve([]),
                     !skipInitialData ? OverheadItem.find().sort({ overhead: 1 }).lean() : Promise.resolve([])
                 ]);
@@ -960,7 +964,11 @@ export async function POST(request: NextRequest) {
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
                     Employee.find().select('firstName lastName email hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().select('type description color').lean(),
-                    Estimate.find({ status: { $ne: 'deleted' } }).select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone').lean(),
+                    Estimate.find({ status: { $ne: 'deleted' } })
+                        .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')
+                        .sort({ updatedAt: -1 })
+                        .limit(1000)
+                        .lean(),
                     EquipmentItem.find().select('equipmentMachine dailyCost uom classification').sort({ equipmentMachine: 1 }).lean(),
                     OverheadItem.find().sort({ overhead: 1 }).lean()
                 ]);

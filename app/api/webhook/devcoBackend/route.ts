@@ -472,6 +472,7 @@ export async function POST(request: NextRequest) {
                 const estimates = await Estimate.find()
                     .select('-aerialImage -siteLayout -scopeOfWork -htmlContent')
                     .sort({ createdAt: -1 })
+                    .limit(1000)
                     .lean();
                 return NextResponse.json({ success: true, result: estimates });
             }
