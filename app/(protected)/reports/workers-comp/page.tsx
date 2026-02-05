@@ -560,16 +560,25 @@ export default function WorkersCompPage() {
         const empTotals: Record<string, any> = {};
         flat.forEach(r => {
             const name = r.employee || 'Unknown';
-            if (!empTotals[name]) empTotals[name] = { total: 0, site: 0, travel: 0 };
+            if (!empTotals[name]) empTotals[name] = { total: 0, site: 0, travel: 0, siteHrs: 0, travelHrs: 0 };
             empTotals[name].total += r.grossPay;
             empTotals[name].site += (r.regPay + r.otPay + r.dtPay);
             empTotals[name].travel += r.travelPay;
+            // Accumulate hours based on type
+            if (r.isSiteTime) {
+                empTotals[name].siteHrs += r.hoursVal;
+            } else if (r.isDriveTime) {
+                empTotals[name].travelHrs += r.hoursVal;
+            }
         });
         
         console.log('[WC] Total:', total.toFixed(2), '(Site:', totalSite.toFixed(2), 'Travel:', totalTravel.toFixed(2), ')', 'Records:', flat.length);
         console.log('[WC] Employee Breakdown:', Object.entries(empTotals)
             .sort(([,a], [,b]) => b.total - a.total)
-            .map(([name, d]) => `${name}: $${d.total.toFixed(2)} (S: $${d.site.toFixed(2)}, T: $${d.travel.toFixed(2)})`)
+            .map(([name, d]) => {
+                const avgSiteRate = d.siteHrs ? (d.site / d.siteHrs).toFixed(2) : '0.00';
+                return `${name}: $${d.userTotal ? d.userTotal.toFixed(2) : d.total.toFixed(2)} (S: $${d.site.toFixed(2)} @ ${d.siteHrs.toFixed(1)}h (Rate ~$${avgSiteRate}), T: $${d.travel.toFixed(2)})`;
+            })
         );
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());

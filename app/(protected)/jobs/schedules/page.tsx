@@ -50,16 +50,16 @@ function SchedulePageContent() {
     // Initialize selectedDates with all days of the current week (Monday to Sunday)
     const [selectedDates, setSelectedDates] = useState<string[]>(() => {
         const today = new Date();
-        const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday
-        const startOfWeek = new Date(today);
+        const startOfWeek = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+        const dayOfWeek = startOfWeek.getUTCDay(); // 0 = Sunday, 1 = Monday
         const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-        startOfWeek.setDate(today.getDate() + diff); // Go back to Monday
+        startOfWeek.setUTCDate(startOfWeek.getUTCDate() + diff); // Go back to Monday
 
         const dates: string[] = [];
         for (let i = 0; i < 7; i++) {
             const date = new Date(startOfWeek);
-            date.setDate(startOfWeek.getDate() + i);
-            const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+            date.setUTCDate(startOfWeek.getUTCDate() + i);
+            const dateStr = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
             dates.push(dateStr);
         }
         return dates;
@@ -602,7 +602,7 @@ function SchedulePageContent() {
             const scheduleDate = formatLocalDate(s.fromDate);
             if (activeDayTab === 'all') return true;
              return getDayName(scheduleDate) === activeDayTab;
-        }).sort((a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime());
+        }).sort((a, b) => new Date(b.fromDate).getTime() - new Date(a.fromDate).getTime());
     }, [schedules, activeDayTab]);
 
     const searchParams = useSearchParams();

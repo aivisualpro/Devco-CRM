@@ -796,7 +796,7 @@ export async function POST(request: NextRequest) {
                         $facet: {
                             metadata: [{ $count: "total" }],
                             data: [
-                                { $sort: { fromDate: 1, _id: 1 } },
+                                { $sort: { fromDate: -1, _id: 1 } },
                                 { $skip: skip },
                                 { $limit: limit },
                                 // Project fields needed for UI to reduce payload
