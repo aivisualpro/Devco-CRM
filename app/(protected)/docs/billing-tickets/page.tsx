@@ -89,7 +89,10 @@ export default function BillingTicketsPage() {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEstimates' })
+                body: JSON.stringify({ 
+                action: 'getEstimates',
+                payload: { limit: 1000, includeBilling: true }
+            })
             });
             const data = await res.json();
             if (data.success) {

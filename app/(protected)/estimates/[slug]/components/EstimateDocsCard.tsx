@@ -96,7 +96,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 const res = await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getEstimates' })
+                    body: JSON.stringify({ 
+                        action: 'getEstimates',
+                        payload: { limit: 1000, includeBilling: true, includeReceipts: true }
+                    })
                 });
                 const data = await res.json();
                 

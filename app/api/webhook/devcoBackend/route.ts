@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
 
             case 'getEstimates': {
                 // Aggressive optimization: exclude ALL heavy/embedded fields and arrays
-                const { page = 1, limit = 30, search = '', filter = 'all' } = payload || {};
+                const { page = 1, limit = 30, search = '', filter = 'all', includeBilling = false, includeReceipts = false } = payload || {};
                 const skip = (page - 1) * limit;
 
                 // Build Query
@@ -508,8 +508,17 @@ export async function POST(request: NextRequest) {
                      // But regex is flexible.
                 }
 
+                let selectFields = '-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions';
+                
+                if (includeBilling) {
+                    selectFields = selectFields.replace('-billingTickets', '').replace('-projectDescription', '');
+                }
+                if (includeReceipts) {
+                    selectFields = selectFields.replace('-receiptsAndCosts', '');
+                }
+
                 const estimates = await Estimate.find(query)
-                    .select('-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions')
+                    .select(selectFields)
                     .sort({ updatedAt: -1 })
                     .skip(skip)
                     .limit(limit)
