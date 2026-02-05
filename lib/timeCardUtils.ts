@@ -1,4 +1,4 @@
-import { ScheduleItem } from "@/app/(protected)/jobs/schedules/components/ScheduleCard";
+
 
 // Constants
 export const SPEED_MPH = 55;

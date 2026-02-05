@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem } from '@/lib/models';
+import { calculateTimesheetData } from '@/lib/timeCardUtils';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -606,6 +607,44 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: false, error: 'Unknown state' });
             }
 
+            case 'recalculateAll': {
+                const schedules = await Schedule.find({ "timesheet.0": { $exists: true } }).lean();
+                let count = 0;
+                const bulkOps = [];
+                
+                for (const doc of (schedules as any[])) {
+                    let modified = false;
+                    const newTimesheets = (doc.timesheet || []).map((ts: any) => {
+                        // Pass doc.fromDate as string/date for calculation context
+                        const stats = calculateTimesheetData(ts, doc.fromDate);
+                        
+                        // Overwrite with fresh calculation
+                        // We use inequality check to avoid writing if nothing changed
+                        if (ts.hours !== stats.hours || ts.distance !== stats.distance) {
+                            modified = true;
+                            return { ...ts, hours: stats.hours, distance: stats.distance };
+                        }
+                        return ts;
+                    });
+                    
+                    if (modified) {
+                        bulkOps.push({
+                            updateOne: {
+                                filter: { _id: doc._id },
+                                update: { $set: { timesheet: newTimesheets } }
+                            }
+                        });
+                        count++;
+                    }
+                }
+                
+                if (bulkOps.length > 0) {
+                    await Schedule.bulkWrite(bulkOps);
+                }
+                
+                return NextResponse.json({ success: true, message: `Updated ${count} schedules` });
+            }
+
             case 'getScheduleActivity': {
                 const { start, end, userEmail } = payload || {};
                 const filters: any = {};
@@ -1194,7 +1233,41 @@ export async function POST(request: NextRequest) {
                     }},
                     { $unwind: "$timesheet" },
                     { $addFields: {
-                        hoursNum: { $ifNull: ["$timesheet.hours", 0] },
+                        hoursNum: {
+                            $cond: {
+                                if: { $gt: [{ $ifNull: ["$timesheet.hours", 0] }, 0] },
+                                then: "$timesheet.hours",
+                                else: {
+                                    $let: {
+                                        vars: {
+                                            dStart: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
+                                            dEnd: { $convert: { input: "$timesheet.clockOut", to: "date", onError: null, onNull: null } },
+                                            lStart: { $convert: { input: "$timesheet.lunchStart", to: "date", onError: null, onNull: null } },
+                                            lEnd: { $convert: { input: "$timesheet.lunchEnd", to: "date", onError: null, onNull: null } }
+                                        },
+                                        in: {
+                                            $cond: {
+                                                if: { $and: ["$$dStart", "$$dEnd"] },
+                                                then: {
+                                                    $divide: [
+                                                        { $subtract: [
+                                                            { $subtract: ["$$dEnd", "$$dStart"] },
+                                                            { $cond: { 
+                                                                if: { $and: ["$$lStart", "$$lEnd"] }, 
+                                                                then: { $subtract: ["$$lEnd", "$$lStart"] },
+                                                                else: 0 
+                                                            }}
+                                                        ]},
+                                                        3600000
+                                                    ]
+                                                },
+                                                else: 0
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                         year: { $year: "$fromDate" },
                         week: { $isoWeek: "$fromDate" },
                         // Extract YYYY-MM-DD string directly to avoid timezone shifts

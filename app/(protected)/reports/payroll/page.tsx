@@ -318,7 +318,8 @@ function PayrollReportContent() {
                     payload: {
                         startDate: extendedStartDate.toISOString(),
                         endDate: extendedEndDate.toISOString(),
-                        limit: 10000 // Fetch all schedules for payroll report (no pagination)
+                        limit: 10000, // Fetch all schedules for payroll report (no pagination)
+                        includeTimesheets: true // Required for payroll calculations
                     }
                 })
             });

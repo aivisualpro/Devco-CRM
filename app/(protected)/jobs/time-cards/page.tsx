@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2
@@ -15,6 +15,7 @@ import {
     ConfirmModal, Skeleton
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+import { toast } from 'sonner';
 
 // --- Types ---
 
@@ -66,19 +67,17 @@ const FORMULA_CUTOFF_DATE = new Date('2026-01-12T00:00:00.000Z');
 
 // Week utilities
 const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label: string } => {
+    // Use UTC for consistent week calculation across timezones
     const d = new Date(date);
-    const day = d.getDay();
+    const day = d.getUTCDay();
     const diff = day === 0 ? -6 : 1 - day; // Monday start
     
-    const start = new Date(d);
-    start.setDate(d.getDate() + diff);
-    start.setHours(0, 0, 0, 0);
-    
+    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
     const end = new Date(start);
-    end.setDate(start.getDate() + 6);
-    end.setHours(23, 59, 59, 999);
+    end.setUTCDate(start.getUTCDate() + 6);
+    end.setUTCHours(23, 59, 59, 999);
     
-    const fmt = (dt: Date) => `${String(dt.getMonth() + 1).padStart(2, '0')}/${String(dt.getDate()).padStart(2, '0')}`;
+    const fmt = (dt: Date) => `${String(dt.getUTCMonth() + 1).padStart(2, '0')}/${String(dt.getUTCDate()).padStart(2, '0')}`;
     return { start, end, label: `${fmt(start)}-${fmt(end)}` };
 };
 
@@ -423,27 +422,28 @@ function TimeCardContent() {
 
 
     // Fetch Grouping Stats (Tree Data)
-    useEffect(() => {
-        const fetchStats = async () => {
-            setIsStatsLoading(true);
-            try {
-                const res = await fetch('/api/schedules', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getScheduleStats' })
-                });
-                const data = await res.json();
-                if (data.success) {
-                    setGroupingStats(data.result);
-                }
-            } catch (e) {
-                console.error("Failed to fetch grouping stats", e);
-            } finally {
-                setIsStatsLoading(false);
+    const fetchStats = useCallback(async () => {
+        setIsStatsLoading(true);
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getScheduleStats' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setGroupingStats(data.result);
             }
-        };
-        fetchStats();
+        } catch (e) {
+            console.error("Failed to fetch grouping stats", e);
+        } finally {
+            setIsStatsLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchStats();
+    }, [fetchStats]);
 
     // Data Fetching
     const fetchTimeCards = async () => {
@@ -506,7 +506,10 @@ function TimeCardContent() {
                 return false;
             } else {
                 // Desktop filters
-                if (filEmployee && r.employee !== filEmployee) return false;
+                // Ignore header employee filter if sidebar selection is specific to an employee or date
+                const isSidebarEmployeeSelection = selectedNode.type === 'EMPLOYEE' || selectedNode.type === 'DATE';
+                
+                if (!isSidebarEmployeeSelection && filEmployee && r.employee !== filEmployee) return false;
                 if (filType && r.type?.trim().toLowerCase() !== filType.trim().toLowerCase()) return false;
             }
 
@@ -518,7 +521,7 @@ function TimeCardContent() {
             
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode]);
 
     const timeCardTotals = useMemo(() => {
         let drive = 0;
@@ -579,7 +582,7 @@ function TimeCardContent() {
                 const parts = dateStrRaw.split('-');
                 let dateLabel = dateStrRaw;
                 if (parts.length === 3) {
-                    dateLabel = `${parts[1]}/${parts[2]}`; // MM/DD
+                    dateLabel = `${parts[1]}/${parts[2]}/${parts[0]}`; // MM/DD/YYYY to match user preference/screenshot
                 }
 
                 const dateKey = `${empKey}-${dateStrRaw}`;
@@ -615,11 +618,15 @@ function TimeCardContent() {
             
             if (selectedNode.type === 'DATE') {
                 // Robust filtering: Match Date and Employee
-                const targetDate = selectedNode.value.slice(-10);
-                const rDate = dStr.split('T')[0];
-                
-                if (selectedEmployeeEmail && r.employee !== selectedEmployeeEmail) return false;
-                return rDate === targetDate;
+                // Selected value is fixed format: D-YYYY-WEEK-EMAIL-YYYY-MM-DD
+                const parts = selectedNode.value.split('-');
+                if (parts.length >= 4) {
+                    const targetDate = parts.slice(-3).join('-'); // Get YYYY-MM-DD from the end
+                    const rDate = dStr.split('T')[0];
+                    
+                    if (selectedEmployeeEmail && r.employee !== selectedEmployeeEmail) return false;
+                    return rDate === targetDate;
+                }
             }
             return true;
         });
@@ -744,6 +751,7 @@ function TimeCardContent() {
             if (saveResult.success) {
                 success(`${field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'} updated`);
                 setSpecialFieldModal({ ts: null, field: null });
+                fetchStats();
             } else {
                 throw new Error("Failed to save");
             }
@@ -808,6 +816,7 @@ function TimeCardContent() {
             if (saveResult.success) {
                 success(`${field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'} removed`);
                 setSpecialFieldModal({ ts: null, field: null });
+                fetchStats();
             } else {
                 throw new Error("Failed to save");
             }
@@ -867,6 +876,7 @@ function TimeCardContent() {
             if (saveRes.success) {
                 success("Timesheet deleted");
                 // No need to fetchTimeCards() here because we already updated the state optimistically
+                fetchStats();
             } else {
                 throw new Error("Failed to save");
             }
@@ -936,10 +946,12 @@ function TimeCardContent() {
             if (!dataGet.success) throw new Error("Schedule not found");
             
             const schedule = dataGet.result as ScheduleDoc;
+            const stats = calculateTimesheetData(editForm as any, schedule.fromDate);
+
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
                     const { hoursVal, distanceVal, rawDistanceVal, projectName, ...rest } = editForm;
-                    return { ...t, ...rest } as TimesheetEntry;
+                    return { ...t, ...rest, hours: stats.hours, distance: stats.distance } as TimesheetEntry;
                 }
                 return t as TimesheetEntry;
             });
@@ -956,6 +968,7 @@ function TimeCardContent() {
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet updated");
+                fetchStats();
             } else {
                 throw new Error("Failed to save");
             }
@@ -1025,7 +1038,10 @@ function TimeCardContent() {
             if (!dataGet.success) throw new Error("Schedule not found");
             
             const schedule = dataGet.result;
-            const updatedTimesheets = [...(schedule.timesheet || []), newRecord];
+            const stats = calculateTimesheetData(newRecord, schedule.fromDate);
+            const recordWithStats = { ...newRecord, hours: stats.hours, distance: stats.distance };
+            
+            const updatedTimesheets = [...(schedule.timesheet || []), recordWithStats];
             
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
@@ -1039,6 +1055,7 @@ function TimeCardContent() {
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet created");
+                fetchStats();
             } else {
                 throw new Error("Failed to save");
             }
@@ -1111,6 +1128,7 @@ function TimeCardContent() {
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet updated");
+                fetchStats();
             } else {
                 throw new Error("Failed to save");
             }
@@ -1165,18 +1183,15 @@ function TimeCardContent() {
         }
 
         if (year && week) {
-            // Calculate Monday of that week
-            // ISO Week calculation logic
-            // Jan 4th is always in Week 1
-            const d = new Date(year, 0, 4);
-            const day = d.getDay() || 7; // Sunday=7
+            // ISO Week calculation logic using UTC
+            const d = new Date(Date.UTC(year, 0, 4));
+            const day = d.getUTCDay() || 7; 
             const mondayOfWeek1 = new Date(d);
-            mondayOfWeek1.setDate(d.getDate() - day + 1);
+            mondayOfWeek1.setUTCDate(d.getUTCDate() - day + 1);
             
             const targetMonday = new Date(mondayOfWeek1);
-            targetMonday.setDate(mondayOfWeek1.getDate() + (week - 1) * 7);
+            targetMonday.setUTCDate(mondayOfWeek1.getUTCDate() + (week - 1) * 7);
             
-            // Update state -> triggers fetchTimeCards
             setCurrentWeekDate(targetMonday);
         }
     };
@@ -1357,6 +1372,7 @@ function TimeCardContent() {
             </div>
         );
     }
+
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
