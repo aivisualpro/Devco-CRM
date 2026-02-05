@@ -17,23 +17,25 @@ export async function POST(request: NextRequest) {
                 const djtData = payload;
                 const idToUse = djtData._id || new mongoose.Types.ObjectId().toString();
 
-                // Calculate Cost - Fetch fresh rates from DB to ensuring accuracy
+                // Calculate Cost - Sum of owned equipment costs only
                 let totalCost = 0;
                 
-                // Fetch all overheads and equipment first
-                const [overheads, equipmentItems] = await Promise.all([
-                    OverheadItem.find().lean(),
-                    EquipmentItem.find().lean()
-                ]);
+                // Fetch equipment items to get official rates
+                const equipmentItems = await EquipmentItem.find().lean();
 
-                // Equipment Cost
+                // Equipment Cost - Only sum where type="owned"
                 if (djtData.equipmentUsed && Array.isArray(djtData.equipmentUsed)) {
                     djtData.equipmentUsed = djtData.equipmentUsed.map((eq: any) => {
                         // Find matching equipment item in DB to get official rate
-                        const dbItem = equipmentItems.find((i: any) => String(i._id) === String(eq.equipment) || String(i.value) === String(eq.equipment));
+                        const dbItem = equipmentItems.find((i: any) => 
+                            String(i._id) === String(eq.equipment) || 
+                            String(i.equipmentMachine) === String(eq.equipment) ||
+                            String(i.value) === String(eq.equipment)
+                        );
                         const dailyRate = dbItem ? (Number(dbItem.dailyCost) || 0) : (Number(eq.cost) || 0);
 
-                        if (eq.type?.toLowerCase() === 'owned') {
+                        // Only add to total cost if type is "owned" and qty > 0
+                        if (eq.type?.toLowerCase() === 'owned' && Number(eq.qty) > 0) {
                             totalCost += (Number(eq.qty) || 0) * dailyRate;
                         }
                         
@@ -42,12 +44,7 @@ export async function POST(request: NextRequest) {
                     });
                 }
 
-                // Overhead Cost
-                const devcoOverhead = Number(overheads.find((c: any) => c.overhead?.trim().toLowerCase() === 'devco overhead')?.dailyRate) || 0;
-                const riskFactor = Number(overheads.find((c: any) => c.overhead?.trim().toLowerCase() === 'risk factor')?.dailyRate) || 0;
-                
-                totalCost += (devcoOverhead + riskFactor);
-
+                // djtCost is ONLY the sum of owned equipment costs
                 djtData.djtCost = totalCost;
 
                 const { _id, ...rest } = djtData;
@@ -188,7 +185,7 @@ export async function POST(request: NextRequest) {
             }
             
             case 'saveDJTSignature': {
-                const { schedule_id, employee, signature, location, createdBy } = payload;
+                const { schedule_id, employee, signature, lunchStart, lunchEnd, createdBy } = payload;
                 if (!schedule_id || !employee || !signature) {
                     return NextResponse.json({ success: false, error: 'Missing required signature data' }, { status: 400 });
                 }
@@ -209,13 +206,18 @@ export async function POST(request: NextRequest) {
                     djt.createdBy = createdBy || employee || 'system';
                 }
 
-                // Update Signature
+                // Get the current time for clockOut
+                const clockOutTime = new Date();
+
+                // Create signature object with all required fields
                 const newSignature = {
-                    employee,
-                    signature,
-                    date: new Date(),
-                    location: location || 'Unknown',
-                    signedBy: createdBy
+                    employee,           // employeeEmail
+                    signature,          // signature base64 image
+                    lunchStart: lunchStart || null,
+                    lunchEnd: lunchEnd || null,
+                    clockOut: clockOutTime.toISOString(),
+                    date: clockOutTime,
+                    signedBy: createdBy || employee
                 };
 
                 // Remove existing signature for this employee if any
@@ -226,15 +228,89 @@ export async function POST(request: NextRequest) {
                 djt.signatures = updatedSignatures;
                 await djt.save();
 
-                // Sync to Schedule
-                if (djt.schedule_id) {
-                    await Schedule.updateOne(
-                        { _id: djt.schedule_id },
-                        { $set: { 
-                            'djt.signatures': updatedSignatures,
-                            'DJTSignatures': updatedSignatures 
-                        } }
+                // Fetch the schedule to get fromDate for clockIn
+                const schedule = await Schedule.findById(djt.schedule_id).lean();
+                
+                if (schedule) {
+                    // Create clockIn from schedule's fromDate
+                    const clockInTime = schedule.fromDate ? new Date(schedule.fromDate) : clockOutTime;
+
+                    // Combine date from schedule with lunch times if provided
+                    const scheduleDate = clockInTime.toISOString().split('T')[0];
+                    let lunchStartDateTime = null;
+                    let lunchEndDateTime = null;
+                    
+                    if (lunchStart) {
+                        lunchStartDateTime = new Date(`${scheduleDate}T${lunchStart}:00`).toISOString();
+                    }
+                    if (lunchEnd) {
+                        lunchEndDateTime = new Date(`${scheduleDate}T${lunchEnd}:00`).toISOString();
+                    }
+
+                    // Create "Site Time" timesheet record for this employee
+                    const timesheetRecord = {
+                        _id: new mongoose.Types.ObjectId().toString(),
+                        scheduleId: djt.schedule_id,
+                        employee: employee,
+                        type: 'Site Time',
+                        clockIn: clockInTime.toISOString(),
+                        clockOut: clockOutTime.toISOString(),
+                        lunchStart: lunchStartDateTime,
+                        lunchEnd: lunchEndDateTime,
+                        status: 'Pending',
+                        createdAt: clockOutTime.toISOString(),
+                        createdBy: createdBy || employee
+                    };
+
+                    // Check if a "Site Time" record already exists for this employee on this schedule
+                    const existingTimesheets = (schedule as any).timesheet || [];
+                    const existingIndex = existingTimesheets.findIndex((ts: any) => 
+                        ts.employee?.toLowerCase() === employee.toLowerCase() && 
+                        ts.type === 'Site Time'
                     );
+
+                    if (existingIndex > -1) {
+                        // Update existing timesheet
+                        const updateObj: any = {};
+                        updateObj[`timesheet.${existingIndex}.clockOut`] = clockOutTime.toISOString();
+                        if (lunchStartDateTime) updateObj[`timesheet.${existingIndex}.lunchStart`] = lunchStartDateTime;
+                        if (lunchEndDateTime) updateObj[`timesheet.${existingIndex}.lunchEnd`] = lunchEndDateTime;
+                        updateObj[`timesheet.${existingIndex}.updatedAt`] = clockOutTime.toISOString();
+
+                        await Schedule.updateOne(
+                            { _id: djt.schedule_id },
+                            { 
+                                $set: { 
+                                    ...updateObj,
+                                    'djt.signatures': updatedSignatures,
+                                    'DJTSignatures': updatedSignatures 
+                                } 
+                            }
+                        );
+                    } else {
+                        // Push new timesheet record
+                        await Schedule.updateOne(
+                            { _id: djt.schedule_id },
+                            { 
+                                $push: { timesheet: timesheetRecord },
+                                $set: { 
+                                    'djt.signatures': updatedSignatures,
+                                    'DJTSignatures': updatedSignatures 
+                                } 
+                            }
+                        );
+                    }
+                } else {
+                    // No schedule found, just sync signatures
+                    if (djt.schedule_id) {
+                        await Schedule.updateOne(
+                            { _id: djt.schedule_id },
+                            { $set: { 
+                                'djt.signatures': updatedSignatures,
+                                'DJTSignatures': updatedSignatures 
+                            } }
+                        );
+                    }
                 }
 
                 return NextResponse.json({ success: true, result: djt });

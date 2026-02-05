@@ -225,23 +225,35 @@ export const DJTModal = ({
                                                                 const sig = (selectedDJT.signatures || []).find((s: any) => s.employee === email);
 
                                                                 return (
-                                                                    <div key={email} className={`p-3 rounded-xl border flex items-center justify-between ${sig ? 'bg-green-50 border-green-100' : 'bg-white border-slate-100'}`}>
-                                                                        <div className="min-w-0">
-                                                                            <p className="text-xs font-bold text-slate-900 truncate uppercase">{emp?.label || email}</p>
-                                                                            <p className={`text-[9px] font-black uppercase ${sig ? 'text-green-600' : 'text-slate-400'}`}>
-                                                                                {sig ? 'Signed' : 'Pending'}
-                                                                            </p>
+                                                                    <div key={email} className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${sig ? 'bg-green-50 border-green-100' : 'bg-white border-slate-100'}`}>
+                                                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                                            {/* Tiny signature image */}
+                                                                            {sig?.signature && (
+                                                                                <div className="w-7 h-7 rounded-md bg-white border border-green-200 overflow-hidden flex-shrink-0 shadow-sm">
+                                                                                    <img 
+                                                                                        src={sig.signature} 
+                                                                                        alt="Signature" 
+                                                                                        className="w-full h-full object-contain"
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                            <div className="min-w-0">
+                                                                                <p className="text-xs font-bold text-slate-900 truncate uppercase">{emp?.label || email}</p>
+                                                                                <p className={`text-[9px] font-black uppercase ${sig ? 'text-green-600' : 'text-slate-400'}`}>
+                                                                                    {sig ? 'Signed' : 'Pending'}
+                                                                                </p>
+                                                                            </div>
                                                                         </div>
                                                                         {!sig && (
                                                                             <button
                                                                                 type="button"
                                                                                 onClick={() => setActiveSignatureEmployee(email)}
-                                                                                className="px-3 py-1.5 bg-black text-white text-[9px] font-black rounded-lg uppercase"
+                                                                                className="px-3 py-1.5 bg-black text-white text-[9px] font-black rounded-lg uppercase flex-shrink-0"
                                                                             >
                                                                                 Sign
                                                                             </button>
                                                                         )}
-                                                                        {sig && <CheckCircle2 size={14} className="text-green-500" />}
+                                                                        {sig && <CheckCircle2 size={14} className="text-green-500 flex-shrink-0" />}
                                                                     </div>
                                                                 );
                                                             });
@@ -580,9 +592,20 @@ export const DJTModal = ({
 
                                                     return (
                                                         <div key={email} className={`p-3 rounded-xl border flex items-center gap-3 ${sig ? 'bg-green-50/50 border-green-100' : 'bg-white border-slate-100'}`}>
-                                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0 overflow-hidden">
-                                                                {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : emp?.label?.[0]?.toUpperCase()}
-                                                            </div>
+                                                            {/* Show signature thumbnail if signed, otherwise show avatar */}
+                                                            {sig?.signature ? (
+                                                                <div className="w-8 h-8 rounded-md bg-white border border-green-200 overflow-hidden flex-shrink-0 shadow-sm">
+                                                                    <img 
+                                                                        src={sig.signature} 
+                                                                        alt="Signature" 
+                                                                        className="w-full h-full object-contain"
+                                                                    />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 shrink-0 overflow-hidden">
+                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : emp?.label?.[0]?.toUpperCase()}
+                                                                </div>
+                                                            )}
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="text-xs font-semibold text-slate-900 truncate">{emp?.label || email}</p>
                                                                 <p className={`text-[9px] font-medium ${sig ? 'text-green-600' : 'text-slate-400'}`}>

@@ -9,14 +9,18 @@ export interface IDailyJobTicket extends Document {
     createdBy: string;
     clientEmail?: string;
     emailCounter?: number;
+    djtCost?: number;
     equipmentUsed?: IEquipmentUsed[];
     djtimages?: string[];
     signatures?: {
         employee: string;
         signature: string;
-        date: Date;
-        location: string;
-        signedBy: string;
+        date?: Date;
+        location?: string;
+        signedBy?: string;
+        lunchStart?: string;
+        lunchEnd?: string;
+        clockOut?: string;
     }[];
     djtEmails?: { emailto: string; createdAt: Date }[];
     createdAt?: Date;
@@ -32,6 +36,7 @@ const DailyJobTicketSchema: Schema = new Schema({
     createdBy: { type: String, required: true },
     clientEmail: { type: String, default: '' },
     emailCounter: { type: Number, default: 0 },
+    djtCost: { type: Number, default: 0 },
     equipmentUsed: [{
         equipment: { type: String },
         type: { type: String, enum: ['owned', 'rental'] },
@@ -44,7 +49,10 @@ const DailyJobTicketSchema: Schema = new Schema({
         signature: { type: String },
         date: { type: Date, default: Date.now },
         location: { type: String },
-        signedBy: { type: String }
+        signedBy: { type: String },
+        lunchStart: { type: String },
+        lunchEnd: { type: String },
+        clockOut: { type: String }
     }],
     djtEmails: [{
         emailto: { type: String },

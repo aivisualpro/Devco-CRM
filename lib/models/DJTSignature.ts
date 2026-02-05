@@ -4,8 +4,13 @@ export interface IDJTSignature extends Document {
     schedule_id: string;
     employee: string;
     signature: string;
-    createdBy: string;
+    createdBy?: string;
+    signedBy?: string;
     location?: string;
+    lunchStart?: string;
+    lunchEnd?: string;
+    clockOut?: string;
+    date?: Date;
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -15,8 +20,13 @@ const DJTSignatureSchema: Schema = new Schema({
     schedule_id: { type: String, ref: 'Schedule', required: true },
     employee: { type: String, required: true },
     signature: { type: String, required: true },
-    createdBy: { type: String, required: true },
+    createdBy: { type: String },
+    signedBy: { type: String },
     location: { type: String, default: '' },
+    lunchStart: { type: String },
+    lunchEnd: { type: String },
+    clockOut: { type: String },
+    date: { type: Date },
 }, {
     timestamps: true
 });
