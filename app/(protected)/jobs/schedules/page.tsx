@@ -1501,23 +1501,14 @@ function SchedulePageContent() {
     const handleSaveJHASignature = async (dataUrl: string) => {
         if (!activeSignatureEmployee || !selectedJHA) return;
         
-        // Get Location
-        let location = 'Unknown';
-        if (navigator.geolocation) {
-             try {
-                 const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-                     navigator.geolocation.getCurrentPosition(resolve, reject);
-                 });
-                 location = `${pos.coords.latitude},${pos.coords.longitude}`;
-             } catch (e) {
-                 console.log('Location access denied or failed');
-             }
-        }
+        setIsSavingSignature(true);
+        // Location logic removed per request
 
         // Check if employee already signed to prevent duplicates
         if (selectedJHA.signatures?.some((s: any) => s.employee === activeSignatureEmployee)) {
             toastError('This employee has already signed.');
             setActiveSignatureEmployee(null); // Reset selection
+            setIsSavingSignature(false);
             return;
         }
         try {
@@ -1558,107 +1549,52 @@ function SchedulePageContent() {
         const lunchEnd = typeof dataInput === 'object' ? dataInput.lunchEnd : null;
 
         setIsSavingSignature(true);
-        let location = 'Unknown';
-        if (navigator.geolocation) {
-             try {
-                 const pos = await Promise.race([
-                     new Promise<GeolocationPosition>((resolve, reject) => {
-                         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
-                     }),
-                     new Promise<GeolocationPosition>((_, reject) => setTimeout(() => reject(new Error('Location timeout')), 3000))
-                 ]);
-                 location = `${pos.coords.latitude},${pos.coords.longitude}`;
-             } catch (e) {
-                 console.log('Location access denied or failed', e);
-             }
-        }
 
         try {
             const payload = {
                 schedule_id: selectedDJT.schedule_id || selectedDJT._id,
                 employee: activeSignatureEmployee,
                 signature: dataUrl,
-                createdBy: 'jt@devco-inc.com',
-                location
+                lunchStart,
+                lunchEnd,
+                createdBy: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : 'system'
             };
 
-            const saveSignaturePromise = fetch('/api/djt', {
+            const res = await fetch('/api/djt', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'saveDJTSignature', payload })
-            }).then(r => r.json());
+            });
 
-            let saveTimesheetPromise = Promise.resolve({ success: true, skipped: true } as any);
-
-            if (lunchStart && lunchEnd) {
-                const scheduleId = selectedDJT.schedule_id || selectedDJT._id;
-                const schedule = schedules.find(s => s._id === scheduleId);
-                
-                if (schedule) {
-                    const clockInDate = new Date(schedule.fromDate);
-                    const dateStr = clockInDate.toISOString().split('T')[0];
-                    
-                    const combineDateAndTime = (dateComponent: string, timeComponent: string) => {
-                        return `${dateComponent}T${timeComponent}:00`; 
-                    };
-
-                    const timesheetPayload = {
-                         scheduleId: schedule._id,
-                         employee: activeSignatureEmployee,
-                         clockIn: schedule.fromDate,
-                         clockOut: new Date().toISOString(),
-                         lunchStart: combineDateAndTime(dateStr, lunchStart),
-                         lunchEnd: combineDateAndTime(dateStr, lunchEnd),
-                         type: 'Site Time',
-                         status: 'Pending'
-                    };
-                    
-                    saveTimesheetPromise = fetch('/api/schedules', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            action: 'saveIndividualTimesheet', 
-                            payload: { timesheet: timesheetPayload } 
-                        })
-                    }).then(r => r.json());
-                }
-            }
-
-            const [data, tsData] = await Promise.all([saveSignaturePromise, saveTimesheetPromise]);
-
+            const data = await res.json();
+            
             if (data.success) {
-                success('Signature Saved');
-                const newSig = data.result;
-                setSelectedDJT((prev: any) => ({
-                    ...prev,
-                    signatures: [...(prev.signatures || []), newSig]
-                }));
+                success('Signature saved successfully');
+                
+                const updatedDJT = data.result;
+                
+                // Update selectedDJT immediately to show "Signed" status
+                setSelectedDJT(updatedDJT);
+                
+                // Update Schedules List
+                setSchedules((prev: any[]) => prev.map((s: any) => 
+                    String(s._id) === String(updatedDJT.schedule_id || updatedDJT._id) 
+                    ? { ...s, djt: updatedDJT, DJTSignatures: updatedDJT.signatures } 
+                    : s
+                ));
 
-                if (!tsData.skipped) {
-                    if (tsData.success) {
-                         success('Timesheet Record Created');
-                         fetchPageData(1, true); 
-                    } else {
-                        console.error("Timesheet Error:", tsData.error);
-                        if (tsData.error?.includes("already exists")) {
-                            toastError('Timesheet already exists for this day');
-                        } else {
-                            toastError('Failed to create timesheet record');
-                        }
-                    }
-                }
-
-                setActiveSignatureEmployee(null); 
+                setActiveSignatureEmployee(null);
             } else {
-                toastError(data.error || 'Failed to save signature');
+                 toastError(data.error || 'Failed to save signature');
             }
-        } catch (error) {
-            console.error(error);
-            toastError('Error saving signature');
+        } catch (e) {
+             console.error(e);
+             toastError('Error saving signature');
         } finally {
             setIsSavingSignature(false);
         }
     };
+
     const handleSaveIndividualTimesheet = async (e: React.FormEvent) => {
         e.preventDefault();
         

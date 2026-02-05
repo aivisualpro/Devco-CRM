@@ -1,7 +1,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { DailyJobTicket, Schedule, Activity, DJTSignature, Constant, OverheadItem } from '@/lib/models';
+import { DailyJobTicket, Schedule, Activity, DJTSignature, Constant, OverheadItem, EquipmentItem } from '@/lib/models';
 import mongoose from 'mongoose';
 
 export async function POST(request: NextRequest) {
@@ -17,20 +17,32 @@ export async function POST(request: NextRequest) {
                 const djtData = payload;
                 const idToUse = djtData._id || new mongoose.Types.ObjectId().toString();
 
-                // Calculate Cost
+                // Calculate Cost - Fetch fresh rates from DB to ensuring accuracy
                 let totalCost = 0;
                 
+                // Fetch all overheads and equipment first
+                const [overheads, equipmentItems] = await Promise.all([
+                    OverheadItem.find().lean(),
+                    EquipmentItem.find().lean()
+                ]);
+
                 // Equipment Cost
                 if (djtData.equipmentUsed && Array.isArray(djtData.equipmentUsed)) {
-                    djtData.equipmentUsed.forEach((eq: any) => {
+                    djtData.equipmentUsed = djtData.equipmentUsed.map((eq: any) => {
+                        // Find matching equipment item in DB to get official rate
+                        const dbItem = equipmentItems.find((i: any) => String(i._id) === String(eq.equipment) || String(i.value) === String(eq.equipment));
+                        const dailyRate = dbItem ? (Number(dbItem.dailyCost) || 0) : (Number(eq.cost) || 0);
+
                         if (eq.type?.toLowerCase() === 'owned') {
-                            totalCost += (Number(eq.qty) || 0) * (Number(eq.cost) || 0);
+                            totalCost += (Number(eq.qty) || 0) * dailyRate;
                         }
+                        
+                        // Preserve the cost in the saved record for historical accuracy
+                        return { ...eq, cost: dailyRate };
                     });
                 }
 
                 // Overhead Cost
-                const overheads = await OverheadItem.find().lean();
                 const devcoOverhead = Number(overheads.find((c: any) => c.overhead?.trim().toLowerCase() === 'devco overhead')?.dailyRate) || 0;
                 const riskFactor = Number(overheads.find((c: any) => c.overhead?.trim().toLowerCase() === 'risk factor')?.dailyRate) || 0;
                 
