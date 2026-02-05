@@ -135,6 +135,15 @@ const getWeekNumber = (d: Date) => {
     return weekNo;
 };
 
+// Get the ISO week year (the year the ISO week belongs to)
+// This handles year boundaries correctly: 12/29/2025 is week 1 of 2026, so returns 2026
+const getISOWeekYear = (d: Date) => {
+    const utcDate = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    // Set to nearest Thursday (ISO weeks belong to the year containing the Thursday)
+    utcDate.setUTCDate(utcDate.getUTCDate() + 4 - (utcDate.getUTCDay() || 7));
+    return utcDate.getUTCFullYear();
+};
+
 const getWeekRangeString = (dateObj: Date) => {
     // Use UTC components to ensure consistent week range calculation across timezones
     const dayOfWeek = dateObj.getUTCDay();
@@ -638,75 +647,12 @@ function TimeCardContent() {
             }
         });
 
-        // Second pass: Recalculate employee totals for the current week from allRecords
-        // This ensures the sidebar totals match the frontend calculation (calculateTimesheetData)
-        // which includes proper rounding and drive time formulas
-        if (allRecords.length > 0) {
-            // Group allRecords by employee
-            const employeeHoursFromRecords: Record<string, { total: number, byDate: Record<string, number> }> = {};
-            
-            allRecords.forEach(record => {
-                const empKey = record.employee;
-                if (!empKey) return;
-                
-                // Get date in YYYY-MM-DD format from clockIn
-                let dateKey = '';
-                if (record.clockIn) {
-                    const normalized = robustNormalizeISO(record.clockIn);
-                    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                    if (match) {
-                        dateKey = `${match[1]}-${match[2]}-${match[3]}`;
-                    }
-                }
-                
-                const hours = record.hoursVal || 0;
-                
-                if (!employeeHoursFromRecords[empKey]) {
-                    employeeHoursFromRecords[empKey] = { total: 0, byDate: {} };
-                }
-                employeeHoursFromRecords[empKey].total += hours;
-                
-                if (dateKey) {
-                    if (!employeeHoursFromRecords[empKey].byDate[dateKey]) {
-                        employeeHoursFromRecords[empKey].byDate[dateKey] = 0;
-                    }
-                    employeeHoursFromRecords[empKey].byDate[dateKey] += hours;
-                }
-            });
-
-            // Find the current week in the tree and update employee hours
-            const selectedYear = weekRange.start.getUTCFullYear();
-            const selectedWeek = getWeekNumber(weekRange.start);
-            const selectedWeekKey = `${selectedYear}-${selectedWeek}`;
-            
-            if (root.years[selectedYear]?.weeks[selectedWeekKey]) {
-                const weekNode = root.years[selectedYear].weeks[selectedWeekKey];
-                let recalculatedWeekTotal = 0;
-                
-                // Update each employee's hours from the frontend calculation
-                Object.keys(weekNode.employees).forEach(empKey => {
-                    const empData = employeeHoursFromRecords[empKey];
-                    if (empData) {
-                        weekNode.employees[empKey].totalHours = empData.total;
-                        recalculatedWeekTotal += empData.total;
-                        
-                        // Also update date-level totals
-                        Object.keys(weekNode.employees[empKey].dates).forEach(dateNodeKey => {
-                            const dateStrRaw = dateNodeKey.replace(`${empKey}-`, '');
-                            if (empData.byDate[dateStrRaw] !== undefined) {
-                                weekNode.employees[empKey].dates[dateNodeKey].totalHours = empData.byDate[dateStrRaw];
-                            }
-                        });
-                    }
-                });
-                
-                // Update week total
-                weekNode.totalHours = recalculatedWeekTotal;
-            }
-        }
+        // Note: We no longer recalculate employee totals from frontend records
+        // The backend aggregation (groupingStats) is the source of truth for sidebar totals
+        // This prevents values from changing when clicking different weeks
 
         return root;
-    }, [groupingStats, employeesMap, allRecords, weekRange]);
+    }, [groupingStats, employeesMap]);
 
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {
@@ -1682,8 +1628,12 @@ function TimeCardContent() {
                                                                                     <div className="pl-6 mt-1 space-y-0.5 border-l border-slate-100 ml-2">
                                                                                         {Object.values(emp.dates).sort((a: any, b: any) => {
                                                                                             // Sort dates descending (newest first)
-                                                                                            const dateA = new Date(a.label.split('/').reverse().join('-'));
-                                                                                            const dateB = new Date(b.label.split('/').reverse().join('-'));
+                                                                                            // Label format is MM/DD/YYYY
+                                                                                            const partsA = a.label.split('/');
+                                                                                            const partsB = b.label.split('/');
+                                                                                            // Convert to YYYY-MM-DD for proper comparison
+                                                                                            const dateA = new Date(`${partsA[2]}-${partsA[0]}-${partsA[1]}`);
+                                                                                            const dateB = new Date(`${partsB[2]}-${partsB[0]}-${partsB[1]}`);
                                                                                             return dateB.getTime() - dateA.getTime();
                                                                                         }).map((dateNode: any) => {
                                                                                             const isDateSelected = selectedNode.value === dateNode.id;

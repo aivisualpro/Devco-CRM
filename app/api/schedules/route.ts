@@ -346,43 +346,69 @@ export async function POST(request: NextRequest) {
                 const { timesheets } = payload || {};
                 if (!Array.isArray(timesheets)) return NextResponse.json({ success: false, error: 'Invalid timesheets array' });
 
-                const ops = timesheets.map((ts: any) => {
+                // Group timesheets by scheduleId for efficient processing
+                const bySchedule: Record<string, any[]> = {};
+                
+                timesheets.forEach((ts: any) => {
                     const schedId = ts.scheduleId || ts.schedule_id;
-                    if (!schedId) return null;
+                    if (!schedId) return;
                     
                     const normalizedSchedId = String(schedId).trim();
 
                     // Ensure _id exists for the timesheet subdocument
                     if (!ts._id) {
                         if (ts.recordId) ts._id = ts.recordId;
-                        else ts._id = new mongoose.Types.ObjectId().toString(); // Generate if missing
+                        else ts._id = new mongoose.Types.ObjectId().toString();
                     }
                     
-                    return {
+                    if (!bySchedule[normalizedSchedId]) bySchedule[normalizedSchedId] = [];
+                    bySchedule[normalizedSchedId].push(ts);
+                });
+
+                if (Object.keys(bySchedule).length === 0) {
+                    return NextResponse.json({ success: false, error: 'No valid timesheets to import (missing scheduleId)' });
+                }
+
+                // Two-pass approach to prevent duplicates:
+                // 1. First, remove any existing timesheets with matching _ids
+                // 2. Then push the new/updated timesheets
+                const pullOps: any[] = [];
+                const pushOps: any[] = [];
+
+                for (const [schedId, tsList] of Object.entries(bySchedule)) {
+                    const tsIds = tsList.map(ts => ts._id).filter(Boolean);
+                    
+                    if (tsIds.length > 0) {
+                        // Pull existing timesheets with these _ids
+                        pullOps.push({
+                            updateOne: {
+                                filter: { _id: schedId },
+                                update: {
+                                    $pull: { timesheet: { _id: { $in: tsIds } } }
+                                }
+                            }
+                        });
+                    }
+                    
+                    // Push all timesheets for this schedule
+                    pushOps.push({
                         updateOne: {
-                            filter: { _id: normalizedSchedId },
+                            filter: { _id: schedId },
                             update: {
-                                $push: { timesheet: ts }
+                                $push: { timesheet: { $each: tsList } }
                             }
                         }
-                    };
-                }).filter(Boolean);
-
-                if (ops.length === 0) return NextResponse.json({ success: false, error: 'No valid timesheets to import (missing scheduleId)' });
-
-                // Debug: Check first ID
-                try {
-                     const testId = ops[0]!.updateOne.filter._id;
-                     const example = await Schedule.findById(testId).select('_id').lean();
-                     console.log(`[Import Debug] Testing First ID: "${testId}". Found: ${!!example}`);
-                     if (!example) {
-                         const random = await Schedule.findOne().select('_id').lean();
-                         console.log(`[Import Debug] Sample Existing ID from DB: "${random?._id}"`);
-                     }
-                } catch (e) { console.error("Debug check failed", e); }
+                    });
+                }
 
                 try {
-                    const result = await Schedule.bulkWrite(ops as any);
+                    // First remove existing duplicates
+                    if (pullOps.length > 0) {
+                        await Schedule.bulkWrite(pullOps);
+                    }
+                    
+                    // Then push all the imported timesheets
+                    const result = await Schedule.bulkWrite(pushOps);
                     
                     // Sync imported timesheets to AppSheet
                     await updateAppSheetTimesheet(timesheets, "Add");
@@ -391,7 +417,8 @@ export async function POST(request: NextRequest) {
                         success: true, 
                         result,
                         matched: result.matchedCount, 
-                        modified: result.modifiedCount 
+                        modified: result.modifiedCount,
+                        message: `Imported ${timesheets.length} timesheets (duplicates replaced)`
                     });
                 } catch (e: any) {
                     console.error("Timesheet Import Error:", e);
@@ -1336,8 +1363,10 @@ export async function POST(request: NextRequest) {
                         rawDateStr: { $toString: { $ifNull: ["$timesheet.clockIn", "$fromDate"] } }
                     }},
                     { $addFields: {
-                        // Extract year and isoWeek from the clockIn date
-                        year: { $year: "$dateForGrouping" },
+                        // Extract ISO week year and isoWeek from the clockIn date
+                        // Use $isoWeekYear instead of $year to properly handle year boundaries
+                        // (e.g., 12/29/2025 is week 1 of 2026, so isoWeekYear should be 2026)
+                        year: { $isoWeekYear: "$dateForGrouping" },
                         week: { $isoWeek: "$dateForGrouping" },
                         // Extract just the date portion (YYYY-MM-DD) - takes first 10 chars
                         dateStr: { $substrCP: ["$rawDateStr", 0, 10] }
