@@ -427,10 +427,11 @@ export default function WorkersCompPage() {
                 
                 let rate: number;
                 if (isDriveTime) {
-                    // Use entry drive rate > entry site rate > profile drive rate
-                    rate = entryDriveRate ?? entrySiteRate ?? profileDriveRate;
+                    // Drive time ONLY uses drive rates - never site rates
+                    // Use entry drive rate > profile drive rate (which is 75% of site rate)
+                    rate = entryDriveRate ?? profileDriveRate;
                 } else {
-                    // Use entry site rate > profile site rate
+                    // Site time: Use entry site rate > profile site rate
                     rate = entrySiteRate ?? profileSiteRate;
                 }
 
