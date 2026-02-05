@@ -312,9 +312,9 @@ function SchedulePageContent() {
                     limit: 20,
                     search,
                     filters,
+                    // When selectedDates is empty (cleared), don't filter by date - show ALL with pagination
                     selectedDates: selectedDates.length > 0 ? selectedDates : undefined,
-                    skipInitialData: pageNum > 1,
-                    userEmail: currentUser?.email
+                    skipInitialData: pageNum > 1
                 }
             };
 
@@ -357,11 +357,13 @@ function SchedulePageContent() {
         }
     };
 
-    // Trigger fetch when filters change
+    // Trigger fetch when filters change - include currentUser to re-fetch with proper permissions
     useEffect(() => {
+        // Only fetch if we have a currentUser (to avoid duplicate fetch on mount before user loads)
+        if (!currentUser) return;
         setPage(1);
         fetchPageData(1, true);
-    }, [search, selectedDates, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterCertifiedPayroll]);
+    }, [search, selectedDates, filterEstimate, filterClient, filterEmployee, filterService, filterTag, filterCertifiedPayroll, currentUser]);
 
     // Cleanup Effect (Optional)
     // useEffect(() => {
