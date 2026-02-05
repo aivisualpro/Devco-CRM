@@ -1538,7 +1538,13 @@ function DashboardContent() {
             const data = await res.json();
             if (data.success) {
                 success('Signature Saved');
-                setSelectedDJT((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), data.result] }));
+                const updatedDJT = data.result;
+                // Merge with existing state to preserve scheduleRef and other properties
+                setSelectedDJT((prev: any) => ({
+                    ...prev,
+                    ...updatedDJT,
+                    signatures: updatedDJT.signatures || []
+                }));
                 setActiveSignatureEmployee(null);
                 fetchDashboardData();
             } else {

@@ -1574,12 +1574,17 @@ function SchedulePageContent() {
                 const updatedDJT = data.result;
                 
                 // Update selectedDJT immediately to show "Signed" status
-                setSelectedDJT(updatedDJT);
+                // Merge with existing state to preserve scheduleRef and other properties
+                setSelectedDJT((prev: any) => ({
+                    ...prev,
+                    ...updatedDJT,
+                    signatures: updatedDJT.signatures || []
+                }));
                 
                 // Update Schedules List
                 setSchedules((prev: any[]) => prev.map((s: any) => 
-                    String(s._id) === String(updatedDJT.schedule_id || updatedDJT._id) 
-                    ? { ...s, djt: updatedDJT, DJTSignatures: updatedDJT.signatures } 
+                    String(s._id) === String(updatedDJT.schedule_id || selectedDJT._id) 
+                    ? { ...s, djt: { ...s.djt, ...updatedDJT, signatures: updatedDJT.signatures }, DJTSignatures: updatedDJT.signatures } 
                     : s
                 ));
 

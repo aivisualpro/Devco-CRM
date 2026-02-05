@@ -313,7 +313,11 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                return NextResponse.json({ success: true, result: djt });
+                // Return the updated DJT with signatures
+                const resultDJT = djt.toObject ? djt.toObject() : djt;
+                resultDJT.signatures = updatedSignatures;
+                
+                return NextResponse.json({ success: true, result: resultDJT });
             }
 
             default:
