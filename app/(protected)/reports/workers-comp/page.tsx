@@ -57,9 +57,12 @@ interface TimesheetRecord {
     regHrs: number;
     otHrs: number;
     dtHrs: number;
+    isSiteTime?: boolean;
+    isDriveTime?: boolean;
     regPay: number;
     otPay: number;
     dtPay: number;
+    travelPay: number;
     grossPay: number;
     subjectWages: number;
     compCost: number;
@@ -494,7 +497,7 @@ export default function WorkersCompPage() {
             let siteTally = 0;
             day.entries.forEach((entry: any) => {
                 let regHrs = 0, otHrs = 0, dtHrs = 0;
-                let regPay = 0, otPay = 0, dtPay = 0;
+                let regPay = 0, otPay = 0, dtPay = 0, travelPay = 0;
 
                 if (entry.isSiteTime) {
                     const startTally = siteTally;
@@ -510,12 +513,12 @@ export default function WorkersCompPage() {
                     otPay = otHrs * dayRateSite * 1.5;
                     dtPay = dtHrs * dayRateSite * 2.0;
                 } else if (entry.isDriveTime) {
-                    // Travel time - no OT/DT, straight travel rate
-                    regHrs = Number(entry.hoursVal.toFixed(2));
-                    regPay = regHrs * dayRateTravel;
+                    // Travel time - separate from Regular Pay
+                    const travelHrs = Number(entry.hoursVal.toFixed(2));
+                    travelPay = travelHrs * dayRateTravel;
                 }
 
-                const grossPay = regPay + otPay + dtPay;
+                const grossPay = regPay + otPay + dtPay + travelPay;
                 const rate = entry.isSiteTime ? dayRateSite : dayRateTravel;
                 const subjectWages = entry.hoursVal * rate;
                 const estimatedCompCost = (subjectWages * entry.wcRatePer100) / 100;
@@ -533,6 +536,7 @@ export default function WorkersCompPage() {
                     regPay,
                     otPay,
                     dtPay,
+                    travelPay,
                     grossPay,
                     subjectWages,
                     compCost: estimatedCompCost,
@@ -540,25 +544,32 @@ export default function WorkersCompPage() {
                     item: entry.item,
                     dateLabel: entry.dateLabel,
                     title: entry.title,
-                    estimateRef: entry.estimateRef
+                    estimateRef: entry.estimateRef,
+                    isSiteTime: entry.isSiteTime,
+                    isDriveTime: entry.isDriveTime
                 });
             });
         });
 
         // Debug: show total and per-employee breakdown
         const total = flat.reduce((s, r) => s + r.grossPay, 0);
+        const totalSite = flat.reduce((s, r) => s + r.regPay + r.otPay + r.dtPay, 0);
+        const totalTravel = flat.reduce((s, r) => s + r.travelPay, 0);
         
         // Group totals by employee for easy comparison
-        const empTotals: Record<string, number> = {};
+        const empTotals: Record<string, any> = {};
         flat.forEach(r => {
             const name = r.employee || 'Unknown';
-            empTotals[name] = (empTotals[name] || 0) + r.grossPay;
+            if (!empTotals[name]) empTotals[name] = { total: 0, site: 0, travel: 0 };
+            empTotals[name].total += r.grossPay;
+            empTotals[name].site += (r.regPay + r.otPay + r.dtPay);
+            empTotals[name].travel += r.travelPay;
         });
         
-        console.log('[WC] Total:', total.toFixed(2), 'Records:', flat.length);
+        console.log('[WC] Total:', total.toFixed(2), '(Site:', totalSite.toFixed(2), 'Travel:', totalTravel.toFixed(2), ')', 'Records:', flat.length);
         console.log('[WC] Employee Breakdown:', Object.entries(empTotals)
-            .sort(([,a], [,b]) => b - a)
-            .map(([name, amt]) => `${name}: $${amt.toFixed(2)}`)
+            .sort(([,a], [,b]) => b.total - a.total)
+            .map(([name, d]) => `${name}: $${d.total.toFixed(2)} (S: $${d.site.toFixed(2)}, T: $${d.travel.toFixed(2)})`)
         );
 
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
@@ -592,10 +603,12 @@ export default function WorkersCompPage() {
             ot: acc.ot + r.otHrs,
             regPay: acc.regPay + r.regPay,
             otPay: acc.otPay + r.otPay,
+            dtPay: acc.dtPay + r.dtPay,
+            travelPay: (acc.travelPay || 0) + r.travelPay,
             gross: acc.gross + r.grossPay,
             comp: acc.comp + r.compCost,
             personnel: acc.personnel.add(r.employee)
-        }), { hours: 0, ot: 0, regPay: 0, otPay: 0, gross: 0, comp: 0, personnel: new Set<string>() });
+        }), { hours: 0, ot: 0, regPay: 0, otPay: 0, dtPay: 0, travelPay: 0, gross: 0, comp: 0, personnel: new Set<string>() });
     }, [allRecords]);
 
     // Table Data
