@@ -586,10 +586,10 @@ function TimeCardContent() {
                 }
 
                 const dateKey = `${empKey}-${dateStrRaw}`;
-                if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
-                    root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
-                        id: `D-${weekKey}-${dateKey}`, label: dateLabel, totalHours: 0, 
-                        records: [] // No records here, just aggregate stats
+                    if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
+                        root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
+                            id: `DATE|${year}|${week}|${empKey}|${dateStrRaw}`, label: dateLabel, totalHours: 0, 
+                            records: [] // No records here, just aggregate stats
                     };
                 }
                 root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours += hours;
@@ -617,14 +617,22 @@ function TimeCardContent() {
             if (selectedNode.type === 'EMPLOYEE') return selectedEmployeeEmail ? r.employee === selectedEmployeeEmail : true;
             
             if (selectedNode.type === 'DATE') {
-                // Robust filtering: Match Date and Employee
-                // Selected value is fixed format: D-YYYY-WEEK-EMAIL-YYYY-MM-DD
-                const parts = selectedNode.value.split('-');
-                if (parts.length >= 4) {
-                    const targetDate = parts.slice(-3).join('-'); // Get YYYY-MM-DD from the end
+                const parts = selectedNode.value.split('|');
+                if (parts.length >= 5) {
+                    // Extract date from the END
+                    const rawTargetDate = parts[parts.length - 1].trim(); 
+                    
+                    // Normalize Target Date to YYYY-MM-DD to match rDate
+                    // robustNormalizeISO handles M/D/YYYY, YYYY-MM-DD, etc.
+                    const targetISO = robustNormalizeISO(rawTargetDate);
+                    const targetDate = targetISO.split('T')[0];
+                    
+                    // Standardize record date
                     const rDate = dStr.split('T')[0];
                     
-                    if (selectedEmployeeEmail && r.employee !== selectedEmployeeEmail) return false;
+                    // Strict Email Match (Case Insensitive)
+                    if (selectedEmployeeEmail && r.employee?.toLowerCase().trim() !== selectedEmployeeEmail.toLowerCase().trim()) return false;
+                    
                     return rDate === targetDate;
                 }
             }
@@ -1176,10 +1184,12 @@ function TimeCardContent() {
             year = parseInt(parts[1]);
             week = parseInt(parts[2]);
         } else if (type === 'DATE') {
-            // value: D-2024-5-email-date
-            const parts = value.split('-');
-            year = parseInt(parts[1]);
-            week = parseInt(parts[2]);
+            // value: DATE|YEAR|WEEK|EMAIL|YYYY-MM-DD
+            const parts = value.split('|');
+            if (parts.length >= 3) {
+                year = parseInt(parts[1]);
+                week = parseInt(parts[2]);
+            }
         }
 
         if (year && week) {
