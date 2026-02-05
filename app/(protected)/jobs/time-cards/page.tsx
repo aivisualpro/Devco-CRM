@@ -445,7 +445,10 @@ function TimeCardContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
-                    payload: { limit: 10000 } // Fetch all schedules (no pagination for time-cards)
+                    payload: { 
+                        limit: 10000, // Fetch all schedules (no pagination for time-cards)
+                        includeTimesheets: true // CRITICAL: Tell backend to include timesheet data
+                    } 
                 }) 
             });
             const data = await res.json();

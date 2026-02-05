@@ -642,7 +642,8 @@ export async function POST(request: NextRequest) {
                     userEmail, 
                     skipInitialData,
                     startDate,
-                    endDate
+                    endDate,
+                    includeTimesheets = false // NEW: Only include timesheets when explicitly requested
                 } = payload || {};
 
                 const matchStage: any = {};
@@ -760,15 +761,28 @@ export async function POST(request: NextRequest) {
                                 { $skip: skip },
                                 { $limit: limit },
                                 // Project fields needed for UI to reduce payload
-                                { $project: {
+                                // CRITICAL: Conditionally include timesheet array based on includeTimesheets parameter
+                                // For schedule list view: exclude massive timesheet arrays
+                                // For time-cards view: include ONLY timesheets, exclude other heavy data
+                                { $project: includeTimesheets ? {
+                                    // TIME-CARDS MODE: Only include minimal fields + timesheet
+                                    estimate: 1, fromDate: 1, toDate: 1,  
+                                    timesheet: 1,
+                                    createdAt: 1, updatedAt: 1
+                                } : {
+                                    // SCHEDULE LIST MODE: Exclude timesheet array
                                     title: 1, estimate: 1, customerId: 1, customerName: 1, 
                                     fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1, 
                                     assignees: 1, service: 1, item: 1, perDiem: 1, fringe: 1, 
                                     certifiedPayroll: 1, notifyAssignees: 1, description: 1, 
                                     jobLocation: 1, aerialImage: 1, siteLayout: 1, 
-                                    jha: 1, djt: 1, timesheet: 1, JHASignatures: 1, DJTSignatures: 1,
+                                    jha: 1, djt: 1, 
+                                    // EXCLUDED: timesheet - this array can be HUGE
+                                    JHASignatures: 1, DJTSignatures: 1,
                                     todayObjectives: 1, syncedToAppSheet: 1, isDayOffApproved: 1,
-                                    createdAt: 1, updatedAt: 1
+                                    createdAt: 1, updatedAt: 1,
+                                    // Add a field indicating if timesheet exists without loading it
+                                    hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] }
                                 }}
                             ],
                             counts: [
