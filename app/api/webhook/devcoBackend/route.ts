@@ -461,12 +461,18 @@ export async function POST(request: NextRequest) {
                 const { customerId } = payload || {};
                 if (!customerId) return NextResponse.json({ success: false, error: 'Missing customerId' }, { status: 400 });
 
-                const estimates = await Estimate.find({ customerId }).sort({ createdAt: -1 }).lean();
+                const estimates = await Estimate.find({ customerId })
+                    .select('-aerialImage -siteLayout -scopeOfWork -htmlContent')
+                    .sort({ createdAt: -1 })
+                    .lean();
                 return NextResponse.json({ success: true, result: estimates });
             }
 
             case 'getEstimates': {
-                const estimates = await Estimate.find().sort({ createdAt: -1 }).lean();
+                const estimates = await Estimate.find()
+                    .select('-aerialImage -siteLayout -scopeOfWork -htmlContent')
+                    .sort({ createdAt: -1 })
+                    .lean();
                 return NextResponse.json({ success: true, result: estimates });
             }
 
