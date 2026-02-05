@@ -554,6 +554,21 @@ export default function WorkersCompPage() {
             });
         });
 
+        // DEBUG: Log total to compare with Payroll
+        const debugTotal = flat.reduce((sum, r) => sum + r.grossPay, 0);
+        const debugRegTotal = flat.reduce((sum, r) => sum + r.regPay, 0);
+        const debugOtTotal = flat.reduce((sum, r) => sum + r.otPay, 0);
+        const debugDtTotal = flat.reduce((sum, r) => sum + r.dtPay, 0);
+        console.log('[Workers Comp Debug]', {
+            totalRecords: flat.length,
+            totalGross: debugTotal.toFixed(2),
+            regTotal: debugRegTotal.toFixed(2),
+            otTotal: debugOtTotal.toFixed(2),
+            dtTotal: debugDtTotal.toFixed(2),
+            dateRange: { start: startDate, end: endDate },
+            includeDriveTime
+        });
+
         return flat.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
     }, [rawSchedules, startDate, endDate, employeesMap, workersCompRates, includeDriveTime]);
 
