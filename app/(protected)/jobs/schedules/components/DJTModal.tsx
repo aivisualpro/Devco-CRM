@@ -338,7 +338,6 @@ export const DJTModal = ({
                                                     <UploadButton 
                                                         multiple={true}
                                                         accept="image/*"
-                                                        capture="environment"
                                                         onUpload={(url) => {
                                                             setSelectedDJT((prev: any) => ({
                                                                 ...prev,

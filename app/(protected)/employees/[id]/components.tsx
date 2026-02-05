@@ -96,7 +96,6 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                                 ref={fileInputRef}
                                 className="hidden"
                                 accept="image/*"
-                                capture="environment"
                                 onChange={handleImageUpload}
                             />
                             {employee.profilePicture ? (

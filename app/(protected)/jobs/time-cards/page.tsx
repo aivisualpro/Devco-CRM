@@ -564,18 +564,17 @@ function TimeCardContent() {
     }, [filteredRecords]);
 
     // 2. Build Tree Structure from Grouping Stats
+    // Then override employee totals for the selected week with frontend-calculated hours from allRecords
     const treeData = useMemo(() => {
         const root: any = { years: {} };
         
+        // First, build the tree structure from groupingStats (backend aggregation)
         groupingStats.forEach(stat => {
             const { year, week, employee } = stat._id;
             const hours = stat.totalHours || 0;
             
-            // Calculate week range string safely
-            // We use the same week logic as before using the refDate or Year/Week
-            // Simple approach: Use refDate returned from backend if efficient
             const refDate = new Date(stat.refDate);
-            const weekRange = getWeekRangeString(refDate);
+            const weekRangeStr = getWeekRangeString(refDate);
 
             // Year Node
             if (!root.years[year]) root.years[year] = { 
@@ -586,7 +585,7 @@ function TimeCardContent() {
             // Week Node
             const weekKey = `${year}-${week}`;
             if (!root.years[year].weeks[weekKey]) root.years[year].weeks[weekKey] = {
-                id: `W-${weekKey}`, label: `(${week}) ${weekRange}`, totalHours: 0, employees: {}, weekNo: week 
+                id: `W-${weekKey}`, label: `(${week}) ${weekRangeStr}`, totalHours: 0, employees: {}, weekNo: week 
             };
             root.years[year].weeks[weekKey].totalHours += hours;
 
@@ -602,29 +601,94 @@ function TimeCardContent() {
             root.years[year].weeks[weekKey].employees[empKey].totalHours += hours;
 
             // Date Node under Employee
-            // _id.date is "YYYY-MM-DD" (from backend string extraction)
             const dateStrRaw = stat._id.date || '';
             if (dateStrRaw) {
-                // Format directly from string to avoid timezone shifts: MM/DD
                 const parts = dateStrRaw.split('-');
                 let dateLabel = dateStrRaw;
                 if (parts.length === 3) {
-                    dateLabel = `${parts[1]}/${parts[2]}/${parts[0]}`; // MM/DD/YYYY to match user preference/screenshot
+                    dateLabel = `${parts[1]}/${parts[2]}/${parts[0]}`;
                 }
 
                 const dateKey = `${empKey}-${dateStrRaw}`;
                     if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
                         root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
                             id: `DATE|${year}|${week}|${empKey}|${dateStrRaw}`, label: dateLabel, totalHours: 0, 
-                            records: [] // No records here, just aggregate stats
+                            records: []
                     };
                 }
                 root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours += hours;
             }
         });
 
+        // Second pass: Recalculate employee totals for the current week from allRecords
+        // This ensures the sidebar totals match the frontend calculation (calculateTimesheetData)
+        // which includes proper rounding and drive time formulas
+        if (allRecords.length > 0) {
+            // Group allRecords by employee
+            const employeeHoursFromRecords: Record<string, { total: number, byDate: Record<string, number> }> = {};
+            
+            allRecords.forEach(record => {
+                const empKey = record.employee;
+                if (!empKey) return;
+                
+                // Get date in YYYY-MM-DD format from clockIn
+                let dateKey = '';
+                if (record.clockIn) {
+                    const normalized = robustNormalizeISO(record.clockIn);
+                    const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                    if (match) {
+                        dateKey = `${match[1]}-${match[2]}-${match[3]}`;
+                    }
+                }
+                
+                const hours = record.hoursVal || 0;
+                
+                if (!employeeHoursFromRecords[empKey]) {
+                    employeeHoursFromRecords[empKey] = { total: 0, byDate: {} };
+                }
+                employeeHoursFromRecords[empKey].total += hours;
+                
+                if (dateKey) {
+                    if (!employeeHoursFromRecords[empKey].byDate[dateKey]) {
+                        employeeHoursFromRecords[empKey].byDate[dateKey] = 0;
+                    }
+                    employeeHoursFromRecords[empKey].byDate[dateKey] += hours;
+                }
+            });
+
+            // Find the current week in the tree and update employee hours
+            const selectedYear = weekRange.start.getUTCFullYear();
+            const selectedWeek = getWeekNumber(weekRange.start);
+            const selectedWeekKey = `${selectedYear}-${selectedWeek}`;
+            
+            if (root.years[selectedYear]?.weeks[selectedWeekKey]) {
+                const weekNode = root.years[selectedYear].weeks[selectedWeekKey];
+                let recalculatedWeekTotal = 0;
+                
+                // Update each employee's hours from the frontend calculation
+                Object.keys(weekNode.employees).forEach(empKey => {
+                    const empData = employeeHoursFromRecords[empKey];
+                    if (empData) {
+                        weekNode.employees[empKey].totalHours = empData.total;
+                        recalculatedWeekTotal += empData.total;
+                        
+                        // Also update date-level totals
+                        Object.keys(weekNode.employees[empKey].dates).forEach(dateNodeKey => {
+                            const dateStrRaw = dateNodeKey.replace(`${empKey}-`, '');
+                            if (empData.byDate[dateStrRaw] !== undefined) {
+                                weekNode.employees[empKey].dates[dateNodeKey].totalHours = empData.byDate[dateStrRaw];
+                            }
+                        });
+                    }
+                });
+                
+                // Update week total
+                weekNode.totalHours = recalculatedWeekTotal;
+            }
+        }
+
         return root;
-    }, [groupingStats, employeesMap]);
+    }, [groupingStats, employeesMap, allRecords, weekRange]);
 
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {

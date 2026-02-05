@@ -268,14 +268,22 @@ export default function FringeBenefitsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
+            // Extend date range slightly to capture timesheets on boundary dates
+            const extendedStart = new Date(startDate);
+            extendedStart.setDate(extendedStart.getDate() - 7);
+            const extendedEnd = new Date(endDate);
+            extendedEnd.setDate(extendedEnd.getDate() + 7);
+
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: { 
-                        limit: 10000,
-                        includeTimesheets: true // Required for fringe benefit calculations
+                        limit: 5000,
+                        includeTimesheets: true,
+                        startDate: extendedStart.toISOString(),
+                        endDate: extendedEnd.toISOString()
                     } 
                 }) 
             });
@@ -311,8 +319,10 @@ export default function FringeBenefitsPage() {
     };
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        if (prefsLoaded) {
+            fetchData();
+        }
+    }, [prefsLoaded, startDate, endDate]);
 
     // Flatten and Filter Records
     const allRecords = useMemo(() => {
