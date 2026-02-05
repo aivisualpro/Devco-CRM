@@ -378,10 +378,8 @@ export default function WorkersCompPage() {
         }
     }, [startDate, endDate, includeDriveTime, router, pathname, params]);
 
-    // Flatten and Filter Records
+    // Flatten and Filter Records - Match Payroll OT/DT calculation logic
     const allRecords = useMemo(() => {
-        const flat: TimesheetRecord[] = [];
-        
         // Ensure end date includes the full day
         const filterStart = new Date(startDate);
         filterStart.setHours(0, 0, 0, 0);
@@ -389,11 +387,13 @@ export default function WorkersCompPage() {
         const filterEnd = new Date(endDate);
         filterEnd.setHours(23, 59, 59, 999);
 
+        // Step 1: Collect all valid entries with raw hours
+        const rawEntries: any[] = [];
+        
         rawSchedules.forEach(sched => {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
             
             sched.timesheet.forEach((ts: any) => {
-                // Filter Logic
                 const typeLower = ts.type?.trim().toLowerCase() || '';
                 const isSiteTime = typeLower === 'site time';
                 const isDriveTime = typeLower.includes('drive');
@@ -403,19 +403,13 @@ export default function WorkersCompPage() {
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
                 
-                // Date Filter
                 if (clockInDate < filterStart || clockInDate > filterEnd) return;
 
                 const { hours } = calculateTimesheetData(ts, sched.fromDate);
-                
-                // Break down hours into Reg, OT, DT (Daily 8/12 Rule as per Payroll)
-                const reg = Math.min(8, hours);
-                const ot = Math.min(4, Math.max(0, hours - 8));
-                const dt = Math.max(0, hours - 12);
+                const empKey = (ts.employee || '').toLowerCase();
+                const dateKey = clockInDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
-                const empInfo = employeesMap[ts.employee.toLowerCase()] || {};
-                
-                // Determin Rate based on type
+                const empInfo = employeesMap[empKey] || {};
                 let rate = 45;
                 if (isDriveTime) {
                     rate = parseFloat(empInfo.hourlyRateDrive || empInfo.hourlyRateSITE || '45');
@@ -423,38 +417,93 @@ export default function WorkersCompPage() {
                     rate = parseFloat(empInfo.hourlyRateSITE || '45');
                 }
 
-                const rRegPay = reg * rate;
-                const rOtPay = ot * rate * 1.5;
-                const rDtPay = dt * rate * 2.0;
-                const grossPay = rRegPay + rOtPay + rDtPay;
-                
-                // Comp Amount = Wage base subject to WC (usually Total Hours * Straight Rate)
-                const subjectWages = hours * rate;
-                const wcRatePer100 = workersCompRates[String(sched.item || '').toLowerCase()] || 0;
-                const estimatedCompCost = (subjectWages * wcRatePer100) / 100;
-
-                flat.push({
+                rawEntries.push({
                     _id: ts._id || ts.recordId,
                     employee: ts.employee,
+                    empKey,
+                    dateKey,
                     type: ts.type,
                     clockIn: ts.clockIn,
                     clockOut: ts.clockOut,
                     hoursVal: hours,
-                    regHrs: reg,
-                    otHrs: ot,
-                    dtHrs: dt,
-                    regPay: rRegPay,
-                    otPay: rOtPay,
-                    dtPay: rDtPay,
-                    grossPay: grossPay,
-                    subjectWages: subjectWages,
-                    compCost: estimatedCompCost,
+                    rate,
+                    isSiteTime,
+                    isDriveTime,
                     scheduleId: sched._id,
                     item: sched.item || 'Uncategorized',
                     dateLabel: formatDateOnly(ts.clockIn),
                     title: sched.projectTitle || sched.title || sched.jobTitle || 'Unknown Project',
-                    estimateRef: sched.estimate || sched.quoteNumber || sched.quote_number || sched.quoteRef || sched.estimateNo || sched.estimateRef || sched.quote_ref || sched.projectQuoteRef || '--'
+                    estimateRef: sched.estimate || sched.quoteNumber || sched.quote_number || sched.quoteRef || sched.estimateNo || sched.estimateRef || sched.quote_ref || sched.projectQuoteRef || '--',
+                    wcRatePer100: workersCompRates[String(sched.item || '').toLowerCase()] || 0
                 });
+            });
+        });
+
+        // Step 2: Aggregate site hours per employee per day (for OT/DT calculation)
+        const dailySiteHours: Record<string, number> = {}; // key = "empKey|dateKey"
+        rawEntries.forEach(e => {
+            if (e.isSiteTime) {
+                const key = `${e.empKey}|${e.dateKey}`;
+                dailySiteHours[key] = (dailySiteHours[key] || 0) + e.hoursVal;
+            }
+        });
+
+        // Step 3: Calculate OT/DT attribution for each entry
+        // Track running tally per employee per day to attribute OT/DT progressively
+        const dailyTally: Record<string, number> = {}; // key = "empKey|dateKey"
+        
+        // Sort by clockIn to process entries in chronological order for proper OT attribution
+        rawEntries.sort((a, b) => new Date(a.clockIn).getTime() - new Date(b.clockIn).getTime());
+
+        const flat: TimesheetRecord[] = [];
+        
+        rawEntries.forEach(e => {
+            let regHrs = 0, otHrs = 0, dtHrs = 0;
+            
+            if (e.isSiteTime) {
+                const key = `${e.empKey}|${e.dateKey}`;
+                const startTally = dailyTally[key] || 0;
+                const endTally = startTally + e.hoursVal;
+                dailyTally[key] = endTally;
+                
+                // Progressive OT/DT attribution (like payroll)
+                regHrs = Math.max(0, Math.min(8, endTally) - Math.min(8, startTally));
+                otHrs = Math.max(0, Math.min(12, endTally) - Math.min(12, Math.max(8, startTally)));
+                dtHrs = Math.max(0, endTally - Math.max(12, startTally));
+            } else if (e.isDriveTime) {
+                // Drive time is all regular (travel time)
+                regHrs = e.hoursVal;
+            }
+            
+            const regPay = regHrs * e.rate;
+            const otPay = otHrs * e.rate * 1.5;
+            const dtPay = dtHrs * e.rate * 2.0;
+            const grossPay = regPay + otPay + dtPay;
+            
+            const subjectWages = e.hoursVal * e.rate;
+            const estimatedCompCost = (subjectWages * e.wcRatePer100) / 100;
+
+            flat.push({
+                _id: e._id,
+                employee: e.employee,
+                type: e.type,
+                clockIn: e.clockIn,
+                clockOut: e.clockOut,
+                hoursVal: e.hoursVal,
+                regHrs,
+                otHrs,
+                dtHrs,
+                regPay,
+                otPay,
+                dtPay,
+                grossPay,
+                subjectWages,
+                compCost: estimatedCompCost,
+                scheduleId: e.scheduleId,
+                item: e.item,
+                dateLabel: e.dateLabel,
+                title: e.title,
+                estimateRef: e.estimateRef
             });
         });
 
