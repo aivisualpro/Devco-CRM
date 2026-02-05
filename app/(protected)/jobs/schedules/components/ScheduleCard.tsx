@@ -219,7 +219,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                     <div className="flex justify-between items-start mb-3 sm:mb-4">
                         <div className="flex items-center gap-2 sm:gap-3">
                             {(() => {
-                                const tagConstant = initialData.constants.find(c => c.description === item.item);
+                                const tagConstant = initialData.constants.find(c => c.description === item.item || c.value === item.item);
                                 const tagImage = tagConstant?.image;
                                 const tagColor = tagConstant?.color;
                                 const tagLabel = item.item || item.service || 'S';
@@ -294,17 +294,19 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
                         <div className="flex -space-x-1.5 shrink-0">
                             {(item.assignees || []).filter(Boolean).slice(0, 3).map((email: string, i: number) => {
-                                const emp = initialData.employees.find(e => e.value === email);
+                                const emp = initialData.employees.find(e => e.value?.toLowerCase() === email?.toLowerCase());
                                 return (
                                     <Tooltip key={i}>
                                         <TooltipTrigger asChild>
-                                            <div className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-bold shadow-sm overflow-hidden bg-slate-200 text-slate-600">
-                                                {emp?.image ? (
-                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    email?.[0]?.toUpperCase() || '?'
-                                                )}
-                                            </div>
+                                                <div className="w-6 h-6 rounded-full border border-white flex items-center justify-center text-[8px] font-extrabold shadow-sm overflow-hidden bg-slate-200 text-[#0F4C75]">
+                                                    {emp?.image ? (
+                                                        <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        emp?.label 
+                                                            ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                                            : email?.[0]?.toUpperCase() || '?'
+                                                    )}
+                                                </div>
                                         </TooltipTrigger>
                                         <TooltipContent><p>{emp?.label || email}</p></TooltipContent>
                                     </Tooltip>
@@ -321,14 +323,16 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                                         <div className="flex flex-col gap-1 text-xs">
                                             <p className="font-bold border-b border-slate-700/50 pb-1 mb-1 text-slate-300">More Assignees</p>
                                             {(item.assignees || []).filter(Boolean).slice(3).map((email: string, i: number) => {
-                                                const emp = initialData.employees.find(e => e.value === email);
+                                                const emp = initialData.employees.find(e => e.value?.toLowerCase() === email?.toLowerCase());
                                                 return (
                                                     <div key={i} className="flex items-center gap-2">
                                                         <div className="w-4 h-4 rounded-full bg-slate-700 flex items-center justify-center text-[8px] overflow-hidden">
                                                             {emp?.image ? (
                                                                 <img src={emp.image} alt="" className="w-full h-full object-cover" />
                                                             ) : (
-                                                                <span>{emp?.label?.[0] || email?.[0] || '?'}</span>
+                                                                <span>{emp?.label 
+                                                                ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                                                : email?.[0]?.toUpperCase() || '?'}</span>
                                                             )}
                                                         </div>
                                                         <span>{emp?.label || email}</span>
@@ -475,14 +479,23 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                         <div className="flex items-center -space-x-1.5">
                             {[item.projectManager, item.foremanName].map((email, i) => {
                                 if (!email) return null;
-                                const emp = initialData.employees.find(e => e.value === email);
-                                const labels = ['P', 'F']; 
-                                const colors = ['bg-[#0F4C75]', 'bg-[#10B981]'];
+                                const emp = initialData.employees.find(e => e.value?.toLowerCase() === email?.toLowerCase());
+                                const roleLabel = i === 0 ? 'P' : 'F'; 
+                                const roleColor = i === 0 ? 'bg-[#0F4C75]' : 'bg-[#10B981]';
+                                
+                                const initials = emp?.label 
+                                    ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                    : email?.[0]?.toUpperCase() || roleLabel;
+
                                 return (
                                     <Tooltip key={i}>
                                         <TooltipTrigger asChild>
-                                            <div className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-bold shadow-sm overflow-hidden text-white ${colors[i]}`}>
-                                                {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : labels[i]}
+                                            <div className={`w-7 h-7 rounded-full border-2 border-white flex items-center justify-center text-[9px] font-black shadow-sm overflow-hidden text-white ${roleColor}`}>
+                                                {emp?.image ? (
+                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="opacity-90">{initials}</span>
+                                                )}
                                             </div>
                                         </TooltipTrigger>
                                         <TooltipContent><p>{i === 0 ? 'Project Manager' : 'Foreman'}: {emp?.label || email}</p></TooltipContent>

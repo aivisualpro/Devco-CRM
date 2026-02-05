@@ -105,12 +105,28 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
 
     const resolveEmployee = (emailOrId: string | undefined) => {
         if (!emailOrId) return null;
-        return employees.find(e => e.value === emailOrId || e.email === emailOrId) || { label: emailOrId, image: null };
+        const lowerEmail = emailOrId.toLowerCase();
+        const emp = employees.find(e => e.value?.toLowerCase() === lowerEmail || e.email?.toLowerCase() === lowerEmail);
+        
+        if (emp) return emp;
+        
+        return { 
+            label: emailOrId, 
+            image: null,
+            initials: emailOrId[0]?.toUpperCase() || '?'
+        };
     };
 
     const projectManager = resolveEmployee(schedule.projectManager);
     const foreman = resolveEmployee(schedule.foremanName);
     const technicians = (schedule.assignees || []).map(resolveEmployee).filter(Boolean);
+
+    const getInitials = (emp: any) => {
+        if (emp.label && emp.label.includes(' ')) {
+            return emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase();
+        }
+        return emp.label?.[0]?.toUpperCase() || emp.initials || '?';
+    };
 
     // Timesheet Filters
     const myTimesheet = schedule.timesheet?.filter(ts => {
@@ -155,14 +171,35 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                         
                         {/* ROW 1: Item Image | Customer | Location */}
                         <div className="flex items-start gap-4">
-                            <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 text-slate-400 overflow-hidden">
-                                {(() => {
-                                    const constantImg = constants.find(c => c.value === schedule.item && (c.category === 'Item' || c.category === 'Service'))?.image;
-                                    if (constantImg) return <img src={constantImg} alt={schedule.item} className="w-full h-full object-cover" />;
-                                    if (schedule.item && schedule.item.toLowerCase().includes('drill')) return <img src="/icons/drill.png" alt="Drill" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />;
-                                    return <Briefcase size={32} className="text-slate-400" />;
-                                })()}
-                            </div>
+                            {(() => {
+                                const constant = constants.find(c => c.description === schedule.item || c.value === schedule.item);
+                                const tagImage = constant?.image;
+                                const tagColor = constant?.color;
+                                const tagLabel = schedule.item || schedule.service || 'S';
+
+                                if (tagImage) {
+                                    return (
+                                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 overflow-hidden shadow-sm">
+                                            <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                        </div>
+                                    );
+                                } else if (tagColor) {
+                                    return (
+                                        <div 
+                                            className="w-16 h-16 rounded-xl flex items-center justify-center border border-slate-200 shrink-0 text-white font-black text-xl shadow-[inset_5px_5px_10px_rgba(0,0,0,0.1)]"
+                                            style={{ backgroundColor: tagColor }}
+                                        >
+                                            {tagLabel.substring(0, 2).toUpperCase()}
+                                        </div>
+                                    );
+                                } else {
+                                    return (
+                                        <div className="w-16 h-16 rounded-xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0 text-slate-400">
+                                            <Briefcase size={32} />
+                                        </div>
+                                    );
+                                }
+                            })()}
                             <div className="flex-1 min-w-0">
                                 <h2 className="text-xl md:text-2xl font-black text-slate-800 truncate">
                                     {schedule.customerName || 'Unknown Customer'}
@@ -213,7 +250,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                     {projectManager ? (
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs overflow-hidden border border-blue-200">
-                                                {projectManager.image ? <img src={projectManager.image} className="w-full h-full object-cover" /> : (projectManager.label?.[0] || 'P')}
+                                                {projectManager.image ? <img src={projectManager.image} className="w-full h-full object-cover" /> : getInitials(projectManager)}
                                             </div>
                                             <span className="text-sm font-bold text-slate-700">{projectManager.label || schedule.projectManager}</span>
                                         </div>
@@ -224,7 +261,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                     {foreman ? (
                                         <div className="flex items-center gap-3">
                                             <div className="w-8 h-8 rounded-full bg-[#0F4C75] text-white flex items-center justify-center font-bold text-xs overflow-hidden border border-[#0F4C75]">
-                                                {foreman.image ? <img src={foreman.image} className="w-full h-full object-cover" /> : (foreman.label?.[0] || 'F')}
+                                                {foreman.image ? <img src={foreman.image} className="w-full h-full object-cover" /> : getInitials(foreman)}
                                             </div>
                                             <span className="text-sm font-bold text-slate-700">{foreman.label || schedule.foremanName}</span>
                                         </div>
@@ -238,8 +275,8 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                                 <div className="flex flex-col gap-2 max-h-[140px] overflow-y-auto">
                                     {technicians.length > 0 ? technicians.map((tech: any, i) => (
                                         <div key={i} className="flex items-center gap-2 bg-white px-2 py-1.5 rounded-lg border border-slate-200">
-                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500 overflow-hidden">
-                                                {tech.image ? <img src={tech.image} className="w-full h-full object-cover" /> : (tech.label?.[0] || 'T')}
+                                            <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-[#0F4C75] overflow-hidden">
+                                                {tech.image ? <img src={tech.image} className="w-full h-full object-cover" /> : getInitials(tech)}
                                             </div>
                                             <span className="text-sm font-medium text-slate-700">{tech.label}</span>
                                         </div>
@@ -254,7 +291,7 @@ export const ScheduleDetailsPopup: React.FC<ScheduleDetailsPopupProps> = ({
                             <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                                 {(schedule.service || schedule.item || 'General Service').split(',').map((srv, idx) => {
                                     const trimmed = srv.trim();
-                                    const constant = constants.find(c => c.value === trimmed && (c.category === 'Service' || c.category === 'Item'));
+                                    const constant = constants.find(c => (c.description === trimmed || c.value === trimmed));
                                     const color = constant?.color || '#0F4C75';
                                     return (
                                         <Badge 

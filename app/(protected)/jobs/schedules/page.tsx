@@ -2778,14 +2778,12 @@ function SchedulePageContent() {
                                             )}
 
                                             {/* Row 1: Tag Icon & Client Name */}
-                                            <div className="flex items-center gap-4">
+                                             <div className="flex items-center gap-4">
                                                  {(() => {
-                                                    const scheduleId = selectedSchedule._id; // Use selectedSchedule._id directly
-                                                    const schedule = schedules.find(s => String(s._id) === String(scheduleId)); // Find the full schedule object
-                                                    const tagConstant = initialData.constants.find(c => c.description === schedule?.item);
+                                                    const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item || c.value === selectedSchedule.item);
                                                     const tagImage = tagConstant?.image;
                                                     const tagColor = tagConstant?.color;
-                                                    const tagLabel = schedule?.item || schedule?.service || 'S';
+                                                    const tagLabel = selectedSchedule.item || selectedSchedule.service || 'S';
 
                                                     if (tagImage) {
                                                         return (
@@ -2852,11 +2850,14 @@ function SchedulePageContent() {
                                                         { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
                                                     ].map((role, idx) => {
                                                         if (!role.val) return null;
-                                                        const emp = initialData.employees.find(e => e.value === role.val);
+                                                        const emp = initialData.employees.find(e => e.value?.toLowerCase() === role.val?.toLowerCase());
+                                                        const initials = emp?.label 
+                                                            ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                                            : role.val[0]?.toUpperCase() || '?';
                                                         return (
                                                             <div key={idx} className="flex items-center gap-2 p-2 rounded-xl transition-colors border border-transparent hover:border-slate-100">
-                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs shadow-sm overflow-hidden shrink-0 ${role.color}`}>
-                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || role.val[0])}
+                                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-black text-[10px] shadow-sm overflow-hidden shrink-0 ${role.color}`}>
+                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : initials}
                                                                 </div>
                                                                 <div className="min-w-0 flex-1">
                                                                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{role.label}</p>
@@ -2875,11 +2876,14 @@ function SchedulePageContent() {
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">Assignees</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {(selectedSchedule.assignees || []).map((assignee, i) => {
-                                                        const emp = initialData.employees.find(e => e.value === assignee);
+                                                        const emp = initialData.employees.find(e => e.value?.toLowerCase() === assignee?.toLowerCase());
+                                                        const initials = emp?.label 
+                                                            ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                                            : assignee[0]?.toUpperCase() || '?';
                                                         return (
                                                             <div key={i} className="inline-flex items-center gap-2 pl-1 pr-3 py-1 bg-slate-100 rounded-full border border-slate-200">
-                                                                <div className="w-6 h-6 rounded-full bg-slate-300 overflow-hidden flex items-center justify-center text-[10px] font-bold text-slate-600 shrink-0">
-                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : (emp?.label?.[0] || assignee[0])}
+                                                                <div className="w-6 h-6 rounded-full bg-slate-300 overflow-hidden flex items-center justify-center text-[10px] font-black text-slate-600 shrink-0">
+                                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : initials}
                                                                 </div>
                                                                 <span className="text-xs font-bold text-slate-700 truncate max-w-[100px]">{emp?.label || assignee}</span>
                                                             </div>
@@ -2898,7 +2902,7 @@ function SchedulePageContent() {
                                                     <div className="flex flex-wrap gap-2">
                                                         {selectedSchedule.service.split(',').map((svc: string, idx: number) => {
                                                             const serviceName = svc.trim();
-                                                            const serviceConstant = initialData.constants.find(c => c.type === 'Services' && c.description === serviceName);
+                                                            const serviceConstant = initialData.constants.find(c => (c.description === serviceName || c.value === serviceName));
                                                             const bgColor = serviceConstant?.color || '#E2E8F0';
                                                             const isLight = (color: string) => {
                                                                 const hex = color.replace('#', '');
