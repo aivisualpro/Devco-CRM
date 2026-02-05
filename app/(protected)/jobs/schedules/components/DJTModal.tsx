@@ -446,8 +446,12 @@ export const DJTModal = ({
                                             })()}
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Date</p>
-                                            <p className="text-sm font-bold text-slate-700">{selectedDJT.createdAt ? new Date(selectedDJT.createdAt).toLocaleDateString() : 'N/A'}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Date & Time</p>
+                                            <p className="text-sm font-bold text-slate-700">
+                                                {selectedDJT.createdAt 
+                                                    ? `${new Date(selectedDJT.createdAt).toLocaleDateString()} at ${new Date(selectedDJT.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` 
+                                                    : 'N/A'}
+                                            </p>
                                         </div>
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">Client Email</p>

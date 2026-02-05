@@ -467,19 +467,19 @@ function WIPReportContent() {
         try {
             const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
             
-            // Build variables
+            // DJT Template Variables: {{customerId}}, {{projectName}}, {{date}}, {{day}}, {{estimate}}, {{jobAddress}}, {{dailyJobDescription}}, {{customerPrintName}}, {{customerSignature}}
             const variables: Record<string, any> = {
                 dailyJobDescription: selectedDJT.dailyJobDescription || '',
                 customerPrintName: selectedDJT.customerPrintName || '',
-                customerName: selectedProject?.DisplayName || '',
+                customerSignature: selectedDJT.customerSignature || '',
+                customerId: selectedProject?.DisplayName || selectedProject?.CompanyName || '',
+                projectName: selectedProject?.DisplayName || '',
                 jobLocation: selectedDJT.jobLocation || '',
+                jobAddress: selectedDJT.jobLocation || selectedDJT.jobAddress || '',
                 estimate: selectedProject?.proposalNumber || '',
                 date: new Date(selectedDJT.date || new Date()).toLocaleDateString(),
+                day: new Date(selectedDJT.date || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
-
-            if (selectedDJT.customerSignature) {
-                variables['customerSignature'] = selectedDJT.customerSignature;
-            }
 
             const response = await fetch('/api/generate-google-pdf', {
                 method: 'POST',

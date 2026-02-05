@@ -1358,18 +1358,31 @@ function DashboardContent() {
         });
         const client = initialData.clients.find((c: any) => c._id === schedule?.customerId || c.name === schedule?.customerName);
 
+        // DJT Template Variables: {{customerId}}, {{projectName}}, {{date}}, {{day}}, {{estimate}}, {{jobAddress}}, {{dailyJobDescription}}, {{customerPrintName}}, {{customerSignature}}
         const variables: Record<string, any> = {
-            ...selectedDJT,
-            customerId: client?.name || schedule?.customerName || '',
+            // Core DJT fields
+            dailyJobDescription: selectedDJT.dailyJobDescription || '',
+            customerPrintName: selectedDJT.customerPrintName || '',
+            customerSignature: selectedDJT.customerSignature || '',
+            
+            // Customer/Client info
+            customerId: client?.name || estimate?.customerName || schedule?.customerName || '',
+            
+            // Estimate/Project info
+            estimate: schedule?.estimate || '',
+            projectName: estimate?.projectName || estimate?.projectTitle || schedule?.projectName || '',
+            jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
+            
+            // Date info
+            date: selectedDJT.createdAt ? new Date(selectedDJT.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
+            day: new Date(selectedDJT.createdAt || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+            
+            // Additional fields (not in template but may be useful)
             contactName: estimate?.contactName || estimate?.contact || '',
             contactPhone: estimate?.contactPhone || estimate?.phone || '',
-            jobAddress: estimate?.jobAddress || schedule?.jobLocation || '',
-            estimate: schedule?.estimate || '',
             customerName: schedule?.customerName || '',
             jobLocation: schedule?.jobLocation || '',
             foremanName: schedule?.foremanName || '',
-            date: selectedDJT.createdAt ? new Date(selectedDJT.createdAt).toLocaleDateString() : new Date().toLocaleDateString(),
-            day: new Date(selectedDJT.createdAt || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
         };
 
         // Equipment
@@ -1410,8 +1423,8 @@ function DashboardContent() {
         if (!selectedDJT) return;
         setIsGeneratingDJTPDF(true);
         try {
-            // TODO: Update this with actual DJT Template ID
-            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258'; // Placeholder - borrowing JHA for now as requested "same functionality" but likely needs specific one
+            // DJT Template ID
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
             const variables = prepareDjtVariables();
 
             const response = await fetch('/api/generate-google-pdf', {
@@ -1440,8 +1453,8 @@ function DashboardContent() {
         if (!selectedDJT || !emailTo) return;
         setIsSendingEmail(true);
         try {
-            // TODO: Update this with actual DJT Template ID
-            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258'; 
+            // DJT Template ID
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
             const variables = prepareDjtVariables();
 
             const pdfRes = await fetch('/api/generate-google-pdf', {
