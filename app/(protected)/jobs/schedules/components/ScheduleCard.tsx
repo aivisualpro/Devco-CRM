@@ -143,8 +143,6 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     const userEmail = currentUser?.email?.toLowerCase();
     const userTimesheets = item.timesheet?.filter((ts: any) => ts.employee?.toLowerCase() === userEmail) || [];
     const activeDriveTime = userTimesheets.find((ts: any) => ts.type === 'Drive Time' && !ts.clockOut);
-    const hasDumpWashout = userTimesheets.some((ts: any) => String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes');
-    const hasShopTime = userTimesheets.some((ts: any) => String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true);
 
     return (
         <TooltipProvider>
@@ -383,8 +381,14 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
                             {/* Timesheet */}
                             {(() => {
-                                const dwTs = userTimesheets.find(t => String(t.dumpWashout).toLowerCase() === 'true' || t.dumpWashout === true || String(t.dumpWashout).toLowerCase() === 'yes');
-                                const stTs = userTimesheets.find(t => String(t.shopTime).toLowerCase() === 'true' || t.shopTime === true);
+                                const dwTs = userTimesheets.find(t => {
+                                    const val = String(t.dumpWashout || '').toLowerCase();
+                                    return val === 'true' || val === 'yes' || val.includes('hrs');
+                                });
+                                const stTs = userTimesheets.find(t => {
+                                    const val = String(t.shopTime || '').toLowerCase();
+                                    return val === 'true' || val === 'yes' || val.includes('hrs');
+                                });
                                 
                                 return (
                                     <>

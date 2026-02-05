@@ -313,7 +313,8 @@ function SchedulePageContent() {
                     search,
                     filters,
                     selectedDates: selectedDates.length > 0 ? selectedDates : undefined,
-                    skipInitialData: pageNum > 1, // Only fetch initial data on first load to save bandwidth make sure to update if needed
+                    skipInitialData: pageNum > 1,
+                    userEmail: currentUser?.email
                 }
             };
 
@@ -2126,23 +2127,38 @@ function SchedulePageContent() {
             
             const timesheets = s.timesheet || [];
             const empEmailLower = employeeEmail!.toLowerCase();
-            const existingIndex = timesheets.findIndex((ts: any) => 
-                ts.employee?.toLowerCase() === empEmailLower && 
-                ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
-                 (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
-            );
+            const existingIndex = timesheets.findIndex((ts: any) => {
+                if (ts.employee?.toLowerCase() !== empEmailLower) return false;
+                const dwVal = String(ts.dumpWashout || '').toLowerCase();
+                const stVal = String(ts.shopTime || '').toLowerCase();
+                
+                if (type === 'Dump Washout') return dwVal === 'true' || dwVal === 'yes' || dwVal.includes('hrs');
+                if (type === 'Shop Time') return stVal === 'true' || stVal === 'yes' || stVal.includes('hrs');
+                return false;
+            });
 
             if (existingIndex > -1) {
                 const updatedTimesheets = [...timesheets];
                 const existingTs = updatedTimesheets[existingIndex];
+                const newQty = (existingTs.qty || 1) + 1;
+                const newHours = parseFloat(((existingTs.hours || 0) + unitHours).toFixed(2));
+                
+                // Update specific flag with string format
+                const update: any = { qty: newQty, hours: newHours };
+                if (type === 'Dump Washout') {
+                    update.dumpWashout = `${newHours.toFixed(2)} hrs (${newQty} qty)`;
+                } else {
+                    update.shopTime = `${newHours.toFixed(2)} hrs (${newQty} qty)`;
+                }
+
                 updatedTimesheets[existingIndex] = {
                     ...existingTs,
-                    qty: (existingTs.qty || 1) + 1,
-                    hours: parseFloat(((existingTs.hours || 0) + unitHours).toFixed(2))
+                    ...update
                 };
                 return { ...s, timesheet: updatedTimesheets };
             } else {
                 const clockIn = new Date(now.getTime() - (unitHours * 60 * 60 * 1000)).toISOString();
+                const valStr = `${unitHours.toFixed(2)} hrs (1 qty)`;
                 const newTs = {
                     _id: `ts-${Date.now()}`,
                     scheduleId: schedule._id,
@@ -2152,8 +2168,8 @@ function SchedulePageContent() {
                     type: 'Drive Time',
                     hours: unitHours,
                     qty: 1,
-                    dumpWashout: type === 'Dump Washout' ? 'true' : undefined,
-                    shopTime: type === 'Shop Time' ? 'true' : undefined,
+                    dumpWashout: type === 'Dump Washout' ? valStr : undefined,
+                    shopTime: type === 'Shop Time' ? valStr : undefined,
                     status: 'Pending',
                     createdAt: now.toISOString()
                 };
@@ -2252,11 +2268,15 @@ function SchedulePageContent() {
     const handleQuickTimesheet = (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
         e.stopPropagation();
         
-        const isIncrement = (schedule.timesheet || []).some((ts: any) => 
-            ts.employee?.toLowerCase() === (currentUser?.email?.toLowerCase() || '') &&
-            ((type === 'Dump Washout' && (String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true)) ||
-             (type === 'Shop Time' && (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true)))
-        );
+        const isIncrement = (schedule.timesheet || []).some((ts: any) => {
+            if (ts.employee?.toLowerCase() !== (currentUser?.email?.toLowerCase() || '')) return false;
+            const dwVal = String(ts.dumpWashout || '').toLowerCase();
+            const stVal = String(ts.shopTime || '').toLowerCase();
+            
+            if (type === 'Dump Washout') return dwVal === 'true' || dwVal === 'yes' || dwVal.includes('hrs');
+            if (type === 'Shop Time') return stVal === 'true' || stVal === 'yes' || stVal.includes('hrs');
+            return false;
+        });
         
         const actionWord = isIncrement ? 'INCREMENT' : 'REGISTER';
 

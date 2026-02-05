@@ -977,11 +977,13 @@ function DashboardContent() {
         const userEmail = currentUser.email.toLowerCase();
         
         // Find existing record
-        const existingIndex = timesheets.findIndex(ts => 
-            ts.employee.toLowerCase() === userEmail && 
-            ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) || 
-             (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
-        );
+        const existingIndex = timesheets.findIndex(ts => {
+            if (ts.employee.toLowerCase() !== userEmail) return false;
+            const dwVal = String(ts.dumpWashout || '').toLowerCase();
+            const stVal = String(ts.shopTime || '').toLowerCase();
+            return dwVal === 'true' || dwVal === 'yes' || dwVal.includes('hrs') ||
+                   stVal === 'true' || stVal === 'yes' || stVal.includes('hrs');
+        });
 
         let newDumpQty = 0;
         let newShopQty = 0;
@@ -1020,10 +1022,13 @@ function DashboardContent() {
             
             if (existingIndex > -1) {
                 const existingTs = currentTimesheets[existingIndex];
+                const dwStr = newDumpQty > 0 ? `${(newDumpQty * 0.5).toFixed(2)} hrs (${newDumpQty} qty)` : undefined;
+                const stStr = newShopQty > 0 ? `${(newShopQty * 0.25).toFixed(2)} hrs (${newShopQty} qty)` : undefined;
+
                 currentTimesheets[existingIndex] = {
                     ...existingTs,
-                    dumpWashout: newDumpQty > 0 ? 'true' : undefined,
-                    shopTime: newShopQty > 0 ? 'true' : undefined,
+                    dumpWashout: dwStr,
+                    shopTime: stStr,
                     dumpQty: newDumpQty,
                     shopQty: newShopQty,
                     qty: newDumpQty + newShopQty,
@@ -1032,6 +1037,9 @@ function DashboardContent() {
                     clockIn: clockIn
                 };
             } else {
+                const dwStr = newDumpQty > 0 ? `${(newDumpQty * 0.5).toFixed(2)} hrs (${newDumpQty} qty)` : undefined;
+                const stStr = newShopQty > 0 ? `${(newShopQty * 0.25).toFixed(2)} hrs (${newShopQty} qty)` : undefined;
+                
                 const newTs = {
                     _id: `ts-${Date.now()}`,
                     scheduleId: s._id,
@@ -1041,8 +1049,8 @@ function DashboardContent() {
                     type: 'Drive Time',
                     hours: parseFloat(totalHours.toFixed(2)),
                     qty: newDumpQty + newShopQty,
-                    dumpWashout: newDumpQty > 0 ? 'true' : undefined,
-                    shopTime: newShopQty > 0 ? 'true' : undefined,
+                    dumpWashout: dwStr,
+                    shopTime: stStr,
                     dumpQty: newDumpQty,
                     shopQty: newShopQty,
                     status: 'Pending',
@@ -1702,11 +1710,13 @@ function DashboardContent() {
     const handleQuickTimesheet = (schedule: Schedule, type: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         
-        const existingTs = (schedule.timesheet || []).find((ts: any) => 
-            ts.employee?.toLowerCase() === (currentUser?.email?.toLowerCase() || '') &&
-            ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) ||
-             (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
-        );
+        const existingTs = (schedule.timesheet || []).find((ts: any) => {
+            if (ts.employee?.toLowerCase() !== (currentUser?.email?.toLowerCase() || '')) return false;
+            const dwVal = String(ts.dumpWashout || '').toLowerCase();
+            const stVal = String(ts.shopTime || '').toLowerCase();
+            return dwVal === 'true' || dwVal === 'yes' || dwVal.includes('hrs') ||
+                   stVal === 'true' || stVal === 'yes' || stVal.includes('hrs');
+        });
         
         const isDumpWashout = type === 'Dump Washout';
         const isShopTime = type === 'Shop Time';
