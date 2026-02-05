@@ -410,13 +410,28 @@ export default function WorkersCompPage() {
                 const dateKey = clockInDate.toISOString().split('T')[0]; // YYYY-MM-DD
 
                 const empInfo = employeesMap[empKey] || {};
-                const siteRate = parseFloat(empInfo.hourlyRateSITE || '45');
-                let rate = siteRate;
                 
+                // Match payroll: First check per-entry rates, then fall back to employee profile rates
+                const parseRate = (val: any) => {
+                    if (val === null || val === undefined) return null;
+                    const parsed = parseFloat(val);
+                    return isNaN(parsed) || parsed === 0 ? null : parsed;
+                };
+                
+                const profileSiteRate = parseRate(empInfo.hourlyRateSITE) ?? 45;
+                const profileDriveRate = parseRate(empInfo.hourlyRateDrive) ?? (profileSiteRate * 0.75);
+                
+                // Check for per-entry rates stored on the timesheet
+                const entrySiteRate = parseRate(ts.hourlyRateSITE);
+                const entryDriveRate = parseRate(ts.hourlyRateDrive);
+                
+                let rate: number;
                 if (isDriveTime) {
-                    // Match payroll: use hourlyRateDrive if set, otherwise 75% of site rate
-                    const driveRate = parseFloat(empInfo.hourlyRateDrive || '0');
-                    rate = driveRate > 0 ? driveRate : (siteRate * 0.75);
+                    // Use entry drive rate > entry site rate > profile drive rate
+                    rate = entryDriveRate ?? entrySiteRate ?? profileDriveRate;
+                } else {
+                    // Use entry site rate > profile site rate
+                    rate = entrySiteRate ?? profileSiteRate;
                 }
 
                 rawEntries.push({
@@ -469,12 +484,13 @@ export default function WorkersCompPage() {
                 dailyTally[key] = endTally;
                 
                 // Progressive OT/DT attribution (like payroll)
-                regHrs = Math.max(0, Math.min(8, endTally) - Math.min(8, startTally));
-                otHrs = Math.max(0, Math.min(12, endTally) - Math.min(12, Math.max(8, startTally)));
-                dtHrs = Math.max(0, endTally - Math.max(12, startTally));
+                // Round to 2 decimals to match payroll visual display logic (WYSIWYG)
+                regHrs = Number(Math.max(0, Math.min(8, endTally) - Math.min(8, startTally)).toFixed(2));
+                otHrs = Number(Math.max(0, Math.min(12, endTally) - Math.min(12, Math.max(8, startTally))).toFixed(2));
+                dtHrs = Number(Math.max(0, endTally - Math.max(12, startTally)).toFixed(2));
             } else if (e.isDriveTime) {
-                // Drive time is all regular (travel time)
-                regHrs = e.hoursVal;
+                // Drive time is all at travel rate (no OT/DT, like payroll)
+                regHrs = Number(e.hoursVal.toFixed(2));
             }
             
             const regPay = regHrs * e.rate;
