@@ -439,15 +439,20 @@ function TimeCardContent() {
     const fetchTimeCards = async () => {
         setLoading(true);
         try {
-            // Reusing the getSchedulesPage action to get source data + employees
+            // CRITICAL OPTIMIZATION: Only fetch schedules for the selected week
+            // This reduces the dataset from 10,000 to ~50-200 records
+            const { start, end } = weekRange;
+            
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     action: 'getSchedulesPage',
                     payload: { 
-                        limit: 10000, // Fetch all schedules (no pagination for time-cards)
-                        includeTimesheets: true // CRITICAL: Tell backend to include timesheet data
+                        limit: 10000, // Keep high limit but filter by date range
+                        includeTimesheets: true, // CRITICAL: Tell backend to include timesheet data
+                        startDate: start.toISOString(), // Filter by week start
+                        endDate: end.toISOString() // Filter by week end
                     } 
                 }) 
             });
@@ -474,7 +479,7 @@ function TimeCardContent() {
 
     useEffect(() => {
         fetchTimeCards();
-    }, []);
+    }, [weekRange]); // Refetch when week changes
 
     // --- Derived Data & Tree Structure ---
 
