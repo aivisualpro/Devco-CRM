@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 import { Modal } from './Modal';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -22,7 +22,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -52,6 +52,8 @@ const menuStructure: MenuItem[] = [
             { label: 'Receipts & Costs', href: '/docs/receipts-costs', icon: <Receipt className="w-5 h-5" />, description: 'Track job receipts and costs', colorClass: 'text-teal-600' },
             { label: 'Company Docs', href: '/docs/company-docs', icon: <FileText className="w-5 h-5" />, description: 'Training & Certifications', colorClass: 'text-blue-600' },
             { label: 'Vehicle & Equipment Docs', href: '/docs/vehicle-equipment', icon: <Truck className="w-5 h-5" />, description: 'Unit compliance & registration', colorClass: 'text-amber-600' },
+            { label: 'Pothole Logs', href: '/docs/pothole-logs', icon: <MapPin className="w-5 h-5" />, description: 'Pothole log documentation', colorClass: 'text-orange-600' },
+            { label: 'Pre-Bore Logs', href: '/docs/pre-bore-logs', icon: <FileText className="w-5 h-5" />, description: 'Pre-bore log records', colorClass: 'text-cyan-600' },
         ]
     },
     {

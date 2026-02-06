@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -39,6 +39,8 @@ export default function ImportsPage() {
     const receiptsAndCostsInputRef = useRef<HTMLInputElement>(null);
     const planningDocsInputRef = useRef<HTMLInputElement>(null);
     const billingTicketsInputRef = useRef<HTMLInputElement>(null);
+    const potholeLogsInputRef = useRef<HTMLInputElement>(null);
+    const potholeItemsInputRef = useRef<HTMLInputElement>(null);
 
     const parseCSV = (csvText: string) => {
         const rows: string[][] = [];
@@ -647,6 +649,74 @@ export default function ImportsPage() {
         reader.readAsText(file);
     };
 
+    const handleImportPotholeLogs = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/pothole-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importPotholeLogs', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(resData.message || `Successfully imported pothole logs`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (potholeLogsInputRef.current) potholeLogsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleImportPotholeItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/pothole-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importPotholeItems', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(resData.message || `Successfully imported pothole items`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (potholeItemsInputRef.current) potholeItemsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleSyncQuickBooks = async () => {
         setIsImporting(true);
         try {
@@ -786,6 +856,24 @@ export default function ImportsPage() {
                         color="bg-indigo-600"
                         description="Bulk import billing tickets for estimates"
                         onClick={() => billingTicketsInputRef.current?.click()}
+                    />
+
+                    <input type="file" ref={potholeLogsInputRef} onChange={handleImportPotholeLogs} className="hidden" accept=".csv" />
+                    <ImportCard 
+                        title="Import Pothole Logs"
+                        icon={MapPin}
+                        color="bg-amber-600"
+                        description="Bulk import pothole log data from CSV"
+                        onClick={() => potholeLogsInputRef.current?.click()}
+                    />
+
+                    <input type="file" ref={potholeItemsInputRef} onChange={handleImportPotholeItems} className="hidden" accept=".csv" />
+                    <ImportCard 
+                        title="Import Pothole Items"
+                        icon={MapPin}
+                        color="bg-orange-500"
+                        description="Add items to existing pothole logs"
+                        onClick={() => potholeItemsInputRef.current?.click()}
                     />
 
                     <ImportCard 
