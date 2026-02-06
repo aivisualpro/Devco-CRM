@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'mobile-build',
   server: {
     androidScheme: 'https',
-    url: 'https://devcohq.com/',
+    url: 'https://www.devcohq.com/',
     cleartext: true
   }
 };
