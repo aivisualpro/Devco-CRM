@@ -3618,44 +3618,44 @@ function DashboardContent() {
                                             <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Washout</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Shop</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Dist</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[110px]">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Washout</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Shop</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[70px]">Dist</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[60px]">Hrs</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
                                                     {tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).length > 0 ? 
                                                         tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
-                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                            <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {formatDateOnly(ts.clockIn)}
                                                             </TableCell>
-                                                            <TableCell className="text-center">
+                                                            <TableCell className="text-center align-middle">
                                                                 <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                                     {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                                 </span>
                                                             </TableCell>
-                                                            <TableCell className="text-center">
+                                                            <TableCell className="text-center align-middle">
                                                                 {ts.dumpWashout ? (
                                                                     <span className="text-[9px] font-black uppercase bg-orange-500 text-white px-2 py-0.5 rounded shadow-sm inline-flex items-center gap-1 justify-center">
                                                                         <span>Washout</span>
                                                                     </span>
                                                                 ) : <span className="text-slate-300">-</span>}
                                                             </TableCell>
-                                                            <TableCell className="text-center">
+                                                            <TableCell className="text-center align-middle">
                                                                 {ts.shopTime ? (
                                                                     <span className="text-[9px] font-black uppercase bg-blue-500 text-white px-2 py-0.5 rounded shadow-sm inline-flex items-center gap-1 justify-center">
                                                                         <span>Shop</span>
                                                                     </span>
                                                                 ) : <span className="text-slate-300">-</span>}
                                                             </TableCell>
-                                                            <TableCell className="text-right text-[11px] font-medium text-slate-600">
+                                                            <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {(ts.distanceVal || 0) > 0 ? (ts.distanceVal).toFixed(1) : '-'}
                                                             </TableCell>
-                                                            <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                            <TableCell className="text-center align-middle text-[11px] font-black text-slate-800">
                                                                 {(ts.hoursVal || 0).toFixed(2)}
                                                             </TableCell>
                                                         </TableRow>
@@ -3679,32 +3679,32 @@ function DashboardContent() {
                                             <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Date</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">In</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[90px]">Out</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[60px]">Hrs</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[110px]">Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">In</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Out</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[60px]">Hrs</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
                                                     {tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).length > 0 ? 
                                                         tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
-                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                            <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {formatDateOnly(ts.clockIn)}
                                                             </TableCell>
-                                                            <TableCell className="text-center">
+                                                            <TableCell className="text-center align-middle">
                                                                 <span className="text-[10px] font-medium text-slate-600 bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                                     {ts.estimate ? ts.estimate.replace(/-[vV]\d+$/, '') : '-'}
                                                                 </span>
                                                             </TableCell>
-                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                            <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {formatTimeOnly(ts.clockIn)}
                                                             </TableCell>
-                                                            <TableCell className="text-center text-[11px] font-medium text-slate-600">
+                                                            <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {formatTimeOnly(ts.clockOut)}
                                                             </TableCell>
-                                                            <TableCell className="text-right text-[11px] font-black text-slate-800">
+                                                            <TableCell className="text-center align-middle text-[11px] font-black text-slate-800">
                                                                 {(ts.hoursVal || 0).toFixed(2)}
                                                             </TableCell>
                                                         </TableRow>
