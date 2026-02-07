@@ -130,7 +130,7 @@ export default function EmployeeViewPage() {
 
     const fetchOptions = async () => {
         try {
-            const res = await apiCall('getEmployees');
+            const res = await apiCall('getEmployees', { includeInactive: true });
             if (res.success && res.result) {
                 const emps: Employee[] = res.result;
                 const getUnique = (key: keyof Employee) => Array.from(new Set(emps.map(e => e[key]).filter(Boolean))) as string[];

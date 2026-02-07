@@ -249,7 +249,7 @@ export default function EmployeesPage() {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'getEmployees' })
+                body: JSON.stringify({ action: 'getEmployees', payload: { includeInactive: true } })
             });
             const data = await res.json();
             if (data.success) {

@@ -920,7 +920,7 @@ export async function POST(request: NextRequest) {
                 const [aggResult, ...metadata] = await Promise.all([
                     Schedule.aggregate(pipeline),
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
-                    !skipInitialData ? Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]), 
+                    !skipInitialData ? Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]), 
                     !skipInitialData ? Constant.find().select('type description color value image').lean() : Promise.resolve([]),
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll')
@@ -1097,7 +1097,7 @@ export async function POST(request: NextRequest) {
             case 'getInitialData': {
                 const [clients, employees, constants, estimates, equipmentItems, overheadItems] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find().select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
+                    Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
                     Constant.find().select('type description color value image').lean(),
                     Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')

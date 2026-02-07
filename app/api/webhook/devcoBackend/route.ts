@@ -541,7 +541,7 @@ export async function POST(request: NextRequest) {
                             .limit(1000)
                             .lean(),
                         Constant.find().lean(),
-                        Employee.find().select('_id name email profileImage status').lean(),
+                        Employee.find({ status: { $ne: 'Inactive' } }).select('_id name email profileImage status').lean(),
                         Client.find().select('_id name businessAddress').lean()
                     ]);
 
@@ -2534,7 +2534,10 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getEmployees': {
-                const employees = await Employee.find().sort({ name: 1 });
+                const { includeInactive } = payload || {};
+                const empFilter: any = {};
+                if (!includeInactive) empFilter.status = { $ne: 'Inactive' };
+                const employees = await Employee.find(empFilter).sort({ name: 1 });
                 return NextResponse.json({ success: true, result: employees });
             }
 
