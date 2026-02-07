@@ -831,6 +831,7 @@ function ClientViewPageContent() {
                                                     <TableRow>
                                                         <TableHeader className="text-xs">Estimate</TableHeader>
                                                         <TableHeader className="w-16 text-xs">V.</TableHeader>
+                                                        <TableHeader className="text-xs">Project Name</TableHeader>
                                                         <TableHeader className="text-xs">Date</TableHeader>
                                                         <TableHeader className="text-xs">Writer</TableHeader>
                                                         <TableHeader className="text-xs">Fringe</TableHeader>
@@ -841,7 +842,6 @@ function ClientViewPageContent() {
                                                         <TableHeader className="text-xs">Margin</TableHeader>
                                                         <TableHeader className="text-xs">Total</TableHeader>
                                                         <TableHeader className="text-xs">Status</TableHeader>
-                                                        <TableHeader className="text-left text-xs">Actions</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
@@ -869,6 +869,11 @@ function ClientViewPageContent() {
                                                                 <TableCell>
                                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-800 border border-gray-200 shadow-sm">
                                                                         V.{est.versionNumber || 1}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell>
+                                                                    <span className="text-xs font-medium text-slate-700 truncate max-w-[200px] block" title={est.projectName || ''}>
+                                                                        {est.projectName || '-'}
                                                                     </span>
                                                                 </TableCell>
                                                                 <TableCell>
@@ -947,20 +952,7 @@ function ClientViewPageContent() {
                                                                         {est.status || 'draft'}
                                                                     </Badge>
                                                                 </TableCell>
-                                                                <TableCell className="text-left">
-                                                                    <div onClick={(e) => e.stopPropagation()} className="inline-flex">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
-                                                                                router.push(`/estimates/${slug}`);
-                                                                            }}
-                                                                            className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600"
-                                                                            title="View Estimate"
-                                                                        >
-                                                                            <Eye className="w-4 h-4" />
-                                                                        </button>
-                                                                    </div>
-                                                                </TableCell>
+
                                                             </TableRow>
                                                         );
                                                     })}

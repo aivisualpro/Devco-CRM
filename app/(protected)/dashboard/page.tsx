@@ -2995,7 +2995,7 @@ function DashboardContent() {
                                             </div>
                                             <div>
                                                 <h2 className="font-bold text-slate-900">Estimates Overview</h2>
-                                                <p className="text-xs text-slate-500">Grand total by status</p>
+
                                             </div>
                                         </div>
                                         
@@ -3033,7 +3033,7 @@ function DashboardContent() {
                                         </div>
                                         <div>
                                             <h2 className="font-bold text-slate-900">Weekly Snapshot</h2>
-                                            <p className="text-xs text-slate-500">Key metrics this week</p>
+
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -3129,7 +3129,7 @@ function DashboardContent() {
                                         </div>
                                         <div>
                                             <h2 className="font-bold text-slate-900">Time Cards</h2>
-                                            <p className="text-xs text-slate-500">Your recent activity</p>
+
                                         </div>
                                     </div>
 
