@@ -165,6 +165,23 @@ export const toLocalISO = (dateStr: string | undefined): string => {
 };
 
 /**
+ * Get the current local time as a timezone-agnostic ISO string.
+ * Uses local Date components (not UTC) so the string represents
+ * exactly what the user sees on their device, regardless of timezone.
+ * Example: If user's local time is 2:30 PM PST, this returns "2026-02-07T14:30:00.000Z"
+ */
+export const getLocalNowISO = (): string => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+};
+
+/**
  * Convert degrees to radians
  */
 export const deg2rad = (deg: number): number => {

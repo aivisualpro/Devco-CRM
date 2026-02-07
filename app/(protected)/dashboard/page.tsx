@@ -29,6 +29,7 @@ import { DJTModal } from '../jobs/schedules/components/DJTModal';
 import { TimesheetModal } from '../jobs/schedules/components/TimesheetModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { calculateTimesheetData, formatDateOnly, formatTimeOnly } from '@/lib/timeCardUtils';
+import { getLocalNowISO } from '@/lib/scheduleUtils';
 
 // Week utilities
 // Returns { start, end, label, startISO, endISO } where startISO/endISO are date-only strings
@@ -1771,7 +1772,7 @@ function DashboardContent() {
                 createdBy: currentUser?.email,
                 lunchStart: typeof dataInput === 'object' ? dataInput.lunchStart : null,
                 lunchEnd: typeof dataInput === 'object' ? dataInput.lunchEnd : null,
-                date: new Date().toISOString()
+                clientNow: getLocalNowISO()
             };
             const res = await fetch('/api/djt', {
                 method: 'POST',

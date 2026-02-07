@@ -44,7 +44,8 @@ import {
     isLight,
     getWorkDays,
     getDaysInMonth,
-    getCurrentWeekDates
+    getCurrentWeekDates,
+    getLocalNowISO
 } from '@/lib/scheduleUtils';
 
 interface Objective {
@@ -1470,7 +1471,8 @@ function SchedulePageContent() {
                 signature: dataUrl,
                 lunchStart,
                 lunchEnd,
-                createdBy: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : 'system'
+                createdBy: typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : 'system',
+                clientNow: getLocalNowISO()
             };
 
             const res = await fetch('/api/djt', {

@@ -10,6 +10,7 @@ import { ScheduleDetailsPopup } from '@/components/ui/ScheduleDetailsPopup';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/hooks/useToast';
 import { Modal } from '@/components/ui';
+import { getLocalNowISO } from '@/lib/scheduleUtils';
 
 interface EstimateScheduleCardProps {
     schedules: ScheduleItem[];
@@ -615,7 +616,7 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
                     if (!activeSignatureEmployee || !selectedDJT) return;
                     setIsSavingSignature(true);
                     try {
-                        const payload = { schedule_id: selectedDJT.schedule_id, employee: activeSignatureEmployee, signature: typeof data === 'string' ? data : data.signature, createdBy: currentUser?.email };
+                        const payload = { schedule_id: selectedDJT.schedule_id, employee: activeSignatureEmployee, signature: typeof data === 'string' ? data : data.signature, createdBy: currentUser?.email, clientNow: getLocalNowISO() };
                          const res = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveDJTSignature', payload }) });
                          const json = await res.json();
                          if (json.success) {

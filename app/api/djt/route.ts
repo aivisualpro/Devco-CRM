@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
             }
             
             case 'saveDJTSignature': {
-                const { schedule_id, employee, signature, lunchStart, lunchEnd, createdBy } = payload;
+                const { schedule_id, employee, signature, lunchStart, lunchEnd, createdBy, clientNow } = payload;
                 if (!schedule_id || !employee || !signature) {
                     return NextResponse.json({ success: false, error: 'Missing required signature data' }, { status: 400 });
                 }
@@ -206,8 +206,9 @@ export async function POST(request: NextRequest) {
                     djt.createdBy = createdBy || employee || 'system';
                 }
 
-                // Get the current time for clockOut
-                const clockOutTime = new Date();
+                // Use the client's local time (timezone-agnostic) if provided, otherwise fall back to server time
+                // The clientNow is an ISO string representing the user's literal local time
+                const clockOutTime = clientNow ? new Date(clientNow) : new Date();
 
                 // Create signature object with all required fields
                 const newSignature = {

@@ -19,6 +19,7 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Skeleton, Ske
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 import { formatDateOnly } from '@/lib/timeCardUtils';
+import { getLocalNowISO } from '@/lib/scheduleUtils';
 
 interface Project {
     Id: string;
@@ -437,7 +438,8 @@ function WIPReportContent() {
                 schedule_id: selectedDJT.schedule_id, 
                 employee: activeSignatureEmployee, 
                 signature: typeof data === 'string' ? data : data.signature, 
-                createdBy: 'WIP Report' 
+                createdBy: 'WIP Report',
+                clientNow: getLocalNowISO()
             };
             const res = await fetch('/api/djt', { 
                 method: 'POST', 
