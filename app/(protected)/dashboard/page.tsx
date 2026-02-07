@@ -3025,6 +3025,87 @@ function DashboardContent() {
                                 </div>
                                 )}
 
+                                {/* Weekly Snapshot KPIs */}
+                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden md:block' : ''}`}>
+                                    <div className="flex items-center gap-3 mb-5">
+                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                                            <ActivityIcon className="w-5 h-5 text-white" />
+                                        </div>
+                                        <div>
+                                            <h2 className="font-bold text-slate-900">Weekly Snapshot</h2>
+                                            <p className="text-xs text-slate-500">Key metrics this week</p>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {/* Total Jobs */}
+                                        <div className="relative overflow-hidden bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-xl p-3.5 border border-blue-100/80">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <Calendar className="w-3.5 h-3.5 text-blue-500" />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500/80">Jobs</span>
+                                            </div>
+                                            <p className="text-2xl font-black text-slate-800 leading-none">{schedules.length}</p>
+                                            <p className="text-[10px] text-slate-400 mt-1">Scheduled this week</p>
+                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-blue-200/30" />
+                                        </div>
+
+                                        {/* Active Crew */}
+                                        <div className="relative overflow-hidden bg-gradient-to-br from-violet-50 to-violet-100/50 rounded-xl p-3.5 border border-violet-100/80">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <Users className="w-3.5 h-3.5 text-violet-500" />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500/80">Crew</span>
+                                            </div>
+                                            <p className="text-2xl font-black text-slate-800 leading-none">
+                                                {(() => {
+                                                    const uniqueCrew = new Set<string>();
+                                                    schedules.forEach(s => {
+                                                        s.assignees?.forEach((a: string) => uniqueCrew.add(a.toLowerCase()));
+                                                    });
+                                                    return uniqueCrew.size;
+                                                })()}
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 mt-1">Active personnel</p>
+                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-violet-200/30" />
+                                        </div>
+
+                                        {/* Total Hours */}
+                                        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-50 to-emerald-100/50 rounded-xl p-3.5 border border-emerald-100/80">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <Clock className="w-3.5 h-3.5 text-emerald-500" />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/80">Hours</span>
+                                            </div>
+                                            <p className="text-2xl font-black text-slate-800 leading-none">{(timeCardTotals.drive + timeCardTotals.site).toFixed(1)}</p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <span className="text-[9px] font-bold text-blue-500">{timeCardTotals.drive.toFixed(1)}h drive</span>
+                                                <span className="text-[9px] text-slate-300">•</span>
+                                                <span className="text-[9px] font-bold text-emerald-500">{timeCardTotals.site.toFixed(1)}h site</span>
+                                            </div>
+                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-emerald-200/30" />
+                                        </div>
+
+                                        {/* Task Completion */}
+                                        <div className="relative overflow-hidden bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-xl p-3.5 border border-amber-100/80">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <CheckCircle2 className="w-3.5 h-3.5 text-amber-500" />
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80">Tasks</span>
+                                            </div>
+                                            <p className="text-2xl font-black text-slate-800 leading-none">
+                                                {todosByStatus.done.length}
+                                                <span className="text-sm font-bold text-slate-400 ml-0.5">/{todosByStatus.todo.length + todosByStatus['in progress'].length + todosByStatus.done.length}</span>
+                                            </p>
+                                            <div className="w-full bg-amber-200/40 rounded-full h-1.5 mt-2">
+                                                <div 
+                                                    className="bg-gradient-to-r from-amber-400 to-amber-500 h-1.5 rounded-full transition-all duration-700"
+                                                    style={{ 
+                                                        width: `${Math.round((todosByStatus.done.length / Math.max(todosByStatus.todo.length + todosByStatus['in progress'].length + todosByStatus.done.length, 1)) * 100)}%` 
+                                                    }}
+                                                />
+                                            </div>
+                                            <p className="text-[10px] text-slate-400 mt-1">Completed this week</p>
+                                            <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-amber-200/30" />
+                                        </div>
+                                    </div>
+                                </div>
+
 
                             </div>
 
