@@ -1013,6 +1013,56 @@ function DashboardContent() {
         }
     }, [permissionsReady, isSuperAdmin, upcomingSchedulesScope]);
 
+    const [timeCardsView, setTimeCardsView] = useState<'all' | 'self'>('self');
+
+    // Determine Time Cards Widget Scope
+    const timeCardsWidgetScope = useMemo(() => {
+        if (isSuperAdmin) return 'all';
+        if (!permissions) return 'self';
+        
+        const dashboardPerm = permissions.modules.find((m: any) => m.module === MODULES.DASHBOARD);
+        const widgetPerm = dashboardPerm?.fieldPermissions?.find((f: any) => f.field === 'widget_time_cards');
+        return widgetPerm?.dataScope || 'self'; 
+    }, [permissions, isSuperAdmin]);
+
+    // Initialize time cards view based on permissions (run only once when permissions are ready)
+    const timeCardsViewInitialized = useRef(false);
+    useEffect(() => {
+        if (permissionsReady && !timeCardsViewInitialized.current) {
+            timeCardsViewInitialized.current = true;
+            if (isSuperAdmin || timeCardsWidgetScope === 'all') {
+                setTimeCardsView('all');
+            } else {
+                setTimeCardsView('self');
+            }
+        }
+    }, [permissionsReady, isSuperAdmin, timeCardsWidgetScope]);
+
+    const [snapshotView, setSnapshotView] = useState<'all' | 'self'>('self');
+
+    // Determine Weekly Snapshot Scope
+    const weeklySnapshotScope = useMemo(() => {
+        if (isSuperAdmin) return 'all';
+        if (!permissions) return 'self';
+        
+        const dashboardPerm = permissions.modules.find((m: any) => m.module === MODULES.DASHBOARD);
+        const widgetPerm = dashboardPerm?.fieldPermissions?.find((f: any) => f.field === 'widget_weekly_snapshot');
+        return widgetPerm?.dataScope || 'self'; 
+    }, [permissions, isSuperAdmin]);
+
+    // Initialize snapshot view based on permissions (run only once when permissions are ready)
+    const snapshotViewInitialized = useRef(false);
+    useEffect(() => {
+        if (permissionsReady && !snapshotViewInitialized.current) {
+            snapshotViewInitialized.current = true;
+            if (isSuperAdmin || weeklySnapshotScope === 'all') {
+                setSnapshotView('all');
+            } else {
+                setSnapshotView('self');
+            }
+        }
+    }, [permissionsReady, isSuperAdmin, weeklySnapshotScope]);
+
     const [taskView, setTaskView] = useState<'all' | 'self'>('self');
 
     // Determine Tasks Scope
@@ -2669,6 +2719,92 @@ function DashboardContent() {
         };
     }, [todos, weekRange, taskView, userEmail]);
 
+    // Weekly Snapshot computed data (filtered by snapshotView)
+    const snapshotSchedules = useMemo(() => {
+        if (snapshotView === 'all') return schedules;
+        const lowerEmail = userEmail.toLowerCase().trim();
+        return schedules.filter(s => 
+            s.assignees?.some((a: string) => a.toLowerCase().trim() === lowerEmail) ||
+            s.foremanName?.toLowerCase().trim() === lowerEmail ||
+            s.projectManager?.toLowerCase().trim() === lowerEmail
+        );
+    }, [schedules, snapshotView, userEmail]);
+
+    const snapshotTimeCardTotals = useMemo(() => {
+        if (snapshotView === 'all') {
+            // Sum ALL timesheets across all schedules
+            let drive = 0;
+            let site = 0;
+            schedules.forEach(schedule => {
+                schedule.timesheet?.forEach((ts: any) => {
+                    const { hours } = calculateTimesheetData(ts, schedule.fromDate);
+                    if (ts.type?.toLowerCase().includes('drive')) {
+                        drive += hours;
+                    } else {
+                        site += hours;
+                    }
+                });
+            });
+            return { drive, site };
+        }
+        // 'self' - use existing dashboardTimeCards which are already filtered to current user
+        return timeCardTotals;
+    }, [snapshotView, schedules, timeCardTotals]);
+
+    const snapshotTodos = useMemo(() => {
+        const lowerEmail = userEmail.toLowerCase().trim();
+        const filteredTodos = todos.filter(t => {
+            if (snapshotView === 'self') {
+                const isCreator = t.createdBy?.toLowerCase().trim() === lowerEmail;
+                const isAssignee = t.assignees?.some(email => email.toLowerCase().trim() === lowerEmail);
+                return isCreator || isAssignee;
+            }
+            return true;
+        });
+
+        const done = filteredTodos.filter(t => {
+            if (t.status !== 'done') return false;
+            if (!t.lastUpdatedAt) return true;
+            const doneDate = new Date(t.lastUpdatedAt);
+            return doneDate >= weekRange.start && doneDate <= weekRange.end;
+        });
+        const total = filteredTodos.length;
+        return { done: done.length, total };
+    }, [todos, snapshotView, userEmail, weekRange]);
+
+    // Time Cards widget: scoped data based on timeCardsView
+    const tcWidgetTimeCards = useMemo(() => {
+        if (timeCardsView === 'self') return dashboardTimeCards;
+        // 'all' - gather ALL timesheets from all schedules
+        const allTimesheets: any[] = [];
+        schedules.forEach(schedule => {
+            schedule.timesheet?.forEach((ts: any) => {
+                const { hours, distance, calculatedDistance } = calculateTimesheetData(ts, schedule.fromDate);
+                allTimesheets.push({
+                    ...ts,
+                    estimate: schedule.estimate,
+                    scheduleId: schedule._id,
+                    hoursVal: hours,
+                    distanceVal: distance,
+                    rawDistanceVal: calculatedDistance
+                });
+            });
+        });
+        return allTimesheets.sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime());
+    }, [timeCardsView, dashboardTimeCards, schedules]);
+
+    const tcWidgetTotals = useMemo(() => {
+        let drive = 0;
+        let site = 0;
+        tcWidgetTimeCards.forEach(ts => {
+            if (ts.type?.toLowerCase().includes('drive')) {
+                drive += (ts.hoursVal || 0);
+            } else {
+                site += (ts.hoursVal || 0);
+            }
+        });
+        return { drive, site };
+    }, [tcWidgetTimeCards]);
 
 
     return (
@@ -3298,15 +3434,41 @@ function DashboardContent() {
                                 )}
 
                                 {/* Weekly Snapshot KPIs */}
+                                {canField(MODULES.DASHBOARD, 'widget_weekly_snapshot', 'view') && (
                                 <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden md:block' : ''}`}>
-                                    <div className="flex items-center gap-3 mb-5">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                                            <ActivityIcon className="w-5 h-5 text-white" />
+                                    <div className="flex items-center justify-between mb-5">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                                                <ActivityIcon className="w-5 h-5 text-white" />
+                                            </div>
+                                            <div>
+                                                <h2 className="font-bold text-slate-900">Weekly Snapshot</h2>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h2 className="font-bold text-slate-900">Weekly Snapshot</h2>
-
-                                        </div>
+                                        {weeklySnapshotScope === 'all' && (
+                                            <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
+                                                <button 
+                                                    onClick={() => setSnapshotView('self')}
+                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                        snapshotView === 'self' 
+                                                            ? 'bg-white text-blue-600 shadow-sm' 
+                                                            : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                                >
+                                                    Self
+                                                </button>
+                                                <button 
+                                                    onClick={() => setSnapshotView('all')}
+                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                        snapshotView === 'all' 
+                                                            ? 'bg-white text-blue-600 shadow-sm' 
+                                                            : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                                >
+                                                    All
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         {/* Total Jobs */}
@@ -3315,7 +3477,7 @@ function DashboardContent() {
                                                 <Calendar className="w-3.5 h-3.5 text-blue-500" />
                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500/80">Jobs</span>
                                             </div>
-                                            <p className="text-2xl font-black text-slate-800 leading-none">{schedules.length}</p>
+                                            <p className="text-2xl font-black text-slate-800 leading-none">{snapshotSchedules.length}</p>
                                             <p className="text-[10px] text-slate-400 mt-1">Scheduled this week</p>
                                             <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-blue-200/30" />
                                         </div>
@@ -3329,7 +3491,7 @@ function DashboardContent() {
                                             <p className="text-2xl font-black text-slate-800 leading-none">
                                                 {(() => {
                                                     const uniqueCrew = new Set<string>();
-                                                    schedules.forEach(s => {
+                                                    snapshotSchedules.forEach(s => {
                                                         s.assignees?.forEach((a: string) => uniqueCrew.add(a.toLowerCase()));
                                                     });
                                                     return uniqueCrew.size;
@@ -3345,11 +3507,11 @@ function DashboardContent() {
                                                 <Clock className="w-3.5 h-3.5 text-emerald-500" />
                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500/80">Hours</span>
                                             </div>
-                                            <p className="text-2xl font-black text-slate-800 leading-none">{(timeCardTotals.drive + timeCardTotals.site).toFixed(1)}</p>
+                                            <p className="text-2xl font-black text-slate-800 leading-none">{(snapshotTimeCardTotals.drive + snapshotTimeCardTotals.site).toFixed(1)}</p>
                                             <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-[9px] font-bold text-blue-500">{timeCardTotals.drive.toFixed(1)}h drive</span>
+                                                <span className="text-[9px] font-bold text-blue-500">{snapshotTimeCardTotals.drive.toFixed(1)}h drive</span>
                                                 <span className="text-[9px] text-slate-300">•</span>
-                                                <span className="text-[9px] font-bold text-emerald-500">{timeCardTotals.site.toFixed(1)}h site</span>
+                                                <span className="text-[9px] font-bold text-emerald-500">{snapshotTimeCardTotals.site.toFixed(1)}h site</span>
                                             </div>
                                             <div className="absolute -right-2 -bottom-2 w-12 h-12 rounded-full bg-emerald-200/30" />
                                         </div>
@@ -3361,14 +3523,14 @@ function DashboardContent() {
                                                 <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500/80">Tasks</span>
                                             </div>
                                             <p className="text-2xl font-black text-slate-800 leading-none">
-                                                {todosByStatus.done.length}
-                                                <span className="text-sm font-bold text-slate-400 ml-0.5">/{todosByStatus.todo.length + todosByStatus['in progress'].length + todosByStatus.done.length}</span>
+                                                {snapshotTodos.done}
+                                                <span className="text-sm font-bold text-slate-400 ml-0.5">/{snapshotTodos.total}</span>
                                             </p>
                                             <div className="w-full bg-amber-200/40 rounded-full h-1.5 mt-2">
                                                 <div 
                                                     className="bg-gradient-to-r from-amber-400 to-amber-500 h-1.5 rounded-full transition-all duration-700"
                                                     style={{ 
-                                                        width: `${Math.round((todosByStatus.done.length / Math.max(todosByStatus.todo.length + todosByStatus['in progress'].length + todosByStatus.done.length, 1)) * 100)}%` 
+                                                        width: `${Math.round((snapshotTodos.done / Math.max(snapshotTodos.total, 1)) * 100)}%` 
                                                     }}
                                                 />
                                             </div>
@@ -3377,6 +3539,7 @@ function DashboardContent() {
                                         </div>
                                     </div>
                                 </div>
+                                )}
 
 
                             </div>
@@ -3395,6 +3558,7 @@ function DashboardContent() {
                             />
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
+                            {canField(MODULES.DASHBOARD, 'widget_time_cards', 'view') && (
                             <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden`}>
                                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-3">
@@ -3403,19 +3567,42 @@ function DashboardContent() {
                                         </div>
                                         <div>
                                             <h2 className="font-bold text-slate-900">Time Cards</h2>
-
                                         </div>
+                                        {timeCardsWidgetScope === 'all' && (
+                                            <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
+                                                <button 
+                                                    onClick={() => setTimeCardsView('self')}
+                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                        timeCardsView === 'self' 
+                                                            ? 'bg-white text-blue-600 shadow-sm' 
+                                                            : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                                >
+                                                    Self
+                                                </button>
+                                                <button 
+                                                    onClick={() => setTimeCardsView('all')}
+                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                        timeCardsView === 'all' 
+                                                            ? 'bg-white text-blue-600 shadow-sm' 
+                                                            : 'text-slate-500 hover:text-slate-700'
+                                                    }`}
+                                                >
+                                                    All
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-2 md:gap-4 ml-1 md:ml-0">
                                         <div className="flex flex-col md:items-end">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
-                                            <span className="text-sm font-black text-blue-600">{timeCardTotals.drive.toFixed(2)} hrs</span>
+                                            <span className="text-sm font-black text-blue-600">{tcWidgetTotals.drive.toFixed(2)} hrs</span>
                                         </div>
                                         <div className="w-px h-8 bg-slate-100 hidden md:block" />
                                         <div className="flex flex-col md:items-end">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
-                                            <span className="text-sm font-black text-emerald-600">{timeCardTotals.site.toFixed(2)} hrs</span>
+                                            <span className="text-sm font-black text-emerald-600">{tcWidgetTotals.site.toFixed(2)} hrs</span>
                                         </div>
                                     </div>
                                 </div>
@@ -3440,8 +3627,8 @@ function DashboardContent() {
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
-                                                    {dashboardTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).length > 0 ? 
-                                                        dashboardTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
+                                                    {tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).length > 0 ? 
+                                                        tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
                                                             <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                                 {formatDateOnly(ts.clockIn)}
@@ -3500,8 +3687,8 @@ function DashboardContent() {
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
-                                                    {dashboardTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).length > 0 ? 
-                                                        dashboardTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
+                                                    {tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).length > 0 ? 
+                                                        tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
                                                             <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                                 {formatDateOnly(ts.clockIn)}
@@ -3532,6 +3719,7 @@ function DashboardContent() {
                                     </div>
                                 </div>
                             </div>
+                            )}
                         </div>
 
                         {/* Right Sidebar - Chat & Activity */}

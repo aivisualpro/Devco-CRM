@@ -246,6 +246,7 @@ export const DEFAULT_ROLES: Partial<IRole>[] = [
 export const MODULE_FIELDS: Record<ModuleKey, string[]> = {
     [MODULES.DASHBOARD]: [
         'widget_upcoming_schedules',
+        'widget_weekly_snapshot',
         'widget_chat',
         'widget_estimates_overview',
         'widget_time_cards',

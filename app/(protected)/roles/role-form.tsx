@@ -591,6 +591,7 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                                         {(MODULE_FIELDS[activeDataScopeModule] || []).map((field: string, idx: number) => {
                                                             const canView = hasFieldPerm(field, 'view');
                                                             const isAll = getFieldDataScope(field) === 'all';
+                                                            const noEditDelete = field === 'widget_weekly_snapshot' || field === 'widget_estimates_overview' || field === 'widget_time_cards';
                                                             return (
                                                             <tr key={field} className={`border-b border-slate-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                                                                 <td className="py-2.5 px-4">
@@ -606,6 +607,9 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                                                     </div>
                                                                 </td>
                                                                 <td className="text-center py-2.5 px-2">
+                                                                    {noEditDelete ? (
+                                                                        <span className="text-slate-300">—</span>
+                                                                    ) : (
                                                                     <div className="flex justify-center">
                                                                         <Switch
                                                                             checked={hasFieldPerm(field, 'update')}
@@ -614,8 +618,12 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                                                             className={`scale-75 ${!canView ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                         />
                                                                     </div>
+                                                                    )}
                                                                 </td>
                                                                 <td className="text-center py-2.5 px-2">
+                                                                    {noEditDelete ? (
+                                                                        <span className="text-slate-300">—</span>
+                                                                    ) : (
                                                                     <div className="flex justify-center">
                                                                         <Switch
                                                                             checked={hasFieldPerm(field, 'delete')}
@@ -624,6 +632,7 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                                                             className={`scale-75 ${!canView ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                         />
                                                                     </div>
+                                                                    )}
                                                                 </td>
                                                                 <td className="text-center py-2.5 px-2">
                                                                     <div className="flex justify-center">
