@@ -36,6 +36,8 @@ export { ClientModal } from './ClientModal';
 export * from './select';
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './tooltip';
 export { UploadButton } from './UploadButton';
+export { FileDropZone } from './FileDropZone';
+export type { UploadedFile } from './FileDropZone';
 export { Switch } from './switch';
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from './accordion';
 export { ScheduleDetailsPopup } from './ScheduleDetailsPopup';

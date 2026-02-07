@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui';
+import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
+import type { UploadedFile } from '@/components/ui';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -331,30 +332,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         setIsCoiUploading(true);
         try {
-            const reader = new FileReader();
-            const base64Promise = new Promise<string>((resolve) => {
-                reader.onload = (ev) => resolve(ev.target?.result as string);
-                reader.readAsDataURL(file);
-            });
-            const base64 = await base64Promise;
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('folder', `estimates/${formData?.estimate || 'general'}/coi`);
 
-            const res = await fetch('/api/webhook/devcoBackend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'uploadRawToCloudinary',
-                    payload: {
-                        file: base64,
-                        fileName: `COI_${formData?.estimate || 'doc'}_${file.name}`,
-                        contentType: file.type
-                    }
-                })
-            });
-
+            const res = await fetch('/api/upload', { method: 'POST', body: fd });
             const data = await res.json();
-            if (data.success && data.result) {
+
+            if (data.success && data.url) {
                 onUpdate('coiDocument', {
-                    url: data.result.url,
+                    url: data.url,
+                    thumbnailUrl: data.thumbnailUrl || '',
                     name: file.name,
                     uploadedAt: new Date().toISOString()
                 });
@@ -381,35 +369,22 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (!files || files.length === 0 || !onUpdate) return;
 
         setIsLegalDocsUploading(true);
-        const uploaded: { url: string; name: string; type: string; uploadedAt: string }[] = [...legalDocs];
+        const uploaded: { url: string; thumbnailUrl?: string; name: string; type: string; uploadedAt: string }[] = [...legalDocs];
 
         try {
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const reader = new FileReader();
-                const base64Promise = new Promise<string>((resolve) => {
-                    reader.onload = (ev) => resolve(ev.target?.result as string);
-                    reader.readAsDataURL(file);
-                });
-                const base64 = await base64Promise;
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/legal`);
 
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'uploadRawToCloudinary',
-                        payload: {
-                            file: base64,
-                            fileName: `Legal_${formData?.estimate || 'doc'}_${file.name}`,
-                            contentType: file.type
-                        }
-                    })
-                });
-
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
                 const data = await res.json();
-                if (data.success && data.result) {
+
+                if (data.success && data.url) {
                     uploaded.push({
-                        url: data.result.url,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
                         name: file.name,
                         type: file.type,
                         uploadedAt: new Date().toISOString()
@@ -779,32 +754,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         for (const file of files) {
             try {
-                const reader = new FileReader();
-                const base64Promise = new Promise<string>((resolve) => {
-                    reader.onload = (ev) => resolve(ev.target?.result as string);
-                    reader.readAsDataURL(file);
-                });
-                const base64 = await base64Promise;
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/billing`);
 
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'uploadRawToCloudinary',
-                        payload: {
-                            file: base64,
-                            fileName: `billing_${Date.now()}_${file.name}`,
-                            contentType: file.type
-                        }
-                    })
-                });
-
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
                 const data = await res.json();
-                if (data.success && data.result) {
+
+                if (data.success && data.url) {
                     uploaded.push({
                         name: file.name,
-                        url: data.result.url,
-                        thumbnailUrl: data.result.thumbnailUrl,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
                         type: file.type
                     });
                 } else {
@@ -1107,33 +1068,23 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         for (const file of files) {
             try {
-                const reader = new FileReader();
-                const base64Promise = new Promise((resolve) => {
-                    reader.onload = () => resolve(reader.result);
-                    reader.readAsDataURL(file);
-                });
-                const base64 = await base64Promise;
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/planning`);
 
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'uploadDocument',
-                        payload: {
-                            file: base64,
-                            fileName: `${formData?.estimate || 'estimate'}_planning_${file.name}`,
-                            contentType: file.type
-                        }
-                    })
-                });
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
                 const data = await res.json();
-                if (data.success) {
+
+                if (data.success && data.url) {
                     uploaded.push({
                         name: file.name,
-                        url: data.result,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
                         type: file.type,
                         uploadedAt: new Date().toISOString()
                     });
+                } else {
+                    toast.error(`Failed to upload ${file.name}`);
                 }
             } catch (err) {
                 console.error('Upload error:', err);
@@ -1491,33 +1442,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             try {
-                const reader = new FileReader();
-                const base64Promise = new Promise<string>((resolve) => {
-                    reader.onload = (e) => resolve(e.target?.result as string);
-                    reader.readAsDataURL(file);
-                });
-                const base64 = await base64Promise;
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/contracts`);
 
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'uploadRawToCloudinary',
-                        payload: {
-                            file: base64,
-                            fileName: `contract_${Date.now()}_${file.name}`,
-                            contentType: file.type
-                        }
-                    })
-                });
-
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
                 const data = await res.json();
 
-                if (data.success && data.result) {
+                if (data.success && data.url) {
                     uploadedAttachments.push({
                         name: file.name,
-                        url: data.result.url,
-                        thumbnailUrl: data.result.thumbnailUrl,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
                         type: file.type
                     });
                 } else {
@@ -1603,33 +1539,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
             try {
-                const reader = new FileReader();
-                const base64Promise = new Promise<string>((resolve) => {
-                    reader.onload = (e) => resolve(e.target?.result as string);
-                    reader.readAsDataURL(file);
-                });
-                const base64 = await base64Promise;
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/receipts`);
 
-                const res = await fetch('/api/webhook/devcoBackend', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'uploadRawToCloudinary',
-                        payload: {
-                            file: base64,
-                            fileName: `receipt_${Date.now()}_${file.name}`,
-                            contentType: file.type
-                        }
-                    })
-                });
-
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
                 const data = await res.json();
 
-                if (data.success && data.result) {
+                if (data.success && data.url) {
                     uploadedAttachments.push({
                         name: file.name,
-                        url: data.result.url,
-                        thumbnailUrl: data.result.thumbnailUrl,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
                         type: file.type
                     });
                 }
@@ -2584,10 +2505,23 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     )}
                                     
                                     {item.uploads?.length > 0 && (
-                                        <div className="mt-2 flex items-center gap-2 text-[9px] text-slate-400">
-                                            <span className="flex items-center gap-1">
-                                                <Paperclip className="w-3 h-3" /> {item.uploads.length}
-                                            </span>
+                                        <div className="mt-2 space-y-1">
+                                            {item.uploads.map((upload: any, uIdx: number) => (
+                                                <a
+                                                    key={uIdx}
+                                                    href={upload.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="flex items-center gap-1.5 text-[9px] text-violet-600 hover:text-violet-800 hover:bg-violet-50 px-2 py-1 rounded-lg transition-colors group/link"
+                                                >
+                                                    <Paperclip className="w-2.5 h-2.5 flex-shrink-0" />
+                                                    <span className="truncate max-w-[180px] group-hover/link:underline">{upload.name || `File ${uIdx + 1}`}</span>
+                                                    {upload.thumbnailUrl && (
+                                                        <img src={upload.thumbnailUrl} alt="" className="w-5 h-5 rounded object-cover ml-auto flex-shrink-0" />
+                                                    )}
+                                                </a>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
