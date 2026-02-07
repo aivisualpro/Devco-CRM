@@ -2549,7 +2549,7 @@ function DashboardContent() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="hidden md:flex gap-6 overflow-x-auto pb-4">
+                                <div className="hidden md:flex gap-6 overflow-x-auto">
                                     <TodoColumn 
                                         title="To Do" 
                                         items={todosByStatus.todo} 
