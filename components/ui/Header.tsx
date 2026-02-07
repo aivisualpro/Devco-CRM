@@ -119,6 +119,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const [isMobileDocsOpen, setIsMobileDocsOpen] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
+    const navRef = useRef<HTMLElement>(null);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('devco_user');
@@ -142,6 +143,10 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
         const handleClickOutside = (event: MouseEvent) => {
            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
                setUserDropdownOpen(false);
+           }
+           // Close nav menu when clicking outside
+           if (navRef.current && !navRef.current.contains(event.target as Node)) {
+               setOpenMenu(null);
            }
         };
         document.addEventListener('mousedown', handleClickOutside);
@@ -220,7 +225,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 </div>
                             )}
                             {leftContent}
-                            <nav className="hidden md:flex items-center gap-2">
+                            <nav ref={navRef} className="hidden md:flex items-center gap-2">
                                 {menuStructure.map((group) => {
                                     // Filter items based on permissions
                                     const visibleItems = (group.items || []).filter(item => canAccessRoute(item.href));
@@ -254,10 +259,9 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                         <div 
                                             key={group.label} 
                                             className="relative"
-                                            onMouseEnter={() => setOpenMenu(group.label)}
-                                            onMouseLeave={() => setOpenMenu(null)}
                                         >
                                             <button
+                                                onClick={() => setOpenMenu(openMenu === group.label ? null : group.label)}
                                                 className={`px-3 py-3 rounded-lg text-sm font-bold leading-4 transition-all flex items-center gap-1 focus:outline-none ${active ? 'text-gray-900 bg-white shadow-sm' : 'text-gray-600 hover:text-gray-900 hover:bg-white/50'
                                                     }`}
                                             >
