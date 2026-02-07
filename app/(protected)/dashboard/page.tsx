@@ -3610,21 +3610,27 @@ function DashboardContent() {
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Drive Time</span>
                                         </div>
                                         <div className="overflow-x-auto">
-                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent" className="table-fixed w-full">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Date</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[110px]">Estimate</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Washout</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Shop</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[70px]">Dist</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[60px]">Hrs</TableHeader>
+                                                        {timeCardsView === 'all' && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left align-middle" style={{width:'18%'}}>Employee</TableHeader>}
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '13%' : '18%'}}>Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '13%' : '18%'}}>Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '12%' : '16%'}}>Washout</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '12%' : '16%'}}>Shop</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '12%' : '16%'}}>Dist</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '8%' : '16%'}}>Hrs</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
                                                     {tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).length > 0 ? 
                                                         tcWidgetTimeCards.filter(ts => ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
+                                                            {timeCardsView === 'all' && (
+                                                                <TableCell className="text-left align-middle text-[11px] font-semibold text-slate-700 truncate max-w-[100px]">
+                                                                    {(() => { const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === ts.employee?.toLowerCase()); return emp?.label || ts.employee?.split('@')[0] || '-'; })()}
+                                                                </TableCell>
+                                                            )}
                                                             <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {formatDateOnly(ts.clockIn)}
                                                             </TableCell>
@@ -3656,7 +3662,7 @@ function DashboardContent() {
                                                         </TableRow>
                                                     )) : (
                                                         <TableRow>
-                                                            <TableCell colSpan={6} className="text-center py-4 text-xs text-slate-300 italic">No drive records</TableCell>
+                                                            <TableCell colSpan={timeCardsView === 'all' ? 7 : 6} className="text-center py-4 text-xs text-slate-300 italic">No drive records</TableCell>
                                                         </TableRow>
                                                     )}
                                                 </TableBody>
@@ -3671,20 +3677,26 @@ function DashboardContent() {
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Site Time</span>
                                         </div>
                                         <div className="overflow-x-auto">
-                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent" className="table-fixed w-full">
                                                 <TableHead>
                                                     <TableRow className="hover:bg-transparent border-slate-100">
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Date</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[110px]">Estimate</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">In</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[90px]">Out</TableHeader>
-                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle w-[60px]">Hrs</TableHeader>
+                                                        {timeCardsView === 'all' && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left align-middle" style={{width:'18%'}}>Employee</TableHeader>}
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '13%' : '20%'}}>Date</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '13%' : '20%'}}>Estimate</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '18%' : '20%'}}>In</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '18%' : '20%'}}>Out</TableHeader>
+                                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center align-middle" style={{width: timeCardsView === 'all' ? '8%' : '20%'}}>Hrs</TableHeader>
                                                     </TableRow>
                                                 </TableHead>
                                                 <TableBody>
                                                     {tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).length > 0 ? 
                                                         tcWidgetTimeCards.filter(ts => !ts.type?.toLowerCase().includes('drive')).slice(0, 10).map((ts, idx) => (
                                                         <TableRow key={idx} className="hover:bg-slate-50">
+                                                            {timeCardsView === 'all' && (
+                                                                <TableCell className="text-left align-middle text-[11px] font-semibold text-slate-700 truncate max-w-[100px]">
+                                                                    {(() => { const emp = initialData.employees?.find((e: any) => e.value?.toLowerCase() === ts.employee?.toLowerCase()); return emp?.label || ts.employee?.split('@')[0] || '-'; })()}
+                                                                </TableCell>
+                                                            )}
                                                             <TableCell className="text-center align-middle text-[11px] font-medium text-slate-600">
                                                                 {formatDateOnly(ts.clockIn)}
                                                             </TableCell>
@@ -3705,7 +3717,7 @@ function DashboardContent() {
                                                         </TableRow>
                                                     )) : (
                                                         <TableRow>
-                                                            <TableCell colSpan={5} className="text-center py-4 text-xs text-slate-300 italic">No site records</TableCell>
+                                                            <TableCell colSpan={timeCardsView === 'all' ? 6 : 5} className="text-center py-4 text-xs text-slate-300 italic">No site records</TableCell>
                                                         </TableRow>
                                                     )}
                                                 </TableBody>
