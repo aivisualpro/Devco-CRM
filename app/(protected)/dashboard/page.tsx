@@ -919,6 +919,8 @@ function DashboardContent() {
     
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
+    const chatUserScrolledUp = useRef(false);
+    const chatInitialLoad = useRef(true);
     const [activeEmailType, setActiveEmailType] = useState<'jha' | 'djt'>('jha');
 
     // Load User
@@ -1790,11 +1792,15 @@ function DashboardContent() {
             const data = await res.json();
             if (data.success) {
                 setMessages(data.messages);
-                setTimeout(() => {
-                    if (chatScrollRef.current) {
-                        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
-                    }
-                }, 100);
+                // Only auto-scroll on initial load or if user is already at the bottom
+                if (chatInitialLoad.current || !chatUserScrolledUp.current) {
+                    setTimeout(() => {
+                        if (chatScrollRef.current) {
+                            chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+                        }
+                    }, 100);
+                }
+                chatInitialLoad.current = false;
             }
         } catch (error) {
             console.error('Failed to fetch chat', error);
@@ -1891,6 +1897,8 @@ function DashboardContent() {
             (chatInputRef.current as any).style.height = '42px';
         }
         
+        // Reset scroll tracking - user just sent a message, scroll to bottom
+        chatUserScrolledUp.current = false;
         setTimeout(() => {
             if (chatScrollRef.current) {
                 chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
@@ -2950,6 +2958,13 @@ function DashboardContent() {
                                 <div 
                                     className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin"
                                     ref={chatScrollRef}
+                                    onScroll={() => {
+                                        if (chatScrollRef.current) {
+                                            const { scrollTop, scrollHeight, clientHeight } = chatScrollRef.current;
+                                            // Consider "near bottom" if within 80px of the bottom
+                                            chatUserScrolledUp.current = scrollHeight - scrollTop - clientHeight > 80;
+                                        }
+                                    }}
                                 >
                                     {(chatFilterValue ? messages.filter(msg => {
                                         const query = chatFilterValue.toLowerCase().trim();
