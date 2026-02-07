@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 
 // Configure Cloudinary
 cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
     api_key: process.env.CLOUDINARY_API_KEY,
     api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Configure R2 Client
+const r2Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+    },
 });
 
 export async function POST(request: NextRequest) {
@@ -22,7 +33,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ success: false, error: 'Cloudinary not configured' }, { status: 500 });
         }
 
-        // Convert file to base64
+        // Convert file to base64 and buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const base64 = buffer.toString('base64');
@@ -35,49 +46,69 @@ export async function POST(request: NextRequest) {
         let thumbnailUrl = '';
         let publicId = '';
         let resourceType = 'auto';
+        let r2Key = '';
 
         if (isPdf) {
-            // For PDFs: Upload as 'image' type so Cloudinary serves with correct Content-Type
-            // This allows browser viewing and proper downloads
+            // === PDF Strategy: Store in R2 (reliable access) + Cloudinary (thumbnail only) ===
+            
+            // 1. Upload to R2 for permanent, direct access
+            const timestamp = Date.now();
+            const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+            r2Key = `${folder}/${timestamp}_${safeName}`;
+
+            const hasR2 = process.env.R2_ACCOUNT_ID && process.env.R2_ACCESS_KEY_ID && process.env.R2_SECRET_ACCESS_KEY;
+            
+            if (hasR2) {
+                await r2Client.send(new PutObjectCommand({
+                    Bucket: process.env.R2_BUCKET_NAME,
+                    Key: r2Key,
+                    Body: buffer,
+                    ContentType: 'application/pdf',
+                }));
+                
+                // Use Cloudflare Worker + R2 custom domain for permanent, direct access
+                const filesDomain = process.env.R2_FILES_DOMAIN || 'https://files.devcohq.com';
+                mainUrl = `${filesDomain}/${r2Key}`;
+            }
+
+            // 2. Upload to Cloudinary just for thumbnail generation
             try {
                 const result = await cloudinary.uploader.upload(dataUri, {
                     folder: `devcocrm/${folder}`,
-                    resource_type: 'image', // Upload PDF as image type for proper serving
+                    resource_type: 'image',
                 });
                 
-                mainUrl = result.secure_url;
                 publicId = result.public_id;
                 resourceType = 'image';
                 
                 // Generate thumbnail from first page
                 thumbnailUrl = result.secure_url
-                    .replace('/upload/', '/upload/w_400,h_533,c_fill,g_north,pg_1/')
+                    .replace('/upload/', '/upload/w_800,h_600,c_fill,g_north,pg_1/')
                     .replace('.pdf', '.jpg');
+
+                // If R2 wasn't available, fall back to Cloudinary URL
+                if (!mainUrl) {
+                    mainUrl = result.secure_url;
+                }
                     
             } catch (pdfError: any) {
-                console.error('PDF as image upload failed, trying raw:', pdfError.message);
+                console.error('Cloudinary PDF thumbnail generation failed:', pdfError.message);
+                thumbnailUrl = ''; // Will trigger fallback placeholder in UI
                 
-                // Fallback: Upload as raw if image processing fails (very large PDFs)
-                const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "").substring(0, 50);
-                const timestamp = Date.now();
-                const safeName = fileNameWithoutExt.replace(/[^a-zA-Z0-9]/g, '_');
-                
-                const rawResult = await cloudinary.uploader.upload(dataUri, {
-                    folder: `devcocrm/${folder}`,
-                    resource_type: 'raw',
-                    public_id: `${safeName}_${timestamp}`,
-                    format: 'pdf'
-                });
-                
-                mainUrl = rawResult.secure_url;
-                publicId = rawResult.public_id;
-                resourceType = 'raw';
-                
-                // For raw PDFs, use a static placeholder thumbnail
-                thumbnailUrl = `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/v1/devcocrm/placeholders/pdf_icon.png`;
+                if (!mainUrl) {
+                    // No R2 and Cloudinary failed - try raw upload as last resort
+                    const rawResult = await cloudinary.uploader.upload(dataUri, {
+                        folder: `devcocrm/${folder}`,
+                        resource_type: 'raw',
+                        format: 'pdf'
+                    });
+                    mainUrl = rawResult.secure_url;
+                    publicId = rawResult.public_id;
+                    resourceType = 'raw';
+                }
             }
         } else {
-            // For images and other files
+            // === Images and other files: Cloudinary (great transforms) ===
             const result = await cloudinary.uploader.upload(dataUri, {
                 folder: `devcocrm/${folder}`,
                 resource_type: 'auto',
@@ -103,7 +134,8 @@ export async function POST(request: NextRequest) {
             type: file.type,
             size: file.size,
             resource_type: resourceType,
-            isPdf: isPdf
+            isPdf: isPdf,
+            r2Key: r2Key || undefined,
         });
 
     } catch (error: any) {
@@ -111,4 +143,3 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ success: false, error: error.message || 'Upload failed' }, { status: 500 });
     }
 }
-

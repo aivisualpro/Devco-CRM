@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Card, UploadButton } from '@/components/ui';
-import { Upload, Image as ImageIcon, Map, Download, ExternalLink, Trash2 } from 'lucide-react';
+import { Upload, Image as ImageIcon, Map, Download, ExternalLink, Trash2, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/useToast';
 
 interface EstimateAerialLayoutCardProps {
@@ -13,6 +13,16 @@ interface EstimateAerialLayoutCardProps {
 
 export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: EstimateAerialLayoutCardProps) {
     const { success, error: toastError } = useToast();
+
+    // Helper: detect if a URL points to a PDF
+    const isPdfUrl = (url: string) => {
+        if (!url) return false;
+        const lower = url.toLowerCase();
+        return lower.endsWith('.pdf') || lower.includes('/pdf') || lower.includes('application%2Fpdf');
+    };
+
+    // Helper: detect if URL is served through R2 (Worker or proxy)
+    const isR2Url = (url: string) => url?.includes('files.devcohq.com') || url?.includes('r2-file-server.devcohq.workers.dev') || url?.startsWith('/api/r2-file');
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -30,16 +40,71 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
                         {formData.aerialImage ? (
                             <>
                                 <div className="relative rounded-lg overflow-hidden border border-slate-100 bg-slate-50 aspect-video flex items-center justify-center">
-                                    <img 
-                                        src={formData.aerialImage} 
-                                        alt="Aerial" 
-                                        className="w-full h-full object-contain"
-                                    />
+                                    {(() => {
+                                        const url = formData.aerialImage;
+                                        const isPdf = isPdfUrl(url) || isR2Url(url);
+                                        const thumbnail = formData.aerialImageThumbnail;
+                                        
+                                        if (isPdf) {
+                                            return (
+                                                <div 
+                                                    className="w-full h-full relative cursor-pointer group"
+                                                    onClick={() => window.open(url, '_blank')}
+                                                >
+                                                    {/* Show Cloudinary thumbnail if available */}
+                                                    {thumbnail ? (
+                                                        <img 
+                                                            src={thumbnail} 
+                                                            alt="Aerial PDF" 
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => {
+                                                                e.currentTarget.style.display = 'none';
+                                                                const fallback = e.currentTarget.parentElement?.querySelector('.pdf-fallback');
+                                                                if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    {/* Fallback PDF placeholder */}
+                                                    <div className={`pdf-fallback w-full h-full flex-col items-center justify-center gap-3 bg-gradient-to-br from-slate-50 to-slate-100 ${thumbnail ? 'hidden' : 'flex'}`}>
+                                                        <div className="w-16 h-20 rounded-lg bg-red-500 flex items-center justify-center shadow-lg">
+                                                            <FileText className="w-8 h-8 text-white" />
+                                                        </div>
+                                                        <p className="text-xs text-slate-500 font-medium">Click to view PDF</p>
+                                                    </div>
+                                                    {/* Hover overlay */}
+                                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 shadow-lg flex items-center gap-2">
+                                                            <ExternalLink className="w-4 h-4 text-blue-600" />
+                                                            <span className="text-xs font-bold text-blue-600">View PDF</span>
+                                                        </div>
+                                                    </div>
+                                                    {/* PDF badge */}
+                                                    <div className="absolute top-2 right-2 bg-red-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow-sm">PDF</div>
+                                                </div>
+                                            );
+                                        }
+                                        return (
+                                            <img 
+                                                src={url} 
+                                                alt="Aerial" 
+                                                className="w-full h-full object-contain"
+                                            />
+                                        );
+                                    })()}
                                 </div>
                                 <div className="grid grid-cols-3 gap-3 mt-3">
                                     <UploadButton
                                         showIcon={false}
-                                        onUpload={(url) => onUpdate('aerialImage', url)}
+                                        accept="image/*,application/pdf"
+                                        onUpload={(url, data) => {
+                                            onUpdate('aerialImage', url);
+                                            // Store thumbnail separately for PDFs
+                                            if (data?.thumbnailUrl) {
+                                                onUpdate('aerialImageThumbnail', data.thumbnailUrl);
+                                            } else {
+                                                onUpdate('aerialImageThumbnail', '');
+                                            }
+                                        }}
                                         className="w-full h-10 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
                                         label={
                                             <div className="flex items-center gap-2">
@@ -49,17 +114,28 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
                                         }
                                     />
                                     <button 
-                                        onClick={() => window.open(formData.aerialImage, '_blank')}
+                                        onClick={() => {
+                                            const u = formData.aerialImage;
+                                            // For R2/Worker files, add download param; for others open directly
+                                            const separator = u.includes('?') ? '&' : '?';
+                                            const downloadUrl = isR2Url(u)
+                                                ? `${u}${separator}download=true`
+                                                : u;
+                                            window.open(downloadUrl, '_blank');
+                                        }}
                                         className="w-full h-10 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
-                                        title="Download Image"
+                                        title="Download"
                                     >
                                         <Download className="w-3.5 h-3.5" />
                                         <span>Download</span>
                                     </button>
                                     <button 
-                                        onClick={() => onUpdate('aerialImage', '')}
+                                        onClick={() => {
+                                            onUpdate('aerialImage', '');
+                                            onUpdate('aerialImageThumbnail', '');
+                                        }}
                                         className="w-full h-10 bg-white border border-slate-200 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-lg text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
-                                        title="Remove Image"
+                                        title="Remove"
                                     >
                                         <Trash2 className="w-3.5 h-3.5" />
                                         <span>Remove</span>
@@ -73,12 +149,18 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
                                 </div>
                                 <h5 className="text-sm font-semibold text-slate-600 mb-1">Upload Aerial Image</h5>
                                 <p className="text-xs text-slate-400 mb-4 text-center max-w-[200px]">
-                                    Upload a satellite image or map view of the site
+                                    Upload a satellite image, map view, or PDF of the site
                                 </p>
                                 <UploadButton
-                                    onUpload={(url) => onUpdate('aerialImage', url)}
+                                    accept="image/*,application/pdf"
+                                    onUpload={(url, data) => {
+                                        onUpdate('aerialImage', url);
+                                        if (data?.thumbnailUrl) {
+                                            onUpdate('aerialImageThumbnail', data.thumbnailUrl);
+                                        }
+                                    }}
                                     className="px-4 py-2 bg-[#0F4C75] text-white rounded-lg text-xs font-bold hover:bg-[#0F4C75]/90 transition-all shadow-sm"
-                                    label="Select Image"
+                                    label="Select Image or PDF"
                                 />
                                 <div className="flex items-center gap-2 w-full max-w-[240px] mt-4 mb-2">
                                     <div className="h-px bg-slate-200 flex-1" />
@@ -88,7 +170,7 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
                                 <div className="w-full max-w-[240px]">
                                     <input 
                                         type="text"
-                                        placeholder="Paste Image URL"
+                                        placeholder="Paste Image or PDF URL"
                                         className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-300 bg-white"
                                         onBlur={(e) => {
                                             if (e.target.value) onUpdate('aerialImage', e.target.value);

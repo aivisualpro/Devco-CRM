@@ -1,0 +1,16 @@
+name = "r2-file-server"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "devcocrmstorage"
+
+# Custom domain route (uncomment after adding devcohq.com to Cloudflare)
+# [triggers]
+# routes = ["files.devcohq.com/*"]
+
+[vars]
+# Optional: Add allowed origins for CORS
+ALLOWED_ORIGINS = "https://devco-crm.vercel.app,https://devcohq.com,http://localhost:3000"

@@ -633,7 +633,7 @@ export function EstimateHeaderCard({
                             {/* Certified Payroll */}
                             <div className="flex-1 relative flex flex-col items-center p-2">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block">
-                                    Cert. Pay
+                                    Cert-Pay
                                 </label>
                                 {(() => {
                                     const selectedOpt = certifiedPayrollOptions.find(f => f.value === formData.certifiedPayroll);
@@ -702,7 +702,7 @@ export function EstimateHeaderCard({
                             {formData.certifiedPayroll === 'Yes' && (
                                 <div className="flex-1 relative flex flex-col items-center p-2 animate-fadeIn">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2 block text-center leading-tight">
-                                        Prev. Wage
+                                        Prev-Wage
                                     </label>
                                     {(() => {
                                         const isPrevailing = formData.prevailingWage === true;
