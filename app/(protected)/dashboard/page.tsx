@@ -158,6 +158,10 @@ interface TodoItem {
     dueDate?: string;
     assignees?: string[];
     status: 'todo' | 'in progress' | 'done';
+    customerId?: string;
+    customerName?: string;
+    estimate?: string;
+    jobAddress?: string;
     createdBy?: string;
     createdAt?: string;
     lastUpdatedAt?: string;
@@ -449,6 +453,8 @@ const TaskFormModal = ({
     onSave, 
     editingTask,
     employees,
+    clients,
+    estimates,
     currentUserEmail,
     isSuperAdmin
 }: { 
@@ -457,6 +463,8 @@ const TaskFormModal = ({
     onSave: (data: Partial<TodoItem>) => void;
     editingTask?: TodoItem | null;
     employees: any[];
+    clients: any[];
+    estimates: any[];
     currentUserEmail: string;
     isSuperAdmin: boolean;
 }) => {
@@ -466,9 +474,17 @@ const TaskFormModal = ({
         task: '',
         dueDate: '',
         status: 'todo',
-        assignees: []
+        assignees: [],
+        customerId: '',
+        customerName: '',
+        estimate: '',
+        jobAddress: ''
     });
     const [isAssigneeDropdownOpen, setIsAssigneeDropdownOpen] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState('');
+    const [estimateSearch, setEstimateSearch] = useState('');
+    const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+    const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
 
     const employeeOptions = useMemo(() => employees.map(emp => ({
         id: emp.value,
@@ -477,29 +493,96 @@ const TaskFormModal = ({
         profilePicture: emp.image
     })), [employees]);
 
+    // Filter estimates based on selected customer
+    const filteredEstimates = useMemo(() => {
+        let filtered = estimates || [];
+        if (formData.customerId) {
+            filtered = filtered.filter((e: any) => String(e.customerId) === String(formData.customerId));
+        }
+        if (estimateSearch.trim()) {
+            const q = estimateSearch.toLowerCase();
+            filtered = filtered.filter((e: any) => 
+                (e.value || '').toLowerCase().includes(q) ||
+                (e.projectName || '').toLowerCase().includes(q) ||
+                (e.customerName || '').toLowerCase().includes(q)
+            );
+        }
+        return filtered.slice(0, 20);
+    }, [estimates, formData.customerId, estimateSearch]);
+
+    // Filter clients based on search
+    const filteredClients = useMemo(() => {
+        let filtered = clients || [];
+        if (customerSearch.trim()) {
+            const q = customerSearch.toLowerCase();
+            filtered = filtered.filter((c: any) => 
+                (c.name || '').toLowerCase().includes(q)
+            );
+        }
+        return filtered.slice(0, 20);
+    }, [clients, customerSearch]);
+
+    // Handle estimate selection — auto-fill customer and jobAddress
+    const handleEstimateSelect = (est: any) => {
+        const customer = clients.find((c: any) => String(c._id) === String(est.customerId));
+        setFormData(prev => ({
+            ...prev,
+            estimate: est.value || est._id,
+            customerId: est.customerId || prev.customerId,
+            customerName: customer?.name || est.customerName || prev.customerName,
+            jobAddress: est.jobAddress || prev.jobAddress
+        }));
+        setIsEstimateDropdownOpen(false);
+        setEstimateSearch('');
+    };
+
+    // Handle customer selection — clear estimate if customer changes
+    const handleCustomerSelect = (client: any) => {
+        setFormData(prev => ({
+            ...prev,
+            customerId: String(client._id),
+            customerName: client.name,
+            // Clear estimate if different customer
+            ...(prev.customerId && String(prev.customerId) !== String(client._id) ? { estimate: '', jobAddress: '' } : {})
+        }));
+        setIsCustomerDropdownOpen(false);
+        setCustomerSearch('');
+    };
+
     useEffect(() => {
         if (editingTask) {
             setFormData({
                 task: editingTask.task || '',
                 dueDate: editingTask.dueDate ? (editingTask.dueDate.includes('T') ? editingTask.dueDate.slice(0, 10) : editingTask.dueDate) : '',
                 status: editingTask.status || 'todo',
-                assignees: editingTask.assignees || []
+                assignees: editingTask.assignees || [],
+                customerId: editingTask.customerId || '',
+                customerName: editingTask.customerName || '',
+                estimate: editingTask.estimate || '',
+                jobAddress: editingTask.jobAddress || ''
             });
         } else {
             setFormData({
                 task: '',
                 dueDate: '',
                 status: 'todo',
-                assignees: []
+                assignees: [],
+                customerId: '',
+                customerName: '',
+                estimate: '',
+                jobAddress: ''
             });
         }
+        setCustomerSearch('');
+        setEstimateSearch('');
     }, [editingTask, isOpen]);
 
     if (!isOpen) return null;
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={editingTask ? 'Edit Task' : 'Add New Task'}>
-            <div className="space-y-4 p-4">
+            <div className="space-y-4">
+                {/* Task Description */}
                 <div>
                     <label className="block text-sm font-bold text-slate-700 mb-1">Task Description</label>
                     <textarea 
@@ -510,6 +593,146 @@ const TaskFormModal = ({
                         disabled={!canEdit}
                     />
                 </div>
+
+                {/* Customer & Estimate - side by side */}
+                <div className="grid grid-cols-2 gap-4">
+                    {/* Customer Dropdown */}
+                    <div className="relative">
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Customer</label>
+                        <div 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm cursor-pointer hover:border-blue-300 transition-all flex items-center justify-between"
+                            onClick={() => { if (canEdit) { setIsCustomerDropdownOpen(!isCustomerDropdownOpen); setIsEstimateDropdownOpen(false); } }}
+                        >
+                            <span className={formData.customerName ? 'text-slate-800' : 'text-slate-400'}>
+                                {formData.customerName || 'Select customer...'}
+                            </span>
+                            <ChevronDown size={14} className={`text-slate-400 transition-transform ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                        {isCustomerDropdownOpen && (
+                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[250px] overflow-hidden">
+                                <div className="p-2 border-b border-slate-100">
+                                    <input 
+                                        type="text"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100"
+                                        placeholder="Search customers..."
+                                        value={customerSearch}
+                                        onChange={(e) => setCustomerSearch(e.target.value)}
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                </div>
+                                <div className="overflow-y-auto max-h-[190px]">
+                                    {formData.customerId && (
+                                        <button
+                                            className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 font-medium border-b border-slate-100"
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                setFormData(prev => ({ ...prev, customerId: '', customerName: '', estimate: '', jobAddress: '' }));
+                                                setIsCustomerDropdownOpen(false);
+                                            }}
+                                        >
+                                            ✕ Clear selection
+                                        </button>
+                                    )}
+                                    {filteredClients.length === 0 ? (
+                                        <div className="p-3 text-xs text-slate-400 text-center">No customers found</div>
+                                    ) : (
+                                        filteredClients.map((client: any) => (
+                                            <button
+                                                key={client._id}
+                                                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 transition-colors flex items-center justify-between ${String(formData.customerId) === String(client._id) ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'}`}
+                                                onClick={(e) => { e.stopPropagation(); handleCustomerSelect(client); }}
+                                            >
+                                                <span className="truncate">{client.name}</span>
+                                                {String(formData.customerId) === String(client._id) && <span className="text-blue-500 text-xs">✓</span>}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Estimate Dropdown */}
+                    <div className="relative">
+                        <label className="block text-sm font-bold text-slate-700 mb-1">Estimate</label>
+                        <div 
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm cursor-pointer hover:border-blue-300 transition-all flex items-center justify-between"
+                            onClick={() => { if (canEdit) { setIsEstimateDropdownOpen(!isEstimateDropdownOpen); setIsCustomerDropdownOpen(false); } }}
+                        >
+                            <span className={formData.estimate ? 'text-slate-800' : 'text-slate-400'}>
+                                {formData.estimate || 'Select estimate...'}
+                            </span>
+                            <ChevronDown size={14} className={`text-slate-400 transition-transform ${isEstimateDropdownOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                        {isEstimateDropdownOpen && (
+                            <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-[250px] overflow-hidden">
+                                <div className="p-2 border-b border-slate-100">
+                                    <input 
+                                        type="text"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-100"
+                                        placeholder="Search estimates..."
+                                        value={estimateSearch}
+                                        onChange={(e) => setEstimateSearch(e.target.value)}
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                </div>
+                                <div className="overflow-y-auto max-h-[190px]">
+                                    {formData.estimate && (
+                                        <button
+                                            className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 font-medium border-b border-slate-100"
+                                            onClick={(e) => { 
+                                                e.stopPropagation(); 
+                                                setFormData(prev => ({ ...prev, estimate: '', jobAddress: '' }));
+                                                setIsEstimateDropdownOpen(false);
+                                            }}
+                                        >
+                                            ✕ Clear selection
+                                        </button>
+                                    )}
+                                    {filteredEstimates.length === 0 ? (
+                                        <div className="p-3 text-xs text-slate-400 text-center">No estimates found</div>
+                                    ) : (
+                                        filteredEstimates.map((est: any) => (
+                                            <button
+                                                key={est.value || est._id}
+                                                className={`w-full text-left px-3 py-2.5 text-sm hover:bg-blue-50 transition-colors ${formData.estimate === (est.value || est._id) ? 'bg-blue-50 text-blue-700 font-semibold' : 'text-slate-700'}`}
+                                                onClick={(e) => { e.stopPropagation(); handleEstimateSelect(est); }}
+                                            >
+                                                <div className="flex items-center justify-between">
+                                                    <div className="truncate">
+                                                        <span className="font-medium">{est.value || est._id}</span>
+                                                        {est.projectName && <span className="text-slate-400 ml-1.5">— {est.projectName}</span>}
+                                                    </div>
+                                                    {formData.estimate === (est.value || est._id) && <span className="text-blue-500 text-xs ml-1">✓</span>}
+                                                </div>
+                                                {!formData.customerId && est.customerName && (
+                                                    <div className="text-[10px] text-slate-400 mt-0.5 truncate">{est.customerName}</div>
+                                                )}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Job Address */}
+                <div>
+                    <label className="block text-sm font-bold text-slate-700 mb-1">Job Address</label>
+                    <input 
+                        type="text"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-100 outline-none"
+                        placeholder="Job location / address"
+                        value={formData.jobAddress || ''}
+                        onChange={(e) => setFormData({ ...formData, jobAddress: e.target.value })}
+                        disabled={!canEdit}
+                    />
+                </div>
+
+                {/* Due Date & Status - side by side */}
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Due Date</label>
@@ -535,6 +758,8 @@ const TaskFormModal = ({
                         </select>
                     </div>
                 </div>
+
+                {/* Assign To */}
                 <div className="relative">
                     <label className="block text-sm font-bold text-slate-700 mb-1">Assign To</label>
                     <div 
@@ -1917,6 +2142,49 @@ function DashboardContent() {
                 })
             });
             setChatEstimate(null); // Reset after send
+
+            // Auto-create a To Do task if employees were tagged
+            if (safeAssignees.length > 0) {
+                try {
+                    // Look up estimate details if one was tagged
+                    const taggedEstimate = chatEstimate?.value || extractedEstimate;
+                    let estimateFields: any = {};
+                    if (taggedEstimate) {
+                        const estObj = initialData.estimates?.find((e: any) => e.value === taggedEstimate);
+                        if (estObj) {
+                            estimateFields = {
+                                estimate: estObj.value,
+                                customerId: estObj.customerId || '',
+                                customerName: estObj.customerName || '',
+                                jobAddress: estObj.jobAddress || ''
+                            };
+                        } else {
+                            estimateFields = { estimate: taggedEstimate };
+                        }
+                    }
+
+                    const taskRes = await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            task: newMessage.replace(/@\S+/g, '').replace(/#\S+/g, '').trim() || newMessage,
+                            status: 'todo',
+                            assignees: safeAssignees.map((a: any) => a.email),
+                            createdBy: userEmail || 'System',
+                            ...estimateFields
+                        })
+                    });
+                    if (taskRes.ok) {
+                        const taskData = await taskRes.json();
+                        if (taskData.task) {
+                            setTodos(prev => [taskData.task, ...prev]);
+                        }
+                    }
+                } catch (taskErr) {
+                    console.error('Auto-task creation failed:', taskErr);
+                }
+            }
+
             fetchChatMessages();
         } catch (error) {
             console.error('Failed to send', error);
@@ -3116,6 +3384,8 @@ function DashboardContent() {
                                 onSave={handleSaveTask}
                                 editingTask={editingTask}
                                 employees={initialData.employees}
+                                clients={initialData.clients || []}
+                                estimates={initialData.estimates || []}
                                 currentUserEmail={userEmail}
                                 isSuperAdmin={isSuperAdmin}
                             />

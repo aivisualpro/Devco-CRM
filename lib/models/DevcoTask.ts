@@ -5,6 +5,10 @@ export interface IDevcoTask extends Document {
     dueDate?: Date;
     assignees: string[];
     status: 'todo' | 'in progress' | 'done';
+    customerId?: string;
+    customerName?: string;
+    estimate?: string;
+    jobAddress?: string;
     createdBy: string;
     createdAt: Date;
     lastUpdatedBy?: string;
@@ -20,6 +24,10 @@ const DevcoTaskSchema = new Schema({
         enum: ['todo', 'in progress', 'done'], 
         default: 'todo' 
     },
+    customerId: { type: String },
+    customerName: { type: String },
+    estimate: { type: String },
+    jobAddress: { type: String },
     createdBy: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
     lastUpdatedBy: { type: String },
