@@ -60,7 +60,7 @@ export function MyDropDown({
 }: MyDropDownProps) {
     const [search, setSearch] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const [coords, setCoords] = useState<{ top: number; left: number; width: number; isBottom: boolean } | null>(null);
+    const [coords, setCoords] = useState<{ top: number; left: number; width: number; isBottom: boolean; maxHeight?: number } | null>(null);
     const [adjustedLeft, setAdjustedLeft] = useState<number | null>(null);
     const [isMounted, setIsMounted] = useState(false);
 
@@ -75,13 +75,18 @@ export function MyDropDown({
                 const rect = anchor.getBoundingClientRect();
                 const dropdownHeight = 350; // Estimated max height
                 const spaceBelow = window.innerHeight - rect.bottom;
-                const shouldShowAbove = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
+                const spaceAbove = rect.top;
+                // Prefer above when space below is insufficient, even if above isn't full 350px
+                const shouldShowAbove = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
+                const availableSpace = shouldShowAbove ? spaceAbove : spaceBelow;
+                const maxHeight = Math.min(dropdownHeight, availableSpace - 20); // 20px margin
 
                 setCoords({
                     top: (shouldShowAbove ? rect.top : rect.bottom),
                     left: rect.left,
                     width: rect.width,
-                    isBottom: !shouldShowAbove
+                    isBottom: !shouldShowAbove,
+                    maxHeight: maxHeight > 100 ? maxHeight : undefined // Only constrain if meaningful
                 });
             }
         }
@@ -231,7 +236,8 @@ export function MyDropDown({
 
                 {/* Options List */}
                 <div 
-                    className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar overscroll-contain"
+                    className="space-y-2 overflow-y-auto pr-1 custom-scrollbar overscroll-contain"
+                    style={{ maxHeight: coords?.maxHeight ? `${coords.maxHeight - 60}px` : '15rem' }}
                     onWheel={(e) => e.stopPropagation()}
                 >
                     {filteredOptions.map((opt) => {

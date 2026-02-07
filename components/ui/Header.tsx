@@ -205,7 +205,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
     return (
         <>
-            <header className="lg:sticky top-0 z-[100] bg-[#eef2f6] border-b border-gray-200">
+            <header className="lg:sticky top-0 z-[100] bg-transparent lg:bg-[#eef2f6] lg:border-b lg:border-gray-200">
                 <div className="w-full px-4">
                     <div className="flex items-center justify-between h-12 relative">
                         {/* Left Content + Navigation Menu */}

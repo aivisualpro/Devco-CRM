@@ -1093,7 +1093,7 @@ function DashboardContent() {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [mediaModalContent, setMediaModalContent] = useState<{ type: 'image' | 'map', url: string, title: string }>({ type: 'image', url: '', title: '' });
     const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
-    const [newMessage, setNewMessage] = useState('');
+    // Chat input is uncontrolled (ref-based) for performance — no state here
     const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
     
     // Fetch full data for ScheduleDetailsPopup
@@ -1195,9 +1195,11 @@ function DashboardContent() {
     const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
     const [editingMsgText, setEditingMsgText] = useState('');
     const [replyingTo, setReplyingTo] = useState<any>(null);
+    const [longPressMsgId, setLongPressMsgId] = useState<string | null>(null);
     
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
     const chatUserScrolledUp = useRef(false);
     const chatInitialLoad = useRef(true);
     const [activeEmailType, setActiveEmailType] = useState<'jha' | 'djt'>('jha');
@@ -2095,7 +2097,6 @@ function DashboardContent() {
 
     const handleChatInput = (e: React.ChangeEvent<any>) => {
         const val = e.target.value;
-        setNewMessage(val);
         
         const cursor = e.target.selectionStart || 0;
         setCursorPosition(cursor);
@@ -2121,7 +2122,7 @@ function DashboardContent() {
     const insertTag = (tag: string, type: 'mention' | 'reference') => {
         if (!chatInputRef.current) return;
         
-        const val = newMessage;
+        const val = chatInputRef.current.value || '';
         const textBefore = val.slice(0, cursorPosition);
         const textAfter = val.slice(cursorPosition);
         
@@ -2129,7 +2130,7 @@ function DashboardContent() {
         
         if (lastWordStart >= 0) {
             const newTextBefore = textBefore.slice(0, lastWordStart) + tag + ' ';
-            setNewMessage(newTextBefore + textAfter);
+            chatInputRef.current.value = newTextBefore + textAfter;
             setShowMentions(false);
             setShowReferences(false);
             chatInputRef.current.focus();
@@ -2138,9 +2139,10 @@ function DashboardContent() {
 
     const handleSendMessage = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!newMessage.trim()) return;
+        const currentMessage = chatInputRef.current?.value || '';
+        if (!currentMessage.trim()) return;
 
-        const estimateMatch = newMessage.match(/#(\d+[-A-Za-z0-9]*)/);
+        const estimateMatch = currentMessage.match(/#(\d+[-A-Za-z0-9]*)/);
         const extractedEstimate = estimateMatch ? estimateMatch[1] : undefined;
 
         const safeAssignees = chatAssignees.map(val => {
@@ -2156,7 +2158,7 @@ function DashboardContent() {
         const optimisticMsg: any = {
             _id: `temp-${Date.now()}`,
             sender: userEmail,
-            message: newMessage,
+            message: currentMessage,
             estimate: extractedEstimate,
             assignees: safeAssignees,
             replyTo: replyingTo ? {
@@ -2168,13 +2170,12 @@ function DashboardContent() {
             updatedAt: new Date().toISOString()
         };
         setMessages(prev => [...prev, optimisticMsg]);
-        setNewMessage('');
-        setChatAssignees([]);
-        setReplyingTo(null);
-        
         if (chatInputRef.current) {
+            chatInputRef.current.value = '';
             (chatInputRef.current as any).style.height = '42px';
         }
+        setChatAssignees([]);
+        setReplyingTo(null);
         
         // Reset scroll tracking - user just sent a message, scroll to bottom
         chatUserScrolledUp.current = false;
@@ -2221,7 +2222,7 @@ function DashboardContent() {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            task: newMessage.replace(/@\S+/g, '').replace(/#\S+/g, '').trim() || newMessage,
+                            task: currentMessage.replace(/@\S+/g, '').replace(/#\S+/g, '').trim() || currentMessage,
                             status: 'todo',
                             assignees: safeAssignees.map((a: any) => a.email),
                             createdBy: userEmail || 'System',
@@ -2246,8 +2247,6 @@ function DashboardContent() {
         }
     };
 
-    const [deleteMsgId, setDeleteMsgId] = useState<string | null>(null);
-
     const handleUpdateMessage = async (id: string, text: string) => {
         if (!text.trim()) return;
         try {
@@ -2262,32 +2261,28 @@ function DashboardContent() {
                 setEditingMsgId(null);
                 setEditingMsgText('');
             } else {
+                console.error('Update failed:', data.error);
                 showError(data.error || 'Failed to update');
             }
         } catch (error) {
+            console.error('Update error:', error);
             showError('Operation failed');
         }
     };
 
-    const handleDeleteMessage = (id: string) => {
-        setDeleteMsgId(id);
-    };
-
-    const confirmDeleteMessage = async () => {
-        if (!deleteMsgId) return;
+    const handleDeleteMessage = async (id: string) => {
         try {
-            const res = await fetch(`/api/chat/${deleteMsgId}`, { method: 'DELETE' });
+            const res = await fetch(`/api/chat/${id}`, { method: 'DELETE' });
             const data = await res.json();
             if (data.success) {
-                setMessages(prev => prev.filter(m => m._id !== deleteMsgId));
+                setMessages(prev => prev.filter(m => m._id !== id));
             } else {
+                console.error('Delete failed:', data.error);
                 showError(data.error || 'Failed to delete');
             }
         } catch (error) {
             console.error('Failed to delete', error);
             showError('Failed to delete message');
-        } finally {
-            setDeleteMsgId(null);
         }
     };
 
@@ -2905,14 +2900,14 @@ function DashboardContent() {
                 hideSelectionIndicator={true}
             />
 
-            <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden lg:overflow-y-auto' : 'overflow-y-auto'} lg:p-4 lg:p-6 pb-0`}>
-                <div className="max-w-[1800px] mx-auto w-full">
+            <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden lg:overflow-y-auto' : 'overflow-y-auto'} lg:p-4 pb-0`}>
+                <div className={`max-w-[1800px] mx-auto w-full ${searchParams.get('view') === 'chat' ? 'h-full lg:h-auto' : ''}`}>
                     
                     {/* Main Grid */}
-                    <div className="grid grid-cols-12 gap-4 lg:gap-6">
+                    <div className={`grid grid-cols-12 gap-4 ${searchParams.get('view') === 'chat' ? 'h-full lg:h-auto overflow-hidden lg:overflow-visible' : ''}`}>
                         
                         {/* Left Column - Main Content */}
-                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && !['tasks', 'training'].includes(searchParams.get('view')!) ? 'hidden lg:block' : ''}`}>
+                        <div className={`col-span-12 xl:col-span-9 space-y-4 ${searchParams.get('view') && !['tasks', 'training'].includes(searchParams.get('view')!) ? 'hidden lg:block' : ''}`}>
                             
                             {/* Tasks Kanban */}
                             <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden xl:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3`}>
@@ -2957,7 +2952,7 @@ function DashboardContent() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="hidden lg:flex gap-6 overflow-x-auto">
+                                <div className="hidden lg:flex gap-4 overflow-x-auto">
                                     <TodoColumn 
                                         title="To Do" 
                                         items={todosByStatus.todo} 
@@ -3391,7 +3386,7 @@ function DashboardContent() {
                             </div>
 
                             {/* Middle Row - Stats & Charts */}
-                            <div className={`${searchParams.get('view') === 'training' ? 'grid' : 'hidden md:grid'} grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6`}>
+                            <div className={`${searchParams.get('view') === 'training' ? 'grid' : 'hidden md:grid'} grid-cols-1 lg:grid-cols-2 gap-4`}>
                                 
                                 {/* Estimate Stats Pie Chart */}
                                 {canField(MODULES.DASHBOARD, 'widget_estimates_overview', 'view') && (
@@ -3607,7 +3602,7 @@ function DashboardContent() {
                                     </div>
                                 </div>
                                 
-                                <div className="space-y-6">
+                                <div className="space-y-4">
                                     {/* Drive Time Section */}
                                     <div>
                                         <div className="flex items-center gap-2 mb-2 px-1">
@@ -3723,12 +3718,12 @@ function DashboardContent() {
                         </div>
 
                         {/* Right Sidebar - Chat & Activity */}
-                        <div className={`col-span-12 xl:col-span-3 space-y-4 lg:space-y-6 ${searchParams.get('view') === 'chat' ? 'block' : 'hidden lg:block'}`}>
+                        <div className={`col-span-12 xl:col-span-3 space-y-4 ${searchParams.get('view') === 'chat' ? 'block h-full lg:h-auto min-h-0 overflow-hidden lg:overflow-visible' : 'hidden lg:block'}`}>
                             
 
 
                             {/* Chat */}
-                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-[calc(100vh-160px)] lg:h-[650px]' : 'h-[650px]'}`}>
+                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-full lg:h-[650px]' : 'h-[650px]'}`}>
                                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white/95 backdrop-blur-sm z-20">
                                     <div className="flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4 text-[#0F4C75]" />
@@ -3757,7 +3752,7 @@ function DashboardContent() {
                                 </div>
                                 
                                 <div 
-                                    className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin"
+                                    className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin bg-slate-50/50"
                                     ref={chatScrollRef}
                                     onScroll={() => {
                                         if (chatScrollRef.current) {
@@ -3845,9 +3840,9 @@ function DashboardContent() {
                                                         });
                                                         
                                                         if (isAssignee) return null;
-                                                        return <span key={i} className="text-blue-600 font-bold">{part}</span>;
+                                                        return <span key={i} className={`font-bold ${isMe ? 'text-white/90 underline decoration-white/40' : 'text-[#0F4C75] underline decoration-[#0F4C75]/30'}`}>{part}</span>;
                                                     }
-                                                    if (part.startsWith('#')) return <span key={i} className="text-purple-600 font-bold cursor-pointer hover:underline" onClick={() => {
+                                                    if (part.startsWith('#')) return <span key={i} className={`font-bold cursor-pointer hover:underline ${isMe ? 'text-white/90' : 'text-[#0F4C75]'}`} onClick={() => {
                                                         const estVal = part.slice(1);
                                                         setTagFilters([{ type: 'estimate', value: estVal, label: part }]);
                                                     }}>{part}</span>;
@@ -3879,10 +3874,10 @@ function DashboardContent() {
                                                                 return (
                                                                     <Tooltip key={aIdx}>
                                                                         <TooltipTrigger asChild>
-                                                                            <Avatar className="w-6 h-6 border-2 border-white/20 shrink-0">
-                                                                                <AvatarImage src={assEmp?.image} />
-                                                                                <AvatarFallback className="text-[9px] bg-slate-200 font-extrabold text-[#0F4C75]">
-                                                                                    {(displayName || 'U')[0].toUpperCase()}
+                                                                            <Avatar className="w-6 h-6 border-2 border-white shrink-0">
+                                                                                {assEmp?.image && <AvatarImage src={assEmp.image} />}
+                                                                                <AvatarFallback className="text-[9px] bg-transparent font-extrabold text-white border border-white/40">
+                                                                                    {(() => { const parts = (displayName || 'U').split(' ').filter((p: string) => p.length > 0); return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : (displayName || 'U')[0].toUpperCase(); })()}
                                                                                 </AvatarFallback>
                                                                             </Avatar>
                                                                         </TooltipTrigger>
@@ -3899,9 +3894,9 @@ function DashboardContent() {
                                                 const SenderAvatar = (
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
-                                                            <Avatar className={`w-7 h-7 border-2 shrink-0 ${isMe ? 'border-white/20' : 'border-white'}`}>
+                                                            <Avatar className={`w-7 h-7 border-2 shrink-0 ${isMe ? 'border-[#0F4C75]/30' : 'border-white'}`}>
                                                                 <AvatarImage src={senderEmp?.image} />
-                                                                <AvatarFallback className={`text-[10px] font-black ${isMe ? 'bg-[#112D4E] text-white' : 'bg-slate-300 text-slate-700'}`}>
+                                                                <AvatarFallback className={`text-[10px] font-black ${isMe ? 'bg-[#0F4C75] text-white' : 'bg-[#0F4C75]/10 text-[#0F4C75]'}`}>
                                                                     {isMe ? 'ME' : senderInitials}
                                                                 </AvatarFallback>
                                                             </Avatar>
@@ -3930,61 +3925,78 @@ function DashboardContent() {
                                             };
 
                                             return (
-                                                <div id={msg._id} key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end group mb-2 gap-2`}>
-                                                    {isMe && !isEditing && (
-                                                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
-                                                            <button 
-                                                                onClick={() => {
-                                                                    setReplyingTo(msg);
-                                                                    setHighlightedMsgId(msg._id);
-                                                                    setTimeout(() => setHighlightedMsgId(null), 2000);
-                                                                    chatInputRef.current?.focus();
-                                                                }} 
-                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
-                                                                title="Reply"
-                                                            >
-                                                                <Reply size={12} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    // Add tagged people to selection
-                                                                    if (msg.assignees?.length) {
-                                                                        const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
-                                                                        setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
-                                                                    }
-                                                                    
-                                                                    // Strip mentions from text for the compose box
-                                                                    const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
-                                                                    setNewMessage((prev: string) => `Fwd: ${cleanText}\n` + prev);
-                                                                    chatInputRef.current?.focus();
-                                                                }} 
-                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                                title="Forward"
-                                                            >
-                                                                <Forward size={12} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
-                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                            >
-                                                                <Edit size={12} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => handleDeleteMessage(msg._id)}
-                                                                className="p-1 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"
-                                                            >
-                                                                <Trash2 size={12} />
-                                                            </button>
-                                                        </div>
-                                                    )}
+                                                <div id={msg._id} key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} items-end group mb-0.5`}>
                                                     
-                                                    <div className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative transition-all duration-300 ${
-                                                        highlightedMsgId === msg._id ? 'ring-2 ring-yellow-400 shadow-md scale-[1.02]' : ''
-                                                    } ${
-                                                        isMe 
-                                                            ? 'bg-[#526D82] text-white rounded-br-none' 
-                                                            : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
-                                                    }`}>
+                                                    <div 
+                                                        className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] relative transition-all duration-300 ${
+                                                            highlightedMsgId === msg._id ? 'ring-2 ring-[#0F4C75]/40 scale-[1.02]' : ''
+                                                        } ${
+                                                            isMe 
+                                                                ? 'bg-[#0F4C75] text-white rounded-br-none' 
+                                                                : 'bg-white text-slate-800 rounded-bl-none border border-slate-200'
+                                                        }`}
+                                                        onTouchStart={() => {
+                                                            longPressTimer.current = setTimeout(() => {
+                                                                setLongPressMsgId(msg._id);
+                                                            }, 500);
+                                                        }}
+                                                        onTouchEnd={() => {
+                                                            if (longPressTimer.current) {
+                                                                clearTimeout(longPressTimer.current);
+                                                                longPressTimer.current = null;
+                                                            }
+                                                        }}
+                                                        onTouchMove={() => {
+                                                            if (longPressTimer.current) {
+                                                                clearTimeout(longPressTimer.current);
+                                                                longPressTimer.current = null;
+                                                            }
+                                                        }}
+                                                    >
+                                                        {/* Desktop hover actions for own messages */}
+                                                        {isMe && !isEditing && (
+                                                            <div className="hidden lg:flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute right-full top-1/2 -translate-y-1/2 mr-1 z-10">
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setReplyingTo(msg);
+                                                                        setHighlightedMsgId(msg._id);
+                                                                        setTimeout(() => setHighlightedMsgId(null), 2000);
+                                                                        chatInputRef.current?.focus();
+                                                                    }} 
+                                                                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
+                                                                    title="Reply"
+                                                                >
+                                                                    <Reply size={12} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        if (msg.assignees?.length) {
+                                                                            const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
+                                                                            setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
+                                                                        }
+                                                                        const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
+                                                                        if (chatInputRef.current) chatInputRef.current.value = `Fwd: ${cleanText}\n` + (chatInputRef.current.value || '');
+                                                                        chatInputRef.current?.focus();
+                                                                    }} 
+                                                                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                                    title="Forward"
+                                                                >
+                                                                    <Forward size={12} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
+                                                                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                                >
+                                                                    <Edit size={12} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleDeleteMessage(msg._id)}
+                                                                    className="p-1 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"
+                                                                >
+                                                                    <Trash2 size={12} />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                         <HeaderContent />
 
                                                         {/* Reply Citation */}
@@ -4000,8 +4012,8 @@ function DashboardContent() {
                                                                 }}
                                                                 className={`mb-1 mx-1 p-1.5 rounded-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity ${
                                                                     isMe 
-                                                                        ? 'bg-white/10 border-l-2 border-white/40 text-white/80' 
-                                                                        : 'bg-slate-50 border-l-2 border-slate-300 text-slate-500'
+                                                                        ? 'bg-white/10 border-l-2 border-white/30 text-white/80' 
+                                                                        : 'bg-slate-50 border-l-2 border-[#0F4C75]/30 text-slate-500'
                                                                 }`}
                                                             >
                                                                 <p className="font-bold opacity-75 mb-0.5">{msg.replyTo.sender?.split('@')[0]}</p>
@@ -4015,7 +4027,7 @@ function DashboardContent() {
                                                                 <div className="space-y-2">
                                                                     <textarea 
                                                                         autoFocus
-                                                                        className="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-white/50"
+                                                                        className="w-full bg-white/15 border border-white/20 rounded-lg p-2 text-sm text-white placeholder:text-white/50 focus:outline-none focus:ring-1 focus:ring-white/40"
                                                                         value={editingMsgText}
                                                                         onChange={(e) => setEditingMsgText(e.target.value)}
                                                                         onKeyDown={(e) => {
@@ -4045,54 +4057,113 @@ function DashboardContent() {
                                                                 
                                                             <div className="flex items-center gap-2">
                                                                 {msg.estimate && (
-                                                                    <span className="bg-purple-100 text-purple-700 text-[8px] font-bold px-1.5 py-0.5 rounded border border-purple-200 uppercase tracking-tight">
+                                                                    <span className={`text-[8px] font-bold px-1.5 py-px rounded uppercase tracking-tight leading-none ${isMe ? 'bg-white/20 text-white border border-white/20' : 'bg-[#0F4C75]/10 text-[#0F4C75] border border-[#0F4C75]/15'}`}>
                                                                         #{msg.estimate.value || msg.estimate}
                                                                     </span>
                                                                 )}
-                                                                <span className={`text-[8px] uppercase tracking-widest font-black opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
-                                                                    {new Date(msg.createdAt).toLocaleString([], { 
-                                                                        month: 'short', 
-                                                                        day: 'numeric', 
-                                                                        year: 'numeric', 
-                                                                        hour: '2-digit', 
-                                                                        minute: '2-digit', 
-                                                                        hour12: true 
-                                                                    })}
+                                                                <span className={`text-[8px] uppercase tracking-widest font-medium opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
+                                                                    {(() => { const d = new Date(msg.createdAt); const mm = String(d.getMonth() + 1).padStart(2, '0'); const dd = String(d.getDate()).padStart(2, '0'); let h = d.getHours(); const ampm = h >= 12 ? 'pm' : 'am'; h = h % 12 || 12; const min = String(d.getMinutes()).padStart(2, '0'); return `${mm}/${dd}, ${h}:${min} ${ampm}`; })()}
                                                                 </span>
                                                             </div>
                                                         </div>
                                                         )}
+                                                        {/* Mobile Long-Press Action Popup */}
+                                                        {longPressMsgId === msg._id && (
+                                                            <>
+                                                                <div className="fixed inset-0 z-[200] lg:hidden" onClick={() => setLongPressMsgId(null)} />
+                                                                <div className={`absolute z-[201] lg:hidden animate-in fade-in zoom-in-95 duration-150 ${
+                                                                    isMe ? 'right-0 top-full mt-1' : 'left-0 top-full mt-1'
+                                                                }`}>
+                                                                    <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden min-w-[140px]">
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setReplyingTo(msg);
+                                                                                setHighlightedMsgId(msg._id);
+                                                                                setTimeout(() => setHighlightedMsgId(null), 2000);
+                                                                                chatInputRef.current?.focus();
+                                                                                setLongPressMsgId(null);
+                                                                            }}
+                                                                            className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors"
+                                                                        >
+                                                                            <Reply size={14} className="text-[#0F4C75]" />
+                                                                            Reply
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                if (msg.assignees?.length) {
+                                                                                    const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
+                                                                                    setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
+                                                                                }
+                                                                                const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
+                                                                                                                                                    if (chatInputRef.current) chatInputRef.current.value = `Fwd: ${cleanText}\n` + (chatInputRef.current.value || '');
+                                                                                chatInputRef.current?.focus();
+                                                                                setLongPressMsgId(null);
+                                                                            }}
+                                                                            className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors border-t border-slate-100"
+                                                                        >
+                                                                            <Forward size={14} className="text-[#0F4C75]" />
+                                                                            Forward
+                                                                        </button>
+                                                                        {isMe && (
+                                                                            <>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setEditingMsgId(msg._id);
+                                                                                        setEditingMsgText(msg.message);
+                                                                                        setLongPressMsgId(null);
+                                                                                    }}
+                                                                                    className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors border-t border-slate-100"
+                                                                                >
+                                                                                    <Edit size={14} className="text-[#0F4C75]" />
+                                                                                    Edit
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        handleDeleteMessage(msg._id);
+                                                                                        setLongPressMsgId(null);
+                                                                                    }}
+                                                                                    className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 active:bg-red-100 transition-colors border-t border-slate-100"
+                                                                                >
+                                                                                    <Trash2 size={14} />
+                                                                                    Delete
+                                                                                </button>
+                                                                            </>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                        {/* Desktop hover actions for other's messages */}
+                                                        {!isMe && (
+                                                            <div className="hidden lg:flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity absolute left-full top-1/2 -translate-y-1/2 ml-1 z-10">
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setReplyingTo(msg);
+                                                                        chatInputRef.current?.focus();
+                                                                    }} 
+                                                                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
+                                                                    title="Reply"
+                                                                >
+                                                                    <Reply size={12} />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        if (msg.assignees?.length) {
+                                                                            const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
+                                                                            setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
+                                                                        }
+                                                                        const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
+                                                                        if (chatInputRef.current) chatInputRef.current.value = `Fwd: ${cleanText}\n` + (chatInputRef.current.value || '');
+                                                                        chatInputRef.current?.focus();
+                                                                    }} 
+                                                                    className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
+                                                                    title="Forward"
+                                                                >
+                                                                    <Forward size={12} />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
-                                                    {!isMe && (
-                                                        <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
-                                                            <button 
-                                                                onClick={() => {
-                                                                    setReplyingTo(msg);
-                                                                    chatInputRef.current?.focus();
-                                                                }} 
-                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
-                                                                title="Reply"
-                                                            >
-                                                                <Reply size={12} />
-                                                            </button>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    if (msg.assignees?.length) {
-                                                                        const emails = msg.assignees.map((a: any) => typeof a === 'string' ? a : a.email);
-                                                                        setChatAssignees((prev: string[]) => Array.from(new Set([...prev, ...emails])));
-                                                                    }
-                                                                    
-                                                                    const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
-                                                                    setNewMessage((prev: string) => `Fwd: ${cleanText}\n` + prev);
-                                                                    chatInputRef.current?.focus();
-                                                                }} 
-                                                                className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
-                                                                title="Forward"
-                                                            >
-                                                                <Forward size={12} />
-                                                            </button>
-                                                        </div>
-                                                    )}
                                                     
 
                                                 </div>
@@ -4115,12 +4186,12 @@ function DashboardContent() {
                                             }
                                             
                                             // Remove trigger text
-                                            const text = newMessage;
+                                            const text = chatInputRef.current?.value || '';
                                             const before = text.slice(0, cursorPosition);
                                             const lastAt = before.lastIndexOf('@');
                                             if (lastAt >= 0) {
                                                 const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
-                                                setNewMessage(newText);
+                                                if (chatInputRef.current) chatInputRef.current.value = newText;
                                                 
                                                 setTimeout(() => {
                                                     if (chatInputRef.current) {
@@ -4150,12 +4221,12 @@ function DashboardContent() {
                                             }
                                             
                                             // Remove trigger text
-                                            const text = newMessage;
+                                            const text = chatInputRef.current?.value || '';
                                             const before = text.slice(0, cursorPosition);
                                             const lastHash = before.lastIndexOf('#');
                                             if (lastHash >= 0) {
                                                 const newText = before.slice(0, lastHash) + text.slice(cursorPosition);
-                                                setNewMessage(newText);
+                                                if (chatInputRef.current) chatInputRef.current.value = newText;
                                                 setShowReferences(false);
                                                 setTimeout(() => {
                                                     if (chatInputRef.current) {
@@ -4248,17 +4319,17 @@ function DashboardContent() {
                                             </div>
                                         )}
 
-                                        <div className="flex items-end gap-2">
+                                        <div className="flex items-center gap-2">
                                             <div className="relative flex-1" id="chat-input-container">
                                                 <textarea 
                                                     ref={chatInputRef as any}
                                                     placeholder="Type @ for team or # for jobs..."
-                                                    className="w-full px-4 py-2.5 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 resize-none min-h-[42px] max-h-32 overflow-y-auto"
+                                                    className="w-full px-4 bg-slate-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#0F4C75] transition-all placeholder:text-slate-400 resize-none h-10 leading-10 max-h-32 overflow-y-auto"
                                                     rows={1}
-                                                    value={newMessage}
+                                                    defaultValue=""
                                                     onInput={(e: any) => {
                                                         const target = e.target;
-                                                        target.style.height = 'auto';
+                                                        target.style.height = '40px';
                                                         target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
                                                     }}
                                                     onChange={handleChatInput}
@@ -4266,8 +4337,7 @@ function DashboardContent() {
                                             </div>
                                             <button 
                                                 type="submit"
-                                                disabled={!newMessage.trim()}
-                                                className="w-10 h-10 bg-[#526D82] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md shrink-0 mb-0.5"
+                                                className="w-10 h-10 bg-[#0F4C75] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all shadow-sm hover:shadow-md shrink-0"
                                             >
                                                 <Send className="w-4 h-4" />
                                             </button>

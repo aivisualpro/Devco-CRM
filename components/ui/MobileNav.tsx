@@ -60,7 +60,7 @@ const MobileNav = () => {
     return (
         <>
             <div
-                className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t border-slate-200 z-[120] px-4 shadow-[0_-8px_30px_rgba(0,0,0,0.12)]"
+                className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 z-[120] px-4"
                 style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom))' }}
             >
                  <div className="flex justify-around items-center h-full relative">
@@ -80,7 +80,7 @@ const MobileNav = () => {
                                     router.push(url);
                                 }}
                                 onContextMenu={(e) => e.preventDefault()}
-                                className={`flex flex-col items-center justify-center flex-1 transition-all duration-300 relative select-none ${Active ? 'text-[#0F4C75]' : 'text-slate-400'}`}
+                                className={`flex flex-col items-center justify-center flex-1 transition-all duration-300 relative select-none ${Active ? 'text-[#0F4C75]' : 'text-slate-500'}`}
                                 style={{ WebkitTouchCallout: 'none' }}
                             >
                                 <div className={`relative p-2 rounded-xl transition-all duration-500 ${Active ? 'bg-[#0F4C75]/10 scale-110 shadow-inner' : 'hover:bg-slate-100'}`}>
@@ -91,7 +91,7 @@ const MobileNav = () => {
                                 </div>
                                 <span 
                                     suppressHydrationWarning
-                                    className={`text-[10px] font-black tracking-tight mt-1 uppercase ${Active ? 'opacity-100' : 'opacity-60'}`}
+                                    className={`text-[10px] font-black tracking-tight mt-1 uppercase ${Active ? 'opacity-100' : 'opacity-80'}`}
                                 >
                                     {tab.label}
                                 </span>
