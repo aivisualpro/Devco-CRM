@@ -2905,14 +2905,14 @@ function DashboardContent() {
                 hideSelectionIndicator={true}
             />
 
-            <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden md:overflow-y-auto' : 'overflow-y-auto'} md:p-4 lg:p-6 pb-0`}>
+            <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden lg:overflow-y-auto' : 'overflow-y-auto'} lg:p-4 lg:p-6 pb-0`}>
                 <div className="max-w-[1800px] mx-auto w-full">
                     
                     {/* Main Grid */}
                     <div className="grid grid-cols-12 gap-4 lg:gap-6">
                         
                         {/* Left Column - Main Content */}
-                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && !['tasks', 'training'].includes(searchParams.get('view')!) ? 'hidden md:block' : ''}`}>
+                        <div className={`col-span-12 xl:col-span-9 space-y-4 lg:space-y-6 ${searchParams.get('view') && !['tasks', 'training'].includes(searchParams.get('view')!) ? 'hidden lg:block' : ''}`}>
                             
                             {/* Tasks Kanban */}
                             <div className={`${searchParams.get('view') === 'tasks' ? 'block' : 'hidden xl:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3`}>
@@ -2957,7 +2957,7 @@ function DashboardContent() {
                                         </button>
                                     </div>
                                 </div>
-                                <div className="hidden md:flex gap-6 overflow-x-auto">
+                                <div className="hidden lg:flex gap-6 overflow-x-auto">
                                     <TodoColumn 
                                         title="To Do" 
                                         items={todosByStatus.todo} 
@@ -3006,7 +3006,7 @@ function DashboardContent() {
                                 </div>
                                 
                                 {/* Mobile Accordion View */}
-                                <div className="md:hidden mt-2">
+                                <div className="lg:hidden mt-2">
                                     <ClientOnly>
                                         <Accordion type="multiple" className="space-y-4">
                                         <AccordionItem value="todo" className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-sm">
@@ -3173,27 +3173,27 @@ function DashboardContent() {
                             </div>
 
                             {/* Upcoming Schedules */}
-                            <div className={`${searchParams.get('view') ? 'hidden md:block' : 'block'} bg-transparent md:bg-white md:rounded-2xl md:border md:border-slate-200 md:shadow-sm overflow-hidden`}>
-                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 md:static md:bg-white md:px-4 md:py-3 md:border-slate-100 shrink-0">
+                            <div className={`${searchParams.get('view') ? 'hidden lg:block' : 'block'} bg-transparent lg:bg-white lg:rounded-2xl lg:border lg:border-slate-200 lg:shadow-sm overflow-hidden`}>
+                                <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-md flex items-center justify-between px-4 py-2 border-b border-slate-200 lg:static lg:bg-white lg:px-4 lg:py-3 lg:border-slate-100 shrink-0">
                                     <div className="flex items-center gap-3">
-                                        <div className="hidden md:flex w-8 h-8 rounded-lg bg-blue-100 items-center justify-center">
+                                        <div className="hidden lg:flex w-8 h-8 rounded-lg bg-blue-100 items-center justify-center">
                                             <Calendar className="w-4 h-4 text-blue-600" />
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                                                <span className="md:hidden text-sm font-black uppercase tracking-widest text-slate-700">Schedules ({schedules.length})</span>
-                                                <span className="hidden md:inline text-sm">Upcoming Schedules</span>
+                                                <span className="lg:hidden text-sm font-black uppercase tracking-widest text-slate-700">Schedules ({schedules.length})</span>
+                                                <span className="hidden lg:inline text-sm">Upcoming Schedules</span>
                                             </h2>
-                                            <span className="hidden md:inline text-xs text-slate-400">•</span>
-                                            <p className="hidden md:block text-xs text-slate-500">{schedules.length} jobs this week</p>
+                                            <span className="hidden lg:inline text-xs text-slate-400">•</span>
+                                            <p className="hidden lg:block text-xs text-slate-500">{schedules.length} jobs this week</p>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {upcomingSchedulesScope === 'all' && (
-                                            <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
+                                            <div className="flex bg-slate-200/50 lg:bg-slate-100 rounded-lg p-0.5">
                                                 <button 
                                                     onClick={() => setScheduleView('self')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                    className={`px-3 py-1.5 text-[10px] lg:text-xs font-bold lg:font-medium rounded-md transition-colors ${
                                                         scheduleView === 'self' 
                                                             ? 'bg-white text-blue-600 shadow-sm' 
                                                             : 'text-slate-500 hover:text-slate-700'
@@ -3203,7 +3203,7 @@ function DashboardContent() {
                                                 </button>
                                                 <button 
                                                     onClick={() => setScheduleView('all')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                    className={`px-3 py-1.5 text-[10px] lg:text-xs font-bold lg:font-medium rounded-md transition-colors ${
                                                         scheduleView === 'all' 
                                                             ? 'bg-white text-blue-600 shadow-sm' 
                                                             : 'text-slate-500 hover:text-slate-700'
@@ -3216,9 +3216,9 @@ function DashboardContent() {
                                     </div>
                                 </div>
                                     {/* Scrollable Card Area - max 2 rows visible before scroll */}
-                                    <div className="overflow-y-auto p-2 md:p-3 bg-slate-50 md:bg-white max-h-none md:max-h-[400px]">
+                                    <div className="overflow-y-auto p-2 lg:p-3 bg-slate-50 lg:bg-white max-h-none lg:max-h-[400px]">
                                         {loading ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-cols-3 gap-4">
                                                 {[1,2,3].map(i => (
                                                     <div key={i} className="h-40 bg-slate-100 rounded-xl animate-pulse" />
                                                 ))}
@@ -3230,7 +3230,7 @@ function DashboardContent() {
                                                 <p className="text-sm text-slate-400 mt-1">Check back later or adjust the week filter</p>
                                             </div>
                                         ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 md:pb-0">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2 lg:grid-cols-3 gap-4 pb-20 lg:pb-0">
                                                 {schedules.map(schedule => (
                                                     <ScheduleCard
                                                         key={schedule._id}
@@ -3395,7 +3395,7 @@ function DashboardContent() {
                                 
                                 {/* Estimate Stats Pie Chart */}
                                 {canField(MODULES.DASHBOARD, 'widget_estimates_overview', 'view') && (
-                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden md:block' : ''}`}>
+                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden lg:block' : ''}`}>
                                     <div className="flex items-center gap-3 mb-4 justify-between">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
@@ -3435,7 +3435,7 @@ function DashboardContent() {
 
                                 {/* Weekly Snapshot KPIs */}
                                 {canField(MODULES.DASHBOARD, 'widget_weekly_snapshot', 'view') && (
-                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden md:block' : ''}`}>
+                                <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm p-4 ${searchParams.get('view') === 'training' ? 'hidden lg:block' : ''}`}>
                                     <div className="flex items-center justify-between mb-5">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
@@ -3559,8 +3559,8 @@ function DashboardContent() {
 
                             {/* Time Cards - Weekly (Renamed & Table View) */}
                             {canField(MODULES.DASHBOARD, 'widget_time_cards', 'view') && (
-                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : 'hidden md:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 md:p-4 overflow-hidden`}>
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                            <div className={`${searchParams.get('view') === 'time-cards' ? 'block' : 'hidden lg:block'} bg-white rounded-2xl border border-slate-200 shadow-sm p-3 lg:p-4 overflow-hidden`}>
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center">
                                             <Clock className="w-5 h-5 text-teal-600" />
@@ -3569,10 +3569,10 @@ function DashboardContent() {
                                             <h2 className="font-bold text-slate-900">Time Cards</h2>
                                         </div>
                                         {timeCardsWidgetScope === 'all' && (
-                                            <div className="flex bg-slate-200/50 md:bg-slate-100 rounded-lg p-0.5">
+                                            <div className="flex bg-slate-200/50 lg:bg-slate-100 rounded-lg p-0.5">
                                                 <button 
                                                     onClick={() => setTimeCardsView('self')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                    className={`px-3 py-1.5 text-[10px] lg:text-xs font-bold lg:font-medium rounded-md transition-colors ${
                                                         timeCardsView === 'self' 
                                                             ? 'bg-white text-blue-600 shadow-sm' 
                                                             : 'text-slate-500 hover:text-slate-700'
@@ -3582,7 +3582,7 @@ function DashboardContent() {
                                                 </button>
                                                 <button 
                                                     onClick={() => setTimeCardsView('all')}
-                                                    className={`px-3 py-1.5 text-[10px] md:text-xs font-bold md:font-medium rounded-md transition-colors ${
+                                                    className={`px-3 py-1.5 text-[10px] lg:text-xs font-bold lg:font-medium rounded-md transition-colors ${
                                                         timeCardsView === 'all' 
                                                             ? 'bg-white text-blue-600 shadow-sm' 
                                                             : 'text-slate-500 hover:text-slate-700'
@@ -3594,13 +3594,13 @@ function DashboardContent() {
                                         )}
                                     </div>
 
-                                    <div className="flex items-center gap-2 md:gap-4 ml-1 md:ml-0">
-                                        <div className="flex flex-col md:items-end">
+                                    <div className="flex items-center gap-2 lg:gap-4 ml-1 lg:ml-0">
+                                        <div className="flex flex-col lg:items-end">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
                                             <span className="text-sm font-black text-blue-600">{tcWidgetTotals.drive.toFixed(2)} hrs</span>
                                         </div>
-                                        <div className="w-px h-8 bg-slate-100 hidden md:block" />
-                                        <div className="flex flex-col md:items-end">
+                                        <div className="w-px h-8 bg-slate-100 hidden lg:block" />
+                                        <div className="flex flex-col lg:items-end">
                                             <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
                                             <span className="text-sm font-black text-emerald-600">{tcWidgetTotals.site.toFixed(2)} hrs</span>
                                         </div>
@@ -3723,12 +3723,12 @@ function DashboardContent() {
                         </div>
 
                         {/* Right Sidebar - Chat & Activity */}
-                        <div className={`col-span-12 xl:col-span-3 space-y-4 lg:space-y-6 ${searchParams.get('view') === 'chat' ? 'block' : 'hidden md:block'}`}>
+                        <div className={`col-span-12 xl:col-span-3 space-y-4 lg:space-y-6 ${searchParams.get('view') === 'chat' ? 'block' : 'hidden lg:block'}`}>
                             
 
 
                             {/* Chat */}
-                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-[calc(100vh-160px)] md:h-[650px]' : 'h-[650px]'}`}>
+                            <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-[calc(100vh-160px)] lg:h-[650px]' : 'h-[650px]'}`}>
                                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white/95 backdrop-blur-sm z-20">
                                     <div className="flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4 text-[#0F4C75]" />

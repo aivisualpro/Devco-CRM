@@ -205,7 +205,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
     return (
         <>
-            <header className="md:sticky top-0 z-[100] bg-[#eef2f6] border-b border-gray-200">
+            <header className="lg:sticky top-0 z-[100] bg-[#eef2f6] border-b border-gray-200">
                 <div className="w-full px-4">
                     <div className="flex items-center justify-between h-12 relative">
                         {/* Left Content + Navigation Menu */}
@@ -213,7 +213,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                              {/* Mobile Burger Menu Button */}
                              <button
                                 onClick={() => setIsMobileMenuOpen(true)}
-                                className="md:hidden p-1.5 text-slate-600 hover:bg-slate-200/50 rounded-lg transition-colors"
+                                className="lg:hidden p-1.5 text-slate-600 hover:bg-slate-200/50 rounded-lg transition-colors"
                             >
                                 <Menu size={20} />
                             </button>
@@ -225,7 +225,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 </div>
                             )}
                             {leftContent}
-                            <nav ref={navRef} className="hidden md:flex items-center gap-2">
+                            <nav ref={navRef} className="hidden lg:flex items-center gap-2">
                                 {menuStructure.map((group) => {
                                     // Filter items based on permissions
                                     const visibleItems = (group.items || []).filter(item => canAccessRoute(item.href));
@@ -479,7 +479,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
             {/* Mobile Menu Drawer */}
             {isMobileMenuOpen && (
-                <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 md:hidden mt-10 shadow-2xl rounded-t-[32px] border-t border-slate-200">
+                <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 lg:hidden mt-10 shadow-2xl rounded-t-[32px] border-t border-slate-200">
                     <div className="flex flex-col h-full">
                          <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
                             <span className="text-xl font-black text-slate-800 tracking-tight uppercase">Menu</span>
