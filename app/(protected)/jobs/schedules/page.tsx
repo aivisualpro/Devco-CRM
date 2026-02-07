@@ -4233,9 +4233,9 @@ function SchedulePageContent() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.clockIn)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, clockIn: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, clockIn: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -4248,9 +4248,9 @@ function SchedulePageContent() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.lunchStart)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, lunchStart: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, lunchStart: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -4263,9 +4263,9 @@ function SchedulePageContent() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.lunchEnd)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, lunchEnd: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, lunchEnd: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
@@ -4278,9 +4278,9 @@ function SchedulePageContent() {
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.clockOut)}
                                     onChange={e => {
-                                        const date = new Date(e.target.value);
-                                        if (!isNaN(date.getTime())) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, clockOut: date.toISOString()}));
+                                        const val = e.target.value;
+                                        if (val) {
+                                            setEditTimesheetForm((prev: any) => ({...prev, clockOut: val + ':00.000Z'}));
                                         }
                                     }}
                                 />
