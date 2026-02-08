@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, 
@@ -91,6 +91,20 @@ export default function ReceiptsCostsPage() {
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
     const [estimateSearch, setEstimateSearch] = useState('');
     const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
+
+    // Mobile action sheet
+    const [actionSheetItem, setActionSheetItem] = useState<FlatReceipt | null>(null);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+    const handleLongPressStart = (receipt: FlatReceipt) => {
+        longPressTimer.current = setTimeout(() => {
+            setActionSheetItem(receipt);
+        }, 500);
+    };
+
+    const handleLongPressEnd = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
 
     const [tagInput, setTagInput] = useState('');
 
@@ -391,30 +405,112 @@ export default function ReceiptsCostsPage() {
         <div className="flex flex-col h-full bg-slate-50">
             <Header 
                 rightContent={
-                    <div className="flex items-center gap-3">
-                        <div className="relative w-64">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
+                        <div className="relative flex-1 max-w-[200px] sm:max-w-[264px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
-                                placeholder="Search receipts, vendors..." 
+                                placeholder="Search receipts..." 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
                         {canCreate && (
-                            <Button 
-                                onClick={handleAddNew}
-                                className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
-                            >
-                                <Plus size={16} />
-                            </Button>
+                            <div className="hidden lg:block">
+                                <Button 
+                                    onClick={handleAddNew}
+                                    className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
+                                >
+                                    <Plus size={16} />
+                                </Button>
+                            </div>
                         )}
                     </div>
                 }
             />
 
-            <div className="flex-1 p-6 overflow-hidden flex flex-col min-h-0">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex-1 p-4 lg:p-6 overflow-auto flex flex-col min-h-0">
+                {loading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="animate-spin text-[#0F4C75]" />
+                            <span className="text-sm text-slate-500">Loading receipts...</span>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* Mobile Card View */}
+                        <div className="lg:hidden space-y-3">
+                            {filteredReceipts.length === 0 ? (
+                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+                                    <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                    <p className="text-slate-500 font-medium text-sm">No receipts found.</p>
+                                </div>
+                            ) : (
+                                filteredReceipts.map((receipt) => {
+                                    const creator = employees.find(e => e.email === receipt.createdBy || e._id === receipt.createdBy);
+                                    const amtFormatted = receipt.amount ? `$${(typeof receipt.amount === 'number' ? receipt.amount : parseFloat(String(receipt.amount))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-';
+                                    return (
+                                        <div
+                                            key={receipt.uniqueId}
+                                            className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
+                                            onClick={() => handleEdit(receipt)}
+                                            onTouchStart={() => handleLongPressStart(receipt)}
+                                            onTouchEnd={handleLongPressEnd}
+                                            onTouchCancel={handleLongPressEnd}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <div className="text-sm font-bold text-slate-800">{receipt.vendor || '-'}</div>
+                                                    <span className="text-xs text-slate-500 truncate block max-w-[180px]">{receipt.projectName || '-'}</span>
+                                                </div>
+                                                <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] shrink-0">
+                                                    {receipt.estimateNumber || 'N/A'}
+                                                </Badge>
+                                            </div>
+                                            <div className="flex items-center justify-between mt-3">
+                                                <div className="text-xs text-slate-500">
+                                                    {receipt.date && !isNaN(new Date(receipt.date).getTime()) ? format(new Date(receipt.date), 'MMM dd, yyyy') : '-'}
+                                                </div>
+                                                <span className="font-mono text-sm font-bold text-slate-800">{amtFormatted}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
+                                                <div className="flex items-center gap-2">
+                                                    {creator?.image || creator?.profilePicture ? (
+                                                        <img src={creator.image || creator.profilePicture} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
+                                                    ) : (
+                                                        <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                                                            <User className="w-2.5 h-2.5 text-slate-400" />
+                                                        </div>
+                                                    )}
+                                                    <span className="text-[10px] text-slate-500">{creator?.label || creator?.firstName || receipt.createdBy || '-'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    {receipt.approvalStatus === 'Approved' && (
+                                                        <Badge variant="success" className="text-[9px] px-1.5 py-0">Approved</Badge>
+                                                    )}
+                                                    {receipt.status && (
+                                                        <span className="text-[9px] text-green-600 flex items-center gap-0.5">
+                                                            <CheckCircle size={9} /> Paid
+                                                        </span>
+                                                    )}
+                                                    {receipt.upload && receipt.upload.length > 0 && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                                            <FileText size={10} />
+                                                            <span>{receipt.upload.length}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden lg:flex flex-col flex-1 min-h-0">
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
                     <Table containerClassName="flex-1 overflow-auto">
                         <TableHead>
                             <TableRow>
@@ -445,16 +541,7 @@ export default function ReceiptsCostsPage() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={12} className="h-48 text-center text-slate-500">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Loader2 className="animate-spin text-[#0F4C75]" />
-                                            Loading receipts...
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredReceipts.length === 0 ? (
+                            {filteredReceipts.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={12} className="h-48 text-center text-slate-500">
                                         No receipts found.
@@ -610,8 +697,67 @@ export default function ReceiptsCostsPage() {
                             })}
                         </TableBody>
                     </Table>
-                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* Mobile FAB */}
+            {canCreate && (
+                <button
+                    onClick={handleAddNew}
+                    className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform z-30 border-4 border-white"
+                >
+                    <Plus size={24} />
+                </button>
+            )}
+
+            {/* Mobile Action Sheet */}
+            {actionSheetItem && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 backdrop-blur-sm px-4 pb-20 lg:pb-4 transition-all"
+                    onClick={() => setActionSheetItem(null)}
+                >
+                    <div
+                        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="p-4 border-b border-slate-100">
+                            <p className="text-sm font-bold text-slate-800">
+                                {actionSheetItem.vendor || 'Receipt'} — {actionSheetItem.estimateNumber || 'N/A'}
+                            </p>
+                            <p className="text-xs text-slate-500">{actionSheetItem.projectName}</p>
+                        </div>
+                        <div className="p-2">
+                            {canEdit && (
+                                <button
+                                    onClick={() => { handleEdit(actionSheetItem); setActionSheetItem(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-blue-600 hover:bg-blue-50"
+                                >
+                                    <Pencil size={18} /> Edit
+                                </button>
+                            )}
+                            {canDelete && (
+                                <button
+                                    onClick={() => { setReceiptToDelete(actionSheetItem); setIsDeleteOpen(true); setActionSheetItem(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50"
+                                >
+                                    <Trash2 size={18} /> Delete
+                                </button>
+                            )}
+                        </div>
+                        <div className="p-2 border-t border-slate-100">
+                            <button
+                                onClick={() => setActionSheetItem(null)}
+                                className="w-full py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Add/Edit Modal */}
             <ReceiptModal

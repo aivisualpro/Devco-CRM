@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
-    Plus, Search, ArrowUpDown, Pencil, Trash2, 
+    Plus, Search, ArrowUpDown, Pencil, Trash2, Eye,
     Loader2, ChevronDown, Check, MapPin, Calendar,
     Image as ImageIcon, X, ChevronRight, Upload, ChevronLeft
 } from 'lucide-react';
@@ -126,6 +126,20 @@ export default function PotholeLogsPage() {
     
     // Expanded rows for viewing pothole items
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+    // Mobile action sheet
+    const [actionSheetItem, setActionSheetItem] = useState<PotholeLog | null>(null);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+    const handleLongPressStart = (log: PotholeLog) => {
+        longPressTimer.current = setTimeout(() => {
+            setActionSheetItem(log);
+        }, 500);
+    };
+
+    const handleLongPressEnd = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
 
     // Gallery State
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -488,29 +502,108 @@ export default function PotholeLogsPage() {
         <div className="flex flex-col h-full bg-slate-50">
             <Header 
                 rightContent={
-                    <div className="flex items-center gap-3">
-                        <div className="relative w-64">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
+                        <div className="relative flex-1 max-w-[200px] sm:max-w-[264px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
-                                placeholder="Search pothole logs..." 
+                                placeholder="Search logs..." 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
                         {canCreate && (
-                            <Button 
-                                onClick={handleAddNew}
-                                className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
-                            >
-                                <Plus size={16} />
-                            </Button>
+                            <div className="hidden lg:block">
+                                <Button 
+                                    onClick={handleAddNew}
+                                    className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
+                                >
+                                    <Plus size={16} />
+                                </Button>
+                            </div>
                         )}
                     </div>
                 }
             />
 
-            <div className="flex-1 p-6 overflow-hidden flex flex-col min-h-0">
+            <div className="flex-1 p-4 lg:p-6 overflow-auto flex flex-col min-h-0">
+                {loading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="animate-spin text-[#0F4C75]" />
+                            <span className="text-sm text-slate-500">Loading pothole logs...</span>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* Mobile Card View */}
+                        <div className="lg:hidden space-y-3">
+                            {filteredLogs.length === 0 ? (
+                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+                                    <MapPin className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                    <p className="text-slate-500 font-medium text-sm">No pothole logs found.</p>
+                                </div>
+                            ) : (
+                                filteredLogs.map((log) => {
+                                    const estInfo = getEstimateInfo(log.estimate);
+                                    const emp = getEmployeeByEmail(log.createdBy);
+                                    return (
+                                        <div
+                                            key={log._id}
+                                            className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
+                                            onClick={() => router.push(`/docs/pothole-logs/${log._id}`)}
+                                            onTouchStart={() => handleLongPressStart(log)}
+                                            onTouchEnd={handleLongPressEnd}
+                                            onTouchCancel={handleLongPressEnd}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <div className="text-sm font-bold text-slate-800">
+                                                        {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 truncate block max-w-[180px]">{estInfo?.projectName || '-'}</span>
+                                                </div>
+                                                <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] shrink-0">
+                                                    {estInfo?.estimate || log.estimate || 'N/A'}
+                                                </Badge>
+                                            </div>
+
+                                            {(log.jobAddress || log.projectionLocation) && (
+                                                <div className="flex items-center gap-1 mt-1 text-xs text-slate-500">
+                                                    <MapPin size={10} className="shrink-0 text-slate-400" />
+                                                    <span className="truncate">{log.jobAddress || log.projectionLocation}</span>
+                                                </div>
+                                            )}
+
+                                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
+                                                <div className="flex items-center gap-2">
+                                                    {emp ? (
+                                                        <>
+                                                            <div className="w-5 h-5 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[8px] font-bold overflow-hidden shrink-0">
+                                                                {emp.profilePicture ? (
+                                                                    <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
+                                                                )}
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-500">{emp.firstName} {emp.lastName?.[0]}.</span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-500">{log.createdBy || '-'}</span>
+                                                    )}
+                                                </div>
+                                                <Badge variant="default" className="text-[10px]">
+                                                    {log.potholeItems?.length || 0} items
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden lg:flex flex-col flex-1 min-h-0">
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
                     <Table containerClassName="flex-1 overflow-auto">
                         <TableHead>
@@ -530,16 +623,7 @@ export default function PotholeLogsPage() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="h-48 text-center text-slate-500">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Loader2 className="animate-spin text-[#0F4C75]" />
-                                            Loading pothole logs...
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredLogs.length === 0 ? (
+                            {filteredLogs.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={8} className="h-48 text-center text-slate-500">
                                         No pothole logs found.
@@ -670,8 +754,73 @@ export default function PotholeLogsPage() {
                             })}
                         </TableBody>
                     </Table>
-                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* Mobile FAB */}
+            {canCreate && (
+                <button
+                    onClick={handleAddNew}
+                    className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform z-30 border-4 border-white"
+                >
+                    <Plus size={24} />
+                </button>
+            )}
+
+            {/* Mobile Action Sheet */}
+            {actionSheetItem && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 backdrop-blur-sm px-4 pb-20 lg:pb-4 transition-all"
+                    onClick={() => setActionSheetItem(null)}
+                >
+                    <div
+                        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="p-4 border-b border-slate-100">
+                            <p className="text-sm font-bold text-slate-800">
+                                Pothole Log — {(() => { const est = getEstimateInfo(actionSheetItem.estimate); return est?.estimate || actionSheetItem.estimate || 'N/A'; })()}
+                            </p>
+                            <p className="text-xs text-slate-500">{actionSheetItem.jobAddress || actionSheetItem.projectionLocation || '-'}</p>
+                        </div>
+                        <div className="p-2">
+                            <button
+                                onClick={() => { router.push(`/docs/pothole-logs/${actionSheetItem._id}`); setActionSheetItem(null); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                                <Eye size={18} /> View
+                            </button>
+                            {canEdit && (
+                                <button
+                                    onClick={() => { handleEdit(actionSheetItem); setActionSheetItem(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-blue-600 hover:bg-blue-50"
+                                >
+                                    <Pencil size={18} /> Edit
+                                </button>
+                            )}
+                            {canDelete && (
+                                <button
+                                    onClick={() => { setLogToDelete(actionSheetItem); setIsDeleteOpen(true); setActionSheetItem(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50"
+                                >
+                                    <Trash2 size={18} /> Delete
+                                </button>
+                            )}
+                        </div>
+                        <div className="p-2 border-t border-slate-100">
+                            <button
+                                onClick={() => setActionSheetItem(null)}
+                                className="w-full py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Add/Edit Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

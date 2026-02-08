@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
     Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, 
@@ -82,6 +82,20 @@ export default function BillingTicketsPage() {
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
     const [estimateSearch, setEstimateSearch] = useState('');
     const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
+
+    // Mobile action sheet
+    const [actionSheetItem, setActionSheetItem] = useState<FlatBillingTicket | null>(null);
+    const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+    const handleLongPressStart = (ticket: FlatBillingTicket) => {
+        longPressTimer.current = setTimeout(() => {
+            setActionSheetItem(ticket);
+        }, 500);
+    };
+
+    const handleLongPressEnd = () => {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
 
     const fetchEstimates = async () => {
         setLoading(true);
@@ -475,194 +489,328 @@ export default function BillingTicketsPage() {
         <div className="flex flex-col h-full bg-slate-50">
             <Header 
                 rightContent={
-                    <div className="flex items-center gap-3">
-                        <div className="relative w-64">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
+                        <div className="relative flex-1 max-w-[200px] sm:max-w-[264px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input 
                                 placeholder="Search tickets..." 
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-md text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                             />
                         </div>
                         {canCreate && (
-                            <Button 
-                                onClick={handleAddNew}
-                                className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
-                            >
-                                <Plus size={16} />
-                            </Button>
+                            <div className="hidden lg:block">
+                                <Button 
+                                    onClick={handleAddNew}
+                                    className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
+                                >
+                                    <Plus size={16} />
+                                </Button>
+                            </div>
                         )}
                     </div>
                 }
             />
 
-            <div className="flex-1 p-6 overflow-hidden flex flex-col min-h-0">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <Table containerClassName="flex-1 overflow-auto">
-                        <TableHead>
-                            <TableRow>
-                                <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
-                                    <div className="flex items-center gap-1">Date <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="w-[120px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimateNumber')}>
-                                    <div className="flex items-center gap-1">Estimate <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="min-w-[150px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('projectName')}>
-                                    <div className="flex items-center gap-1">Project <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="w-[120px]">Term</TableHeader>
-                                <TableHeader className="min-w-[150px]">Lump Sum</TableHeader>
-                                <TableHeader className="w-[120px]">Created By</TableHeader>
-                                <TableHeader className="min-w-[100px] text-center">Docs</TableHeader>
-                                <TableHeader className="w-[80px] text-right">Actions</TableHeader>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {loading ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="h-48 text-center text-slate-500">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <Loader2 className="animate-spin text-[#0F4C75]" />
-                                            Loading tickets...
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredTickets.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="h-48 text-center text-slate-500">
-                                        No billing tickets found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredTickets.map((ticket) => {
-                                const creator = employees.find(e => e.email === ticket.createdBy || e._id === ticket.createdBy);
-                                return (
-                                <TableRow key={ticket.uniqueId} className="group hover:bg-slate-50 transition-colors">
-                                    <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
-                                    </TableCell>
-                                    <TableCell>
-                                        {can(MODULES.ESTIMATES, ACTIONS.VIEW) ? (
-                                            <span 
-                                                className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                                onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
-                                            >
-                                                {ticket.estimateNumber || 'N/A'}
-                                            </span>
-                                        ) : (
-                                            <span className="font-semibold text-slate-700 text-xs">
-                                                {ticket.estimateNumber || 'N/A'}
-                                            </span>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={ticket.projectName}>
-                                        {ticket.projectName || '-'}
-                                    </TableCell>
-                                    <TableCell className="text-xs text-slate-700">
-                                        {(ticket.billingTerms === 'Other' || !ticket.billingTerms) 
-                                            ? (ticket.otherBillingTerms || ticket.billingTerms || '-') 
-                                            : ticket.billingTerms}
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs text-slate-700 font-bold">
-                                         {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Tooltip>
-                                                <TooltipTrigger>
+            <div className="flex-1 p-4 lg:p-6 overflow-auto flex flex-col min-h-0">
+                {loading ? (
+                    <div className="flex-1 flex items-center justify-center">
+                        <div className="flex flex-col items-center gap-2">
+                            <Loader2 className="animate-spin text-[#0F4C75]" />
+                            <span className="text-sm text-slate-500">Loading tickets...</span>
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* Mobile Card View */}
+                        <div className="lg:hidden space-y-3">
+                            {filteredTickets.length === 0 ? (
+                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
+                                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                    <p className="text-slate-500 font-medium text-sm">No billing tickets found.</p>
+                                </div>
+                            ) : (
+                                filteredTickets.map((ticket) => {
+                                    const creator = employees.find(e => e.email === ticket.createdBy || e._id === ticket.createdBy);
+                                    return (
+                                        <div
+                                            key={ticket.uniqueId}
+                                            className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
+                                            onClick={() => handleEdit(ticket)}
+                                            onTouchStart={() => handleLongPressStart(ticket)}
+                                            onTouchEnd={handleLongPressEnd}
+                                            onTouchCancel={handleLongPressEnd}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div>
+                                                    <div className="text-sm font-bold text-slate-800">
+                                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
+                                                    </div>
+                                                    <span className="text-xs text-slate-500 truncate block max-w-[180px]">{ticket.projectName || '-'}</span>
+                                                </div>
+                                                <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px] shrink-0">
+                                                    {ticket.estimateNumber || 'N/A'}
+                                                </Badge>
+                                            </div>
+
+                                            <div className="flex items-center justify-between mt-3">
+                                                <div className="text-xs text-slate-500">
+                                                    {(ticket.billingTerms === 'Other' || !ticket.billingTerms) 
+                                                        ? (ticket.otherBillingTerms || ticket.billingTerms || '-') 
+                                                        : ticket.billingTerms}
+                                                </div>
+                                                <span className="font-mono text-sm font-bold text-slate-800">
+                                                    {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
+                                                </span>
+                                            </div>
+
+                                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
+                                                <div className="flex items-center gap-2">
                                                     {creator?.image || creator?.profilePicture ? (
-                                                        <img src={creator.image || creator.profilePicture} className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                        <img src={creator.image || creator.profilePicture} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
                                                     ) : (
-                                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                                                            <User className="w-3 h-3 text-slate-400" />
+                                                        <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                                                            <User className="w-2.5 h-2.5 text-slate-400" />
                                                         </div>
                                                     )}
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>{creator?.label || creator?.firstName ? `${creator.firstName} ${creator.lastName || ''}` : (ticket.createdBy || 'Unknown User')}</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                            <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{creator?.label || creator?.firstName || ticket.createdBy || '-'}</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-center">
-                                        <div className="flex items-center justify-center gap-2">
-                                            {/* Generate PDF Button */}
-                                            <Button 
-                                                variant="ghost" 
-                                                size="icon" 
-                                                className="h-7 w-7 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" 
-                                                onClick={() => handleDownloadPdf(ticket)} 
-                                                title="Generate & Download PDF"
-                                            >
-                                                <Download size={14} />
-                                            </Button>
-
-                                            {/* Existing Uploads */}
-                                            {(!ticket.uploads || ticket.uploads.length === 0) ? null : ticket.uploads.length === 1 ? (
-                                                <a 
-                                                    href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url} 
-                                                    target="_blank" 
-                                                    rel="noreferrer"
-                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
-                                                >
-                                                    <FileText size={14} />
-                                                </a>
-                                            ) : (
-                                                <Popover>
-                                                    <PopoverTrigger>
-                                                         <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors relative">
-                                                            <FileText size={14} />
-                                                            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 text-[8px] text-white">
-                                                                {ticket.uploads.length}
-                                                            </span>
-                                                         </div>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-64 p-2">
-                                                        <div className="flex flex-col gap-1">
-                                                            {ticket.uploads.map((file: any, i: number) => {
-                                                                const url = typeof file === 'string' ? file : file.url;
-                                                                const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
-                                                                return (
-                                                                    <a 
-                                                                        key={i} 
-                                                                        href={url} 
-                                                                        target="_blank" 
-                                                                        rel="noreferrer"
-                                                                        className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
-                                                                    >
-                                                                        <Link size={12} className="shrink-0" /> 
-                                                                        <span className="line-clamp-2">{name}</span>
-                                                                    </a>
-                                                                );
-                                                            })}
+                                                    <span className="text-[10px] text-slate-500">{creator?.label || creator?.firstName || ticket.createdBy || '-'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1">
+                                                    {ticket.uploads && ticket.uploads.length > 0 && (
+                                                        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                                            <FileText size={10} />
+                                                            <span>{ticket.uploads.length}</span>
                                                         </div>
-                                                    </PopoverContent>
-                                                </Popover>
-                                            )}
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {canEdit && (
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(ticket)}>
-                                                    <Pencil size={14} />
-                                                </Button>
-                                            )}
-                                            {canDelete && (
-                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setTicketToDelete(ticket); setIsDeleteOpen(true); }}>
-                                                    <Trash2 size={14} />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
-                </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* Desktop Table View */}
+                        <div className="hidden lg:flex flex-col flex-1 min-h-0">
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
+                                <Table containerClassName="flex-1 overflow-auto">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
+                                                <div className="flex items-center gap-1">Date <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="w-[120px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimateNumber')}>
+                                                <div className="flex items-center gap-1">Estimate <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="min-w-[150px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('projectName')}>
+                                                <div className="flex items-center gap-1">Project <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="w-[120px]">Term</TableHeader>
+                                            <TableHeader className="min-w-[150px]">Lump Sum</TableHeader>
+                                            <TableHeader className="w-[120px]">Created By</TableHeader>
+                                            <TableHeader className="min-w-[100px] text-center">Docs</TableHeader>
+                                            <TableHeader className="w-[80px] text-right">Actions</TableHeader>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {filteredTickets.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={8} className="h-48 text-center text-slate-500">
+                                                    No billing tickets found.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : filteredTickets.map((ticket) => {
+                                            const creator = employees.find(e => e.email === ticket.createdBy || e._id === ticket.createdBy);
+                                            return (
+                                            <TableRow key={ticket.uniqueId} className="group hover:bg-slate-50 transition-colors">
+                                                <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
+                                                    {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {can(MODULES.ESTIMATES, ACTIONS.VIEW) ? (
+                                                        <span 
+                                                            className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
+                                                            onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
+                                                        >
+                                                            {ticket.estimateNumber || 'N/A'}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="font-semibold text-slate-700 text-xs">
+                                                            {ticket.estimateNumber || 'N/A'}
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={ticket.projectName}>
+                                                    {ticket.projectName || '-'}
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-700">
+                                                    {(ticket.billingTerms === 'Other' || !ticket.billingTerms) 
+                                                        ? (ticket.otherBillingTerms || ticket.billingTerms || '-') 
+                                                        : ticket.billingTerms}
+                                                </TableCell>
+                                                <TableCell className="font-mono text-xs text-slate-700 font-bold">
+                                                     {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-2">
+                                                        <Tooltip>
+                                                            <TooltipTrigger>
+                                                                {creator?.image || creator?.profilePicture ? (
+                                                                    <img src={creator.image || creator.profilePicture} className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                                ) : (
+                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                                                                        <User className="w-3 h-3 text-slate-400" />
+                                                                    </div>
+                                                                )}
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>{creator?.label || creator?.firstName ? `${creator.firstName} ${creator.lastName || ''}` : (ticket.createdBy || 'Unknown User')}</p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                        <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{creator?.label || creator?.firstName || ticket.createdBy || '-'}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-7 w-7 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" 
+                                                            onClick={() => handleDownloadPdf(ticket)} 
+                                                            title="Generate & Download PDF"
+                                                        >
+                                                            <Download size={14} />
+                                                        </Button>
+                                                        {(!ticket.uploads || ticket.uploads.length === 0) ? null : ticket.uploads.length === 1 ? (
+                                                            <a 
+                                                                href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url} 
+                                                                target="_blank" 
+                                                                rel="noreferrer"
+                                                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                                            >
+                                                                <FileText size={14} />
+                                                            </a>
+                                                        ) : (
+                                                            <Popover>
+                                                                <PopoverTrigger>
+                                                                     <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors relative">
+                                                                        <FileText size={14} />
+                                                                        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 text-[8px] text-white">
+                                                                            {ticket.uploads.length}
+                                                                        </span>
+                                                                     </div>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-64 p-2">
+                                                                    <div className="flex flex-col gap-1">
+                                                                        {ticket.uploads.map((file: any, i: number) => {
+                                                                            const url = typeof file === 'string' ? file : file.url;
+                                                                            const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
+                                                                            return (
+                                                                                <a 
+                                                                                    key={i} 
+                                                                                    href={url} 
+                                                                                    target="_blank" 
+                                                                                    rel="noreferrer"
+                                                                                    className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
+                                                                                >
+                                                                                    <Link size={12} className="shrink-0" /> 
+                                                                                    <span className="line-clamp-2">{name}</span>
+                                                                                </a>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        {canEdit && (
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(ticket)}>
+                                                                <Pencil size={14} />
+                                                            </Button>
+                                                        )}
+                                                        {canDelete && (
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setTicketToDelete(ticket); setIsDeleteOpen(true); }}>
+                                                                <Trash2 size={14} />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {/* Mobile FAB */}
+            {canCreate && (
+                <button
+                    onClick={handleAddNew}
+                    className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform z-30 border-4 border-white"
+                >
+                    <Plus size={24} />
+                </button>
+            )}
+
+            {/* Mobile Action Sheet */}
+            {actionSheetItem && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 backdrop-blur-sm px-4 pb-20 lg:pb-4 transition-all"
+                    onClick={() => setActionSheetItem(null)}
+                >
+                    <div
+                        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="p-4 border-b border-slate-100">
+                            <p className="text-sm font-bold text-slate-800">
+                                Billing Ticket — {actionSheetItem.estimateNumber || 'N/A'}
+                            </p>
+                            <p className="text-xs text-slate-500">{actionSheetItem.projectName}</p>
+                        </div>
+                        <div className="p-2">
+                            {canEdit && (
+                                <button
+                                    onClick={() => { handleEdit(actionSheetItem); setActionSheetItem(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-blue-600 hover:bg-blue-50"
+                                >
+                                    <Pencil size={18} /> Edit
+                                </button>
+                            )}
+                            <button
+                                onClick={() => { handleDownloadPdf(actionSheetItem); setActionSheetItem(null); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50"
+                            >
+                                <Download size={18} className="text-slate-400" /> Download PDF
+                            </button>
+                            {canDelete && (
+                                <button
+                                    onClick={() => { setTicketToDelete(actionSheetItem); setIsDeleteOpen(true); setActionSheetItem(null); }}
+                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50"
+                                >
+                                    <Trash2 size={18} /> Delete
+                                </button>
+                            )}
+                        </div>
+                        <div className="p-2 border-t border-slate-100">
+                            <button
+                                onClick={() => setActionSheetItem(null)}
+                                className="w-full py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-slate-50"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Add/Edit Modal */}
             <BillingTicketModal
