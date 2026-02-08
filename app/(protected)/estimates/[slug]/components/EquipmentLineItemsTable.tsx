@@ -357,7 +357,7 @@ export function EquipmentLineItemsTable({
 
     return (
         <div className="overflow-x-auto p-1">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[900px]">
                 <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center whitespace-nowrap w-8">

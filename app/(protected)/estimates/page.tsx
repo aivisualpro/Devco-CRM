@@ -646,30 +646,32 @@ export default function EstimatesPage() {
                 }
             />
             </div>
-            <div className="flex-1 flex flex-col min-h-0 pt-4 px-4">
+            <div className="flex-1 flex flex-col min-h-0 pt-2 px-4">
 
                 {/* Filter Tabs & Toggle */}
-                <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-4">
-                    <Tabs 
-                        value={activeFilter} 
-                        onValueChange={(val) => { setActiveFilter(val); }}
-                        className="scale-90 origin-center"
-                    >
-                        <TabsList className="h-10 p-1">
-                            {filterTabs.map(tab => (
-                                <TabsTrigger 
-                                    key={tab.id} 
-                                    value={tab.id}
-                                    className="px-4 py-1 text-xs font-bold"
-                                >
-                                    {tab.label}
-                                    {tab.count !== undefined && (
-                                        <span className="ml-1 opacity-50 font-bold tabular-nums">({tab.count})</span>
-                                    )}
-                                </TabsTrigger>
-                            ))}
-                        </TabsList>
-                    </Tabs>
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-2 mb-2">
+                    <div className="hidden lg:block">
+                        <Tabs 
+                            value={activeFilter} 
+                            onValueChange={(val) => { setActiveFilter(val); }}
+                            className="scale-90 origin-center"
+                        >
+                            <TabsList className="h-10 p-1">
+                                {filterTabs.map(tab => (
+                                    <TabsTrigger 
+                                        key={tab.id} 
+                                        value={tab.id}
+                                        className="px-4 py-1 text-xs font-bold"
+                                    >
+                                        {tab.label}
+                                        {tab.count !== undefined && (
+                                            <span className="ml-1 opacity-50 font-bold tabular-nums">({tab.count})</span>
+                                        )}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+                    </div>
 
                     <div className="flex gap-2">
                         <LabeledSwitch
@@ -687,10 +689,162 @@ export default function EstimatesPage() {
                     </div>
                 </div>
 
-                <div className="flex-1 min-h-0 pb-4">
+                <div className="flex-1 min-h-0 pb-4 overflow-y-auto">
                     {loading ? (
-                        <SkeletonTable rows={10} columns={13} className="h-full" />
+                        <>
+                            {/* Mobile Loading Skeleton */}
+                            <div className="lg:hidden space-y-3 pb-8">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <div key={i} className="h-32 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+                                ))}
+                            </div>
+                            {/* Desktop Loading Skeleton */}
+                            <div className="hidden lg:block h-full">
+                                <SkeletonTable rows={10} columns={13} className="h-full" />
+                            </div>
+                        </>
                     ) : (
+                        <>
+                        {/* ===== MOBILE CARD VIEW ===== */}
+                        <div className="lg:hidden space-y-3 pb-8">
+                            {paginatedEstimates.length === 0 ? (
+                                <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                    <p className="text-slate-500 font-medium">No estimates found</p>
+                                    <p className="text-sm text-slate-400 mt-1">Create your first estimate to get started.</p>
+                                </div>
+                            ) : (
+                                paginatedEstimates.map((est, index) => {
+                                    const services = [
+                                        { value: 'Directional Drilling', label: 'DD', color: 'bg-blue-500' },
+                                        { value: 'Excavation & Backfill', label: 'EB', color: 'bg-green-500' },
+                                        { value: 'Hydro-excavation', label: 'HE', color: 'bg-purple-500' },
+                                        { value: 'Potholing & Coring', label: 'PC', color: 'bg-orange-500' },
+                                        { value: 'Asphalt & Concrete', label: 'AC', color: 'bg-red-500' }
+                                    ].filter(s => est.services?.includes(s.value));
+
+                                    const writers = Array.isArray(est.proposalWriter)
+                                        ? est.proposalWriter
+                                        : est.proposalWriter ? [est.proposalWriter] : [];
+
+                                    const isLast = index === paginatedEstimates.length - 1;
+
+                                    return (
+                                        <div
+                                            key={est._id}
+                                            ref={isLast ? lastEstimateRef : undefined}
+                                            className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 active:scale-[0.98] transition-all"
+                                            onClick={() => {
+                                                const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
+                                                router.push(`/estimates/${slug}`);
+                                            }}
+                                        >
+                                            {/* Top Row: Est # + Status */}
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-xs font-black text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg">
+                                                        {est.estimate || '-'}
+                                                    </span>
+                                                    {!showFinals && (
+                                                        <span className="text-[10px] font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">
+                                                            V.{est.versionNumber || 1}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <Badge
+                                                    {...getBadgeProps('Status', est.status || 'draft')}
+                                                    className="text-[10px] px-2 py-0.5 flex items-center gap-1"
+                                                >
+                                                    {['Won', 'Completed'].includes(est.status || '') && (
+                                                        <Lock className="w-2.5 h-2.5" />
+                                                    )}
+                                                    {est.status || 'Draft'}
+                                                </Badge>
+                                            </div>
+
+                                            {/* Project Name */}
+                                            <h3 className="font-bold text-slate-800 text-sm line-clamp-1 leading-tight mb-1">
+                                                {est.projectName || 'Untitled Project'}
+                                            </h3>
+
+                                            {/* Customer + Date */}
+                                            <div className="flex items-center justify-between mb-3">
+                                                <p className="text-[11px] text-slate-500 truncate max-w-[60%]">
+                                                    {getCustomerName(est)}
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                                    <Calendar className="w-3 h-3" />
+                                                    {est.date || '-'}
+                                                </p>
+                                            </div>
+
+                                            {/* Bottom Row: Amount + Services + Writer */}
+                                            <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                                                <div className="flex items-center gap-2">
+                                                    {/* Grand Total */}
+                                                    <span className="text-sm font-black text-slate-800">
+                                                        {formatCurrency(est.grandTotal)}
+                                                    </span>
+                                                    {/* Markup */}
+                                                    {est.bidMarkUp && (
+                                                        <span className="text-[10px] font-medium text-slate-400">
+                                                            {String(est.bidMarkUp).replace('%', '')}%
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    {/* Service Tags */}
+                                                    {services.length > 0 && (
+                                                        <div className="flex gap-0.5">
+                                                            {services.map(s => (
+                                                                <span
+                                                                    key={s.value}
+                                                                    className={`${s.color} text-white text-[8px] font-bold px-1 py-0.5 rounded`}
+                                                                >
+                                                                    {s.label}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Writer Avatars */}
+                                                    <div className="flex -space-x-1.5">
+                                                        {writers.slice(0, 2).map((writer, idx) => {
+                                                            const emp = getEmployee(writer);
+                                                            return emp?.profilePicture ? (
+                                                                <img
+                                                                    key={idx}
+                                                                    src={emp.profilePicture}
+                                                                    alt=""
+                                                                    className="w-6 h-6 rounded-full border-2 border-white object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div
+                                                                    key={idx}
+                                                                    className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-[8px] font-bold text-slate-500 border-2 border-white"
+                                                                >
+                                                                    {writer.substring(0, 2).toUpperCase()}
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+
+                            {/* Mobile infinite scroll trigger */}
+                            {hasMore && (
+                                <div className="flex justify-center py-4">
+                                    <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ===== DESKTOP TABLE VIEW ===== */}
+                        <div className="hidden lg:block h-full">
                         <Table
                             containerClassName="h-full"
                             footer={
@@ -996,6 +1150,8 @@ export default function EstimatesPage() {
 
                             </TableBody>
                         </Table>
+                        </div>
+                        </>
                     )}
                 </div>
 

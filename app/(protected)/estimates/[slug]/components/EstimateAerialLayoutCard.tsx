@@ -25,7 +25,7 @@ export function EstimateAerialLayoutCard({ formData, onUpdate, schedules }: Esti
     const isR2Url = (url: string) => url?.includes('files.devcohq.com') || url?.includes('r2-file-server.devcohq.workers.dev') || url?.startsWith('/api/r2-file');
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6">
             {/* Aerial Image Column */}
             <div className="space-y-4">
                 <div className="flex items-center gap-3 mb-2">

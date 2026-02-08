@@ -2019,7 +2019,7 @@ export default function EstimateViewPage() {
             <div className="flex-none">
             <Header
                 rightContent={
-                    <div className="flex items-center gap-">
+                    <div className="flex items-center gap-1 lg:gap-2">
                         {/* Save Button */}
                         {unsavedChanges && (
                             <button
@@ -2078,7 +2078,7 @@ export default function EstimateViewPage() {
                             />
                         </div>
 
-                        <div className="h-6 w-px bg-gray-200 mx-2" />
+                        <div className="h-6 w-px bg-gray-200 mx-0.5 lg:mx-2 hidden sm:block" />
 
                         {/* Refresh */}
                         {/* Back */}
@@ -2137,7 +2137,7 @@ export default function EstimateViewPage() {
         </div>
             <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
                 {/* Section 1: Header Card */}
-                <div className="w-full p-4">
+                <div className="w-full p-2 lg:p-4">
                         
                         <EstimateHeaderCard
                         formData={formData}
@@ -2172,7 +2172,7 @@ export default function EstimateViewPage() {
                     
                     {/* Aerial Layout Section */}
                     {visibleSections.aerialLayout && (
-                        <div className="mt-6 mb-2 animation-fade-in relative z-10">
+                        <div className="mt-4 lg:mt-6 mb-2 animation-fade-in relative z-10">
                             <EstimateAerialLayoutCard 
                                 formData={formData}
                                 onUpdate={(field, value) => {
@@ -2186,7 +2186,7 @@ export default function EstimateViewPage() {
 
                     {/* Estimate Docs Section */}
                     {visibleSections.estimateDocs && (
-                        <div className="mt-6 mb-2 animation-fade-in">
+                        <div className="mt-4 lg:mt-6 mb-2 animation-fade-in">
                             <EstimateDocsCard 
                                 formData={formData || {}} 
                                 employees={employeesData} 
@@ -2198,7 +2198,7 @@ export default function EstimateViewPage() {
                     )}
 
                     {visibleSections.schedules && (
-                        <div className="mt-6 mb-2 animation-fade-in relative z-0">
+                        <div className="mt-4 lg:mt-6 mb-2 animation-fade-in relative z-0">
                             <EstimateScheduleCard
                                 schedules={schedules}
                                 setSchedules={setSchedules}
@@ -2216,7 +2216,7 @@ export default function EstimateViewPage() {
 
                 {/* Section 2: All Line Items (Full Screen Height with Scroll) */}
                 {visibleSections.lineItems && (
-                <div className="w-full px-4 pb-4 h-[calc(100vh-64px)] flex flex-col">
+                <div className="w-full px-2 lg:px-4 pb-4 min-h-[50vh] lg:h-[calc(100vh-64px)] flex flex-col">
                     <EstimateLineItemsCard
                         sections={sections}
                         openSections={openSections}
@@ -2251,7 +2251,7 @@ export default function EstimateViewPage() {
 
                 {/* Section 3: Proposal (Full Screen Height with Scroll) */}
                 {visibleSections.proposal && templates.length > 0 && (
-                    <div className="w-full px-6 pb-8 h-[calc(100vh-64px)] flex flex-col">
+                    <div className="w-full px-2 lg:px-6 pb-8 min-h-[50vh] lg:h-[calc(100vh-64px)] flex flex-col">
                         <div className="flex-1 h-full overflow-hidden">
                             <MyProposal
                                 isEditing={isEditingTemplate}

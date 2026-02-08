@@ -42,16 +42,16 @@ export function AccordionSection({
                 onClick={onToggle}
             >
                 <div className="flex items-center justify-between p-2">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 lg:gap-4 min-w-0">
                         <div
-                            className={`transition-transform duration-300 text-gray-400 group-hover:text-gray-600 ${isOpen ? 'rotate-180' : ''}`}
+                            className={`transition-transform duration-300 text-gray-400 group-hover:text-gray-600 flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`}
                         >
-                            <ChevronDown className="w-6 h-6" />
+                            <ChevronDown className="w-5 h-5 lg:w-6 lg:h-6" />
                         </div>
-                        <h3 className="text-sm font-bold text-gray-900 tracking-tight flex items-center gap-2">
+                        <h3 className="text-xs lg:text-sm font-bold text-gray-900 tracking-tight flex items-center gap-1.5 lg:gap-2 truncate">
                             {title}
                             {itemCount > 0 && (
-                                <span className="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full font-bold">
+                                <span className="bg-gray-200 text-gray-700 text-[10px] lg:text-xs px-1.5 lg:px-2 py-0.5 rounded-full font-bold flex-shrink-0">
                                     {itemCount}
                                 </span>
                             )}
@@ -61,16 +61,16 @@ export function AccordionSection({
                                 e.stopPropagation();
                                 onAdd();
                             }}
-                            className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors"
+                            className="p-1 rounded-full hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-colors flex-shrink-0"
                             title={`Add to ${title}`}
                         >
                             <Plus className="w-4 h-4" />
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2 lg:gap-4 flex-shrink-0">
 
-                        <span className="text-sm font-bold text-gray-900 w-32 text-right">
+                        <span className="text-xs lg:text-sm font-bold text-gray-900 w-24 lg:w-32 text-right">
                             {formatMoney(sectionTotal)}
                         </span>
                     </div>

@@ -293,9 +293,9 @@ export function EstimateHeaderCard({
 
     return (
         <>
-            <div className="bg-[#eef2f6] rounded-[40px] p-4">
+            <div className="bg-[#eef2f6] rounded-2xl lg:rounded-[40px] p-2 lg:p-4">
             {/* 4-Column Grid Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 lg:gap-4">
 
                 {/* PART 1: Customer Info column */}
                 <div className="flex flex-col gap-3 p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff]">

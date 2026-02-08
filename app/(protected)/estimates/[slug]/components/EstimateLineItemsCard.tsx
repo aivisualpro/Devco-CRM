@@ -43,7 +43,7 @@ export function EstimateLineItemsCard({
     fringeConstants = []
 }: EstimateLineItemsCardProps) {
     return (
-        <div className="bg-[#eef2f6] rounded-[40px] p-4 flex flex-col h-full relative">
+        <div className="bg-[#eef2f6] rounded-2xl lg:rounded-[40px] p-2 lg:p-4 flex flex-col h-full relative">
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 pr-1">
                 {sections.map(section => (
                     <AccordionSection

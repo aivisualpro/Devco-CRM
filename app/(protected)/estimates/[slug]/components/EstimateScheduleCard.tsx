@@ -277,19 +277,19 @@ export const EstimateScheduleCard: React.FC<EstimateScheduleCardProps> = ({
     const formatCurrency = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 lg:p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-3 lg:gap-4">
                     <div className="flex items-center gap-2">
                         <div className="p-2 bg-blue-50 rounded-lg text-[#0F4C75]">
                             <CalendarClock className="w-5 h-5" />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800">Schedules</h3>
+                        <h3 className="text-base lg:text-lg font-bold text-slate-800">Schedules</h3>
                         <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-xs font-bold">
                             {schedules.length}
                         </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm">
                         <div className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 font-medium">
                             <span className="text-indigo-500 text-xs uppercase font-bold mr-2">Job Tickets</span>
                             {djtCount}

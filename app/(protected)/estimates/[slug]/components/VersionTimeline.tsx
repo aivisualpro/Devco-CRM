@@ -104,8 +104,8 @@ export function VersionTimeline({
                     )}
                 </div>
                 <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                        <div className={`text-[13px] font-bold truncate ${isCurrent ? 'text-blue-800' : 'text-slate-700'}`}>
+                    <div className="flex items-center gap-1.5 lg:gap-2 mb-0.5">
+                        <div className={`text-[11px] lg:text-[13px] font-bold truncate ${isCurrent ? 'text-blue-800' : 'text-slate-700'}`}>
                             {ver._id}
                         </div>
                         {/* Status Chip Inline */}
@@ -114,7 +114,7 @@ export function VersionTimeline({
                             const isObject = typeof style === 'object';
                             return (
                                 <span 
-                                    className={`px-1.5 py-[1px] text-[8px] font-bold rounded-full uppercase tracking-wide border ${!isObject ? style : ''}`}
+                                    className={`px-1.5 py-[1px] text-[8px] font-bold rounded-full uppercase tracking-wide border flex-shrink-0 ${!isObject ? style : ''}`}
                                     style={isObject ? style : undefined}
                                 >
                                     {ver.status}
@@ -122,7 +122,7 @@ export function VersionTimeline({
                             );
                         })()}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-2 text-[10px] lg:text-[11px] text-slate-400">
                         <span>{formatDate(ver.date)}</span>
                         <span className="w-1 h-1 rounded-full bg-slate-300" />
                         <span className={`font-bold ${isCurrent ? 'text-blue-600' : 'text-slate-500'}`}>

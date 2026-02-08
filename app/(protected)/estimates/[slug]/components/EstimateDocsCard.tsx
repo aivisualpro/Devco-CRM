@@ -1715,10 +1715,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     };
 
     return (
-        <div className={`bg-[#eef2f6] rounded-[40px] p-4 ${className || ''}`}>
+        <div className={`bg-[#eef2f6] rounded-2xl lg:rounded-[40px] p-2 lg:p-4 ${className || ''}`}>
 
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 pb-6">
 
 
                 {/* Column 0: Estimate Chat */}
