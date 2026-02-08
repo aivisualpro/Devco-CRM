@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Eye, Calendar, User, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown, HelpCircle, Upload, Loader2, Lock } from 'lucide-react';
 import { startOfMonth, endOfMonth, subMonths, parse, isValid, isWithinInterval } from 'date-fns';
-import Papa from 'papaparse';
+
 import { z } from 'zod';
 
 import { Header, AddButton, Button, Card, SearchInput, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, LabeledSwitch, Pagination, EmptyState, Loading, Modal, ConfirmModal, Badge, SkeletonTable, Tooltip, TooltipTrigger, TooltipContent, MyDropDown } from '@/components/ui';
@@ -61,13 +61,13 @@ export default function EstimatesPage() {
     const observerTarget = useRef(null);
 
     const [showKnowledgeBase, setShowKnowledgeBase] = useState(false);
-    const [isImporting, setIsImporting] = useState(false);
+
     const [constants, setConstants] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
     const [clients, setClients] = useState<any[]>([]);
     const [statusDropdownId, setStatusDropdownId] = useState<string | null>(null);
     const [wonConfirmationId, setWonConfirmationId] = useState<string | null>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
+
 
 
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'estimate', direction: 'desc' });
@@ -495,53 +495,7 @@ export default function EstimatesPage() {
 
 
 
-    const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
 
-        setIsImporting(true);
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: async (results) => {
-                try {
-                    if (results.errors.length > 0) {
-                        throw new Error(`CSV parsing errors: ${results.errors.map(e => e.message).join(', ')}`);
-                    }
-
-                    const estimatesData = results.data as any[];
-
-                    if (estimatesData.length === 0) throw new Error("No data found in CSV");
-
-                    const res = await fetch('/api/webhook/devcoBackend', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'importEstimates', payload: { estimates: estimatesData } })
-                    });
-
-                    const data = await res.json();
-                    if (data.success) {
-                        success(`Successfully imported/updated ${estimatesData.length} records`);
-                        fetchEstimates();
-                    } else {
-                        toastError('Import failed: ' + (data.error || 'Unknown error'));
-                    }
-                } catch (err: any) {
-                    console.error(err);
-                    toastError('Error importing file: ' + err.message);
-                } finally {
-                    setIsImporting(false);
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                }
-            },
-            error: (error) => {
-                console.error('Papa Parse error:', error);
-                toastError('Error parsing CSV file');
-                setIsImporting(false);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-            }
-        });
-    };
 
 
 
@@ -620,27 +574,6 @@ export default function EstimatesPage() {
                             </TooltipContent>
                         </Tooltip>
 
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isImporting}
-                                    className={`p-2 rounded-lg transition-colors border ${isImporting ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-white text-gray-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/10 border-gray-200 hover:border-[#0F4C75]/30'}`}
-                                >
-                                    <Upload className={`w-5 h-5 ${isImporting ? 'animate-pulse' : ''}`} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Import from CSV</p>
-                            </TooltipContent>
-                        </Tooltip>
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleImport}
-                            accept=".csv"
-                            className="hidden"
-                        />
 
                     </div>
                 }

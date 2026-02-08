@@ -150,7 +150,8 @@ export function MyDropDown({
     if (!isOpen || !isMounted) return null;
 
     const filteredOptions = options.filter(opt =>
-        String(opt.label || '').toLowerCase().includes(search.toLowerCase())
+        String(opt.label || '').toLowerCase().includes(search.toLowerCase()) ||
+        String(opt.badge || '').toLowerCase().includes(search.toLowerCase())
     );
 
     const isSelected = (value: string) => selectedValues.includes(value);
@@ -256,9 +257,12 @@ export function MyDropDown({
                                         ? 'cursor-not-allowed opacity-50 bg-slate-50'
                                         : active
                                             ? 'bg-slate-100 cursor-pointer'
-                                            : 'hover:bg-slate-50 cursor-pointer'
+                                            : opt.color && opt.badge
+                                                ? 'cursor-pointer ring-1 ring-emerald-200'
+                                                : 'hover:bg-slate-50 cursor-pointer'
                                     }
                                 `}
+                                style={opt.color && opt.badge && !active ? { backgroundColor: `${opt.color}12` } : undefined}
                             >
                                 {multiSelect && !hideSelectionIndicator && (
                                     <div className={`
@@ -290,7 +294,10 @@ export function MyDropDown({
 
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between">
-                                        <span className={`text-[11px] font-bold whitespace-nowrap leading-tight block ${active ? 'text-[#0F4C75]' : 'text-slate-600'}`}>
+                                        <span 
+                                            className={`text-[11px] font-bold whitespace-nowrap leading-tight block ${active ? 'text-[#0F4C75]' : opt.color && opt.badge ? 'font-black' : 'text-slate-600'}`}
+                                            style={opt.color && opt.badge && !active ? { color: opt.color } : undefined}
+                                        >
                                             {opt.label}
                                         </span>
                                         {opt.disabled && !opt.tooltip && (

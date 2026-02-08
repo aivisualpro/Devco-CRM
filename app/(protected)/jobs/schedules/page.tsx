@@ -234,6 +234,10 @@ function SchedulePageContent() {
 
     // Mobile filters visibility
     const [showMobileFilters, setShowMobileFilters] = useState(false);
+    // Mobile detail sheet visibility
+    const [showMobileDetail, setShowMobileDetail] = useState(false);
+    // Mobile search visibility
+    const [showMobileSearch, setShowMobileSearch] = useState(false);
 
     // Media Modal State
     const [mediaModal, setMediaModal] = useState<{ isOpen: boolean; type: 'image' | 'map'; url: string; title: string }>({
@@ -453,8 +457,11 @@ function SchedulePageContent() {
             const label = `${sM}/${sD}/${sY} to ${eM}/${eD}/${eY}`;
             const val = `${formatLocalDate(start)}|${formatLocalDate(end)}`;
              
-            // Check current in UTC? Or just check if today falls in range
-            const isCurrent = today >= start && today <= end;
+            // Check if today falls in this week range using date strings to avoid timezone issues
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const startStr2 = formatLocalDate(start);
+            const endStr2 = formatLocalDate(end);
+            const isCurrent = todayStr >= startStr2 && todayStr <= endStr2;
              
             if (isCurrent) {
                  // Highlighting with color and label
@@ -2114,11 +2121,7 @@ function SchedulePageContent() {
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <button
-                                    onClick={() => {
-                                        if (searchInputRef.current) {
-                                            searchInputRef.current.focus();
-                                        }
-                                    }}
+                                    onClick={() => setShowMobileSearch(!showMobileSearch)}
                                     className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
                                 >
                                     <Search size={18} />
@@ -2170,59 +2173,155 @@ function SchedulePageContent() {
             />
             </div>
 
+            {/* Mobile Search Bar */}
+            {showMobileSearch && (
+                <div className="sm:hidden px-4 py-2 bg-[#F8FAFC] border-b border-slate-100 animate-in slide-in-from-top duration-200">
+                    <div className="relative">
+                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                            ref={searchInputRef}
+                            type="text"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Search schedules..."
+                            autoFocus
+                            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:border-transparent"
+                        />
+                        {search && (
+                            <button
+                                onClick={() => setSearch('')}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                            >
+                                <X size={16} />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Mobile Filters Panel - lg:hidden */}
+            {showMobileFilters && (
+                <div className="lg:hidden px-4 py-3 bg-[#F0F5FA] border-b border-slate-200 animate-in slide-in-from-top duration-200 max-h-[60vh] overflow-y-auto">
+                    <div className="flex justify-between items-center mb-3">
+                        <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <Filter size={12} />
+                            FILTERS
+                        </h3>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={clearFilters}
+                                className="text-[10px] font-bold text-[#0F4C75] hover:underline bg-white px-2 py-1 rounded-lg border border-slate-100 shadow-sm"
+                            >
+                                Clear All
+                            </button>
+                            <button
+                                onClick={() => setShowMobileFilters(false)}
+                                className="p-1.5 rounded-full bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
+                            >
+                                <X size={14} className="text-slate-500" />
+                            </button>
+                        </div>
+                    </div>
+                    <div className="space-y-3">
+                        <FilterItem
+                            id="mobileFilterWeek"
+                            label="Weeks"
+                            placeholder="Select Week"
+                            options={weekOptions}
+                            value={filterWeek}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                            onChange={(val: string) => {
+                                setFilterWeek(val);
+                                if (val) {
+                                    const [startStr] = val.split('|');
+                                    const dates = [];
+                                    const [y1, m1, d1] = startStr.split('-').map(Number);
+                                    const currentD = new Date(Date.UTC(y1, m1 - 1, d1));
+                                    for (let k = 0; k < 7; k++) {
+                                        dates.push(formatLocalDate(currentD));
+                                        currentD.setUTCDate(currentD.getUTCDate() + 1);
+                                    }
+                                    setSelectedDates(dates);
+                                }
+                            }}
+                        />
+                        <FilterItem
+                            id="mobileFilterEstimate"
+                            label="Estimate #"
+                            placeholder="Select Estimate"
+                            options={initialData.estimates.map(e => ({ label: e.label, value: e.value }))}
+                            value={filterEstimate}
+                            onChange={setFilterEstimate}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterClient"
+                            label="Client"
+                            placeholder="Select Client"
+                            options={initialData.clients.map(c => ({ label: c.name, value: c._id }))}
+                            value={filterClient}
+                            onChange={setFilterClient}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterEmployee"
+                            label="Employee"
+                            placeholder="Select Employee"
+                            options={initialData.employees.map(e => ({ label: e.label, value: e.value, image: e.image }))}
+                            value={filterEmployee}
+                            onChange={setFilterEmployee}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterService"
+                            label="Service"
+                            placeholder="Select Service"
+                            options={initialData.constants
+                                .filter(c => c.type?.toLowerCase() === 'services')
+                                .map(c => ({ label: c.description, value: c.description }))}
+                            value={filterService}
+                            onChange={setFilterService}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterTag"
+                            label="Tag"
+                            placeholder="Select Tag"
+                            options={initialData.constants
+                                .filter(c => c.type === 'Schedule Items')
+                                .map(c => ({ label: c.description, value: c.description, image: c.image, color: c.color }))}
+                            value={filterTag}
+                            onChange={setFilterTag}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                        <FilterItem
+                            id="mobileFilterPayroll"
+                            label="Payroll"
+                            placeholder="Any"
+                            options={initialData.constants
+                                .filter(c => c.type === 'Certified Payroll')
+                                .map(c => ({ label: c.description, value: c.description }))}
+                            value={filterCertifiedPayroll}
+                            onChange={setFilterCertifiedPayroll}
+                            openDropdownId={openDropdownId}
+                            setOpenDropdownId={setOpenDropdownId}
+                        />
+                    </div>
+                </div>
+            )}
+
             <main className="flex-1 overflow-y-auto max-w-[1800px] w-full mx-auto px-4 py-4">
                 <div className="flex flex-col lg:flex-row gap-4 lg:gap-4 h-full">
 
-                    {/* LEFT COLUMN - CALENDAR - Full width on mobile, 25% on desktop */}
-                    <div className="w-full lg:w-[25%] lg:h-full lg:overflow-y-auto custom-scrollbar bg-[#F0F5FA] rounded-[32px] p-4">
+                    {/* LEFT COLUMN - CALENDAR - Hidden on mobile, 25% on desktop */}
+                    <div className="hidden lg:block w-full lg:w-[25%] lg:h-full lg:overflow-y-auto custom-scrollbar bg-[#F0F5FA] rounded-[32px] p-4">
                         <div className="">
-
-                            {/* Mobile: Simple Date Range Inputs */}
-                            <div className="lg:hidden space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">From Date</label>
-                                    <input
-                                        type="date"
-                                        value={selectedDates[0] || ''}
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                setSelectedDates([e.target.value]);
-                                            }
-                                        }}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:border-transparent"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">To Date</label>
-                                    <input
-                                        type="date"
-                                        value={selectedDates[selectedDates.length - 1] || ''}
-                                        onChange={(e) => {
-                                            if (e.target.value && selectedDates[0]) {
-                                                // Create range from first selected date to this date (Using UTC to avoid shifts)
-                                                // Assuming values are "YYYY-MM-DD"
-                                                const startParts = selectedDates[0].split('-').map(Number);
-                                                const endParts = e.target.value.split('-').map(Number);
-                                                
-                                                const start = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
-                                                const end = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
-                                                
-                                                const range = [];
-                                                let curr = new Date(start);
-                                                while (curr <= end) {
-                                                    const year = curr.getUTCFullYear();
-                                                    const month = String(curr.getUTCMonth() + 1).padStart(2, '0');
-                                                    const day = String(curr.getUTCDate()).padStart(2, '0');
-                                                    range.push(`${year}-${month}-${day}`);
-                                                    curr.setUTCDate(curr.getUTCDate() + 1);
-                                                }
-                                                setSelectedDates(range);
-                                            }
-                                        }}
-                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] focus:border-transparent"
-                                    />
-                                </div>
-                            </div>
 
                             {/* Desktop: Full Calendar */}
                             <div className="hidden lg:block">
@@ -2447,7 +2546,12 @@ function SchedulePageContent() {
                                         initialData={initialData}
                                         currentUser={currentUser}
                                         isSelected={selectedSchedule?._id === item._id}
-                                        onClick={() => setSelectedSchedule(selectedSchedule?._id === item._id ? null : item)}
+                                        onClick={() => {
+                                            const isDeselecting = selectedSchedule?._id === item._id;
+                                            setSelectedSchedule(isDeselecting ? null : item);
+                                            if (!isDeselecting) setShowMobileDetail(true);
+                                            else setShowMobileDetail(false);
+                                        }}
                                         onEdit={(item) => {
                                             setEditingItem(item);
                                             setIsModalOpen(true);
@@ -3210,6 +3314,268 @@ function SchedulePageContent() {
                     <p>Create Schedule</p>
                 </TooltipContent>
             </Tooltip>
+
+            {/* Mobile Detail Bottom Sheet - xl:hidden */}
+            {showMobileDetail && selectedSchedule && (
+                <div className="xl:hidden fixed inset-0 z-[60] flex flex-col">
+                    {/* Backdrop */}
+                    <div 
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+                        onClick={() => { setShowMobileDetail(false); setSelectedSchedule(null); }}
+                    />
+                    
+                    {/* Bottom Sheet */}
+                    <div className="relative mt-auto bg-white rounded-t-[24px] max-h-[75vh] flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl">
+                        {/* Drag Handle & Header */}
+                        <div className="shrink-0 bg-white rounded-t-[24px] pt-3 pb-2 px-4 border-b border-slate-100">
+                            <div className="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-2" />
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    {(() => {
+                                        const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item || c.value === selectedSchedule.item);
+                                        const tagImage = tagConstant?.image;
+                                        const tagColor = tagConstant?.color;
+                                        const tagLabel = selectedSchedule.item || selectedSchedule.service || 'S';
+                                        if (tagImage) {
+                                            return (
+                                                <div className="w-10 h-10 shrink-0 rounded-xl overflow-hidden shadow-sm border border-slate-100">
+                                                    <img src={tagImage} alt={tagLabel} className="w-full h-full object-cover" />
+                                                </div>
+                                            );
+                                        } else if (tagColor) {
+                                            return (
+                                                <div className="w-10 h-10 shrink-0 rounded-xl shadow-sm flex items-center justify-center text-white font-black text-xs" style={{ backgroundColor: tagColor }}>
+                                                    {tagLabel.substring(0, 2).toUpperCase()}
+                                                </div>
+                                            );
+                                        } else {
+                                            return (
+                                                <div className="w-10 h-10 shrink-0 rounded-xl bg-[#E6EEF8] flex items-center justify-center text-[#0F4C75] font-black text-xs">
+                                                    {tagLabel.substring(0, 2).toUpperCase()}
+                                                </div>
+                                            );
+                                        }
+                                    })()}
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-black text-slate-900 truncate">{selectedSchedule.title || 'Schedule'}</p>
+                                        <p className="text-[11px] text-slate-400 font-bold truncate">
+                                            {selectedSchedule.item !== 'Day Off' ? getCustomerName(selectedSchedule) : selectedSchedule.item}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => { setShowMobileDetail(false); setSelectedSchedule(null); }}
+                                    className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors shrink-0 ml-2"
+                                >
+                                    <X size={16} className="text-slate-500" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Scrollable Content */}
+                        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                            {/* Date & Time */}
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 flex-wrap bg-slate-50 p-3 rounded-xl">
+                                {selectedSchedule.item !== 'Day Off' && selectedSchedule.estimate && (
+                                    <span className="text-[#0F4C75] bg-[#E6EEF8] px-2 py-0.5 rounded-full text-[11px]">
+                                        {selectedSchedule.estimate.replace(/-[vV]\d+$/, '')}
+                                    </span>
+                                )}
+                                <span>{new Date(selectedSchedule.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                <span className="text-slate-300">•</span>
+                                <span>{new Date(selectedSchedule.fromDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' })}</span>
+                                <span>-</span>
+                                <span>{selectedSchedule.toDate ? new Date(selectedSchedule.toDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: 'UTC' }) : ''}</span>
+                            </div>
+
+                            {/* Address */}
+                            {selectedSchedule.item !== 'Day Off' && (() => {
+                                const est = initialData.estimates.find(e => e.value === selectedSchedule.estimate);
+                                if (est?.jobAddress && est.jobAddress !== 'N/A') {
+                                    return (
+                                        <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-3 rounded-xl">
+                                            <MapPin size={14} className="text-slate-400 shrink-0" />
+                                            <span className="font-medium">{est.jobAddress}</span>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
+
+                            {/* PM & Foreman */}
+                            {selectedSchedule.item !== 'Day Off' && (selectedSchedule.projectManager || selectedSchedule.foremanName) && (
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { label: 'PM', val: selectedSchedule.projectManager, color: 'bg-blue-600' },
+                                        { label: 'Foreman', val: selectedSchedule.foremanName, color: 'bg-emerald-600' }
+                                    ].map((role, idx) => {
+                                        if (!role.val) return null;
+                                        const emp = initialData.employees.find(e => e.value?.toLowerCase() === role.val?.toLowerCase());
+                                        const initials = emp?.label 
+                                            ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                            : role.val[0]?.toUpperCase() || '?';
+                                        return (
+                                            <div key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50">
+                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-white font-black text-[9px] shadow-sm overflow-hidden shrink-0 ${role.color}`}>
+                                                    {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : initials}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase">{role.label}</p>
+                                                    <p className="text-[11px] font-bold text-slate-700 truncate">{emp?.label || role.val}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Assignees */}
+                            {selectedSchedule.assignees && selectedSchedule.assignees.length > 0 && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Assignees</p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {(selectedSchedule.assignees || []).map((assignee: string, i: number) => {
+                                            const emp = initialData.employees.find(e => e.value?.toLowerCase() === assignee?.toLowerCase());
+                                            const initials = emp?.label 
+                                                ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
+                                                : assignee[0]?.toUpperCase() || '?';
+                                            return (
+                                                <div key={i} className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 bg-slate-50 rounded-full border border-slate-100">
+                                                    <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center text-[8px] font-black text-slate-600 shrink-0">
+                                                        {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : initials}
+                                                    </div>
+                                                    <span className="text-[11px] font-bold text-slate-700 truncate max-w-[80px]">{emp?.label || assignee}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Description */}
+                            {selectedSchedule.description && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Scope of Work</p>
+                                    <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100 whitespace-pre-wrap line-clamp-4">
+                                        {selectedSchedule.description}
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Today's Objectives */}
+                            {selectedSchedule.todayObjectives && selectedSchedule.todayObjectives.length > 0 && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Today&apos;s Objectives</p>
+                                    <div className="space-y-1.5">
+                                        {selectedSchedule.todayObjectives.map((obj, i) => {
+                                            const isCompleted = typeof obj === 'string' ? false : obj.completed;
+                                            const text = typeof obj === 'string' ? obj : obj.text;
+                                            return (
+                                                <div 
+                                                    key={i} 
+                                                    className="flex items-start gap-2 p-2 bg-slate-50 rounded-lg cursor-pointer"
+                                                    onClick={() => handleToggleObjective(selectedSchedule._id, i, isCompleted)}
+                                                >
+                                                    {isCompleted ? (
+                                                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5 fill-emerald-100" />
+                                                    ) : (
+                                                        <Circle className="w-4 h-4 text-slate-300 shrink-0 mt-0.5" />
+                                                    )}
+                                                    <span className={`text-xs ${isCompleted ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                                                        {text}
+                                                    </span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Timesheets Summary */}
+                            {selectedSchedule.timesheet && selectedSchedule.timesheet.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
+                                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{selectedSchedule.timesheet.length}</span>
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        {selectedSchedule.timesheet.slice(0, 4).map((ts: any, idx: number) => {
+                                            const emp = initialData.employees.find(e => e.value === ts.employee);
+                                            const { hours } = calculateTimesheetData(ts, selectedSchedule.fromDate);
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    className="flex items-center justify-between p-2 bg-slate-50 rounded-lg"
+                                                    onClick={(e) => { e.stopPropagation(); handleViewTimesheet(selectedSchedule, ts, e); }}
+                                                >
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-500 overflow-hidden shrink-0">
+                                                            {emp?.image ? (
+                                                                <img src={emp.image} className="w-full h-full object-cover" />
+                                                            ) : (
+                                                                emp?.label?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || '?'
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[11px] font-bold text-slate-700">{emp?.label || ts.employee}</span>
+                                                    </div>
+                                                    <span className="text-[11px] font-black text-[#0F4C75]">{hours}h</span>
+                                                </div>
+                                            );
+                                        })}
+                                        {selectedSchedule.timesheet.length > 4 && (
+                                            <p className="text-[10px] text-slate-400 text-center font-bold">+{selectedSchedule.timesheet.length - 4} more</p>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Sticky Action Buttons */}
+                        <div className="shrink-0 bg-white border-t border-slate-100 p-3 pb-8 grid grid-cols-3 gap-2">
+                            <button
+                                onClick={() => { setShowMobileDetail(false); setEditingItem(selectedSchedule); setIsModalOpen(true); }}
+                                className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-blue-50 text-blue-600 active:bg-blue-100 transition-colors"
+                            >
+                                <Edit size={16} />
+                                <span className="text-[10px] font-bold">Edit</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowMobileDetail(false);
+                                    const addDay = (dateStr: string) => {
+                                        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+                                        if (!match) return dateStr;
+                                        const [, year, month, day, hours, minutes] = match;
+                                        const utcDate = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day) + 1));
+                                        return `${utcDate.getUTCFullYear()}-${String(utcDate.getUTCMonth() + 1).padStart(2, '0')}-${String(utcDate.getUTCDate()).padStart(2, '0')}T${hours}:${minutes}`;
+                                    };
+                                    const clonedItem = {
+                                        ...selectedSchedule,
+                                        _id: undefined,
+                                        fromDate: addDay(selectedSchedule.fromDate),
+                                        toDate: addDay(selectedSchedule.toDate),
+                                        timesheet: [], hasJHA: false, jha: undefined, JHASignatures: [],
+                                        hasDJT: false, djt: undefined, DJTSignatures: [], syncedToAppSheet: false
+                                    };
+                                    setEditingItem(clonedItem as any);
+                                    setIsModalOpen(true);
+                                }}
+                                className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-emerald-50 text-emerald-600 active:bg-emerald-100 transition-colors"
+                            >
+                                <Copy size={16} />
+                                <span className="text-[10px] font-bold">Copy +1d</span>
+                            </button>
+                            <button
+                                onClick={() => { setShowMobileDetail(false); setDeleteId(selectedSchedule._id); setIsConfirmOpen(true); }}
+                                className="flex flex-col items-center gap-1 p-2.5 rounded-xl bg-red-50 text-red-600 active:bg-red-100 transition-colors"
+                            >
+                                <Trash2 size={16} />
+                                <span className="text-[10px] font-bold">Delete</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
 
             {/* Create/Edit Modal */}

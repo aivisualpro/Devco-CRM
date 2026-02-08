@@ -417,7 +417,7 @@ function CatalogueContent() {
                             placeholder={`Search ${activeCategory}...`}
                         />
 
-                        <div className="hidden md:block">
+                        <div className="hidden lg:block">
                             <AddButton
                                 onClick={openAddModal}
                                 label={`New ${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)}`}
@@ -443,21 +443,21 @@ function CatalogueContent() {
                 <div className="flex-1 min-h-0 pb-4">
                     {loading ? (
                         <>
-                            <div className="md:hidden grid grid-cols-2 gap-2">
+                            <div className="lg:hidden grid grid-cols-2 sm:grid-cols-3 gap-2">
                                 {[1, 2, 3, 4, 5, 6].map(i => (
                                     <div key={i} className="h-40 bg-white rounded-2xl border border-slate-100 animate-pulse" />
                                 ))}
                             </div>
-                            <div className="hidden md:block">
+                            <div className="hidden lg:block">
                                 <SkeletonTable rows={10} columns={config.headers.length + 1} className="h-full" />
                             </div>
                         </>
                     ) : (
                         <>
                             {/* Mobile Card View */}
-                            <div className="md:hidden grid grid-cols-2 gap-2">
+                            <div className="lg:hidden grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
                                 {mobileItems.length === 0 ? (
-                                    <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                    <div className="col-span-2 sm:col-span-3 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
                                         <p className="text-slate-500 font-medium">No {activeCategory} found</p>
                                     </div>
                                 ) : (
@@ -523,11 +523,11 @@ function CatalogueContent() {
                                         );
                                     })
                                 )}
-                                <div ref={observerTarget} className="h-4 col-span-2" />
+                                <div ref={observerTarget} className="h-4 col-span-2 sm:col-span-3" />
                             </div>
 
                             {/* Desktop Table View */}
-                            <div className="hidden md:block">
+                            <div className="hidden lg:block overflow-x-auto">
                                 <Table
                                     containerClassName="h-full"
                                     footer={
@@ -752,7 +752,7 @@ function CatalogueContent() {
 
                 <button
                     onClick={openAddModal}
-                    className="md:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform z-30 border-4 border-white"
+                    className="lg:hidden fixed bottom-24 right-6 w-14 h-14 bg-[#0F4C75] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-95 transition-transform z-30 border-4 border-white"
                 >
                     <Plus size={24} />
                 </button>
@@ -760,7 +760,7 @@ function CatalogueContent() {
                 {/* Mobile Action Sheet */}
                 {actionSheetItem && (
                     <div
-                        className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 backdrop-blur-sm px-4 pb-20 md:pb-4 transition-all animate-in fade-in duration-200"
+                        className="fixed inset-0 z-[200] flex items-end justify-center bg-black/40 backdrop-blur-sm px-4 pb-20 lg:pb-4 transition-all animate-in fade-in duration-200"
                         onClick={() => setActionSheetItem(null)}
                     >
                         <div
