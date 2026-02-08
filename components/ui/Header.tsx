@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
-import { Modal } from './Modal';
+
 import { usePermissions } from '@/hooks/usePermissions';
 
 interface SubItem {
@@ -116,7 +116,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
     const [userDropdownOpen, setUserDropdownOpen] = useState(false);
     const [openMenu, setOpenMenu] = useState<string | null>(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const [isMobileDocsOpen, setIsMobileDocsOpen] = useState(false);
+    const [mobileOpenGroup, setMobileOpenGroup] = useState<string | null>(null);
+
     const searchInputRef = useRef<HTMLInputElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const navRef = useRef<HTMLElement>(null);
@@ -482,7 +483,9 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 lg:hidden mt-10 shadow-2xl rounded-t-[32px] border-t border-slate-200">
                     <div className="flex flex-col h-full">
                          <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
-                            <span className="text-xl font-black text-slate-800 tracking-tight uppercase">Menu</span>
+                            <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
+                                DEVCO
+                            </Link>
                             <button 
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
@@ -490,101 +493,100 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 <X size={24} className="text-slate-600" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                            <div>
-                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 pl-1">Navigation</h3>
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => {
-                                            router.push('/contacts');
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
-                                            pathname === '/contacts'
-                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
-                                                : 'bg-indigo-50/80 border-indigo-100 hover:bg-indigo-100/80 hover:border-indigo-200'
-                                        }`}
-                                    >
-                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-indigo-100 text-indigo-600 shadow-sm">
-                                            <Contact size={24} />
-                                        </div>
-                                        <div className="flex-1 text-left">
-                                            <span className={`text-base font-bold block ${
-                                                pathname === '/contacts' ? 'text-[#0F4C75]' : 'text-slate-700'
-                                            }`}>
-                                                Contacts
-                                            </span>
-                                            <span className="text-xs text-slate-500 mt-0.5 block">
-                                                Employee directory & info
-                                            </span>
-                                        </div>
-                                    </button>
+                        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                            {menuStructure.map((group) => {
+                                const visibleItems = (group.items || []).filter(item => canAccessRoute(item.href));
+                                if (visibleItems.length === 0 && !group.href) return null;
+                                if (group.href && !canAccessRoute(group.href)) return null;
 
-                                    <button
-                                        onClick={() => {
-                                            setIsMobileDocsOpen(true);
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
-                                            pathname.startsWith('/docs')
-                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
-                                                : 'bg-violet-50/80 border-violet-100 hover:bg-violet-100/80 hover:border-violet-200'
-                                        }`}
-                                    >
-                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-violet-100 text-violet-600 shadow-sm">
-                                            <ClipboardCheck size={24} />
-                                        </div>
-                                        <div className="flex-1 text-left">
-                                            <span className={`text-base font-bold block ${
-                                                pathname.startsWith('/docs') ? 'text-[#0F4C75]' : 'text-slate-700'
-                                            }`}>
-                                                Docs
-                                            </span>
-                                            <span className="text-xs text-slate-500 mt-0.5 block">
-                                                Compliance & Site Forms
-                                            </span>
-                                        </div>
-                                    </button>
+                                const isGroupOpen = mobileOpenGroup === group.label;
+                                const active = isGroupActive(visibleItems);
 
-                                    <button
-                                        onClick={() => {
-                                            router.push('/mobile-docs/vehicle-equipment');
-                                            setIsMobileMenuOpen(false);
-                                        }}
-                                        className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 active:scale-[0.98] ${
-                                            pathname.startsWith('/mobile-docs/vehicle-equipment')
-                                                ? 'bg-[#0F4C75]/10 border-[#0F4C75]/20' 
-                                                : 'bg-amber-50/80 border-amber-100 hover:bg-amber-100/80 hover:border-amber-200'
-                                        }`}
-                                    >
-                                        <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 shadow-sm">
-                                            <Truck size={24} />
-                                        </div>
-                                        <div className="flex-1 text-left">
-                                            <span className={`text-base font-bold block ${
-                                                pathname.startsWith('/mobile-docs/vehicle-equipment') ? 'text-[#0F4C75]' : 'text-slate-700'
-                                            }`}>
-                                                Vehicle & Equip.
-                                            </span>
-                                            <span className="text-xs text-slate-500 mt-0.5 block">
-                                                 compliance docs
-                                            </span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
+                                if (group.href) {
+                                    const isLinkActive = pathname.startsWith(group.href);
+                                    return (
+                                        <Link
+                                            key={group.label}
+                                            href={group.href}
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${isLinkActive ? 'bg-[#0F4C75]/10 text-[#0F4C75]' : 'text-slate-700 hover:bg-slate-100'}`}
+                                        >
+                                            {group.label}
+                                        </Link>
+                                    );
+                                }
 
+                                return (
+                                    <div key={group.label}>
+                                        <button
+                                            onClick={() => setMobileOpenGroup(isGroupOpen ? null : group.label)}
+                                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl font-bold text-sm transition-all ${active ? 'bg-[#0F4C75]/10 text-[#0F4C75]' : 'text-slate-700 hover:bg-slate-100'}`}
+                                        >
+                                            {group.label}
+                                            <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isGroupOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+                                        {isGroupOpen && (
+                                            <div className="mt-1 ml-2 space-y-1 border-l-2 border-slate-100 pl-3">
+                                                {visibleItems.map((item) => {
+                                                    const isImplemented = IMPLEMENTED_ROUTES.some(route => item.href.startsWith(route));
+                                                    const isActive = pathname.startsWith(item.href);
 
-                            
-                            <div className="pt-6 border-t border-slate-100">
+                                                    if (!isImplemented) {
+                                                        return (
+                                                            <div
+                                                                key={item.href}
+                                                                className="flex items-center gap-3 px-3 py-2.5 rounded-lg opacity-50 cursor-not-allowed"
+                                                            >
+                                                                <div className={`w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center ${item.colorClass}`}>
+                                                                    {item.icon && React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-4 h-4` })}
+                                                                </div>
+                                                                <span className="text-sm text-slate-400 flex-1">{item.label}</span>
+                                                                <span className="text-[9px] text-slate-400 font-medium border border-slate-200 px-1.5 py-0.5 rounded bg-slate-50">Soon</span>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            key={item.href}
+                                                            onClick={() => {
+                                                                router.push(item.href);
+                                                                setIsMobileMenuOpen(false);
+                                                                setMobileOpenGroup(null);
+                                                            }}
+                                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all active:scale-[0.98] ${
+                                                                isActive
+                                                                    ? 'bg-[#0F4C75]/10 text-[#0F4C75]'
+                                                                    : 'text-slate-600 hover:bg-slate-50'
+                                                            }`}
+                                                        >
+                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive ? 'bg-[#0F4C75]/10' : 'bg-slate-100'} ${item.colorClass}`}>
+                                                                {item.icon && React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-4 h-4` })}
+                                                            </div>
+                                                            <div className="flex-1 text-left">
+                                                                <span className={`text-sm font-semibold block ${isActive ? 'text-[#0F4C75]' : 'text-slate-700'}`}>
+                                                                    {item.label}
+                                                                </span>
+                                                                <span className="text-[10px] text-slate-400 block">{item.description}</span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+
+                            <div className="pt-4 mt-2 border-t border-slate-100">
                                 <button 
                                     onClick={() => {
                                          handleLogout();
                                          setIsMobileMenuOpen(false);
                                     }}
-                                    className="w-full flex items-center justify-center gap-3 p-4 bg-rose-50 text-rose-600 rounded-2xl font-bold border border-rose-100/50 active:scale-95 transition-all"
+                                    className="w-full flex items-center justify-center gap-3 p-3.5 bg-rose-50 text-rose-600 rounded-xl font-bold border border-rose-100/50 active:scale-95 transition-all text-sm"
                                 >
-                                    <LogOut size={20} />
+                                    <LogOut size={18} />
                                     Log Out
                                 </button>
                             </div>
@@ -593,38 +595,6 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 </div>
             )}
 
-            {/* Mobile Docs Modal */}
-            <Modal
-                isOpen={isMobileDocsOpen}
-                onClose={() => setIsMobileDocsOpen(false)}
-                title="Select Document"
-                maxWidth="2xl"
-            >
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2 max-h-[60vh] overflow-y-auto overscroll-contain px-1 scrollbar-thin scrollbar-thumb-slate-200">
-                    {menuStructure.find(m => m.label === 'DOCS')?.items?.filter(i => ['Receipts & Costs', 'Company Docs', 'Vehicle & Equipment Docs'].includes(i.label)).map((item) => (
-                        <button
-                            key={item.href}
-                            onClick={() => {
-                                if (item.href === '/docs/vehicle-equipment') {
-                                    router.push('/mobile-docs/vehicle-equipment');
-                                } else {
-                                    router.push(item.href);
-                                }
-                                setIsMobileDocsOpen(false);
-                            }}
-                            className="flex items-center gap-4 p-4 rounded-2xl bg-white border border-slate-100 hover:border-[#0F4C75]/30 hover:bg-[#0F4C75]/5 transition-all group"
-                        >
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-slate-50 group-hover:scale-110 transition-transform ${item.colorClass.replace('text-', 'bg-').replace('500', '100').replace('600', '100')}`}>
-                                {React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-5 h-5 ${item.colorClass}` })}
-                            </div>
-                            <div className="flex-1 text-left overflow-hidden">
-                                <span className="text-sm font-bold block text-slate-800 truncate">{item.label}</span>
-                                <span className="text-[10px] text-slate-500 truncate block">{item.description}</span>
-                            </div>
-                        </button>
-                    ))}
-                </div>
-            </Modal>
 
             {/* Search Modal Overlay */}
             {searchOpen && (

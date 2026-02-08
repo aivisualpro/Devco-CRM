@@ -397,7 +397,7 @@ export default function ClientsPage() {
                     />
                 </div>
 
-                <div className="flex-1 min-h-0 pb-4">
+                <div className="flex-1 min-h-0 pb-4 overflow-y-auto">
                 {loading ? (
                     <>
                         <div className="md:hidden grid grid-cols-2 gap-2">
