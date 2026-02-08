@@ -579,9 +579,9 @@ export default function EmployeesPage() {
 
             </div>
 
-            <div className="flex-1 flex flex-col min-h-0 pt-4 px-4 pb-0">
+            <div className="flex-1 flex flex-col min-h-0 pt-2 px-4 pb-0">
                 {/* Tabs - Hidden on Mobile */}
-                <div className="hidden md:flex justify-center mb-4">
+                <div className="hidden lg:flex justify-center mb-2">
                     <BadgeTabs
                         tabs={tabs}
                         activeTab={activeTab}

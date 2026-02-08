@@ -1200,6 +1200,9 @@ function DashboardContent() {
     const chatScrollRef = useRef<HTMLDivElement>(null);
     const chatInputRef = useRef<HTMLInputElement>(null);
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+    const dismissLongPress = () => {
+        setLongPressMsgId(null);
+    };
     const chatUserScrolledUp = useRef(false);
     const chatInitialLoad = useRef(true);
     const [activeEmailType, setActiveEmailType] = useState<'jha' | 'djt'>('jha');
@@ -2900,7 +2903,7 @@ function DashboardContent() {
                 hideSelectionIndicator={true}
             />
 
-            <div className={`flex-1 ${searchParams.get('view') ? 'overflow-hidden lg:overflow-y-auto' : 'overflow-y-auto'} lg:p-4 pb-0`}>
+            <div className={`flex-1 min-h-0 ${searchParams.get('view') ? 'overflow-hidden lg:overflow-y-auto' : 'overflow-y-auto'} lg:p-4 pb-0`}>
                 <div className={`max-w-[1800px] mx-auto w-full ${searchParams.get('view') === 'chat' ? 'h-full lg:h-auto' : ''}`}>
                     
                     {/* Main Grid */}
@@ -3765,6 +3768,7 @@ function DashboardContent() {
                                 
                                 <div 
                                     className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin bg-slate-50/50 select-none lg:select-auto"
+                                    style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
                                     ref={chatScrollRef}
                                     onScroll={() => {
                                         if (chatScrollRef.current) {
@@ -3948,7 +3952,7 @@ function DashboardContent() {
                                                                 : 'bg-white text-slate-800 rounded-bl-none border border-slate-200'
                                                         }`}
                                                         style={{ WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
-                                                        onTouchStart={() => {
+                                                        onTouchStart={(e) => {
                                                             longPressTimer.current = setTimeout(() => {
                                                                 setLongPressMsgId(msg._id);
                                                             }, 500);
@@ -4083,7 +4087,7 @@ function DashboardContent() {
                                                         {/* Mobile Long-Press Action Popup */}
                                                         {longPressMsgId === msg._id && (
                                                             <>
-                                                                <div className="fixed inset-0 z-[200] lg:hidden" onClick={() => setLongPressMsgId(null)} />
+                                                                <div className="fixed inset-0 z-[200] lg:hidden" style={{ touchAction: 'none' }} onClick={() => dismissLongPress()} />
                                                                 <div className={`absolute z-[201] lg:hidden animate-in fade-in zoom-in-95 duration-150 ${
                                                                     isMe ? 'right-0 top-full mt-1' : 'left-0 top-full mt-1'
                                                                 }`}>
@@ -4094,7 +4098,7 @@ function DashboardContent() {
                                                                                 setHighlightedMsgId(msg._id);
                                                                                 setTimeout(() => setHighlightedMsgId(null), 2000);
                                                                                 chatInputRef.current?.focus();
-                                                                                setLongPressMsgId(null);
+                                                                                dismissLongPress();
                                                                             }}
                                                                             className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors"
                                                                         >
@@ -4110,7 +4114,7 @@ function DashboardContent() {
                                                                                 const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
                                                                                                                                                     if (chatInputRef.current) chatInputRef.current.value = `Fwd: ${cleanText}\n` + (chatInputRef.current.value || '');
                                                                                 chatInputRef.current?.focus();
-                                                                                setLongPressMsgId(null);
+                                                                                dismissLongPress();
                                                                             }}
                                                                             className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors border-t border-slate-100"
                                                                         >
@@ -4123,7 +4127,7 @@ function DashboardContent() {
                                                                                     onClick={() => {
                                                                                         setEditingMsgId(msg._id);
                                                                                         setEditingMsgText(msg.message);
-                                                                                        setLongPressMsgId(null);
+                                                                                        dismissLongPress();
                                                                                     }}
                                                                                     className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:bg-slate-100 transition-colors border-t border-slate-100"
                                                                                 >
@@ -4133,7 +4137,7 @@ function DashboardContent() {
                                                                                 <button
                                                                                     onClick={() => {
                                                                                         handleDeleteMessage(msg._id);
-                                                                                        setLongPressMsgId(null);
+                                                                                        dismissLongPress();
                                                                                     }}
                                                                                     className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs font-semibold text-red-500 hover:bg-red-50 active:bg-red-100 transition-colors border-t border-slate-100"
                                                                                 >
