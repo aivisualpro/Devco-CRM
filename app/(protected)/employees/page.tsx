@@ -590,7 +590,7 @@ export default function EmployeesPage() {
                 </div>
 
                 {/* Main Content Container */}
-                <div className="flex-1 flex flex-col min-h-0 pb-4">
+                <div className="flex-1 flex flex-col min-h-0 pb-4 overflow-y-auto">
 
 
                 {loading ? (
