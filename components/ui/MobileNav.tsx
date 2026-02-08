@@ -60,7 +60,7 @@ const MobileNav = () => {
     return (
         <>
             <div
-                className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-slate-200/80 z-[120] px-4"
+                className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl z-[120] px-4"
                 style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom))' }}
             >
                  <div className="flex justify-around items-center h-full relative">
@@ -83,11 +83,8 @@ const MobileNav = () => {
                                 className={`flex flex-col items-center justify-center flex-1 transition-all duration-300 relative select-none ${Active ? 'text-[#0F4C75]' : 'text-slate-500'}`}
                                 style={{ WebkitTouchCallout: 'none' }}
                             >
-                                <div className={`relative p-2 rounded-xl transition-all duration-500 ${Active ? 'bg-[#0F4C75]/10 scale-110 shadow-inner' : 'hover:bg-slate-100'}`}>
+                                <div className={`relative p-2 rounded-xl transition-all duration-500 ${Active ? 'scale-110' : 'hover:bg-slate-100'}`}>
                                     <Icon size={20} strokeWidth={Active ? 2.5 : 2} />
-                                    {Active && (
-                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#0F4C75] animate-pulse" />
-                                    )}
                                 </div>
                                 <span 
                                     suppressHydrationWarning

@@ -3737,11 +3737,11 @@ function DashboardContent() {
                             {/* Chat */}
                             <div className={`bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col sticky top-0 z-10 ${searchParams.get('view') === 'chat' ? 'h-full lg:h-[650px]' : 'h-[650px]'}`}>
                                 <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-white/95 backdrop-blur-sm z-20">
-                                    <div className="flex items-center gap-2">
+                                    <div className="hidden lg:flex items-center gap-2">
                                         <MessageSquare className="w-4 h-4 text-[#0F4C75]" />
                                         <h2 className="font-bold text-slate-900 text-sm">Chat</h2>
                                     </div>
-                                    <div className="flex items-center gap-2 flex-1 max-w-[200px] justify-end">
+                                    <div className="flex items-center gap-2 flex-1 lg:flex-initial lg:max-w-[200px] justify-center lg:justify-end">
                                         <div className="relative w-full">
                                             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
                                             <input 
@@ -3764,7 +3764,7 @@ function DashboardContent() {
                                 </div>
                                 
                                 <div 
-                                    className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin bg-slate-50/50"
+                                    className="flex-1 p-4 overflow-y-auto overscroll-contain space-y-4 scrollbar-thin bg-slate-50/50 select-none lg:select-auto"
                                     ref={chatScrollRef}
                                     onScroll={() => {
                                         if (chatScrollRef.current) {
@@ -3947,6 +3947,7 @@ function DashboardContent() {
                                                                 ? 'bg-[#0F4C75] text-white rounded-br-none' 
                                                                 : 'bg-white text-slate-800 rounded-bl-none border border-slate-200'
                                                         }`}
+                                                        style={{ WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                                                         onTouchStart={() => {
                                                             longPressTimer.current = setTimeout(() => {
                                                                 setLongPressMsgId(msg._id);
