@@ -469,9 +469,38 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getEstimates': {
-                const { page = 1, limit = 30, search = '', filter = 'all', includeBilling = false, includeReceipts = false } = payload || {};
+                const { page = 1, limit = 30, search = '', filter = 'all', includeBilling = false, includeReceipts = false, sortKey = 'updatedAt', sortDirection = 'desc' } = payload || {};
                 const skip = (page - 1) * limit;
                 const f = (filter || 'all').toLowerCase();
+
+                // Build MongoDB sort object from frontend sort params
+                const sortDir = sortDirection === 'asc' ? 1 : -1;
+                const fieldMap: Record<string, string> = {
+                    estimate: 'estimate',
+                    date: 'date',
+                    customerName: 'customerName',
+                    projectName: 'projectName',
+                    status: 'status',
+                    grandTotal: 'grandTotal',
+                    subTotal: 'subTotal',
+                    margin: 'margin',
+                    bidMarkUp: 'bidMarkUp',
+                    proposalWriter: 'proposalWriter',
+                    fringe: 'fringe',
+                    certifiedPayroll: 'certifiedPayroll',
+                    services: 'services',
+                    updatedAt: 'updatedAt',
+                    createdAt: 'createdAt',
+                };
+                const dbSortField = fieldMap[sortKey] || 'updatedAt';
+                const mongoSort: Record<string, 1 | -1> = { [dbSortField]: sortDir };
+                // Add secondary sort for stability
+                if (dbSortField !== 'updatedAt') {
+                    mongoSort['updatedAt'] = -1;
+                }
+                // Use collation for natural string sorting (e.g., "25-0002" < "25-0010")
+                const useCollation = ['estimate', 'customerName', 'projectName', 'status', 'proposalWriter', 'fringe', 'certifiedPayroll'].includes(sortKey);
+                const collationOptions = useCollation ? { locale: 'en', numericOrdering: true } : undefined;
 
                 // Build search $or conditions (reused for both main query and counts)
                 let searchOrConditions: any[] | undefined;
@@ -565,7 +594,7 @@ export async function POST(request: NextRequest) {
                         { $addFields: { _nDate: dateNormField } },
                         { $match: { _nDate: { $gte: dateStart, $lte: dateEnd } } },
                         { $project: { ...excludeProject, _nDate: 0 } },
-                        { $sort: { updatedAt: -1 } },
+                        { $sort: mongoSort },
                         { $skip: skip },
                         { $limit: limit }
                     ];
@@ -583,8 +612,12 @@ export async function POST(request: NextRequest) {
                     estimates = dataResult;
                     total = countResult[0]?.total || 0;
                 } else {
+                    const dataQuery = Estimate.find(query).select(selectFields).sort(mongoSort).skip(skip).limit(limit);
+                    if (collationOptions) {
+                        dataQuery.collation(collationOptions);
+                    }
                     [estimates, total] = await Promise.all([
-                        Estimate.find(query).select(selectFields).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+                        dataQuery.lean(),
                         Estimate.countDocuments(query)
                     ]);
                 }

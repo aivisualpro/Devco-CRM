@@ -80,14 +80,14 @@ export default function EstimatesPage() {
     const [isFetchingMore, setIsFetchingMore] = useState(false);
     const observer = useRef<IntersectionObserver | null>(null);
 
-    // Debounced Search & Filter Effect
+    // Debounced Search, Filter & Sort Effect
     useEffect(() => {
         const timeoutId = setTimeout(() => {
-            // Reset to page 1 on search/filter change
+            // Reset to page 1 on search/filter/sort change
             fetchEstimates(1, false);
         }, 500);
         return () => clearTimeout(timeoutId);
-    }, [search, activeFilter]);
+    }, [search, activeFilter, sortConfig]);
 
     const fetchEstimates = async (pageToFetch = 1, isLoadMore = false) => {
         if (isLoadMore) setIsFetchingMore(true);
@@ -103,7 +103,9 @@ export default function EstimatesPage() {
                         page: pageToFetch, 
                         limit: 30, 
                         search, 
-                        filter: activeFilter 
+                        filter: activeFilter,
+                        sortKey: sortConfig.key,
+                        sortDirection: sortConfig.direction
                     }
                 })
             });
@@ -385,44 +387,9 @@ export default function EstimatesPage() {
             });
         }
 
-        // Sort strictly by user selection (multi-level)
-        filtered.sort((a, b) => {
-            // 1. User selected sort
-            const { key, direction } = sortConfig;
-
-            // Helper to get date value
-            const getDateVal = (d: string | undefined): number => {
-                if (!d) return 0;
-                const parsed = parseDate(d);
-                return parsed ? parsed.getTime() : 0;
-            };
-
-            // Natural sort comp
-            const compareValues = (key: string, dir: 'asc' | 'desc') => {
-                const valA = (a as any)[key];
-                const valB = (b as any)[key];
-
-                if (key === 'date') {
-                    const timeA = getDateVal(valA);
-                    const timeB = getDateVal(valB);
-                    if (timeA === timeB) return 0;
-                    return dir === 'asc' ? (timeA > timeB ? 1 : -1) : (timeA > timeB ? -1 : 1);
-                }
-
-                // String / Number sorting
-                const strA = String(valA || '').toLowerCase();
-                const strB = String(valB || '').toLowerCase();
-
-                // Use localeCompare with numeric: true for natural sort (e.g. "2" < "10")
-                const comp = strA.localeCompare(strB, undefined, { numeric: true, sensitivity: 'base' });
-                return dir === 'asc' ? comp : -comp;
-            };
-
-            return compareValues(key, direction);
-        });
-
+        // Sorting is now handled server-side, no client-side sort needed
         return filtered;
-    }, [estimates, sortConfig, showFinals]);
+    }, [estimates, showFinals]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
