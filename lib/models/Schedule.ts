@@ -1,5 +1,44 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
+export interface IPreBoreLogItem {
+    _id?: string;
+    rodNumber: string;
+    distance: string;
+    topDepth: string;
+    bottomDepth: string;
+    overOrUnder: string;
+    existingUtilities: string;
+    picture?: string;
+    createdBy: string;
+    createdAt?: Date;
+}
+
+export interface IPreBore {
+    legacyId?: string;
+    date?: Date;
+    customerForeman?: string;
+    customerWorkRequestNumber?: string;
+    startTime?: string;
+    addressBoreStart?: string;
+    addressBoreEnd?: string;
+    devcoOperator?: string;
+    drillSize?: string;
+    pilotBoreSize?: string;
+    reamerSize6?: string;
+    reamerSize8?: string;
+    reamerSize10?: string;
+    reamerSize12?: string;
+    soilType?: string;
+    boreLength?: string;
+    pipeSize?: string;
+    foremanSignature?: string;
+    customerName?: string;
+    customerSignature?: string;
+    preBoreLogs?: IPreBoreLogItem[];
+    createdBy?: string;
+    createdAt?: Date;
+}
+
 export interface ISchedule extends Document {
     // field removed
     title: string;
@@ -25,6 +64,7 @@ export interface ISchedule extends Document {
     updatedAt?: Date;
     timesheet?: ITimesheet[];
     djt?: IDJT;
+    preBore?: IPreBore[];
     JHASignatures?: any[];
     DJTSignatures?: any[];
     todayObjectives?: IObjective[];
@@ -185,6 +225,45 @@ const ScheduleSchema = new Schema({
         completedBy: { type: String },
         completedAt: { type: Date }
     }], default: [] },
+    preBore: {
+        type: [{
+            legacyId: { type: String },
+            date: { type: Date },
+            customerForeman: { type: String },
+            customerWorkRequestNumber: { type: String },
+            startTime: { type: String },
+            addressBoreStart: { type: String },
+            addressBoreEnd: { type: String },
+            devcoOperator: { type: String },
+            drillSize: { type: String },
+            pilotBoreSize: { type: String },
+            reamerSize6: { type: String },
+            reamerSize8: { type: String },
+            reamerSize10: { type: String },
+            reamerSize12: { type: String },
+            soilType: { type: String },
+            boreLength: { type: String },
+            pipeSize: { type: String },
+            foremanSignature: { type: String },
+            customerName: { type: String },
+            customerSignature: { type: String },
+            preBoreLogs: [{
+                _id: { type: String },
+                rodNumber: { type: String, default: '' },
+                distance: { type: String, default: '' },
+                topDepth: { type: String, default: '' },
+                bottomDepth: { type: String, default: '' },
+                overOrUnder: { type: String, default: '' },
+                existingUtilities: { type: String, default: '' },
+                picture: { type: String, default: '' },
+                createdBy: { type: String, default: '' },
+                createdAt: { type: Date, default: Date.now }
+            }],
+            createdBy: { type: String },
+            createdAt: { type: Date }
+        }],
+        default: []
+    },
     syncedToAppSheet: { type: Boolean, default: false },
     isDayOffApproved: { type: Boolean, default: false }
 }, {

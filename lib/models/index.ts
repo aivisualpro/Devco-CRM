@@ -27,3 +27,4 @@ export { default as DevcoTask } from './DevcoTask';
 export { default as DevcoCompanyDoc } from './DevcoCompanyDoc';
 export { default as VehicleDoc } from './VehicleDoc';
 export { default as PotholeLog } from './PotholeLog';
+export { default as PreBoreLog } from './PreBoreLog';

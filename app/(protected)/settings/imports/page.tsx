@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin, FileBarChart, Search, X } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin, FileBarChart, Search, X, Drill } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -43,6 +43,8 @@ export default function ImportsPage() {
     const billingTicketsInputRef = useRef<HTMLInputElement>(null);
     const potholeLogsInputRef = useRef<HTMLInputElement>(null);
     const potholeItemsInputRef = useRef<HTMLInputElement>(null);
+    const preBoreLogsInputRef = useRef<HTMLInputElement>(null);
+    const preBoreLogItemsInputRef = useRef<HTMLInputElement>(null);
     const estimatesInputRef = useRef<HTMLInputElement>(null);
 
     const parseCSV = (csvText: string) => {
@@ -754,6 +756,74 @@ export default function ImportsPage() {
         reader.readAsText(file);
     };
 
+    const handleImportPreBoreLogs = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/pre-bore-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importPreBoreLogs', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(resData.message || `Successfully imported pre-bore logs`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (preBoreLogsInputRef.current) preBoreLogsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    const handleImportPreBoreLogItems = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/pre-bore-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importPreBoreLogItems', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(resData.message || `Successfully imported pre-bore log items`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (preBoreLogItemsInputRef.current) preBoreLogItemsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleSyncQuickBooks = async () => {
         setIsImporting(true);
         try {
@@ -796,6 +866,8 @@ export default function ImportsPage() {
         { title: 'Import Billing Tickets', icon: Receipt, color: 'bg-indigo-600', description: 'Bulk import billing tickets for estimates', category: 'Financial', onClick: () => billingTicketsInputRef.current?.click() },
         { title: 'Import Pothole Logs', icon: MapPin, color: 'bg-amber-600', description: 'Bulk import pothole log data from CSV', category: 'Field Logs', onClick: () => potholeLogsInputRef.current?.click() },
         { title: 'Import Pothole Items', icon: MapPin, color: 'bg-orange-500', description: 'Add items to existing pothole logs', category: 'Field Logs', onClick: () => potholeItemsInputRef.current?.click() },
+        { title: 'Import Pre-Bore Logs', icon: Drill, color: 'bg-violet-600', description: 'Bulk import pre-bore log data from CSV', category: 'Field Logs', onClick: () => preBoreLogsInputRef.current?.click() },
+        { title: 'Import Pre-Bore Log Items', icon: Drill, color: 'bg-fuchsia-500', description: 'Add rod items to existing pre-bore logs', category: 'Field Logs', onClick: () => preBoreLogItemsInputRef.current?.click() },
         { title: 'Sync QuickBooks', icon: RefreshCw, color: 'bg-emerald-500', description: 'Fetch live project and financial data from QuickBooks', category: 'Integrations', onClick: handleSyncQuickBooks },
         { title: 'Reconnect QuickBooks', icon: LinkIcon, color: 'bg-slate-800', description: 'Refresh your connection if tokens have expired', category: 'Integrations', onClick: handleConnectQuickBooks },
         { title: 'Template Header Logo', icon: Image, color: 'bg-blue-600', description: 'Upload logo for PDF template headers', category: 'Template Assets', onClick: () => logoInputRef.current?.click() },
@@ -861,6 +933,8 @@ export default function ImportsPage() {
             <input type="file" ref={billingTicketsInputRef} onChange={handleImportBillingTickets} className="hidden" accept=".csv" />
             <input type="file" ref={potholeLogsInputRef} onChange={handleImportPotholeLogs} className="hidden" accept=".csv" />
             <input type="file" ref={potholeItemsInputRef} onChange={handleImportPotholeItems} className="hidden" accept=".csv" />
+            <input type="file" ref={preBoreLogsInputRef} onChange={handleImportPreBoreLogs} className="hidden" accept=".csv" />
+            <input type="file" ref={preBoreLogItemsInputRef} onChange={handleImportPreBoreLogItems} className="hidden" accept=".csv" />
             <input type="file" ref={logoInputRef} onChange={handleUploadLogo} className="hidden" accept="image/png, image/jpeg" />
             <input type="file" ref={footerInputRef} onChange={handleUploadFooter} className="hidden" accept="image/png, image/jpeg" />
             <input type="file" ref={coverFrameInputRef} onChange={handleUploadCoverFrame} className="hidden" accept="image/png, image/jpeg" />
