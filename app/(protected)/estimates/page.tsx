@@ -52,6 +52,7 @@ export default function EstimatesPage() {
     const [showFinals, setShowFinals] = useState(true);
     const [showChangeOrders, setShowChangeOrders] = useState(false);
     const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+    const [filterCounts, setFilterCounts] = useState<Record<string, number>>({});
 
     useEffect(() => {
         const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
@@ -112,13 +113,17 @@ export default function EstimatesPage() {
                 
                 if (isLoadMore) {
                     setEstimates(prev => {
-                        // Prevent duplicates just in case
                         const ids = new Set(prev.map(e => e._id));
                         const uniqueNew = newEstimates.filter((e: any) => !ids.has(e._id));
                         return [...prev, ...uniqueNew];
                     });
                 } else {
                     setEstimates(newEstimates);
+                }
+
+                // Store aggregated filter counts from server
+                if (data.filterCounts) {
+                    setFilterCounts(data.filterCounts);
                 }
 
                 setHasMore(newEstimates.length >= 30);
@@ -437,13 +442,13 @@ export default function EstimatesPage() {
     const paginatedEstimates = filteredEstimates;
 
     const filterTabs = [
-        { id: 'all', label: 'All', count: paginatedEstimates.length },
-        { id: 'thisMonth', label: 'This Month', count: undefined },
-        { id: 'lastMonth', label: 'Last Month', count: undefined },
-        { id: 'pending', label: 'Pending', count: undefined },
-        { id: 'completed', label: 'Completed', count: undefined },
-        { id: 'won', label: 'Won', count: undefined },
-        { id: 'lost', label: 'Lost', count: undefined }
+        { id: 'all', label: 'All', count: filterCounts.all ?? 0 },
+        { id: 'thisMonth', label: 'This Month', count: filterCounts.thisMonth ?? 0 },
+        { id: 'lastMonth', label: 'Last Month', count: filterCounts.lastMonth ?? 0 },
+        { id: 'pending', label: 'Pending', count: filterCounts.pending ?? 0 },
+        { id: 'completed', label: 'Completed', count: filterCounts.completed ?? 0 },
+        { id: 'won', label: 'Won', count: filterCounts.won ?? 0 },
+        { id: 'lost', label: 'Lost', count: filterCounts.lost ?? 0 }
     ];
 
     const [isCreating, setIsCreating] = useState(false);
@@ -557,7 +562,7 @@ export default function EstimatesPage() {
                                     router.push(`/estimates/${slug}`);
                                 }
                             }}
-                            placeholder="Search estimates..."
+                            placeholder="Search any field..."
                         />
                         <Tooltip>
                             <TooltipTrigger asChild>

@@ -2824,29 +2824,27 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     </div>
                                     
                                     {contract.attachments && contract.attachments.length > 0 && (
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {contract.attachments.slice(0, 4).map((file: any, fIdx: number) => (
+                                        <div className="space-y-1">
+                                            {contract.attachments.map((file: any, fIdx: number) => (
                                                 <button 
                                                     key={fIdx}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleFileDownload(file.url, file.name);
                                                     }}
-                                                    className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center border border-slate-200 hover:bg-amber-50 hover:border-amber-200 hover:shadow-sm transition-all duration-200 group/icon"
+                                                    className="flex items-center gap-2 w-full text-left px-2 py-1.5 rounded-lg bg-slate-50/80 border border-slate-100 hover:bg-amber-50 hover:border-amber-200 hover:shadow-sm transition-all duration-200 group/file"
                                                     title={`Download ${file.name}`}
                                                 >
-                                                    {file.type.startsWith('image/') ? (
-                                                        <ImageIcon className="w-4 h-4 text-amber-600 group-hover/icon:scale-110 transition-transform" />
+                                                    {file.type?.startsWith('image/') ? (
+                                                        <ImageIcon className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 group-hover/file:scale-110 transition-transform" />
                                                     ) : (
-                                                        <Paperclip className="w-4 h-4 text-amber-600 group-hover/icon:scale-110 transition-transform" />
+                                                        <Paperclip className="w-3.5 h-3.5 text-amber-600 flex-shrink-0 group-hover/file:scale-110 transition-transform" />
                                                     )}
+                                                    <span className="text-[10px] font-medium text-slate-600 truncate group-hover/file:text-amber-700 transition-colors">
+                                                        {file.name || `File ${fIdx + 1}`}
+                                                    </span>
                                                 </button>
                                             ))}
-                                            {contract.attachments.length > 4 && (
-                                                <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center border border-amber-200 text-[10px] font-bold text-amber-600">
-                                                    +{contract.attachments.length - 4}
-                                                </div>
-                                            )}
                                         </div>
                                     )}
                                 </div>

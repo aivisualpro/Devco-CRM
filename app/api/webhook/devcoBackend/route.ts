@@ -469,16 +469,50 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getEstimates': {
-                // Aggressive optimization: exclude ALL heavy/embedded fields and arrays
                 const { page = 1, limit = 30, search = '', filter = 'all', includeBilling = false, includeReceipts = false } = payload || {};
                 const skip = (page - 1) * limit;
+                const f = (filter || 'all').toLowerCase();
 
-                // Build Query
-                const query: any = { status: { $ne: 'deleted' } }; // Exclude deleted by default if applicable, or just standard query
+                // Build search $or conditions (reused for both main query and counts)
+                let searchOrConditions: any[] | undefined;
+                if (search) {
+                    const regex = { $regex: search, $options: 'i' };
+                    searchOrConditions = [
+                        { estimate: regex },
+                        { customerName: regex },
+                        { projectTitle: regex },
+                        { projectName: regex },
+                        { proposalNo: regex },
+                        { contactName: regex },
+                        { status: regex },
+                        { fringe: regex },
+                        { certifiedPayroll: regex },
+                        { proposalWriter: regex },
+                        { services: regex },
+                        { date: regex },
+                        { bidMarkUp: regex },
+                        { jobAddress: regex },
+                        { customerJobNumber: regex },
+                    ];
+                    const numericSearch = parseFloat(search.replace(/[$,%\s]/g, ''));
+                    if (!isNaN(numericSearch)) {
+                        searchOrConditions.push(
+                            { grandTotal: numericSearch },
+                            { subTotal: numericSearch },
+                            { margin: numericSearch }
+                        );
+                    }
+                }
 
-                // 1. Status Filter
-                if (filter && filter !== 'all') {
-                    const f = filter.toLowerCase();
+                // Base query: exclude deleted + apply search
+                const baseQuery: any = { status: { $ne: 'deleted' } };
+                if (searchOrConditions) baseQuery.$or = searchOrConditions;
+
+                // Main data query starts from base
+                const query: any = { ...baseQuery };
+
+                // Status-based filter
+                if (f !== 'all' && !['thismonth', 'lastmonth'].includes(f)) {
                     if (f === 'active') {
                         query.status = { $nin: ['Lost', 'Won', 'Completed', 'Confirmed', 'lost', 'won', 'completed', 'confirmed'] };
                     } else if (f === 'pending') {
@@ -492,24 +526,7 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                // 2. Search
-                if (search) {
-                     const regex = { $regex: search, $options: 'i' };
-                     query.$or = [
-                         { estimate: regex },
-                         { customerName: regex },
-                         { projectTitle: regex },
-                         { projectName: regex },
-                         { proposalNo: regex },
-                         { contactName: regex }
-                     ];
-                     
-                     // Optimization: If searching by estimate #, try exact match or prefix for better index usage potentially
-                     // But regex is flexible.
-                }
-
                 let selectFields = '-labor -equipment -material -tools -overhead -subcontractor -disposal -miscellaneous -proposals -proposal -receiptsAndCosts -billingTickets -jobPlanningDocs -releases -intentToLien -legalDocs -aerialImage -siteLayout -scopeOfWork -htmlContent -customVariables -coiDocument -notes -projectDescription -siteConditions';
-                
                 if (includeBilling) {
                     selectFields = selectFields.replace('-billingTickets', '').replace('-projectDescription', '');
                 }
@@ -517,17 +534,106 @@ export async function POST(request: NextRequest) {
                     selectFields = selectFields.replace('-receiptsAndCosts', '');
                 }
 
-                const estimates = await Estimate.find(query)
-                    .select(selectFields)
-                    .sort({ updatedAt: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean();
-                
-                // Return total count for frontend pagination logic
-                const total = await Estimate.countDocuments(query);
+                // Date boundaries for thisMonth / lastMonth
+                const now = new Date();
+                const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                const thisMonthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+                const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
-                return NextResponse.json({ success: true, result: estimates, total, page, limit });
+                const dateNormField = {
+                    $cond: {
+                        if: { $and: [{ $ifNull: ['$date', false] }, { $ne: ['$date', ''] }] },
+                        then: { $convert: { input: '$date', to: 'date', onError: '$createdAt', onNull: '$createdAt' } },
+                        else: '$createdAt'
+                    }
+                };
+
+                // For date-based filters, use aggregation pipeline
+                let estimates: any[];
+                let total: number;
+
+                if (['thismonth', 'lastmonth'].includes(f)) {
+                    const dateStart = f === 'thismonth' ? thisMonthStart : lastMonthStart;
+                    const dateEnd = f === 'thismonth' ? thisMonthEnd : lastMonthEnd;
+
+                    const excludeProject: Record<string, 0> = {};
+                    selectFields.split(' ').filter(s => s.startsWith('-')).forEach(s => { excludeProject[s.slice(1)] = 0; });
+
+                    const dataPipeline: any[] = [
+                        { $match: baseQuery },
+                        { $addFields: { _nDate: dateNormField } },
+                        { $match: { _nDate: { $gte: dateStart, $lte: dateEnd } } },
+                        { $project: { ...excludeProject, _nDate: 0 } },
+                        { $sort: { updatedAt: -1 } },
+                        { $skip: skip },
+                        { $limit: limit }
+                    ];
+                    const countPipeline: any[] = [
+                        { $match: baseQuery },
+                        { $addFields: { _nDate: dateNormField } },
+                        { $match: { _nDate: { $gte: dateStart, $lte: dateEnd } } },
+                        { $count: 'total' }
+                    ];
+
+                    const [dataResult, countResult] = await Promise.all([
+                        Estimate.aggregate(dataPipeline),
+                        Estimate.aggregate(countPipeline)
+                    ]);
+                    estimates = dataResult;
+                    total = countResult[0]?.total || 0;
+                } else {
+                    [estimates, total] = await Promise.all([
+                        Estimate.find(query).select(selectFields).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
+                        Estimate.countDocuments(query)
+                    ]);
+                }
+
+                // Faceted aggregation for tab counts (respects search, ignores active filter)
+                const facetResult = await Estimate.aggregate([
+                    { $match: baseQuery },
+                    { $addFields: { _nDate: dateNormField } },
+                    { $facet: {
+                        all: [{ $count: 'count' }],
+                        thisMonth: [
+                            { $match: { _nDate: { $gte: thisMonthStart, $lte: thisMonthEnd } } },
+                            { $count: 'count' }
+                        ],
+                        lastMonth: [
+                            { $match: { _nDate: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
+                            { $count: 'count' }
+                        ],
+                        pending: [
+                            { $match: { status: { $regex: /^pending$/i } } },
+                            { $count: 'count' }
+                        ],
+                        completed: [
+                            { $match: { status: { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] } } },
+                            { $count: 'count' }
+                        ],
+                        won: [
+                            { $match: { status: { $in: ['Won', 'Confirmed', 'won', 'confirmed'] } } },
+                            { $count: 'count' }
+                        ],
+                        lost: [
+                            { $match: { status: { $in: ['Lost', 'lost'] } } },
+                            { $count: 'count' }
+                        ]
+                    }}
+                ]);
+
+                const facets = facetResult[0] || {};
+                const filterCounts = {
+                    all: facets.all?.[0]?.count || 0,
+                    thisMonth: facets.thisMonth?.[0]?.count || 0,
+                    lastMonth: facets.lastMonth?.[0]?.count || 0,
+                    pending: facets.pending?.[0]?.count || 0,
+                    completed: facets.completed?.[0]?.count || 0,
+                    won: facets.won?.[0]?.count || 0,
+                    lost: facets.lost?.[0]?.count || 0
+                };
+
+                return NextResponse.json({ success: true, result: estimates, total, page, limit, filterCounts });
             }
 
             case 'getEstimatesPageData': {
