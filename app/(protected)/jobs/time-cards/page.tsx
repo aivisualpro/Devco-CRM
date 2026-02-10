@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
-    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search
+    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search, HardHat
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -333,7 +333,9 @@ function TimeCardContent() {
     const [filEstimate, setFilEstimate] = useState('');
     const [filType, setFilType] = useState('');
     const [includeDriveTime, setIncludeDriveTime] = useState(true);
+    const [includeSiteTime, setIncludeSiteTime] = useState(true);
     const [sidebarEmployeeFilter, setSidebarEmployeeFilter] = useState('');
+    const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
     const [groupingStats, setGroupingStats] = useState<any[]>([]);
     const [isStatsLoading, setIsStatsLoading] = useState(true);
 
@@ -571,6 +573,9 @@ function TimeCardContent() {
                 // Drive Time toggle filter
                 if (!includeDriveTime && r.type?.toLowerCase().includes('drive')) return false;
                 
+                // Site Time toggle filter
+                if (!includeSiteTime && r.type?.toLowerCase().includes('site')) return false;
+                
                 // Sidebar employee filter
                 if (sidebarEmployeeFilter && r.employee !== sidebarEmployeeFilter) return false;
             }
@@ -583,7 +588,7 @@ function TimeCardContent() {
             
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, sidebarEmployeeFilter]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter]);
 
     const timeCardTotals = useMemo(() => {
         let drive = 0;
@@ -607,8 +612,11 @@ function TimeCardContent() {
         groupingStats.forEach(stat => {
             const { year, week, employee } = stat._id;
             const driveHrs = stat.driveHours || 0;
-            // When drive time toggle is OFF, subtract drive hours from the total
-            const hours = includeDriveTime ? (stat.totalHours || 0) : ((stat.totalHours || 0) - driveHrs);
+            const siteHrs = (stat.totalHours || 0) - driveHrs;
+            // When toggles are OFF, subtract those hours from the total
+            let hours = stat.totalHours || 0;
+            if (!includeDriveTime) hours -= driveHrs;
+            if (!includeSiteTime) hours -= siteHrs;
             
             // If filtering by sidebar employee, skip stats for other employees
             if (sidebarEmployeeFilter && employee !== sidebarEmployeeFilter) return;
@@ -665,7 +673,7 @@ function TimeCardContent() {
         // This prevents values from changing when clicking different weeks
 
         return root;
-    }, [groupingStats, employeesMap, includeDriveTime, sidebarEmployeeFilter]);
+    }, [groupingStats, employeesMap, includeDriveTime, includeSiteTime, sidebarEmployeeFilter]);
 
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {
@@ -711,7 +719,7 @@ function TimeCardContent() {
     // Reset pagination
     useEffect(() => {
         setCurrentPage(1);
-    }, [filEmployee, filEstimate, filType, selectedNode, includeDriveTime, sidebarEmployeeFilter]);
+    }, [filEmployee, filEstimate, filType, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter]);
 
     const paginatedData = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -1554,60 +1562,102 @@ function TimeCardContent() {
                     
                     {/* Left Sidebar - Tree View */}
                     <div className="w-[230px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Grouping</h3>
+                        <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Grouping</h3>
                             
-                            {/* Employee Filter */}
-                            <div className="mt-2 relative">
-                                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                                <select
-                                    value={sidebarEmployeeFilter}
-                                    onChange={(e) => setSidebarEmployeeFilter(e.target.value)}
-                                    className="w-full pl-7 pr-6 py-1.5 text-[11px] font-medium rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#0F4C75]/30 focus:border-[#0F4C75]/40 appearance-none cursor-pointer truncate"
+                            {/* Inline Filters Row */}
+                            <div className="flex items-center gap-1.5">
+                                {/* All Button */}
+                                <button 
+                                    onClick={() => selectNode('ROOT', 'All')}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors
+                                        ${selectedNode.value === 'All' ? 'bg-[#0F4C75] text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}
+                                    `}
                                 >
-                                    <option value="">All Employees</option>
-                                    {employeesOptions
-                                        .filter((e: any) => e.isScheduleActive !== false)
-                                        .sort((a: any, b: any) => (a.label || '').localeCompare(b.label || ''))
-                                        .map((emp: any) => (
-                                            <option key={emp.value} value={emp.value}>{emp.label}</option>
-                                        ))
-                                    }
-                                </select>
-                                {sidebarEmployeeFilter && (
+                                    All
+                                </button>
+                                
+                                {/* Drive Time Toggle */}
+                                <button
+                                    onClick={() => setIncludeDriveTime(!includeDriveTime)}
+                                    title={`Drive Time: ${includeDriveTime ? 'On' : 'Off'}`}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
+                                        ${includeDriveTime 
+                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                            : 'bg-slate-50 text-slate-400 border border-slate-200'}
+                                    `}
+                                >
+                                    <Truck size={10} />
+                                    <span className={`w-5 h-2.5 rounded-full relative transition-colors ${includeDriveTime ? 'bg-emerald-400' : 'bg-slate-300'}`}>
+                                        <span className={`absolute top-0.5 left-0.5 w-1.5 h-1.5 bg-white rounded-full transition-transform ${includeDriveTime ? 'translate-x-2.5' : 'translate-x-0'}`} />
+                                    </span>
+                                </button>
+                                
+                                {/* Site Time Toggle */}
+                                <button
+                                    onClick={() => setIncludeSiteTime(!includeSiteTime)}
+                                    title={`Site Time: ${includeSiteTime ? 'On' : 'Off'}`}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
+                                        ${includeSiteTime 
+                                            ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                                            : 'bg-slate-50 text-slate-400 border border-slate-200'}
+                                    `}
+                                >
+                                    <HardHat size={10} />
+                                    <span className={`w-5 h-2.5 rounded-full relative transition-colors ${includeSiteTime ? 'bg-blue-400' : 'bg-slate-300'}`}>
+                                        <span className={`absolute top-0.5 left-0.5 w-1.5 h-1.5 bg-white rounded-full transition-transform ${includeSiteTime ? 'translate-x-2.5' : 'translate-x-0'}`} />
+                                    </span>
+                                </button>
+                                
+                                {/* Employee Filter Button */}
+                                <div className="relative">
                                     <button
-                                        onClick={() => setSidebarEmployeeFilter('')}
-                                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                        id="sidebar-emp-filter-btn"
+                                        onClick={() => setEmployeeDropdownOpen(!employeeDropdownOpen)}
+                                        title={sidebarEmployeeFilter ? (employeesMap[sidebarEmployeeFilter]?.label || sidebarEmployeeFilter) : 'Filter by Employee'}
+                                        className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
+                                            ${sidebarEmployeeFilter 
+                                                ? 'bg-amber-50 text-amber-600 border border-amber-200' 
+                                                : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}
+                                        `}
                                     >
-                                        <X size={10} />
+                                        <User size={10} />
+                                        {sidebarEmployeeFilter && (
+                                            <span
+                                                onClick={(e) => { e.stopPropagation(); setSidebarEmployeeFilter(''); setEmployeeDropdownOpen(false); }}
+                                                className="hover:text-amber-800"
+                                            >
+                                                <X size={8} />
+                                            </span>
+                                        )}
                                     </button>
-                                )}
+                                    <MyDropDown
+                                        isOpen={employeeDropdownOpen}
+                                        onClose={() => setEmployeeDropdownOpen(false)}
+                                        options={employeesOptions
+                                            .filter((e: any) => e.isScheduleActive !== false)
+                                            .sort((a: any, b: any) => (a.label || '').localeCompare(b.label || ''))
+                                            .map((emp: any) => ({
+                                                id: emp.value,
+                                                label: emp.label || emp.value,
+                                                value: emp.value,
+                                                profilePicture: emp.image
+                                            }))
+                                        }
+                                        selectedValues={sidebarEmployeeFilter ? [sidebarEmployeeFilter] : []}
+                                        onSelect={(val) => {
+                                            setSidebarEmployeeFilter(sidebarEmployeeFilter === val ? '' : val);
+                                            setEmployeeDropdownOpen(false);
+                                        }}
+                                        placeholder="Search employee..."
+                                        anchorId="sidebar-emp-filter-btn"
+                                        width="w-64"
+                                        transparentBackdrop
+                                    />
+                                </div>
                             </div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
-                            
-                            {/* All Node + Drive Time Toggle */}
-                            <div className="flex items-center justify-between mb-1">
-                                <div 
-                                    onClick={() => selectNode('ROOT', 'All')}
-                                    className={`flex-1 flex items-center p-3 rounded-xl cursor-pointer transition-colors
-                                        ${selectedNode.value === 'All' ? 'bg-[#0F4C75] text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}
-                                    `}
-                                >
-                                    <span className="text-sm font-bold">All</span>
-                                </div>
-                                
-                                {/* Drive Time Toggle */}
-                                <div className="flex items-center gap-1.5 ml-2 shrink-0" title={`Drive Time: ${includeDriveTime ? 'Included' : 'Excluded'}`}>
-                                    <Truck size={12} className={`${includeDriveTime ? 'text-emerald-500' : 'text-slate-300'} transition-colors`} />
-                                    <button
-                                        onClick={(e) => { e.stopPropagation(); setIncludeDriveTime(!includeDriveTime); }}
-                                        className={`relative w-7 h-4 rounded-full transition-colors duration-200 ${includeDriveTime ? 'bg-emerald-500' : 'bg-slate-300'}`}
-                                    >
-                                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-200 ${includeDriveTime ? 'translate-x-3' : 'translate-x-0'}`} />
-                                    </button>
-                                </div>
-                            </div>
 
                             {/* Years */}
                             {isStatsLoading ? (
