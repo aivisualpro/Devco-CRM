@@ -509,13 +509,14 @@ export async function POST(request: NextRequest) {
                                 data: [
                                     { $skip: skip },
                                     { $limit: limit },
-                                    // Project here to reduce memory before returning
                                     {
-                                        $project: {
-                                            date: 1, jhaTime: 1, usaNo: 1, schedule_id: 1, signatures: 1,
-                                            // Add minimal fields required for list view if searching
-                                            computedCustomerName: 1, computedEstimate: 1, 
-                                            scheduleDocs: 1 // Keep for scheduleRef mapping 
+                                        $addFields: {
+                                            scheduleRef: {
+                                                $mergeObjects: [
+                                                    '$scheduleDocs',
+                                                    { customerName: '$computedCustomerName' }
+                                                ]
+                                            }
                                         }
                                     }
                                 ]
@@ -524,13 +525,7 @@ export async function POST(request: NextRequest) {
                     ];
 
                     const result = await JHA.aggregate(pipeline).allowDiskUse(true);
-                    const data = result[0].data.map((d: any) => ({
-                        ...d,
-                         scheduleRef: {
-                            ...(d.scheduleDocs || {}),
-                            customerName: d.computedCustomerName
-                        }
-                    }));
+                    const data = result[0].data;
                     const total = result[0].metadata[0]?.total || 0;
 
                     return NextResponse.json({ success: true, result: { jhas: data, total } });

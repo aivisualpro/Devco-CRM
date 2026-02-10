@@ -97,54 +97,103 @@ export async function POST(request: NextRequest) {
                 const { page = 1, limit = 20, search = '' } = payload;
                 const skip = (page - 1) * limit;
 
-                // Build Query
-                let query: any = {};
-                if (search) {
-                    const searchRegex = { $regex: search, $options: 'i' };
-                    // We can search description, or we might need to search schedule fields (client, estimate)
-                    // searching schedule fields requires aggregate usually, but let's start with local fields
-                    query.$or = [
-                        { dailyJobDescription: searchRegex },
-                        // If we want to search by schedule fields, we'd need to fetch matching schedules first or use aggregate
-                    ];
-                }
+                if (!search) {
+                    // OPTIMIZED PATH: No Search - fast find + manual join
+                    const totalPromise = DailyJobTicket.countDocuments({});
+                    const djts = await DailyJobTicket.find({})
+                        .sort({ date: -1, createdAt: -1 })
+                        .skip(skip)
+                        .limit(limit)
+                        .lean();
 
-                // 1. Get filtered DJTs (Paginated)
-                const djts = await DailyJobTicket.find(query)
-                    .sort({ date: -1, createdAt: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .lean();
+                    const total = await totalPromise;
 
-                const total = await DailyJobTicket.countDocuments(query);
-
-                // 2. Populate 'scheduleRef' manually (since schedule_id is string)
-                // Get all schedule IDs
-                const scheduleIds = djts.map((d: any) => d.schedule_id).filter(Boolean);
-                
-                // Fetch schedules
-                const schedules = await Schedule.find({ _id: { $in: scheduleIds } }).lean();
-                
-                // Attach scheduleRef
-                const djtsWithSchedule = djts.map((d: any) => {
-                    const schedule = schedules.find((s: any) => String(s._id) === String(d.schedule_id));
-                    return {
-                        ...d,
-                        scheduleRef: schedule || null
-                    };
-                });
-                
-                // Filter by search again if needed (e.g. if user searched for "Devco" which is in Schedule.customerName)
-                // For now, let's assume basic search on DJT fields + client/estimate from fetched schedules if simple logic allows
-                // (Implementing full joined search in Mongo without aggregate is complex, staying simple for now)
-
-                return NextResponse.json({ 
-                    success: true, 
-                    result: {
-                        djts: djtsWithSchedule,
-                        total
+                    if (djts.length === 0) {
+                        return NextResponse.json({ success: true, result: { djts: [], total: 0 } });
                     }
-                });
+
+                    const scheduleIds = djts.map((d: any) => d.schedule_id).filter(Boolean);
+                    const schedules = await Schedule.find({ _id: { $in: scheduleIds } }).lean();
+                    
+                    const djtsWithSchedule = djts.map((d: any) => {
+                        const schedule = schedules.find((s: any) => String(s._id) === String(d.schedule_id));
+                        return { ...d, scheduleRef: schedule || null };
+                    });
+
+                    return NextResponse.json({ success: true, result: { djts: djtsWithSchedule, total } });
+                } else {
+                    // SEARCH PATH: Aggregation with $lookup to search across joined fields
+                    const pipeline: any[] = [
+                        {
+                            $lookup: {
+                                from: 'devcoschedules',
+                                let: { schedId: "$schedule_id" },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$schedId", "000000000000000000000000"] } }] } } }
+                                ],
+                                as: 'scheduleDocs'
+                            }
+                        },
+                        { $unwind: { path: '$scheduleDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $lookup: {
+                                from: 'clients',
+                                let: { cid: "$scheduleDocs.customerId" },
+                                pipeline: [
+                                    { $match: { $expr: { $eq: [{ $toString: "$_id" }, { $toString: { $ifNull: ["$$cid", "000000000000000000000000"] } }] } } }
+                                ],
+                                as: 'clientDocs'
+                            }
+                        },
+                        { $unwind: { path: '$clientDocs', preserveNullAndEmptyArrays: true } },
+                        {
+                            $addFields: {
+                                computedCustomerName: { 
+                                    $ifNull: ['$scheduleDocs.customerName', '$clientDocs.name', '-'] 
+                                },
+                                computedEstimate: { $ifNull: ['$scheduleDocs.estimate', 'No Est'] },
+                                dateStr: { $dateToString: { format: "%m/%d/%Y", date: "$date" } }
+                            }
+                        },
+                        {
+                            $match: {
+                                $or: [
+                                    { dailyJobDescription: { $regex: search, $options: 'i' } },
+                                    { createdBy: { $regex: search, $options: 'i' } },
+                                    { computedCustomerName: { $regex: search, $options: 'i' } },
+                                    { computedEstimate: { $regex: search, $options: 'i' } },
+                                    { dateStr: { $regex: search, $options: 'i' } }
+                                ]
+                            }
+                        },
+                        { $sort: { date: -1, createdAt: -1 } },
+                        {
+                            $facet: {
+                                metadata: [{ $count: "total" }],
+                                data: [
+                                    { $skip: skip },
+                                    { $limit: limit },
+                                    {
+                                        $addFields: {
+                                            scheduleRef: {
+                                                $mergeObjects: [
+                                                    '$scheduleDocs',
+                                                    { customerName: '$computedCustomerName' }
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ];
+
+                    const result = await DailyJobTicket.aggregate(pipeline).allowDiskUse(true);
+                    const data = result[0].data;
+                    const total = result[0].metadata[0]?.total || 0;
+
+                    return NextResponse.json({ success: true, result: { djts: data, total } });
+                }
             }
 
             case 'deleteDJT': {
