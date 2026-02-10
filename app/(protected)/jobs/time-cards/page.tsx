@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
-    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2
+    MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2, X, Search
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -332,6 +332,8 @@ function TimeCardContent() {
     const [filEmployee, setFilEmployee] = useState('');
     const [filEstimate, setFilEstimate] = useState('');
     const [filType, setFilType] = useState('');
+    const [includeDriveTime, setIncludeDriveTime] = useState(true);
+    const [sidebarEmployeeFilter, setSidebarEmployeeFilter] = useState('');
     const [groupingStats, setGroupingStats] = useState<any[]>([]);
     const [isStatsLoading, setIsStatsLoading] = useState(true);
 
@@ -422,7 +424,7 @@ function TimeCardContent() {
         setCurrentPage(1);
     };
 
-    const hasFilters = filEmployee || filEstimate || filType;
+    const hasFilters = filEmployee || filEstimate || filType || sidebarEmployeeFilter;
 
     const allRecords = useMemo(() => {
         const flat: TimesheetEntry[] = [];
@@ -565,6 +567,12 @@ function TimeCardContent() {
                 
                 if (!isSidebarEmployeeSelection && filEmployee && r.employee !== filEmployee) return false;
                 if (filType && r.type?.trim().toLowerCase() !== filType.trim().toLowerCase()) return false;
+                
+                // Drive Time toggle filter
+                if (!includeDriveTime && r.type?.toLowerCase().includes('drive')) return false;
+                
+                // Sidebar employee filter
+                if (sidebarEmployeeFilter && r.employee !== sidebarEmployeeFilter) return false;
             }
 
             if (filEstimate) {
@@ -575,7 +583,7 @@ function TimeCardContent() {
             
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, sidebarEmployeeFilter]);
 
     const timeCardTotals = useMemo(() => {
         let drive = 0;
@@ -698,7 +706,7 @@ function TimeCardContent() {
     // Reset pagination
     useEffect(() => {
         setCurrentPage(1);
-    }, [filEmployee, filEstimate, filType, selectedNode]);
+    }, [filEmployee, filEstimate, filType, selectedNode, includeDriveTime, sidebarEmployeeFilter]);
 
     const paginatedData = useMemo(() => {
         const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -1543,17 +1551,57 @@ function TimeCardContent() {
                     <div className="w-[230px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Grouping</h3>
+                            
+                            {/* Employee Filter */}
+                            <div className="mt-2 relative">
+                                <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <select
+                                    value={sidebarEmployeeFilter}
+                                    onChange={(e) => setSidebarEmployeeFilter(e.target.value)}
+                                    className="w-full pl-7 pr-6 py-1.5 text-[11px] font-medium rounded-lg border border-slate-200 bg-white text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#0F4C75]/30 focus:border-[#0F4C75]/40 appearance-none cursor-pointer truncate"
+                                >
+                                    <option value="">All Employees</option>
+                                    {employeesOptions
+                                        .filter((e: any) => e.isScheduleActive !== false)
+                                        .sort((a: any, b: any) => (a.label || '').localeCompare(b.label || ''))
+                                        .map((emp: any) => (
+                                            <option key={emp.value} value={emp.value}>{emp.label}</option>
+                                        ))
+                                    }
+                                </select>
+                                {sidebarEmployeeFilter && (
+                                    <button
+                                        onClick={() => setSidebarEmployeeFilter('')}
+                                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X size={10} />
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                             
-                            {/* All Node */}
-                            <div 
-                                onClick={() => selectNode('ROOT', 'All')}
-                                className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors mb-1
-                                    ${selectedNode.value === 'All' ? 'bg-[#0F4C75] text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}
-                                `}
-                            >
-                                <span className="text-sm font-bold">All</span>
+                            {/* All Node + Drive Time Toggle */}
+                            <div className="flex items-center justify-between mb-1">
+                                <div 
+                                    onClick={() => selectNode('ROOT', 'All')}
+                                    className={`flex-1 flex items-center p-3 rounded-xl cursor-pointer transition-colors
+                                        ${selectedNode.value === 'All' ? 'bg-[#0F4C75] text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'}
+                                    `}
+                                >
+                                    <span className="text-sm font-bold">All</span>
+                                </div>
+                                
+                                {/* Drive Time Toggle */}
+                                <div className="flex items-center gap-1.5 ml-2 shrink-0" title={`Drive Time: ${includeDriveTime ? 'Included' : 'Excluded'}`}>
+                                    <Truck size={12} className={`${includeDriveTime ? 'text-emerald-500' : 'text-slate-300'} transition-colors`} />
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setIncludeDriveTime(!includeDriveTime); }}
+                                        className={`relative w-7 h-4 rounded-full transition-colors duration-200 ${includeDriveTime ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                                    >
+                                        <span className={`absolute top-0.5 left-0.5 w-3 h-3 bg-white rounded-full shadow-sm transition-transform duration-200 ${includeDriveTime ? 'translate-x-3' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Years */}
