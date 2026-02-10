@@ -2,12 +2,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
-    Plus, Search, FileText, Edit, Trash2, Loader2, Check, Download
+    Plus, Search, FileText, Edit, Trash2, Loader2, Check
 } from 'lucide-react';
 import { 
-    Header, Table, TableHead, TableBody, TableRow, 
-    TableHeader, TableCell, Pagination, Badge, Button,
-    Modal, SearchableSelect, Tooltip, TooltipContent, TooltipTrigger
+    Header, Pagination, Button,
+    Modal, SearchableSelect
 } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/useToast';
@@ -533,249 +532,185 @@ export default function JobTicketPage() {
                     <div className="flex-1 flex items-center justify-center">
                         <Loader2 className="w-8 h-8 text-[#0F4C75] animate-spin" />
                     </div>
+                ) : paginatedDJTs.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center py-20">
+                        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-50 flex items-center justify-center mb-4 shadow-sm">
+                            <FileText className="w-7 h-7 text-slate-300" />
+                        </div>
+                        <p className="text-slate-500 font-semibold text-sm mb-1">No Job Tickets Found</p>
+                        <p className="text-slate-400 text-xs">Create your first job ticket to get started.</p>
+                    </div>
                 ) : (
                     <>
-                        {/* Mobile Card View */}
-                        <div className="lg:hidden space-y-3">
-                            {paginatedDJTs.length === 0 ? (
-                                <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200">
-                                    <FileText className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-slate-500 font-medium text-sm">No Job Ticket records found.</p>
-                                </div>
-                            ) : (
-                                paginatedDJTs.map((djt: any, idx) => (
+                        {/* Stats Bar */}
+                        <div className="flex items-center gap-3 mb-5 flex-wrap">
+                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2 shadow-sm">
+                                <div className="w-2 h-2 rounded-full bg-[#0F4C75]" />
+                                <span className="text-xs font-bold text-slate-700">{totalDJTs}</span>
+                                <span className="text-xs text-slate-400">Total</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2 shadow-sm">
+                                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                <span className="text-xs font-bold text-slate-700">{paginatedDJTs.filter((d: any) => d.customerSignature).length}</span>
+                                <span className="text-xs text-slate-400">Signed</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3.5 py-2 shadow-sm">
+                                <div className="w-2 h-2 rounded-full bg-amber-400" />
+                                <span className="text-xs font-bold text-slate-700">{paginatedDJTs.filter((d: any) => !d.customerSignature).length}</span>
+                                <span className="text-xs text-slate-400">Pending</span>
+                            </div>
+                        </div>
+
+                        {/* Card Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 lg:gap-5">
+                            {paginatedDJTs.map((djt: any, idx: number) => {
+                                const schedule = djt.scheduleRef;
+                                const clientName = getClientName(schedule);
+                                const dateStr = (djt.date || schedule?.fromDate) ? new Date(djt.date || schedule?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A';
+                                const creator = employees.find(e => e.value === djt.createdBy);
+                                const sigCount = (djt.signatures || []).length;
+                                const eqCount = (djt.equipmentUsed || []).length;
+                                const hasCustSig = !!djt.customerSignature;
+
+                                return (
                                     <div
-                                        key={idx}
-                                        className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
+                                        key={djt._id || idx}
+                                        className="group bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col"
                                         onClick={() => handleViewOpen(djt)}
-                                        onTouchStart={() => handleLongPressStart(djt)}
-                                        onTouchEnd={handleLongPressEnd}
-                                        onTouchCancel={handleLongPressEnd}
                                     >
-                                        <div className="flex items-start justify-between mb-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0F4C75] flex items-center justify-center shrink-0">
-                                                    <FileText size={18} />
+                                        {/* Card Header - Gradient Accent */}
+                                        <div className="relative px-5 pt-4 pb-3 bg-gradient-to-r from-[#0F4C75]/[0.04] to-transparent border-b border-slate-100">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F4C75] to-[#1B6CA8] text-white flex items-center justify-center shrink-0 shadow-sm">
+                                                        <FileText size={18} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[13px] font-bold text-slate-800 leading-tight">{dateStr}</p>
+                                                        <p className="text-[11px] text-slate-400 mt-0.5">{djt.djtTime || '--:--'}</p>
+                                                    </div>
                                                 </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {hasCustSig ? (
+                                                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-1 rounded-lg">
+                                                            <Check size={10} /> Signed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold px-2 py-1 rounded-lg">
+                                                            Pending
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Card Body */}
+                                        <div className="px-5 py-4 flex-1 flex flex-col gap-3.5">
+                                            {/* Client & Estimate */}
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-sm font-semibold text-slate-700 truncate flex-1">{clientName}</p>
+                                                <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-slate-200 shrink-0 tracking-wide">
+                                                    {schedule?.estimate || 'No Est'}
+                                                </span>
+                                            </div>
+
+                                            {/* Description */}
+                                            <div className="bg-slate-50/80 rounded-xl px-3.5 py-2.5 border border-slate-100 min-h-[52px]">
+                                                <p className="text-[11px] text-slate-500 line-clamp-3 leading-relaxed">
+                                                    {djt.dailyJobDescription || 'No description provided'}
+                                                </p>
+                                            </div>
+
+                                            {/* Equipment */}
+                                            {eqCount > 0 && (
                                                 <div>
-                                                    <div className="text-sm font-bold text-slate-800">
-                                                        {(djt.date || djt.scheduleRef?.fromDate) ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Equipment ({eqCount})</p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {(djt.equipmentUsed || []).slice(0, 3).map((eq: any, i: number) => {
+                                                            const eqItem = equipmentItems.find((e: any) => String(e.value) === String(eq.equipment));
+                                                            const name = eqItem ? eqItem.label : (eq.equipment || 'Equipment');
+                                                            return (
+                                                                <div key={i} className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+                                                                    <span className="text-[10px] font-semibold text-slate-700 truncate max-w-[100px]" title={name}>{name}</span>
+                                                                    <span className={cn("text-[8px] font-bold px-1 py-0.5 rounded", eq.type?.toLowerCase() === 'rental' ? 'bg-amber-50 text-amber-600' : 'bg-blue-50 text-blue-600')}>
+                                                                        {eq.type?.toUpperCase() || 'OWNED'}
+                                                                    </span>
+                                                                    <span className="text-[9px] text-slate-400 font-medium">×{eq.qty || 1}</span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                        {eqCount > 3 && <span className="text-[10px] text-slate-400 font-medium self-center">+{eqCount - 3} more</span>}
                                                     </div>
-                                                    <div className="text-xs text-slate-400">{djt.djtTime || '--:--'}</div>
                                                 </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {djt.customerSignature && (
-                                                    <div className="w-5 h-5 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
-                                                        <Check size={12} />
-                                                    </div>
-                                                )}
-                                                <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px]">
-                                                    {djt.scheduleRef?.estimate || 'No Est'}
-                                                </Badge>
-                                            </div>
-                                        </div>
+                                            )}
 
-                                        <div className="text-xs text-slate-600 font-medium mb-1 truncate">
-                                            {getClientName(djt.scheduleRef)}
-                                        </div>
-                                        {djt.dailyJobDescription && (
-                                            <p className="text-[11px] text-slate-500 line-clamp-2 mb-3">{djt.dailyJobDescription}</p>
-                                        )}
-
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-1 text-[10px] text-slate-400">
-                                                {(djt.equipmentUsed || []).length > 0 && (
-                                                    <span>{(djt.equipmentUsed || []).length} equipment</span>
-                                                )}
-                                            </div>
-                                            <div className="flex -space-x-1.5">
-                                                {(djt.signatures || []).slice(0, 4).map((sig: any, i: number) => {
-                                                    const emp = employees.find(e => e.value === sig.employee);
-                                                    return (
-                                                        <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-green-50 flex items-center justify-center overflow-hidden">
-                                                            {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[8px] font-bold text-green-700">{emp?.label?.[0]}</span>}
+                                            {/* Signatures */}
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Signatures</p>
+                                                {sigCount > 0 ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex -space-x-2">
+                                                            {(djt.signatures || []).slice(0, 5).map((sig: any, i: number) => {
+                                                                const emp = employees.find(e => e.value === sig.employee);
+                                                                return (
+                                                                    <div key={i} className="w-7 h-7 rounded-full border-2 border-white bg-emerald-50 flex items-center justify-center overflow-hidden shadow-sm relative" title={emp?.label || sig.employee}>
+                                                                        {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-emerald-700">{(emp?.label?.[0] || '?').toUpperCase()}</span>}
+                                                                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 rounded-full border-[1.5px] border-white flex items-center justify-center">
+                                                                            <Check size={6} className="text-white" />
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {sigCount > 5 && (
+                                                                <div className="w-7 h-7 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[9px] font-bold text-slate-500">+{sigCount - 5}</div>
+                                                            )}
                                                         </div>
-                                                    );
-                                                })}
-                                                {(djt.signatures || []).length > 4 && (
-                                                    <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center text-[8px] font-bold text-slate-600">
-                                                        +{(djt.signatures || []).length - 4}
+                                                        <span className="text-[10px] text-emerald-600 font-semibold">{sigCount} signed</span>
                                                     </div>
+                                                ) : (
+                                                    <p className="text-[11px] text-slate-300 italic">No signatures yet</p>
                                                 )}
-                                                {(!djt.signatures || djt.signatures.length === 0) && (
-                                                    <span className="text-[10px] text-slate-400 italic">No signatures</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Card Footer */}
+                                        <div className="px-5 py-3 border-t border-slate-100 bg-slate-50/50 flex items-center justify-between">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {creator ? (
+                                                    <>
+                                                        <div className="w-5 h-5 rounded-full bg-slate-200 overflow-hidden shrink-0">
+                                                            {creator.image ? <img src={creator.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold text-slate-500">{creator.label?.[0]}</div>}
+                                                        </div>
+                                                        <span className="text-[10px] text-slate-500 font-medium truncate">{creator.label}</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[10px] text-slate-400 truncate">{djt.createdBy || 'Unknown'}</span>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                                                {canEdit && (
+                                                    <button onClick={() => handleEditOpen(djt)} className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-[#0F4C75]/5 transition-colors" title="Edit">
+                                                        <Edit size={14} />
+                                                    </button>
+                                                )}
+                                                {canDelete && (
+                                                    <button onClick={() => handleDelete(djt)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Delete">
+                                                        <Trash2 size={14} />
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
-                                ))
-                            )}
-                            {totalPages > 1 && (
-                                <div className="py-4">
-                                    <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-                                </div>
-                            )}
+                                );
+                            })}
                         </div>
 
-                        {/* Desktop Table View */}
-                        <div className="hidden lg:flex flex-col flex-1 min-h-0">
-                            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex-1 flex flex-col min-h-0 overflow-hidden">
-                                <Table 
-                                    containerClassName="flex-1 overflow-auto"
-                                    footer={<Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />}
-                                >
-                                    <TableHead className="bg-slate-50 border-b border-slate-100 z-10 sticky top-0">
-                                        <TableRow>
-                                            <TableHeader className="pl-6 py-4">Date</TableHeader>
-                                            <TableHeader>Client</TableHeader>
-                                            <TableHeader>Estimate</TableHeader>
-                                            <TableHeader>Description</TableHeader>
-                                            <TableHeader>Equipment</TableHeader>
-                                            <TableHeader>Signatures</TableHeader>
-                                            <TableHeader className="text-center">Client Signed</TableHeader>
-                                            <TableHeader className="text-right pr-6">Actions</TableHeader>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {paginatedDJTs.length === 0 ? (
-                                            <TableRow>
-                                                <TableCell colSpan={8} className="text-center py-12 text-slate-400">
-                                                    No Job Ticket records found.
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : (
-                                            paginatedDJTs.map((djt: any, idx) => (
-                                                <TableRow 
-                                                    key={idx} 
-                                                    className="hover:bg-slate-50/50 cursor-pointer transition-colors border-b border-slate-50 last:border-0"
-                                                    onClick={() => handleViewOpen(djt)}
-                                                >
-                                                    <TableCell className="pl-6 py-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0F4C75] flex items-center justify-center shrink-0">
-                                                                <FileText size={16} />
-                                                            </div>
-                                                            <div>
-                                                                <div className="text-sm font-bold text-slate-700">
-                                                                    {(djt.date || djt.scheduleRef?.fromDate) ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC' }) : 'N/A'}
-                                                                </div>
-                                                                <div className="text-[10px] text-slate-400">
-                                                                    {djt.djtTime || '--:--'}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <span className="text-sm font-medium text-slate-600">
-                                                            {getClientName(djt.scheduleRef)}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Badge variant="default" className="bg-slate-100 text-slate-600 border-slate-200">
-                                                            {djt.scheduleRef?.estimate || 'No Est'}
-                                                        </Badge>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <span className="text-sm text-slate-600 font-medium line-clamp-1 max-w-[300px]" title={djt.dailyJobDescription}>
-                                                            {djt.dailyJobDescription || 'No description provided'}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-col gap-1">
-                                                            {(djt.equipmentUsed || []).map((eq: any, i: number) => {
-                                                                const eqItem = equipmentItems.find(e => String(e.value) === String(eq.equipment));
-                                                                const name = eqItem ? eqItem.label : eq.equipment;
-                                                                return (
-                                                                    <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-fit mb-1">
-                                                                        <span className="font-semibold text-slate-900 truncate max-w-[150px]" title={name}>{name}</span>
-                                                                        <span className="text-slate-300">/</span>
-                                                                        <span className={cn("uppercase text-[9px] font-bold", eq.type?.toLowerCase() === 'owned' ? "text-blue-600" : "text-amber-600")}>
-                                                                            {eq.type || 'Owned'}
-                                                                        </span>
-                                                                        <span className="text-slate-300">/</span>
-                                                                        <span className="text-slate-500 font-medium">Qty: {eq.qty || 1}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            {(!djt.equipmentUsed || djt.equipmentUsed.length === 0) && <span className="text-slate-300 text-xs">-</span>}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex items-center -space-x-2">
-                                                            {(djt.scheduleRef?.assignees || []).map((assigneeId: string, i: number) => {
-                                                                const hasSigned = (djt.signatures || []).some((s: any) => s.employee === assigneeId);
-                                                                const emp = employees.find(e => e.value === assigneeId || e.email === assigneeId);
-                                                                if (!hasSigned) return null;
-                                                                return (
-                                                                     <Tooltip key={i}>
-                                                                        <TooltipTrigger>
-                                                                            <div className="w-7 h-7 rounded-full border-2 border-white bg-green-50 flex items-center justify-center overflow-hidden shrink-0 relative">
-                                                                                {emp?.image ? (
-                                                                                    <img src={emp.image} alt="" className="w-full h-full object-cover" /> 
-                                                                                ) : (
-                                                                                    <span className="text-[9px] font-bold text-green-700">{(emp?.firstName?.[0] || assigneeId?.[0] || '?').toUpperCase()}</span>
-                                                                                )}
-                                                                                <div className="absolute inset-0 ring-1 ring-inset ring-black/10 rounded-full" />
-                                                                            </div>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                            <p className="font-medium">{emp?.firstName} {emp?.lastName}</p>
-                                                                            <p className="text-xs text-slate-400">Signed</p>
-                                                                        </TooltipContent>
-                                                                    </Tooltip>
-                                                                );
-                                                            })}
-                                                            {(djt.signatures || []).filter((s:any) => !(djt.scheduleRef?.assignees || []).includes(s.employee)).map((sig: any, i: number) => {
-                                                                 const emp = employees.find(e => e.value === sig.employee);
-                                                                 return (
-                                                                     <Tooltip key={`extra-${i}`}>
-                                                                        <TooltipTrigger>
-                                                                            <div className="w-7 h-7 rounded-full border-2 border-white bg-green-50 flex items-center justify-center overflow-hidden shrink-0">
-                                                                                {emp?.image ? <img src={emp.image} alt="" className="w-full h-full object-cover" /> : <span className="text-[9px] font-bold text-green-700">{(emp?.firstName?.[0] || sig.employee?.[0] || '?').toUpperCase()}</span>}
-                                                                            </div>
-                                                                        </TooltipTrigger>
-                                                                        <TooltipContent>
-                                                                            <p>{emp?.label || sig.employee}</p>
-                                                                        </TooltipContent>
-                                                                     </Tooltip>
-                                                                 )
-                                                            })}
-                                                            {(!djt.signatures || djt.signatures.length === 0) && (
-                                                                <span className="text-xs text-slate-400 italic">None</span>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-center">
-                                                        {djt.customerSignature ? (
-                                                            <div className="inline-flex items-center justify-center w-6 h-6 bg-green-100 text-green-600 rounded-full">
-                                                                <Check size={14} />
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-slate-300">-</span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-right pr-6">
-                                                        <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
-                                                            {canEdit && (
-                                                                <Button variant="ghost" size="icon" onClick={() => handleEditOpen(djt)} className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50">
-                                                                    <Edit size={16} />
-                                                                </Button>
-                                                            )}
-                                                            {canDelete && (
-                                                                <Button variant="ghost" size="icon" onClick={() => handleDelete(djt)} className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50">
-                                                                    <Trash2 size={16} />
-                                                                </Button>
-                                                            )}
-                                                        </div>
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))
-                                        )}
-                                    </TableBody>
-                                </Table>
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="pt-6 pb-2">
+                                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
                             </div>
-                        </div>
+                        )}
                     </>
                 )}
             </div>
