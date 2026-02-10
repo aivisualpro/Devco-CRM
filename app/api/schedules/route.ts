@@ -1356,12 +1356,9 @@ export async function POST(request: NextRequest) {
                         }
                     }},
                     // Use clockIn for year/week/date grouping instead of fromDate
-                    // Extract date string directly from clockIn to avoid timezone shifts
                     { $addFields: {
                         // Use clockIn date for year/week calculations (fallback to fromDate if clockIn is null)
-                        dateForGrouping: { $ifNull: ["$clockInDate", { $convert: { input: "$fromDate", to: "date", onError: new Date(), onNull: new Date() } }] },
-                        // Extract YYYY-MM-DD string directly from clockIn to avoid timezone shifts
-                        rawDateStr: { $toString: { $ifNull: ["$timesheet.clockIn", "$fromDate"] } }
+                        dateForGrouping: { $ifNull: ["$clockInDate", { $convert: { input: "$fromDate", to: "date", onError: new Date(), onNull: new Date() } }] }
                     }},
                     { $addFields: {
                         // Extract ISO week year and isoWeek from the clockIn date
@@ -1369,8 +1366,10 @@ export async function POST(request: NextRequest) {
                         // (e.g., 12/29/2025 is week 1 of 2026, so isoWeekYear should be 2026)
                         year: { $isoWeekYear: "$dateForGrouping" },
                         week: { $isoWeek: "$dateForGrouping" },
-                        // Extract just the date portion (YYYY-MM-DD) - takes first 10 chars
-                        dateStr: { $substrCP: ["$rawDateStr", 0, 10] }
+                        // Use $dateToString on the converted Date object to get YYYY-MM-DD
+                        // This handles ALL clockIn formats (M/D/YYYY, ISO, etc.) correctly
+                        // Previously used $substrCP on raw string which broke for non-ISO formats
+                        dateStr: { $dateToString: { format: "%Y-%m-%d", date: "$dateForGrouping", timezone: "UTC" } }
                     }},
                     { $group: {
                         _id: {

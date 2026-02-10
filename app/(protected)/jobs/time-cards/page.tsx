@@ -1257,7 +1257,10 @@ function TimeCardContent() {
             const targetMonday = new Date(mondayOfWeek1);
             targetMonday.setUTCDate(mondayOfWeek1.getUTCDate() + (week - 1) * 7);
             
-            setCurrentWeekDate(targetMonday);
+            // Only switch week if it's actually different to avoid unnecessary re-fetch
+            if (targetMonday.getTime() !== weekRange.start.getTime()) {
+                setCurrentWeekDate(targetMonday);
+            }
         }
     };
 
