@@ -125,6 +125,12 @@ export function MyDropDown({
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                // When not using a modal backdrop, check if the click was on the parent trigger button.
+                // If so, skip onClose() and let the parent's onClick toggle handle it,
+                // otherwise we get a race condition that re-opens the dropdown.
+                if (!modal && dropdownRef.current.parentElement?.contains(event.target as Node)) {
+                    return;
+                }
                 onClose();
             }
         }
@@ -145,7 +151,7 @@ export function MyDropDown({
             document.removeEventListener("mousedown", handleClickOutside);
             document.removeEventListener("keydown", handleKeyDown);
         };
-    }, [isOpen, onClose]);
+    }, [isOpen, onClose, modal]);
 
     if (!isOpen || !isMounted) return null;
 
