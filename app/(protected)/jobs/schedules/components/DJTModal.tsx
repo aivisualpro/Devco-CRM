@@ -448,9 +448,13 @@ export const DJTModal = ({
                                         <div>
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">Date & Time</p>
                                             <p className="text-sm font-bold text-slate-700">
-                                                {selectedDJT.createdAt 
-                                                    ? `${new Date(selectedDJT.createdAt).toLocaleDateString()} at ${new Date(selectedDJT.createdAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` 
-                                                    : 'N/A'}
+                                                {(() => {
+                                                    const dateVal = selectedDJT.date || selectedDJT.createdAt;
+                                                    if (!dateVal) return 'N/A';
+                                                    const d = new Date(dateVal);
+                                                    if (isNaN(d.getTime())) return 'N/A';
+                                                    return `${d.toLocaleDateString('en-US', { timeZone: 'UTC' })} at ${selectedDJT.djtTime || d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+                                                })()}
                                             </p>
                                         </div>
                                         <div>
@@ -497,7 +501,7 @@ export const DJTModal = ({
                                                             {item.type || 'owned'}
                                                         </span>
                                                         <span className="text-xs font-semibold text-slate-800 flex-1">
-                                                            {(initialData?.equipmentItems || []).find((e: any) => e.value === item.equipment)?.label || 'Equipment'}
+                                                            {(initialData?.equipmentItems || []).find((e: any) => String(e.value) === String(item.equipment))?.label || item.equipment || 'Equipment'}
                                                         </span>
                                                         <span className="text-xs font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">×{item.qty || 1}</span>
                                                     </div>

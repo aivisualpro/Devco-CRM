@@ -229,11 +229,13 @@ export default function JobTicketPage() {
         if (!schedule) return;
 
         // Initialize new DJT
+        const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
         const newDJT: DJT = {
             schedule_id: schedule._id,
             scheduleRef: schedule,
             date: new Date().toISOString(), 
             djtTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            createdBy: userEmail || 'system',
             signatures: [],
             dailyJobDescription: '',
             active: true
@@ -319,7 +321,7 @@ export default function JobTicketPage() {
                     payload: {
                         ...selectedDJT,
                         schedule_id: selectedDJT.schedule_id || selectedDJT._id,
-                        createdBy: selectedDJT.createdBy || 'system',
+                        createdBy: selectedDJT.createdBy || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null) || 'system',
                         scheduleRef: undefined
                     }
                 })
@@ -382,7 +384,7 @@ export default function JobTicketPage() {
                     payload: {
                         ...updatedDJT,
                         schedule_id: updatedDJT.schedule_id || updatedDJT._id,
-                        createdBy: updatedDJT.createdBy || 'system',
+                        createdBy: updatedDJT.createdBy || (typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null) || 'system',
                         scheduleRef: undefined
                     }
                 })
@@ -682,8 +684,8 @@ export default function JobTicketPage() {
                                                     <TableCell>
                                                         <div className="flex flex-col gap-1">
                                                             {(djt.equipmentUsed || []).map((eq: any, i: number) => {
-                                                                const eqItem = equipmentItems.find(e => String(e._id) === String(eq.equipment) || String(e.id) === String(eq.equipment));
-                                                                const name = eqItem ? eqItem.equipmentMachine : eq.equipment;
+                                                                const eqItem = equipmentItems.find(e => String(e.value) === String(eq.equipment));
+                                                                const name = eqItem ? eqItem.label : eq.equipment;
                                                                 return (
                                                                     <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-100 w-fit mb-1">
                                                                         <span className="font-semibold text-slate-900 truncate max-w-[150px]" title={name}>{name}</span>
