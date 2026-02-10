@@ -606,7 +606,12 @@ function TimeCardContent() {
         // First, build the tree structure from groupingStats (backend aggregation)
         groupingStats.forEach(stat => {
             const { year, week, employee } = stat._id;
-            const hours = stat.totalHours || 0;
+            const driveHrs = stat.driveHours || 0;
+            // When drive time toggle is OFF, subtract drive hours from the total
+            const hours = includeDriveTime ? (stat.totalHours || 0) : ((stat.totalHours || 0) - driveHrs);
+            
+            // If filtering by sidebar employee, skip stats for other employees
+            if (sidebarEmployeeFilter && employee !== sidebarEmployeeFilter) return;
             
             const refDate = new Date(stat.refDate);
             const weekRangeStr = getWeekRangeString(refDate);
@@ -660,7 +665,7 @@ function TimeCardContent() {
         // This prevents values from changing when clicking different weeks
 
         return root;
-    }, [groupingStats, employeesMap]);
+    }, [groupingStats, employeesMap, includeDriveTime, sidebarEmployeeFilter]);
 
     // 3. Filter Table based on Tree Selection
     const tableData = useMemo(() => {

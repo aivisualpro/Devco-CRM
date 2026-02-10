@@ -1518,6 +1518,7 @@ export async function POST(request: NextRequest) {
                             date: "$dateStr"
                         },
                         totalHours: { $sum: "$hoursNum" },
+                        driveHours: { $sum: { $cond: { if: "$isDriveTime", then: "$hoursNum", else: 0 } } },
                         refDate: { $min: "$dateForGrouping" }
                     }},
                     { $sort: { 
