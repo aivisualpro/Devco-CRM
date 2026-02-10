@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { connectToDatabase } from '@/lib/db';
 import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem } from '@/lib/models';
 import { calculateTimesheetData } from '@/lib/timeCardUtils';
+import { getLocalNowISO } from '@/lib/scheduleUtils';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -603,7 +604,7 @@ export async function POST(request: NextRequest) {
                     const tsIndex = (schedule.timesheet || []).findIndex(t => String(t._id) === String(timesheetId));
                     if (tsIndex > -1) {
                         const updateObj: any = {};
-                        updateObj[`timesheet.${tsIndex}.clockOut`] = date || new Date().toISOString();
+                        updateObj[`timesheet.${tsIndex}.clockOut`] = date || getLocalNowISO();
                         if (location) updateObj[`timesheet.${tsIndex}.locationOut`] = location;
                         updateObj.updatedAt = new Date();
                         await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
@@ -621,11 +622,11 @@ export async function POST(request: NextRequest) {
                         _id: new mongoose.Types.ObjectId().toString(),
                         scheduleId,
                         employee,
-                        clockIn: date || new Date().toISOString(),
+                        clockIn: date || getLocalNowISO(),
                         locationIn: location,
                         type: 'Drive Time',
                         status: 'Pending',
-                        createdAt: new Date().toISOString()
+                        createdAt: getLocalNowISO()
                     };
                     await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
                     updateAppSheetTimesheet(newTs, "Add");

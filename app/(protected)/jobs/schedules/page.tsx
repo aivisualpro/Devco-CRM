@@ -1810,7 +1810,7 @@ function SchedulePageContent() {
 
                 const finalTimesheet = {
                     ...activeDriveTime,
-                    clockOut: new Date().toISOString(),
+                    clockOut: getLocalNowISO(),
                     locationOut: `${latitude},${longitude}`,
                     distance: distance ? parseFloat(distance.toFixed(2)) : 0
                 };
@@ -1853,7 +1853,7 @@ function SchedulePageContent() {
                     _id: tempId,
                     scheduleId: schedule._id,
                     employee: employeeEmail,
-                    clockIn: new Date().toISOString(),
+                    clockIn: getLocalNowISO(),
                     locationIn: `${latitude},${longitude}`,
                     type: 'Drive Time',
                     status: 'Pending'

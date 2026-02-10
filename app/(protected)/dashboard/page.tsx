@@ -1907,7 +1907,7 @@ function DashboardContent() {
         if (e) e.stopPropagation();
         if (!currentUser) return;
 
-        const now = new Date().toISOString();
+        const now = getLocalNowISO();
         const employeeEmail = currentUser.email;
 
         // Fetch location
