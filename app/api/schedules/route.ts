@@ -1378,14 +1378,84 @@ export async function POST(request: NextRequest) {
                             0.25
                         ]}
                     }},
+                    // For drive time with coordinates, calculate haversine distance
+                    // Split locationIn/Out strings into lat/lon components
+                    { $addFields: {
+                        _locInParts: { $cond: { if: "$hasLocationIn", then: { $split: ["$timesheet.locationIn", ","] }, else: ["0", "0"] } },
+                        _locOutParts: { $cond: { if: "$hasLocationOut", then: { $split: ["$timesheet.locationOut", ","] }, else: ["0", "0"] } }
+                    }},
+                    { $addFields: {
+                        _lat1Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locInParts", 0] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
+                        _lon1Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locInParts", 1] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
+                        _lat2Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locOutParts", 0] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
+                        _lon2Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locOutParts", 1] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] }
+                    }},
+                    { $addFields: {
+                        _dLat: { $subtract: ["$_lat2Rad", "$_lat1Rad"] },
+                        _dLon: { $subtract: ["$_lon2Rad", "$_lon1Rad"] }
+                    }},
+                    { $addFields: {
+                        // Haversine 'a' = sin²(dLat/2) + cos(lat1) * cos(lat2) * sin²(dLon/2)
+                        _haversineA: { $add: [
+                            { $multiply: [{ $sin: { $divide: ["$_dLat", 2] } }, { $sin: { $divide: ["$_dLat", 2] } }] },
+                            { $multiply: [
+                                { $cos: "$_lat1Rad" },
+                                { $cos: "$_lat2Rad" },
+                                { $sin: { $divide: ["$_dLon", 2] } },
+                                { $sin: { $divide: ["$_dLon", 2] } }
+                            ]}
+                        ]}
+                    }},
+                    { $addFields: {
+                        // Distance in miles = R * 2 * atan2(sqrt(a), sqrt(1 - a)) * DRIVING_FACTOR
+                        // R = 3958.8 miles, DRIVING_FACTOR = 1.5
+                        _haversineDist: { $multiply: [
+                            3958.8,
+                            { $multiply: [2, { $atan2: [{ $sqrt: "$_haversineA" }, { $sqrt: { $subtract: [1, "$_haversineA"] } }] }] },
+                            1.5  // Driving factor (same as frontend)
+                        ]},
+                        // Manual distance (if set)
+                        _manualDist: { $convert: { input: { $ifNull: ["$timesheet.manualDistance", 0] }, to: "double", onError: 0, onNull: 0 } }
+                    }},
+                    { $addFields: {
+                        // Final drive distance: manual distance takes priority, then haversine
+                        _driveDistance: { $cond: {
+                            if: { $gt: ["$_manualDist", 0] },
+                            then: "$_manualDist",
+                            else: { $cond: {
+                                if: { $and: ["$hasLocationIn", "$hasLocationOut"] },
+                                then: "$_haversineDist",
+                                else: 0
+                            }}
+                        }}
+                    }},
                     // Calculate hoursNum based on type and location availability
                     { $addFields: {
                         hoursNum: {
                             $cond: {
-                                // Drive time WITHOUT locations AND without manual distance → only dump + shop hours
-                                if: { $and: ["$isDriveTime", { $not: "$hasLocationIn" }, { $not: "$hasLocationOut" }, { $not: "$hasManualDistance" }] },
-                                then: { $add: [{ $ifNull: ["$dumpHrs", 0] }, { $ifNull: ["$shopHrs", 0] }] },
-                                // Otherwise: use stored hours or calculate from clockIn/clockOut
+                                // ALL Drive Time: calculate from distance + dump/shop, or manual hours override
+                                if: "$isDriveTime",
+                                then: {
+                                    $cond: {
+                                        // Manual duration override (manualDuration field) — always takes priority
+                                        if: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
+                                        then: { $convert: { input: "$timesheet.manualDuration", to: "double", onError: 0, onNull: 0 } },
+                                        else: {
+                                            $cond: {
+                                                // Has distance (locations or manual) → distance/55 + dump + shop
+                                                if: { $gt: ["$_driveDistance", 0] },
+                                                then: { $add: [
+                                                    { $divide: ["$_driveDistance", 55] },
+                                                    { $ifNull: ["$dumpHrs", 0] },
+                                                    { $ifNull: ["$shopHrs", 0] }
+                                                ]},
+                                                // No distance, no locations → dump + shop only
+                                                else: { $add: [{ $ifNull: ["$dumpHrs", 0] }, { $ifNull: ["$shopHrs", 0] }] }
+                                            }
+                                        }
+                                    }
+                                },
+                                // Site Time: use stored hours or calculate from clockIn/clockOut
                                 else: {
                                     $cond: {
                                         if: { $gt: [{ $ifNull: ["$timesheet.hours", 0] }, 0] },
