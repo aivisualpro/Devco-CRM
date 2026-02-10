@@ -1011,10 +1011,20 @@ function TimeCardContent() {
             const schedule = dataGet.result as ScheduleDoc;
             const stats = calculateTimesheetData(editForm as any, schedule.fromDate);
 
+            // Embed hourly rate from employee profile for payroll integrity
+            const empEmail = editForm.employee || editingRecord.employee || '';
+            const empProfile = employeesMap[empEmail] || employeesMap[String(empEmail).toLowerCase()] || {};
+            const rateFields: any = {};
+            if (editForm.type?.toLowerCase().includes('site')) {
+                rateFields.hourlyRateSITE = empProfile.hourlyRateSITE || null;
+            } else if (editForm.type?.toLowerCase().includes('drive')) {
+                rateFields.hourlyRateDrive = empProfile.hourlyRateDrive || null;
+            }
+
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === (editingRecord._id || editingRecord.recordId)) {
                     const { hoursVal, distanceVal, rawDistanceVal, projectName, ...rest } = editForm;
-                    return { ...t, ...rest, hours: stats.hours, distance: stats.distance } as TimesheetEntry;
+                    return { ...t, ...rest, ...rateFields, hours: stats.hours, distance: stats.distance } as TimesheetEntry;
                 }
                 return t as TimesheetEntry;
             });
@@ -1102,7 +1112,18 @@ function TimeCardContent() {
             
             const schedule = dataGet.result;
             const stats = calculateTimesheetData(newRecord, schedule.fromDate);
-            const recordWithStats = { ...newRecord, hours: stats.hours, distance: stats.distance };
+
+            // Embed hourly rate from employee profile for payroll integrity
+            const empEmail = addForm.employee || '';
+            const empProfile = employeesMap[empEmail] || employeesMap[String(empEmail).toLowerCase()] || {};
+            const rateFields: any = {};
+            if (addForm.type?.toLowerCase().includes('site')) {
+                rateFields.hourlyRateSITE = empProfile.hourlyRateSITE || null;
+            } else if (addForm.type?.toLowerCase().includes('drive')) {
+                rateFields.hourlyRateDrive = empProfile.hourlyRateDrive || null;
+            }
+
+            const recordWithStats = { ...newRecord, ...rateFields, hours: stats.hours, distance: stats.distance };
             
             const updatedTimesheets = [...(schedule.timesheet || []), recordWithStats];
             
@@ -1170,11 +1191,21 @@ function TimeCardContent() {
             const schedule = dataGet.result;
             const stats = calculateTimesheetData(quickEditForm as any);
 
+            // Embed hourly rate from employee profile for payroll integrity
+            const empEmail = quickEditForm.employee || '';
+            const empProfile = employeesMap[empEmail] || employeesMap[String(empEmail).toLowerCase()] || {};
+            const rateFields: any = {};
+            if (quickEditForm.type?.toLowerCase().includes('site')) {
+                rateFields.hourlyRateSITE = empProfile.hourlyRateSITE || null;
+            } else if (quickEditForm.type?.toLowerCase().includes('drive')) {
+                rateFields.hourlyRateDrive = empProfile.hourlyRateDrive || null;
+            }
+
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 const tid = t._id || t.recordId;
                 if (tid === recordId) {
                     const { hoursVal, distanceVal, ...rest } = quickEditForm;
-                    return { ...t, ...rest, hours: stats.hours, distance: stats.distance };
+                    return { ...t, ...rest, ...rateFields, hours: stats.hours, distance: stats.distance };
                 }
                 return t;
             });

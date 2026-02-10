@@ -1733,7 +1733,19 @@ function SchedulePageContent() {
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === tsId) {
                     const { scheduleId: _, ...rest } = editTimesheetForm;
-                    return { ...t, ...rest };
+                    
+                    // Embed hourly rate from employee profile for payroll integrity
+                    const empEmail = editTimesheetForm.employee || t.employee || '';
+                    const empProfile = initialData.employees?.find((e: any) => e.value === empEmail) || {};
+                    const rateFields: any = {};
+                    const tsType = String(editTimesheetForm.type || t.type || '').toLowerCase();
+                    if (tsType.includes('site') && empProfile.hourlyRateSITE) {
+                        rateFields.hourlyRateSITE = empProfile.hourlyRateSITE;
+                    } else if (tsType.includes('drive') && empProfile.hourlyRateDrive) {
+                        rateFields.hourlyRateDrive = empProfile.hourlyRateDrive;
+                    }
+                    
+                    return { ...t, ...rest, ...rateFields };
                 }
                 return t;
             });

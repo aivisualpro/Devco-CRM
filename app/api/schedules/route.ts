@@ -433,6 +433,17 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ success: false, error: 'Missing required fields' });
                 }
 
+                // Look up employee's hourly rates and embed them for payroll integrity
+                const empDoc = await Employee.findOne({ email: timesheet.employee }).lean();
+                if (empDoc) {
+                    const tsType = String(timesheet.type || '').toLowerCase();
+                    if (tsType.includes('site') && empDoc.hourlyRateSITE && !timesheet.hourlyRateSITE) {
+                        timesheet.hourlyRateSITE = empDoc.hourlyRateSITE;
+                    } else if (tsType.includes('drive') && empDoc.hourlyRateDrive && !timesheet.hourlyRateDrive) {
+                        timesheet.hourlyRateDrive = empDoc.hourlyRateDrive;
+                    }
+                }
+
                 // Fetch the schedule
                 const schedule = await Schedule.findById(timesheet.scheduleId);
                 if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
@@ -496,14 +507,18 @@ export async function POST(request: NextRequest) {
 
             case 'quickTimesheet': {
                 const { scheduleId, employee, type, date, dumpQty, shopQty } = payload || {};
-                const schedule = await Schedule.findById(scheduleId);
-                if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
+                const scheduleQt = await Schedule.findById(scheduleId);
+                if (!scheduleQt) return NextResponse.json({ success: false, error: 'Schedule not found' });
 
-                const empEmail = String(employee).toLowerCase();
+                const empEmailQt = String(employee).toLowerCase();
+
+                // Look up employee's hourly rate for drive time (dump/shop are Drive Time entries)
+                const empDocQt = await Employee.findOne({ email: employee }).lean();
+                const driveRate = empDocQt?.hourlyRateDrive || null;
                 
                 // Find existing record for this employee acting as Dump/Shop container
-                const existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
-                    String(ts.employee).toLowerCase() === empEmail && 
+                const existingIndexQt = (scheduleQt.timesheet || []).findIndex((ts: any) => 
+                    String(ts.employee).toLowerCase() === empEmailQt && 
                     ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) ||
                      (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
                 );
@@ -518,19 +533,11 @@ export async function POST(request: NextRequest) {
                      if (type === 'Dump Washout') finalDumpQty = 1; 
                 }
 
-                if (existingIndex > -1 && schedule.timesheet) {
-                    const ts = schedule.timesheet[existingIndex];
-                    
-                    // If payload didn't have both quantities, maybe merge with existing?
-                    // Frontend sends both calculated values, so we trust payload if present.
-                    // But if dumpQty is present and shopQty is missing, we should probably keep existing shopQty.
-                    // However, frontend sends BOTH newDumpQty and newShopQty.
+                if (existingIndexQt > -1 && scheduleQt.timesheet) {
+                    const ts = scheduleQt.timesheet[existingIndexQt];
                     
                     const newDumpQty = (dumpQty !== undefined) ? dumpQty : (ts.dumpQty || (ts.dumpWashout ? 1 : 0));
                     const newShopQty = (shopQty !== undefined) ? shopQty : (ts.shopQty || (ts.shopTime ? 1 : 0));
-                    
-                    // Increment logic if strictly strictly legacy? 
-                    // No, let's assume valid payload or simple defaults.
 
                     const totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
                     const newQty = newDumpQty + newShopQty;
@@ -538,18 +545,20 @@ export async function POST(request: NextRequest) {
                     const clockIn = new Date(new Date(clockOut).getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
 
                     const updateObj: any = {};
-                    updateObj[`timesheet.${existingIndex}.qty`] = newQty;
-                    updateObj[`timesheet.${existingIndex}.dumpQty`] = newDumpQty;
-                    updateObj[`timesheet.${existingIndex}.shopQty`] = newShopQty;
-                    updateObj[`timesheet.${existingIndex}.dumpWashout`] = newDumpQty > 0 ? 'true' : undefined;
-                    updateObj[`timesheet.${existingIndex}.shopTime`] = newShopQty > 0 ? 'true' : undefined;
-                    updateObj[`timesheet.${existingIndex}.hours`] = parseFloat(totalHours.toFixed(2));
-                    updateObj[`timesheet.${existingIndex}.clockOut`] = clockOut;
-                    updateObj[`timesheet.${existingIndex}.clockIn`] = clockIn;
-                    updateObj[`timesheet.${existingIndex}.updatedAt`] = new Date().toISOString();
+                    updateObj[`timesheet.${existingIndexQt}.qty`] = newQty;
+                    updateObj[`timesheet.${existingIndexQt}.dumpQty`] = newDumpQty;
+                    updateObj[`timesheet.${existingIndexQt}.shopQty`] = newShopQty;
+                    updateObj[`timesheet.${existingIndexQt}.dumpWashout`] = newDumpQty > 0 ? 'true' : undefined;
+                    updateObj[`timesheet.${existingIndexQt}.shopTime`] = newShopQty > 0 ? 'true' : undefined;
+                    updateObj[`timesheet.${existingIndexQt}.hours`] = parseFloat(totalHours.toFixed(2));
+                    updateObj[`timesheet.${existingIndexQt}.clockOut`] = clockOut;
+                    updateObj[`timesheet.${existingIndexQt}.clockIn`] = clockIn;
+                    updateObj[`timesheet.${existingIndexQt}.updatedAt`] = new Date().toISOString();
+                    // Embed hourly rate for payroll integrity
+                    if (driveRate) updateObj[`timesheet.${existingIndexQt}.hourlyRateDrive`] = driveRate;
                     updateObj.updatedAt = new Date();
                     
-                    await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj, $unset: { [`timesheet.${existingIndex}.dumpWashout`]: newDumpQty <= 0 ? "" : undefined, [`timesheet.${existingIndex}.shopTime`]: newShopQty <= 0 ? "" : undefined } });
+                    await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj, $unset: { [`timesheet.${existingIndexQt}.dumpWashout`]: newDumpQty <= 0 ? "" : undefined, [`timesheet.${existingIndexQt}.shopTime`]: newShopQty <= 0 ? "" : undefined } });
                     
                     const updatedTs = { 
                         ...ts, 
@@ -560,7 +569,8 @@ export async function POST(request: NextRequest) {
                         clockIn,
                         clockOut,
                         dumpWashout: newDumpQty > 0 ? 'true' : undefined,
-                        shopTime: newShopQty > 0 ? 'true' : undefined
+                        shopTime: newShopQty > 0 ? 'true' : undefined,
+                        hourlyRateDrive: driveRate || ts.hourlyRateDrive
                     };
                     updateAppSheetTimesheet(updatedTs, "Edit");
                     return NextResponse.json({ success: true, result: updatedTs });
@@ -571,7 +581,7 @@ export async function POST(request: NextRequest) {
                     const totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
                     const clockIn = new Date(new Date(clockOut).getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
 
-                    const newTs = {
+                    const newTs: any = {
                         _id: new mongoose.Types.ObjectId().toString(),
                         scheduleId,
                         employee,
@@ -587,6 +597,8 @@ export async function POST(request: NextRequest) {
                         status: 'Pending',
                         createdAt: new Date().toISOString()
                     };
+                    // Embed hourly rate for payroll integrity
+                    if (driveRate) newTs.hourlyRateDrive = driveRate;
 
                     await Schedule.updateOne({ _id: scheduleId }, { $push: { timesheet: newTs } });
                     updateAppSheetTimesheet(newTs, "Add");
