@@ -132,13 +132,20 @@ export const calculateTimesheetData = (ts: any, scheduleDate?: string) => {
             distance = calculatedDistance;
         }
 
-        // Manual Hours override
-        const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
-        if (manualHrs > 0) {
-            hours = manualHrs;
+        // If drive time has NO locationIn AND NO locationOut (and no manual distance),
+        // only count dump washout + shop time hours — no distance or time-based calculation
+        const hasLocations = locIn || locOut;
+        if (!hasLocations && manualDist <= 0) {
+            hours = specialHrs;
         } else {
-            // Formula: (Distance / Speed) + Washout Hours + Shop Hours
-            hours = (distance / SPEED_MPH) + specialHrs;
+            // Manual Hours override (only when we have location data or manual distance)
+            const manualHrs = ts.manualDuration ? parseFloat(String(ts.manualDuration)) : 0;
+            if (manualHrs > 0) {
+                hours = manualHrs;
+            } else {
+                // Formula: (Distance / Speed) + Washout Hours + Shop Hours
+                hours = (distance / SPEED_MPH) + specialHrs;
+            }
         }
     } else {
         // ========== SITE TIME CALCULATION ==========

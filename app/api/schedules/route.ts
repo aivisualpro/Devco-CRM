@@ -1315,39 +1315,96 @@ export async function POST(request: NextRequest) {
                          "timesheet.0": { $exists: true } 
                     }},
                     { $unwind: "$timesheet" },
-                    // First, extract the clockIn as a Date object for grouping
+                    // First, extract the clockIn as a Date object and determine type/location info
                     { $addFields: {
                         // Convert clockIn string to Date object for date operations
                         clockInDate: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
+                        // Determine if this is drive time
+                        isDriveTime: { $regexMatch: { input: { $toLower: { $ifNull: ["$timesheet.type", ""] } }, regex: /drive/ } },
+                        // Check if locationIn contains valid coordinates (has a comma with numbers)
+                        hasLocationIn: { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.locationIn", ""] } }, regex: /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/ } },
+                        // Check if locationOut contains valid coordinates
+                        hasLocationOut: { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.locationOut", ""] } }, regex: /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/ } },
+                        // Check for manual distance
+                        hasManualDistance: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDistance", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
+                        // Calculate dump washout hours: qty * 0.5
+                        // Uses dumpQty numeric field (saved by frontend), falls back to checking dumpWashout truthy value
+                        dumpHrs: { $multiply: [
+                            { $cond: {
+                                if: { $and: [{ $ne: [{ $ifNull: ["$timesheet.dumpQty", null] }, null] }, { $gt: ["$timesheet.dumpQty", 0] }] },
+                                then: "$timesheet.dumpQty",
+                                else: { $cond: {
+                                    // Fallback: if dumpWashout is truthy (true, "true", "yes", or any non-empty string containing "qty"), count as 1
+                                    if: { $or: [
+                                        { $eq: ["$timesheet.dumpWashout", true] },
+                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } } }, "true"] },
+                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } } }, "yes"] },
+                                        { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } }, regex: /qty/ } }
+                                    ]},
+                                    then: 1,
+                                    else: 0
+                                }}
+                            }},
+                            0.5
+                        ]},
+                        // Calculate shop hours: qty * 0.25
+                        shopHrs: { $multiply: [
+                            { $cond: {
+                                if: { $and: [{ $ne: [{ $ifNull: ["$timesheet.shopQty", null] }, null] }, { $gt: ["$timesheet.shopQty", 0] }] },
+                                then: "$timesheet.shopQty",
+                                else: { $cond: {
+                                    if: { $or: [
+                                        { $eq: ["$timesheet.shopTime", true] },
+                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } } }, "true"] },
+                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } } }, "yes"] },
+                                        { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } }, regex: /qty/ } }
+                                    ]},
+                                    then: 1,
+                                    else: 0
+                                }}
+                            }},
+                            0.25
+                        ]}
+                    }},
+                    // Calculate hoursNum based on type and location availability
+                    { $addFields: {
                         hoursNum: {
                             $cond: {
-                                if: { $gt: [{ $ifNull: ["$timesheet.hours", 0] }, 0] },
-                                then: "$timesheet.hours",
+                                // Drive time WITHOUT locations AND without manual distance → only dump + shop hours
+                                if: { $and: ["$isDriveTime", { $not: "$hasLocationIn" }, { $not: "$hasLocationOut" }, { $not: "$hasManualDistance" }] },
+                                then: { $add: [{ $ifNull: ["$dumpHrs", 0] }, { $ifNull: ["$shopHrs", 0] }] },
+                                // Otherwise: use stored hours or calculate from clockIn/clockOut
                                 else: {
-                                    $let: {
-                                        vars: {
-                                            dStart: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
-                                            dEnd: { $convert: { input: "$timesheet.clockOut", to: "date", onError: null, onNull: null } },
-                                            lStart: { $convert: { input: "$timesheet.lunchStart", to: "date", onError: null, onNull: null } },
-                                            lEnd: { $convert: { input: "$timesheet.lunchEnd", to: "date", onError: null, onNull: null } }
-                                        },
-                                        in: {
-                                            $cond: {
-                                                if: { $and: ["$$dStart", "$$dEnd"] },
-                                                then: {
-                                                    $divide: [
-                                                        { $subtract: [
-                                                            { $subtract: ["$$dEnd", "$$dStart"] },
-                                                            { $cond: { 
-                                                                if: { $and: ["$$lStart", "$$lEnd"] }, 
-                                                                then: { $subtract: ["$$lEnd", "$$lStart"] },
-                                                                else: 0 
-                                                            }}
-                                                        ]},
-                                                        3600000
-                                                    ]
+                                    $cond: {
+                                        if: { $gt: [{ $ifNull: ["$timesheet.hours", 0] }, 0] },
+                                        then: "$timesheet.hours",
+                                        else: {
+                                            $let: {
+                                                vars: {
+                                                    dStart: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
+                                                    dEnd: { $convert: { input: "$timesheet.clockOut", to: "date", onError: null, onNull: null } },
+                                                    lStart: { $convert: { input: "$timesheet.lunchStart", to: "date", onError: null, onNull: null } },
+                                                    lEnd: { $convert: { input: "$timesheet.lunchEnd", to: "date", onError: null, onNull: null } }
                                                 },
-                                                else: 0
+                                                in: {
+                                                    $cond: {
+                                                        if: { $and: ["$$dStart", "$$dEnd"] },
+                                                        then: {
+                                                            $divide: [
+                                                                { $subtract: [
+                                                                    { $subtract: ["$$dEnd", "$$dStart"] },
+                                                                    { $cond: { 
+                                                                        if: { $and: ["$$lStart", "$$lEnd"] }, 
+                                                                        then: { $subtract: ["$$lEnd", "$$lStart"] },
+                                                                        else: 0 
+                                                                    }}
+                                                                ]},
+                                                                3600000
+                                                            ]
+                                                        },
+                                                        else: 0
+                                                    }
+                                                }
                                             }
                                         }
                                     }
