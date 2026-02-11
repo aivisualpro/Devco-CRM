@@ -179,6 +179,20 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
         return perm?.actions.includes(action) ?? false;
     };
 
+    const getModuleDataScope = (module: ModuleKey): DataScopeKey => {
+        const perm = (permissions as ModulePermission[])?.find(p => p.module === module);
+        return perm?.dataScope || DATA_SCOPE.SELF;
+    };
+
+    const setModuleDataScope = (module: ModuleKey, scope: DataScopeKey) => {
+        const currentPerms = [...(permissions || [])] as ModulePermission[];
+        const idx = currentPerms.findIndex(p => p.module === module);
+        if (idx >= 0) {
+            currentPerms[idx] = { ...currentPerms[idx], dataScope: scope };
+            updatePermissions(currentPerms);
+        }
+    };
+
     const filteredModules = useMemo(() => {
         const allModules = Object.values(MODULES);
         if (moduleFilter === 'all') return allModules;
@@ -468,11 +482,12 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                         <thead className="sticky top-0 bg-slate-100 z-10">
                                             <tr className="border-b border-slate-200">
                                                 <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Module</th>
-                                                {Object.values(ACTIONS).slice(0, 6).map(action => (
+                                                {[ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT, ACTIONS.DELETE].map(action => (
                                                     <th key={action} className="text-center py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-16">
                                                         {ACTION_LABELS[action]}
                                                     </th>
                                                 ))}
+                                                <th className="text-center py-3 px-2 text-xs font-semibold text-slate-500 uppercase tracking-wider w-20">Self/All</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white">
@@ -489,7 +504,7 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                                             <span className="font-medium text-slate-700 text-sm">{MODULE_LABELS[module]}</span>
                                                         </div>
                                                     </td>
-                                                    {Object.values(ACTIONS).slice(0, 6).map(action => (
+                                                    {[ACTIONS.VIEW, ACTIONS.CREATE, ACTIONS.EDIT, ACTIONS.DELETE].map(action => (
                                                         <td key={action} className="text-center py-3 px-2">
                                                             {/* Logic to hide non-view actions for specific modules */}
                                                             {
@@ -507,6 +522,21 @@ export function RoleForm({ initialData, onSave, onCancel, onDelete, isSaving = f
                                                             )}
                                                         </td>
                                                     ))}
+                                                    <td className="text-center py-3 px-2">
+                                                        {((module === 'dashboard' || module === 'contacts') ||
+                                                            PERMISSION_GROUPS['REPORTS'].modules.includes(module as any)) ? (
+                                                            <span className="text-slate-300">—</span>
+                                                        ) : (
+                                                            <div className="flex justify-center">
+                                                                <Switch
+                                                                    checked={getModuleDataScope(module) === 'all'}
+                                                                    onCheckedChange={(checked) => setModuleDataScope(module, checked ? DATA_SCOPE.ALL : DATA_SCOPE.SELF)}
+                                                                    disabled={!hasAction(module, ACTIONS.VIEW)}
+                                                                    className={`scale-75 ${!hasAction(module, ACTIONS.VIEW) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
