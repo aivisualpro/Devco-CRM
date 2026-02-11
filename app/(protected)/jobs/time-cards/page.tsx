@@ -1397,6 +1397,7 @@ function TimeCardContent() {
                                 <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                     <TableHead>
                                         <TableRow className="hover:bg-transparent border-slate-100">
+                                            {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Washout</TableHeader>
@@ -1408,7 +1409,12 @@ function TimeCardContent() {
                                     <TableBody>
                                         {filteredRecords.filter(r => r.type?.toLowerCase().includes('drive')).length > 0 ? 
                                             filteredRecords.filter(r => r.type?.toLowerCase().includes('drive')).map((ts, idx) => (
-                                            <TableRow key={`${ts._id || idx}`} className="hover:bg-slate-50">
+                                            <TableRow key={`${ts.scheduleId}-${ts._id || ts.recordId || idx}-${idx}`} className="hover:bg-slate-50">
+                                                {canViewAll && (
+                                                    <TableCell className="text-left text-[10px] font-medium text-slate-600 max-w-[90px] truncate">
+                                                        {employeesMap[ts.employee]?.label || ts.employee}
+                                                    </TableCell>
+                                                )}
                                                 <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                     {formatDateOnly(ts.clockIn)}
                                                 </TableCell>
@@ -1442,7 +1448,7 @@ function TimeCardContent() {
                                             </TableRow>
                                         )) : (
                                             <TableRow>
-                                                <TableCell colSpan={6} className="text-center py-6 text-xs text-slate-400">
+                                                <TableCell colSpan={canViewAll ? 7 : 6} className="text-center py-6 text-xs text-slate-400">
                                                     No drive time records
                                                 </TableCell>
                                             </TableRow>
@@ -1464,6 +1470,7 @@ function TimeCardContent() {
                                 <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
                                     <TableHead>
                                         <TableRow className="hover:bg-transparent border-slate-100">
+                                            {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
                                             <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">In</TableHeader>
@@ -1474,7 +1481,12 @@ function TimeCardContent() {
                                     <TableBody>
                                         {filteredRecords.filter(r => !r.type?.toLowerCase().includes('drive')).length > 0 ? 
                                             filteredRecords.filter(r => !r.type?.toLowerCase().includes('drive')).map((ts, idx) => (
-                                            <TableRow key={`${ts._id || idx}`} className="hover:bg-slate-50">
+                                            <TableRow key={`${ts.scheduleId}-${ts._id || ts.recordId || idx}-${idx}`} className="hover:bg-slate-50">
+                                                {canViewAll && (
+                                                    <TableCell className="text-left text-[10px] font-medium text-slate-600 max-w-[90px] truncate">
+                                                        {employeesMap[ts.employee]?.label || ts.employee}
+                                                    </TableCell>
+                                                )}
                                                 <TableCell className="text-center text-[11px] font-medium text-slate-600">
                                                     {formatDateOnly(ts.clockIn)}
                                                 </TableCell>
@@ -1495,7 +1507,7 @@ function TimeCardContent() {
                                             </TableRow>
                                         )) : (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="text-center py-6 text-xs text-slate-400">
+                                                <TableCell colSpan={canViewAll ? 6 : 5} className="text-center py-6 text-xs text-slate-400">
                                                     No site time records
                                                 </TableCell>
                                             </TableRow>
