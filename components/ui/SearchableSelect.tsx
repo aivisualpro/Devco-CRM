@@ -26,6 +26,7 @@ interface SearchableSelectProps {
     onAddNew?: (value: string) => void;
     className?: string;
     disableBlank?: boolean;
+    disabled?: boolean;
     submitOnEnter?: boolean;
     openOnFocus?: boolean;
     renderOption?: (option: SelectOption) => React.ReactNode;
@@ -47,6 +48,7 @@ export function SearchableSelect({
     className = '',
     multiple = false,
     disableBlank = false,
+    disabled = false,
     submitOnEnter = false,
     openOnFocus = false,
     renderOption,
@@ -319,7 +321,7 @@ export function SearchableSelect({
                     id={id}
                     tabIndex={0}
                     ref={triggerRef}
-                    onClick={() => setIsOpen(true)}
+                    onClick={() => { if (!disabled) setIsOpen(true); }}
                     onFocus={() => {
                         const hasValue = multiple ? (Array.isArray(value) && value.length > 0) : (value && value !== '');
                         if (openOnFocus && !isOpen && !hasValue) setIsOpen(true);
@@ -343,7 +345,7 @@ export function SearchableSelect({
                             onKeyDown(e);
                         }
                     }}
-                    className={`w-full ${size === 'sm' ? 'min-h-[30px] py-1 px-2.5 rounded-lg text-[10px]' : 'min-h-[42px] py-2 px-3 rounded-xl text-sm'} bg-white border border-slate-200 font-medium text-slate-600 cursor-pointer flex items-center justify-between transition-all hover:bg-slate-50 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm`}
+                    className={`w-full ${size === 'sm' ? 'min-h-[30px] py-1 px-2.5 rounded-lg text-[10px]' : 'min-h-[42px] py-2 px-3 rounded-xl text-sm'} bg-white border border-slate-200 font-medium text-slate-600 ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'cursor-pointer hover:bg-slate-50 hover:border-slate-300'} flex items-center justify-between transition-all focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black shadow-sm`}
                 >
                     <div className={`flex ${multiple ? 'items-start pt-0.5' : 'items-center'} gap-3 flex-1 min-w-0`}>
                         {(!multiple && (selectedOption?.image || selectedOption?.color || selectedOption?.initials || (displayLabel && displayLabel !== placeholder))) ? (

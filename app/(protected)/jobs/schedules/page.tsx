@@ -26,6 +26,7 @@ import { ScheduleCard, ScheduleItem } from './components/ScheduleCard';
 import { useToast } from '@/hooks/useToast';
 import { useAddShortcut } from '@/hooks/useAddShortcut';
 import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES } from '@/lib/permissions/types';
 import { useScheduleFilters } from '@/hooks/useScheduleFilters';
 import { FilterItem } from './components/FilterItem';
 import {
@@ -59,7 +60,9 @@ interface Objective {
 
 function SchedulePageContent() {
     const { success, error: toastError } = useToast();
-    const { user } = usePermissions();
+    const { user, getDataScope: getScope, isSuperAdmin } = usePermissions();
+    // Users with 'self' scope for schedules can only create Day Off schedules
+    const isEmployeeScope = !isSuperAdmin && getScope(MODULES.SCHEDULES) === 'self';
     
     // Map Modal State
     const [mapModalOpen, setMapModalOpen] = useState(false);
@@ -316,7 +319,8 @@ function SchedulePageContent() {
             assignees: [],
             notifyAssignees: 'No',
             perDiem: 'No',
-            title: '' // Explicitly init title
+            title: isEmployeeScope ? 'Day Off' : '', // Employees default to Day Off
+            ...(isEmployeeScope ? { item: 'Day Off' } : {}), // Employees locked to Day Off tag
         });
         setIsModalOpen(true);
     };
@@ -3653,6 +3657,7 @@ function SchedulePageContent() {
                                     label="Tag"
                                     placeholder="Select Tag"
                                     disableBlank={true}
+                                    disabled={isEmployeeScope}
                                     options={initialData.constants.filter(c => c.type === 'Schedule Items').map(c => ({
                                         label: c.description,
                                         value: c.description,
@@ -3661,6 +3666,7 @@ function SchedulePageContent() {
                                     }))}
                                     value={editingItem?.item || ''}
                                     onChange={(val) => {
+                                        if (isEmployeeScope) return; // Extra safety
                                         const updates: any = { item: val };
                                         if (val === 'Day Off') {
                                             updates.title = 'Day Off';
@@ -3843,6 +3849,7 @@ function SchedulePageContent() {
                                                 className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 hover:border-slate-400 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1"
                                                 checked={editingItem?.isDayOffApproved === true}
                                                 onChange={(e) => setEditingItem(prev => prev ? {...prev, isDayOffApproved: e.target.checked} : null)}
+                                                disabled={isEmployeeScope}
                                             />
                                             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
