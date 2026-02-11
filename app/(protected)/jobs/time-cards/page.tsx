@@ -324,10 +324,13 @@ const generateWeeksForPicker = (): { id: string; label: string; value: string; w
 
 function TimeCardContent() {
     const { success, error: toastError } = useToast();
-    const { can } = usePermissions();
+    const { can, getDataScope: getScope, isSuperAdmin } = usePermissions();
     const canEdit = can(MODULES.TIME_CARDS, ACTIONS.EDIT);
     const canDelete = can(MODULES.TIME_CARDS, ACTIONS.DELETE);
     const canCreate = can(MODULES.TIME_CARDS, ACTIONS.CREATE);
+    const timeCardsDataScope = getScope(MODULES.TIME_CARDS);
+    // Users with 'all' scope or Super Admins can see everyone's records (including on mobile)
+    const canViewAll = isSuperAdmin || timeCardsDataScope === 'all';
     const [loading, setLoading] = useState(true);
     const [rawSchedules, setRawSchedules] = useState<ScheduleDoc[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
@@ -559,9 +562,11 @@ function TimeCardContent() {
 
     const filteredRecords = useMemo(() => {
         return allRecords.filter(r => {
-            // Mobile specific filtering: Only show current user's records for the selected week
+            // Mobile specific filtering
             if (isMobile) {
-                if (currentUser && r.employee !== currentUser.email) return false;
+                // Only restrict to own records if data scope is 'self'
+                // Super Admins and users with 'all' scope can see everyone's records
+                if (!canViewAll && currentUser && r.employee !== currentUser.email) return false;
                 
                 if (r.clockIn) {
                     const recordDate = new Date(r.clockIn);
@@ -594,7 +599,7 @@ function TimeCardContent() {
             
             return true;
         });
-    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter]);
+    }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter, canViewAll]);
 
     const timeCardTotals = useMemo(() => {
         let drive = 0;
