@@ -2005,7 +2005,7 @@ function DashboardContent() {
             title: isStopping ? 'Stop Drive Time' : 'Start Drive Time',
             message: isStopping 
                 ? 'Are you sure you want to STOP Drive Time?'
-                : 'Drive Time is paid at 1.1 minute per mile (55mph). Are you eligible for Drive Time today? Location must be turned on.',
+                : 'Drive Time is paid at 1.1 minute per mile (55mph). Are you eligible for Drive Time today? Location must be turned on. Only after 85 miles from HQ, will passengers log drive time from miles 85.1 to location. Out of town travel starts drive time from HQ.',
             confirmText: isStopping ? 'Stop' : 'Start',
             variant: isStopping ? 'danger' : 'primary',
             onConfirm: () => executeDriveTimeToggle(schedule, activeTs, e)
