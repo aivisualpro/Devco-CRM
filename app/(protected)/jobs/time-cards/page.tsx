@@ -116,6 +116,15 @@ const toLocalISO = (dateStr?: string) => {
     } catch { return ''; }
 };
 
+// Safely convert datetime-local input value to proper ISO string
+// Handles both "YYYY-MM-DDTHH:mm" and "YYYY-MM-DDTHH:mm:ss" formats from different browsers
+const toISOFromInput = (val: string): string => {
+    if (!val) return '';
+    // Always take just the YYYY-MM-DDTHH:mm portion (first 16 chars) to avoid double-seconds
+    const base = val.slice(0, 16);
+    return `${base}:00.000Z`;
+};
+
 const normalizeEst = (val: string | undefined) => {
     if (!val) return '';
     return val.split('-V')[0].split('-v')[0].trim();
@@ -1939,7 +1948,7 @@ function TimeCardContent() {
                                                                     const timeVal = e.target.value;
                                                                     const currentIso = toLocalISO(quickEditForm.clockIn || '');
                                                                     const datePart = currentIso.split('T')[0];
-                                                                    setQuickEditForm(prev => ({...prev, clockIn: `${datePart}T${timeVal}:00.000Z`}));
+                                                                    setQuickEditForm(prev => ({...prev, clockIn: toISOFromInput(`${datePart}T${timeVal}`)}));
                                                                 }}
                                                             />
                                                         </div>
@@ -1974,7 +1983,7 @@ function TimeCardContent() {
                                                                     const timeVal = e.target.value;
                                                                     const currentIso = toLocalISO(quickEditForm.clockOut || quickEditForm.clockIn || '');
                                                                     const datePart = currentIso.split('T')[0];
-                                                                    setQuickEditForm(prev => ({...prev, clockOut: `${datePart}T${timeVal}:00.000Z`}));
+                                                                    setQuickEditForm(prev => ({...prev, clockOut: toISOFromInput(`${datePart}T${timeVal}`)}));
                                                                 }}
                                                             />
                                                         </div>
@@ -2198,8 +2207,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            // Convert YYYY-MM-DDTHH:mm to YYYY-MM-DDTHH:mm:00.000Z
-                                            setEditForm(prev => ({...prev, clockIn: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({...prev, clockIn: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
@@ -2214,7 +2222,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, lunchStart: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({...prev, lunchStart: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
@@ -2229,7 +2237,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, lunchEnd: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({...prev, lunchEnd: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
@@ -2244,7 +2252,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, clockOut: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({...prev, clockOut: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
@@ -2533,7 +2541,7 @@ function TimeCardContent() {
                                                 
                                                 setAddForm(prev => ({
                                                     ...prev,
-                                                    clockIn: `${val}:00.000Z`,
+                                                    clockIn: toISOFromInput(val),
                                                     clockOut: clockOutVal,
                                                     lunchStart: lunchStartVal,
                                                     lunchEnd: lunchEndVal
@@ -2553,7 +2561,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, lunchStart: `${val}:00.000Z`}));
+                                            setAddForm(prev => ({...prev, lunchStart: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
@@ -2569,7 +2577,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, lunchEnd: `${val}:00.000Z`}));
+                                            setAddForm(prev => ({...prev, lunchEnd: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
@@ -2584,7 +2592,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, clockOut: `${val}:00.000Z`}));
+                                            setAddForm(prev => ({...prev, clockOut: toISOFromInput(val)}));
                                         }
                                     }}
                                 />
