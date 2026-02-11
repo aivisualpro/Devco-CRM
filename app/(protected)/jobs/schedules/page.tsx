@@ -602,41 +602,35 @@ function SchedulePageContent() {
                     setEditingItem(item);
                     setIsModalOpen(true);
                 } else if (jha === 'true') {
-                    // Fetch full schedule to get complete JHA data
-                    fetch('/api/schedules', {
+                    // Fetch JHA from standalone collection (authoritative source)
+                    fetch('/api/jha', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                        body: JSON.stringify({ action: 'getJHA', payload: { schedule_id: item._id } })
                     }).then(res => res.json()).then(data => {
-                        if (data.success && data.result) {
-                            const fullSchedule = data.result;
-                            const jhaWithSigs = { 
-                                ...fullSchedule.jha || {}, 
-                                schedule_id: fullSchedule._id,
-                                signatures: fullSchedule.JHASignatures || [],
-                                scheduleRef: fullSchedule
-                            };
-                            setSelectedJHA(jhaWithSigs);
+                        if (data.success && data.jha) {
+                            const jhaData = data.jha;
+                            setSelectedJHA({
+                                ...jhaData,
+                                schedule_id: item._id,
+                            });
                             setIsJhaEditMode(false);
                             setJhaModalOpen(true);
                         }
                     });
                 } else if (djt === 'true') {
-                    // Fetch full schedule to get complete DJT data
-                    fetch('/api/schedules', {
+                    // Fetch DJT from standalone collection (authoritative source)
+                    fetch('/api/djt', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                        body: JSON.stringify({ action: 'getDJT', payload: { schedule_id: item._id } })
                     }).then(res => res.json()).then(data => {
                         if (data.success && data.result) {
-                            const fullSchedule = data.result;
-                            const djtWithSigs = { 
-                                ...fullSchedule.djt || {}, 
-                                schedule_id: fullSchedule._id,
-                                signatures: fullSchedule.DJTSignatures || [],
-                                scheduleRef: fullSchedule
-                            };
-                            setSelectedDJT(djtWithSigs);
+                            const djtData = data.result;
+                            setSelectedDJT({
+                                ...djtData,
+                                schedule_id: item._id,
+                            });
                             setIsDjtEditMode(false);
                             setDjtModalOpen(true);
                         }
@@ -1044,10 +1038,12 @@ function SchedulePageContent() {
     const handleSaveJHAForm = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Include schedule_id in the payload
+            // Include schedule_id and ensure createdBy in the payload
+            const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
             const payload = {
                 ...selectedJHA,
-                schedule_id: selectedJHA.schedule_id || selectedJHA._id // Ensure link backing
+                schedule_id: selectedJHA.schedule_id || selectedJHA._id, // Ensure link backing
+                createdBy: selectedJHA.createdBy || userEmail || 'system'
             };
 
             const res = await fetch('/api/jha', {
@@ -1073,9 +1069,11 @@ function SchedulePageContent() {
     const handleSaveDJTForm = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
             const payload = {
                 ...selectedDJT,
-                schedule_id: selectedDJT.schedule_id || selectedDJT._id
+                schedule_id: selectedDJT.schedule_id || selectedDJT._id,
+                createdBy: selectedDJT.createdBy || userEmail || 'system'
             };
 
             const res = await fetch('/api/djt', {
@@ -2628,21 +2626,17 @@ function SchedulePageContent() {
                                             setIsConfirmOpen(true);
                                         }}
                                         onViewJHA={(item) => {
-                                            // Fetch full schedule to get complete JHA data (list only has partial projection)
-                                            fetch('/api/schedules', {
+                                            // Fetch JHA from standalone collection (authoritative source, not stale embedded copy)
+                                            fetch('/api/jha', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                                body: JSON.stringify({ action: 'getJHA', payload: { schedule_id: item._id } })
                                             }).then(res => res.json()).then(data => {
-                                                if (data.success && data.result) {
-                                                    const fullSchedule = data.result;
-                                                    const jhaWithSigs = { 
-                                                        ...fullSchedule.jha || {}, 
-                                                        schedule_id: fullSchedule._id,
-                                                        signatures: fullSchedule.JHASignatures || [],
-                                                        scheduleRef: fullSchedule
-                                                    };
-                                                    setSelectedJHA(jhaWithSigs);
+                                                if (data.success && data.jha) {
+                                                    setSelectedJHA({
+                                                        ...data.jha,
+                                                        schedule_id: item._id,
+                                                    });
                                                     setIsJhaEditMode(false);
                                                     setJhaModalOpen(true);
                                                 }
@@ -2652,10 +2646,12 @@ function SchedulePageContent() {
                                             });
                                         }}
                                         onCreateJHA={(item) => {
+                                            const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
                                             setSelectedJHA({
                                                 schedule_id: item._id,
                                                 date: new Date(),
                                                 jhaTime: new Date().toLocaleTimeString('en-US', { hour12: false }),
+                                                createdBy: userEmail || '',
                                                 emailCounter: 0,
                                                 signatures: [],
                                                 scheduleRef: item
@@ -2664,21 +2660,17 @@ function SchedulePageContent() {
                                             setJhaModalOpen(true);
                                         }}
                                         onViewDJT={(item) => {
-                                            // Fetch full schedule to get complete DJT data (list only has partial projection)
-                                            fetch('/api/schedules', {
+                                            // Fetch DJT from standalone collection (authoritative source, not stale embedded copy)
+                                            fetch('/api/djt', {
                                                 method: 'POST',
                                                 headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                                body: JSON.stringify({ action: 'getDJT', payload: { schedule_id: item._id } })
                                             }).then(res => res.json()).then(data => {
                                                 if (data.success && data.result) {
-                                                    const fullSchedule = data.result;
-                                                    const djtWithSigs = { 
-                                                        ...fullSchedule.djt || {}, 
-                                                        schedule_id: fullSchedule._id,
-                                                        signatures: fullSchedule.DJTSignatures || [],
-                                                        scheduleRef: fullSchedule
-                                                    };
-                                                    setSelectedDJT(djtWithSigs);
+                                                    setSelectedDJT({
+                                                        ...data.result,
+                                                        schedule_id: item._id,
+                                                    });
                                                     setIsDjtEditMode(false);
                                                     setDjtModalOpen(true);
                                                 }
@@ -2688,12 +2680,13 @@ function SchedulePageContent() {
                                             });
                                         }}
                                         onCreateDJT={(item) => {
+                                            const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
                                             setSelectedDJT({
                                                 schedule_id: item._id,
                                                 dailyJobDescription: '',
                                                 customerPrintName: '',
                                                 customerSignature: '',
-                                                createdBy: '', 
+                                                createdBy: userEmail || '', 
                                                 clientEmail: '',
                                                 emailCounter: 0
                                             });

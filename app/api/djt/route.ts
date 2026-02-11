@@ -93,6 +93,34 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, result: updatedDJT });
             }
 
+            case 'getDJT': {
+                const { schedule_id, id } = payload || {};
+                if (!schedule_id && !id) return NextResponse.json({ success: false, error: 'Missing schedule_id or id' });
+                
+                const query = schedule_id 
+                    ? { $or: [{ schedule_id }, { _id: schedule_id }] }
+                    : { _id: id };
+                
+                const djt = await DailyJobTicket.findOne(query).lean();
+                if (!djt) return NextResponse.json({ success: false, error: 'DJT not found' });
+                
+                // Also fetch the schedule for context
+                const scheduleId = (djt as any).schedule_id || schedule_id;
+                let scheduleDoc = null;
+                if (scheduleId) {
+                    scheduleDoc = await Schedule.findById(scheduleId).lean();
+                }
+                
+                return NextResponse.json({ 
+                    success: true, 
+                    result: { 
+                        ...djt, 
+                        signatures: (scheduleDoc as any)?.DJTSignatures || (djt as any).signatures || [],
+                        scheduleRef: scheduleDoc 
+                    } 
+                });
+            }
+
             case 'getDJTs': {
                 const { page = 1, limit = 20, search = '' } = payload;
                 const skip = (page - 1) * limit;

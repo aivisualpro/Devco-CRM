@@ -224,13 +224,23 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getJHA': {
-                const { id } = payload;
-                if (!id) return NextResponse.json({ success: false, error: 'Missing ID' });
-                const jha = await JHA.findById(id);
+                const { id, schedule_id } = payload;
+                if (!id && !schedule_id) return NextResponse.json({ success: false, error: 'Missing ID or schedule_id' });
+                
+                const jha = id 
+                    ? await JHA.findById(id).lean()
+                    : await JHA.findOne({ schedule_id }).lean();
                 if (!jha) return NextResponse.json({ success: false, error: 'Not Found' });
 
-                const signatures = await JHASignature.find({ schedule_id: jha.schedule_id });
-                return NextResponse.json({ success: true, jha: { ...jha.toObject(), signatures } });
+                const signatures = await JHASignature.find({ schedule_id: (jha as any).schedule_id });
+                
+                // Also fetch the schedule for context
+                let scheduleDoc = null;
+                if ((jha as any).schedule_id) {
+                    scheduleDoc = await Schedule.findById((jha as any).schedule_id).lean();
+                }
+                
+                return NextResponse.json({ success: true, jha: { ...(jha as any), signatures, scheduleRef: scheduleDoc } });
             }
 
             case 'importJHASignatures': {
