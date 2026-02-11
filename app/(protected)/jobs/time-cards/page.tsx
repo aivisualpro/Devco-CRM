@@ -15,6 +15,8 @@ import {
     ConfirmModal, Skeleton, MyDropDown
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
+import { usePermissions } from '@/hooks/usePermissions';
+import { MODULES, ACTIONS } from '@/lib/permissions/types';
 import { toast } from 'sonner';
 
 // --- Types ---
@@ -322,6 +324,10 @@ const generateWeeksForPicker = (): { id: string; label: string; value: string; w
 
 function TimeCardContent() {
     const { success, error: toastError } = useToast();
+    const { can } = usePermissions();
+    const canEdit = can(MODULES.TIME_CARDS, ACTIONS.EDIT);
+    const canDelete = can(MODULES.TIME_CARDS, ACTIONS.DELETE);
+    const canCreate = can(MODULES.TIME_CARDS, ACTIONS.CREATE);
     const [loading, setLoading] = useState(true);
     const [rawSchedules, setRawSchedules] = useState<ScheduleDoc[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
@@ -1532,6 +1538,7 @@ function TimeCardContent() {
                 hideLogo={false}
                 rightContent={
                 <div className="flex items-center gap-4">
+                                {canCreate && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <button 
@@ -1545,6 +1552,7 @@ function TimeCardContent() {
                                         <p>Add Timecard Record</p>
                                     </TooltipContent>
                                 </Tooltip>
+                                )}
                                 <Link 
                                     href="/reports/payroll"
                                     className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
@@ -2024,6 +2032,7 @@ function TimeCardContent() {
                                                         </div>
                                                     ) : (
                                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
+                                                            {canEdit && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <button 
@@ -2038,6 +2047,8 @@ function TimeCardContent() {
                                                                     <p>Quick Adjust Times & Miles</p>
                                                                 </TooltipContent>
                                                             </Tooltip>
+                                                            )}
+                                                            {canEdit && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <button 
@@ -2051,6 +2062,8 @@ function TimeCardContent() {
                                                                     <p>Full Edit</p>
                                                                 </TooltipContent>
                                                             </Tooltip>
+                                                            )}
+                                                            {canDelete && (
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <button 
@@ -2064,6 +2077,7 @@ function TimeCardContent() {
                                                                     <p>Delete</p>
                                                                 </TooltipContent>
                                                             </Tooltip>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </TableCell>
