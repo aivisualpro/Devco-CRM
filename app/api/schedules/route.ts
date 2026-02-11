@@ -4,6 +4,9 @@ import { connectToDatabase } from '@/lib/db';
 import { Schedule, Client, Employee, Constant, Estimate, JHA, EquipmentItem, OverheadItem } from '@/lib/models';
 import { calculateTimesheetData } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
+import { getUserFromRequest } from '@/lib/permissions/middleware';
+import { getUserPermissions, getDataScope, isSuperAdmin } from '@/lib/permissions/service';
+import { MODULES } from '@/lib/permissions/types';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -187,6 +190,22 @@ export async function POST(request: NextRequest) {
         const { action, payload } = body;
         
         await connectToDatabase();
+
+        // ── Time Cards Data Scope Enforcement ──
+        // For time-card-related actions, determine if the user's role restricts
+        // them to only viewing their own timesheet records (dataScope === 'self').
+        let timeCardsScope: 'self' | 'department' | 'all' = 'all';
+        let currentUserEmail: string | null = null;
+        if (action === 'getSchedulesPage' || action === 'getScheduleStats') {
+            const jwtUser = await getUserFromRequest(request);
+            if (jwtUser) {
+                currentUserEmail = jwtUser.email;
+                if (!isSuperAdmin(jwtUser.role)) {
+                    const perms = await getUserPermissions(jwtUser.userId);
+                    timeCardsScope = getDataScope(perms, MODULES.TIME_CARDS);
+                }
+            }
+        }
 
         switch (action) {
             case 'getSchedules': {
@@ -964,11 +983,21 @@ export async function POST(request: NextRequest) {
                 // Process initial data... (Same as before)
                 const [clients, employees, constants, estimates, equipmentItems, overheadItems] = metadata;
 
-                const schedulesWithMetaData = resultDocs.map((s: any) => ({
-                    ...s,
-                    hasJHA: !!s.jha && Object.keys(s.jha).length > 0,
-                    hasDJT: !!s.djt && Object.keys(s.djt).length > 0
-                }));
+                // Apply time_cards data scope: filter timesheet entries to current user only
+                const schedulesWithMetaData = resultDocs.map((s: any) => {
+                    let filteredTimesheet = s.timesheet;
+                    if (timeCardsScope === 'self' && currentUserEmail && Array.isArray(s.timesheet)) {
+                        filteredTimesheet = s.timesheet.filter((ts: any) =>
+                            String(ts.employee).toLowerCase() === currentUserEmail!.toLowerCase()
+                        );
+                    }
+                    return {
+                        ...s,
+                        timesheet: filteredTimesheet,
+                        hasJHA: !!s.jha && Object.keys(s.jha).length > 0,
+                        hasDJT: !!s.djt && Object.keys(s.djt).length > 0
+                    };
+                });
 
                 const finalResult: any = { 
                     schedules: schedulesWithMetaData,
@@ -1322,11 +1351,17 @@ export async function POST(request: NextRequest) {
 
             case 'getScheduleStats': {
                 await connectToDatabase();
+
+                // Build the initial match + optional employee filter for data scope
+                const statsMatchStage: any = { "timesheet.0": { $exists: true } };
+
                 const results = await Schedule.aggregate([
-                    { $match: { 
-                         "timesheet.0": { $exists: true } 
-                    }},
+                    { $match: statsMatchStage },
                     { $unwind: "$timesheet" },
+                    // Apply time_cards data scope: if 'self', only include current user's timesheet entries
+                    ...(timeCardsScope === 'self' && currentUserEmail ? [
+                        { $match: { "timesheet.employee": { $regex: new RegExp(`^${currentUserEmail.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i') } } }
+                    ] : []),
                     // First, extract the clockIn as a Date object and determine type/location info
                     { $addFields: {
                         // Convert clockIn string to Date object for date operations
