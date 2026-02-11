@@ -985,15 +985,14 @@ function TimeCardContent() {
         }
     };
 
-    const editingCalculated = useMemo(() => {
-        if (!editingRecord) return { hours: 0, distance: 0 };
-        return calculateTimesheetData(editForm as any, editingRecord.clockIn);
-    }, [editForm, editingRecord]);
+    // Direct calculation (no useMemo) to ensure it always recalculates when form values change
+    const editingCalculated = editingRecord
+        ? calculateTimesheetData(editForm as any, editingRecord.clockIn)
+        : { hours: 0, distance: 0, calculatedDistance: 0 };
 
-    const addCalculated = useMemo(() => {
-        if (!isAddModalOpen) return { hours: 0, distance: 0 };
-        return calculateTimesheetData(addForm as any, addForm.clockIn);
-    }, [addForm, isAddModalOpen]);
+    const addCalculated = isAddModalOpen
+        ? calculateTimesheetData(addForm as any, addForm.clockIn)
+        : { hours: 0, distance: 0, calculatedDistance: 0 };
 
     const handleEditClick = (ts: TimesheetEntry) => {
         setEditingRecord(ts);
