@@ -191,18 +191,20 @@ export async function POST(request: NextRequest) {
         
         await connectToDatabase();
 
-        // ── Time Cards Data Scope Enforcement ──
-        // For time-card-related actions, determine if the user's role restricts
-        // them to only viewing their own timesheet records (dataScope === 'self').
+        // ── Data Scope Enforcement ──
+        // For read actions, determine if the user's role restricts them
+        // to only viewing their own records (dataScope === 'self').
         let timeCardsScope: 'self' | 'department' | 'all' = 'all';
+        let schedulesScope: 'self' | 'department' | 'all' = 'all';
         let currentUserEmail: string | null = null;
-        if (action === 'getSchedulesPage' || action === 'getScheduleStats') {
+        if (action === 'getSchedulesPage' || action === 'getScheduleStats' || action === 'getScheduleActivity') {
             const jwtUser = await getUserFromRequest(request);
             if (jwtUser) {
                 currentUserEmail = jwtUser.email;
                 if (!isSuperAdmin(jwtUser.role)) {
                     const perms = await getUserPermissions(jwtUser.userId);
                     timeCardsScope = getDataScope(perms, MODULES.TIME_CARDS);
+                    schedulesScope = getDataScope(perms, MODULES.SCHEDULES);
                 }
             }
         }
@@ -715,12 +717,13 @@ export async function POST(request: NextRequest) {
                     };
                 }
 
-                // User Permission Filter
-                if (userEmail) {
+                // User Permission Filter (client-side or server-enforced scope)
+                const activityFilterEmail = (schedulesScope === 'self' && currentUserEmail) ? currentUserEmail : userEmail;
+                if (activityFilterEmail) {
                     const userFilter = [
-                        { projectManager: userEmail },
-                        { foremanName: userEmail },
-                        { assignees: userEmail }
+                        { projectManager: activityFilterEmail },
+                        { foremanName: activityFilterEmail },
+                        { assignees: activityFilterEmail }
                     ];
                     filters.$or = userFilter;
                 }
@@ -783,12 +786,16 @@ export async function POST(request: NextRequest) {
                     ];
                 }
 
-                // 3. User Permission Filter (Super Fast)
-                if (userEmail) {
+                // 3. User Permission / Schedules Data Scope Filter
+                // If schedulesScope is 'self', always enforce the user filter using the JWT email
+                // (server-side enforcement, ignoring any client-sent userEmail).
+                // Otherwise, respect the optional client userEmail filter if provided.
+                const effectiveUserEmail = (schedulesScope === 'self' && currentUserEmail) ? currentUserEmail : userEmail;
+                if (effectiveUserEmail) {
                     const userFilter = [
-                        { projectManager: userEmail },
-                        { foremanName: userEmail },
-                        { assignees: userEmail }
+                        { projectManager: effectiveUserEmail },
+                        { foremanName: effectiveUserEmail },
+                        { assignees: effectiveUserEmail }
                     ];
                      if (matchStage.$or) {
                         matchStage.$and = [
