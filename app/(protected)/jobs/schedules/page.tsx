@@ -602,22 +602,45 @@ function SchedulePageContent() {
                     setEditingItem(item);
                     setIsModalOpen(true);
                 } else if (jha === 'true') {
-                    const jhaWithSigs = { 
-                        ...item.jha || {}, 
-                        signatures: item.JHASignatures || [] 
-                    };
-                    setSelectedJHA(jhaWithSigs);
-                    setIsJhaEditMode(false);
-                    setJhaModalOpen(true);
+                    // Fetch full schedule to get complete JHA data
+                    fetch('/api/schedules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                    }).then(res => res.json()).then(data => {
+                        if (data.success && data.result) {
+                            const fullSchedule = data.result;
+                            const jhaWithSigs = { 
+                                ...fullSchedule.jha || {}, 
+                                schedule_id: fullSchedule._id,
+                                signatures: fullSchedule.JHASignatures || [],
+                                scheduleRef: fullSchedule
+                            };
+                            setSelectedJHA(jhaWithSigs);
+                            setIsJhaEditMode(false);
+                            setJhaModalOpen(true);
+                        }
+                    });
                 } else if (djt === 'true') {
-                    const djtWithSigs = { 
-                        ...item.djt || {}, 
-                        schedule_id: item._id,
-                        signatures: item.DJTSignatures || [] 
-                    };
-                    setSelectedDJT(djtWithSigs);
-                    setIsDjtEditMode(false);
-                    setDjtModalOpen(true);
+                    // Fetch full schedule to get complete DJT data
+                    fetch('/api/schedules', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                    }).then(res => res.json()).then(data => {
+                        if (data.success && data.result) {
+                            const fullSchedule = data.result;
+                            const djtWithSigs = { 
+                                ...fullSchedule.djt || {}, 
+                                schedule_id: fullSchedule._id,
+                                signatures: fullSchedule.DJTSignatures || [],
+                                scheduleRef: fullSchedule
+                            };
+                            setSelectedDJT(djtWithSigs);
+                            setIsDjtEditMode(false);
+                            setDjtModalOpen(true);
+                        }
+                    });
                 } else if (timesheet === 'true') {
                     setEditingItem(item);
                     setTimesheetModalOpen?.(true); 
@@ -2605,13 +2628,28 @@ function SchedulePageContent() {
                                             setIsConfirmOpen(true);
                                         }}
                                         onViewJHA={(item) => {
-                                            const jhaWithSigs = { 
-                                                ...item.jha, 
-                                                signatures: item.JHASignatures || [] 
-                                            };
-                                            setSelectedJHA(jhaWithSigs);
-                                            setIsJhaEditMode(false);
-                                            setJhaModalOpen(true);
+                                            // Fetch full schedule to get complete JHA data (list only has partial projection)
+                                            fetch('/api/schedules', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                            }).then(res => res.json()).then(data => {
+                                                if (data.success && data.result) {
+                                                    const fullSchedule = data.result;
+                                                    const jhaWithSigs = { 
+                                                        ...fullSchedule.jha || {}, 
+                                                        schedule_id: fullSchedule._id,
+                                                        signatures: fullSchedule.JHASignatures || [],
+                                                        scheduleRef: fullSchedule
+                                                    };
+                                                    setSelectedJHA(jhaWithSigs);
+                                                    setIsJhaEditMode(false);
+                                                    setJhaModalOpen(true);
+                                                }
+                                            }).catch(err => {
+                                                console.error('Failed to fetch JHA data:', err);
+                                                toastError('Failed to load JHA data');
+                                            });
                                         }}
                                         onCreateJHA={(item) => {
                                             setSelectedJHA({
@@ -2626,14 +2664,28 @@ function SchedulePageContent() {
                                             setJhaModalOpen(true);
                                         }}
                                         onViewDJT={(item) => {
-                                            const djtWithSigs = { 
-                                                ...item.djt, 
-                                                schedule_id: item._id,
-                                                signatures: item.DJTSignatures || [] 
-                                            };
-                                            setSelectedDJT(djtWithSigs);
-                                            setIsDjtEditMode(false);
-                                            setDjtModalOpen(true);
+                                            // Fetch full schedule to get complete DJT data (list only has partial projection)
+                                            fetch('/api/schedules', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({ action: 'getScheduleById', payload: { id: item._id } })
+                                            }).then(res => res.json()).then(data => {
+                                                if (data.success && data.result) {
+                                                    const fullSchedule = data.result;
+                                                    const djtWithSigs = { 
+                                                        ...fullSchedule.djt || {}, 
+                                                        schedule_id: fullSchedule._id,
+                                                        signatures: fullSchedule.DJTSignatures || [],
+                                                        scheduleRef: fullSchedule
+                                                    };
+                                                    setSelectedDJT(djtWithSigs);
+                                                    setIsDjtEditMode(false);
+                                                    setDjtModalOpen(true);
+                                                }
+                                            }).catch(err => {
+                                                console.error('Failed to fetch DJT data:', err);
+                                                toastError('Failed to load DJT data');
+                                            });
                                         }}
                                         onCreateDJT={(item) => {
                                             setSelectedDJT({
