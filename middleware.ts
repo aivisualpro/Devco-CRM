@@ -49,7 +49,17 @@ export function middleware(request: NextRequest) {
             throw new Error('Invalid token');
         }
         
-        return NextResponse.next();
+        // Rolling session renewal: re-issue the cookie with a fresh 30-day maxAge
+        // This resets the expiration clock on every page visit
+        const response = NextResponse.next();
+        response.cookies.set('devco_auth_token', authToken.value, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 30, // 30 days
+            path: '/',
+        });
+        return response;
     } catch {
         // Invalid token
         if (pathname.startsWith('/api/')) {

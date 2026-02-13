@@ -1471,9 +1471,9 @@ export async function POST(request: NextRequest) {
                             }}
                         }}
                     }},
-                    // Calculate hoursNum based on type and location availability
+                    // Calculate raw hoursNum based on type and location availability
                     { $addFields: {
-                        hoursNum: {
+                        _rawHoursNum: {
                             $cond: {
                                 // ALL Drive Time: calculate from distance + dump/shop, or manual hours override
                                 if: "$isDriveTime",
@@ -1497,12 +1497,14 @@ export async function POST(request: NextRequest) {
                                         }
                                     }
                                 },
-                                // Site Time: use stored hours or calculate from clockIn/clockOut
+                                // Site Time: manualDuration → stored hours → calculate from clockIn/clockOut
                                 else: {
                                     $cond: {
-                                        if: { $gt: [{ $ifNull: ["$timesheet.hours", 0] }, 0] },
-                                        then: "$timesheet.hours",
+                                        // Priority 1: Manual duration override
+                                        if: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
+                                        then: { $convert: { input: "$timesheet.manualDuration", to: "double", onError: 0, onNull: 0 } },
                                         else: {
+                                            // Priority 2: Calculate from clockIn/clockOut (will be rounded in next stage)
                                             $let: {
                                                 vars: {
                                                     dStart: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
@@ -1527,6 +1529,80 @@ export async function POST(request: NextRequest) {
                                                             ]
                                                         },
                                                         else: 0
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        // Flag: is this a manual duration override for site time? (skip rounding)
+                        _isSiteManualDuration: {
+                            $and: [
+                                { $not: "$isDriveTime" },
+                                { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] }
+                            ]
+                        }
+                    }},
+                    // Apply quarter-hour rounding for site time (same logic as frontend calculateTimesheetData)
+                    // Rounding only applies to site time calculated from clockIn/clockOut (not drive time, not manual duration)
+                    { $addFields: {
+                        hoursNum: {
+                            $cond: {
+                                // Drive time or manual duration site time: no rounding needed
+                                if: { $or: ["$isDriveTime", "$_isSiteManualDuration"] },
+                                then: "$_rawHoursNum",
+                                else: {
+                                    $cond: {
+                                        // If raw hours is 0 or negative, return 0
+                                        if: { $lte: ["$_rawHoursNum", 0] },
+                                        then: 0,
+                                        else: {
+                                            $cond: {
+                                                // Cutoff: entries before 2025-10-26 don't get rounding
+                                                if: { $lt: ["$clockInDate", new Date('2025-10-26T00:00:00.000Z')] },
+                                                then: "$_rawHoursNum",
+                                                else: {
+                                                    $cond: {
+                                                        // 7.75–8.0 snap to 8.0
+                                                        if: { $and: [
+                                                            { $gte: ["$_rawHoursNum", 7.75] },
+                                                            { $lt: ["$_rawHoursNum", 8.0] }
+                                                        ]},
+                                                        then: 8.0,
+                                                        else: {
+                                                            // Quarter-hour rounding: extract whole hours + round minutes to 0/15/30/45
+                                                            $let: {
+                                                                vars: {
+                                                                    wholeHours: { $floor: "$_rawHoursNum" },
+                                                                    rawMinutes: { $round: [{ $multiply: [{ $subtract: ["$_rawHoursNum", { $floor: "$_rawHoursNum" }] }, 60] }, 0] }
+                                                                },
+                                                                in: {
+                                                                    $add: [
+                                                                        "$$wholeHours",
+                                                                        { $divide: [
+                                                                            { $switch: {
+                                                                                branches: [
+                                                                                    // m <= 1 → 0 (essentially 0 or 1 minute → round down)
+                                                                                    { case: { $lte: ["$$rawMinutes", 1] }, then: 0 },
+                                                                                    // m > 1 && m <= 14 → 0
+                                                                                    { case: { $lte: ["$$rawMinutes", 14] }, then: 0 },
+                                                                                    // m > 14 && m <= 29 → 15
+                                                                                    { case: { $lte: ["$$rawMinutes", 29] }, then: 15 },
+                                                                                    // m > 29 && m <= 44 → 30
+                                                                                    { case: { $lte: ["$$rawMinutes", 44] }, then: 30 },
+                                                                                    // m > 44 && m <= 59 → 45
+                                                                                    { case: { $lte: ["$$rawMinutes", 59] }, then: 45 }
+                                                                                ],
+                                                                                default: 0
+                                                                            }},
+                                                                            60
+                                                                        ]}
+                                                                    ]
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
