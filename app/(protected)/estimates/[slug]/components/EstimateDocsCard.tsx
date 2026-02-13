@@ -321,6 +321,61 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const releases = formData?.releases || []; // Extract from formData
 
+    // Certified Payroll Upload State
+    const certifiedPayrollUploads: Record<string, any[]> = formData?.certifiedPayrollUploads || {};
+    const payrollUploadRef = React.useRef<HTMLInputElement>(null);
+    const [payrollUploadingDoc, setPayrollUploadingDoc] = useState<string | null>(null);
+
+    const handlePayrollDocUpload = async (docName: string, e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0 || !onUpdate) return;
+
+        setPayrollUploadingDoc(docName);
+        const existing = [...(certifiedPayrollUploads[docName] || [])];
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/certified-payroll/${docName.replace(/[^a-zA-Z0-9]/g, '_')}`);
+
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                const data = await res.json();
+
+                if (data.success && data.url) {
+                    existing.push({
+                        name: file.name,
+                        url: data.url,
+                        thumbnailUrl: data.thumbnailUrl || '',
+                        type: file.type,
+                        uploadedAt: new Date().toISOString(),
+                        uploadedBy: currentUser?.email || ''
+                    });
+                } else {
+                    toast.error(`Failed to upload ${file.name}`);
+                }
+            } catch (err) {
+                console.error('Payroll Upload Error:', err);
+                toast.error(`Error uploading ${file.name}`);
+            }
+        }
+
+        const updated = { ...certifiedPayrollUploads, [docName]: existing };
+        onUpdate('certifiedPayrollUploads', updated);
+        setPayrollUploadingDoc(null);
+        // Reset file input
+        if (payrollUploadRef.current) payrollUploadRef.current.value = '';
+    };
+
+    const removePayrollUpload = (docName: string, uploadIndex: number) => {
+        if (!onUpdate) return;
+        const existing = [...(certifiedPayrollUploads[docName] || [])];
+        existing.splice(uploadIndex, 1);
+        const updated = { ...certifiedPayrollUploads, [docName]: existing };
+        onUpdate('certifiedPayrollUploads', updated);
+    };
+
     // COI (Certificate of Insurance) Upload State
     const coiInputRef = React.useRef<HTMLInputElement>(null);
     const [isCoiUploading, setIsCoiUploading] = useState(false);
@@ -2642,20 +2697,183 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </span>
                     </div>
 
+                    {/* Hidden file input for payroll uploads */}
+                    <input
+                        ref={payrollUploadRef}
+                        type="file"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                            if (payrollUploadingDoc) {
+                                handlePayrollDocUpload(payrollUploadingDoc, e);
+                            }
+                        }}
+                    />
+
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
 
                         <div className="grid grid-cols-1 gap-3">
-                            {certifiedPayrollDocs.length > 0 ? certifiedPayrollDocs.map((docName, idx) => (
-                                <DocCard 
-                                    key={idx} 
-                                    label={docName}
-                                    isPayroll={true}
-                                    isLoading={generatingDoc === docName}
-                                    progress={generatingProgress}
-                                    hasTemplate={!!DOC_TEMPLATES[docName]}
-                                    onClick={() => handleDocClick(docName)}
-                                />
-                            )) : (
+                            {certifiedPayrollDocs.length > 0 ? certifiedPayrollDocs.map((docName, idx) => {
+                                const uploads = certifiedPayrollUploads[docName] || [];
+                                const hasUploads = uploads.length > 0;
+                                const isUploadingThis = payrollUploadingDoc === docName;
+                                return (
+                                    <div key={idx} className="group">
+                                        <div 
+                                            className={`
+                                                flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200
+                                                ${hasUploads 
+                                                    ? 'bg-emerald-50 border border-emerald-200' 
+                                                    : isUploadingThis
+                                                        ? 'bg-blue-50 border border-blue-200'
+                                                        : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
+                                                shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff]
+                                            `}
+                                        >
+                                            <div 
+                                                className="flex items-center gap-3 flex-1"
+                                                onClick={() => {
+                                                    if (!hasUploads && !isUploadingThis) {
+                                                        setPayrollUploadingDoc(docName);
+                                                        setTimeout(() => payrollUploadRef.current?.click(), 0);
+                                                    }
+                                                }}
+                                            >
+                                                {hasUploads ? (
+                                                    <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                                                        <Check className="w-3.5 h-3.5 text-white" />
+                                                    </div>
+                                                ) : isUploadingThis ? (
+                                                    <Loader2 className="w-5 h-5 text-blue-500 animate-spin flex-shrink-0" />
+                                                ) : (
+                                                    <Upload className="w-5 h-5 text-slate-400 flex-shrink-0" />
+                                                )}
+                                                <div className="flex flex-col min-w-0 flex-1">
+                                                    <span className={`text-xs font-bold leading-snug ${hasUploads ? 'text-emerald-700' : 'text-slate-600'}`}>
+                                                        {docName}
+                                                    </span>
+                                                    {hasUploads && (
+                                                        <span className="text-[10px] text-emerald-600">
+                                                            Uploaded {new Date(uploads[uploads.length - 1].uploadedAt).toLocaleDateString()}
+                                                            {uploads[uploads.length - 1].uploadedBy && (
+                                                                <> by {(() => {
+                                                                    const emp = employees.find(e => e._id === uploads[uploads.length - 1].uploadedBy || 
+                                                                        `${e.firstName} ${e.lastName}`.toLowerCase().includes(uploads[uploads.length - 1].uploadedBy?.toLowerCase?.() || ''));
+                                                                    if (emp?.firstName) return `${emp.firstName} ${emp.lastName || ''}`;
+                                                                    const email = uploads[uploads.length - 1].uploadedBy;
+                                                                    return email?.split('@')[0] || 'Unknown';
+                                                                })()}</>
+                                                            )}
+                                                        </span>
+                                                    )}
+                                                    {isUploadingThis && !hasUploads && (
+                                                        <span className="text-[10px] text-blue-500 font-medium">Uploading...</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Action buttons */}
+                                            <div className="flex items-center gap-0.5">
+                                                {/* Upload more button (always available, more visible when has uploads) */}
+                                                {hasUploads && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPayrollUploadingDoc(docName);
+                                                            setTimeout(() => payrollUploadRef.current?.click(), 0);
+                                                        }}
+                                                        disabled={isUploadingThis}
+                                                        className="p-1.5 text-emerald-500 hover:bg-emerald-100 rounded-lg transition-colors"
+                                                        title={`Upload more to ${docName}`}
+                                                    >
+                                                        {isUploadingThis ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Upload className="w-4 h-4" />
+                                                        )}
+                                                    </button>
+                                                )}
+
+                                                {/* Template download */}
+                                                {DOC_TEMPLATES[docName] && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleDocClick(docName);
+                                                        }}
+                                                        disabled={generatingDoc === docName}
+                                                        className={`p-1.5 rounded-lg transition-colors ${hasUploads ? 'text-emerald-600 hover:bg-emerald-100' : 'text-slate-400 hover:bg-slate-100'}`}
+                                                        title="Generate Template"
+                                                    >
+                                                        {generatingDoc === docName ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Download className="w-4 h-4" />
+                                                        )}
+                                                    </button>
+                                                )}
+
+                                                {/* Chevron when no template and no uploads */}
+                                                {!DOC_TEMPLATES[docName] && !hasUploads && !isUploadingThis && (
+                                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0F4C75] group-hover:translate-x-1 transition-all duration-300" />
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Uploaded files list — COI-style cards */}
+                                        {hasUploads && (
+                                            <div className="ml-6 mt-1.5 space-y-1.5">
+                                                {uploads.map((upload: any, uIdx: number) => (
+                                                    <div 
+                                                        key={uIdx}
+                                                        className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-100 shadow-sm transition-all duration-200 hover:shadow-md group/file"
+                                                    >
+                                                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                                                            <Paperclip className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-[10px] font-bold text-emerald-800 truncate max-w-[150px]">
+                                                                    {upload.name || `File ${uIdx + 1}`}
+                                                                </span>
+                                                                <span className="text-[8px] text-emerald-500">
+                                                                    {upload.uploadedAt ? new Date(upload.uploadedAt).toLocaleDateString() : ''}
+                                                                    {upload.uploadedBy && (
+                                                                        <> · {(() => {
+                                                                            const email = upload.uploadedBy;
+                                                                            return email?.split('@')[0] || '';
+                                                                        })()}</>
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                                                            <button 
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleFileDownload(upload.url, upload.name || `payroll_doc_${uIdx}`);
+                                                                }}
+                                                                className="p-1 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                                                title="Download"
+                                                            >
+                                                                <Download className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    removePayrollUpload(docName, uIdx);
+                                                                }}
+                                                                className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                                                title="Remove"
+                                                            >
+                                                                <X className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
                             )}
                         </div>
