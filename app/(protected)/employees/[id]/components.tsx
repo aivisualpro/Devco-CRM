@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Eye, EyeOff, KeyRound, Save, X } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Briefcase, Calendar, ChevronDown, CheckCircle, XCircle, Eye, EyeOff, KeyRound, Save, X, RefreshCw, Copy } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface Employee {
     _id: string;
@@ -39,7 +40,10 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
     const [isChangingPassword, setIsChangingPassword] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [saving, setSaving] = useState(false);
+    const [copied, setCopied] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const { user: currentUser } = usePermissions();
+    const isOwnRecord = currentUser?.email === employee._id || currentUser?.userId === employee._id;
 
     const formatRate = (val?: number) => val ? `$${val.toFixed(2)}` : '$0.00';
 
@@ -78,6 +82,29 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
         } finally {
             setSaving(false);
         }
+    };
+
+    const generateStrongPassword = (): string => {
+        const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lower = 'abcdefghijklmnopqrstuvwxyz';
+        const digits = '0123456789';
+        const symbols = '!@#$%&*';
+        const all = upper + lower + digits + symbols;
+        let pwd = '';
+        pwd += upper[Math.floor(Math.random() * upper.length)];
+        pwd += lower[Math.floor(Math.random() * lower.length)];
+        pwd += digits[Math.floor(Math.random() * digits.length)];
+        pwd += symbols[Math.floor(Math.random() * symbols.length)];
+        for (let i = 4; i < 12; i++) {
+            pwd += all[Math.floor(Math.random() * all.length)];
+        }
+        return pwd.split('').sort(() => Math.random() - 0.5).join('');
+    };
+
+    const handleCopyPassword = (text: string) => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
     return (
@@ -220,7 +247,7 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                                 <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
                                 <span className="text-[10px] text-slate-400 font-bold uppercase">Password</span>
                             </div>
-                            {!isChangingPassword && (
+                            {isOwnRecord && !isChangingPassword && (
                                 <button 
                                     onClick={() => setIsChangingPassword(true)}
                                     className="text-[10px] text-indigo-600 font-semibold hover:text-indigo-700 transition-colors"
@@ -230,40 +257,69 @@ export function EmployeeHeaderCard({ employee, onUpdate, animate, onEditSignatur
                             )}
                         </div>
                         
-                        {!isChangingPassword ? (
+                        {!isOwnRecord ? (
+                            <div className="flex items-center justify-between">
+                                <div className="font-mono text-sm text-slate-400 tracking-wider">••••••••</div>
+                                <span className="text-[10px] text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded-full">Hidden</span>
+                            </div>
+                        ) : !isChangingPassword ? (
                             <div className="flex items-center justify-between">
                                 <div className="font-mono text-sm font-bold text-slate-700 tracking-wider">
                                     {showPassword ? (employee.password || 'Not Set') : '••••••••'}
                                 </div>
-                                <button 
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-slate-500 hover:text-indigo-600"
-                                >
-                                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
+                                <div className="flex items-center gap-0.5">
+                                    <button 
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-slate-500 hover:text-indigo-600"
+                                    >
+                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                    {showPassword && employee.password && (
+                                        <button 
+                                            onClick={() => handleCopyPassword(employee.password!)}
+                                            className="p-1.5 rounded-lg hover:bg-white/50 transition-colors text-slate-500 hover:text-indigo-600"
+                                            title={copied ? 'Copied!' : 'Copy password'}
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2">
-                                <input
-                                    type="text"
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    placeholder="New password"
-                                    className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                                    autoFocus
-                                />
-                                <button 
-                                    onClick={handleSavePassword}
-                                    disabled={saving || !newPassword.trim()}
-                                    className="p-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="text"
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        placeholder="New password"
+                                        className="flex-1 px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                                        autoFocus
+                                    />
+                                    <button 
+                                        onClick={handleSavePassword}
+                                        disabled={saving || !newPassword.trim()}
+                                        className="p-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                        onClick={() => { setIsChangingPassword(false); setNewPassword(''); }}
+                                        className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const suggested = generateStrongPassword();
+                                        setNewPassword(suggested);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 transition-colors px-1 py-0.5 rounded hover:bg-white/50"
                                 >
-                                    <Save className="w-4 h-4" />
-                                </button>
-                                <button 
-                                    onClick={() => { setIsChangingPassword(false); setNewPassword(''); }}
-                                    className="p-1.5 rounded-lg bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors"
-                                >
-                                    <X className="w-4 h-4" />
+                                    <RefreshCw className="w-3 h-3" />
+                                    Suggest Strong Password
                                 </button>
                             </div>
                         )}

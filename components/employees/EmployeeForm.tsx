@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, Upload, User, Shield, Check, X, ChevronRight, Save, ChevronDown } from "lucide-react"
+import { Loader2, Upload, User, Shield, Check, X, ChevronRight, Save, ChevronDown, Eye, EyeOff, RefreshCw, Copy } from "lucide-react"
 
 import {
     Dialog,
@@ -72,7 +72,7 @@ const employeeSchema = z.object({
     city: z.string().optional(),
     state: z.string().optional(),
     zip: z.string().optional(),
-    password: z.string().min(1, "Password is required"),
+    password: z.string().optional(),
     profilePicture: z.string().optional(),
     signature: z.string().optional(),
     driverLicense: z.string().optional(),
@@ -152,6 +152,26 @@ const formatPhoneNumber = (value: string) => {
     return `(${phoneNumber.slice(0, 3)}) ${phoneNumber.slice(3, 6)}-${phoneNumber.slice(6, 10)}`
 }
 
+// Generate a strong random password
+function generateStrongPassword(): string {
+    const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    const lower = 'abcdefghijklmnopqrstuvwxyz'
+    const digits = '0123456789'
+    const symbols = '!@#$%&*'
+    const all = upper + lower + digits + symbols
+    // Ensure at least one of each type
+    let password = ''
+    password += upper[Math.floor(Math.random() * upper.length)]
+    password += lower[Math.floor(Math.random() * lower.length)]
+    password += digits[Math.floor(Math.random() * digits.length)]
+    password += symbols[Math.floor(Math.random() * symbols.length)]
+    for (let i = 4; i < 12; i++) {
+        password += all[Math.floor(Math.random() * all.length)]
+    }
+    // Shuffle
+    return password.split('').sort(() => Math.random() - 0.5).join('')
+}
+
 export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = [] }: EmployeeFormProps) {
     const [activeTab, setActiveTab] = useState("personal")
     const [isLoading, setIsLoading] = useState(false)
@@ -159,9 +179,12 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
     const [companyPositionOpen, setCompanyPositionOpen] = useState(false)
     const [companyPositions, setCompanyPositions] = useState(INITIAL_COMPANY_POSITIONS)
     const [isAddingPosition, setIsAddingPosition] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
     const { success, error: showError } = useToast()
     const { user: currentUser } = usePermissions()
     const isAdminOrSuper = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin'
+    const isOwnRecord = !initialData?._id || currentUser?.email === initialData?._id || currentUser?.userId === initialData?._id
+    const isNewEmployee = !initialData?._id
 
     const handleAddPosition = async (search: string) => {
         setIsAddingPosition(true)
@@ -223,12 +246,23 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
     })
 
     async function onSubmit(data: EmployeeFormValues) {
+        // Require password when creating new employee
+        if (!initialData?._id && (!data.password || data.password.trim() === '')) {
+            showError('Password is required for new employees')
+            setActiveTab('personal')
+            return
+        }
         setIsLoading(true)
         try {
             const action = initialData?._id ? 'updateEmployee' : 'addEmployee'
+            // Strip empty password from update payloads to avoid overwriting
+            const submitData = { ...data }
+            if (initialData?._id && (!submitData.password || submitData.password.trim() === '')) {
+                delete (submitData as any).password
+            }
             const payload = initialData?._id
-                ? { id: initialData._id, item: data }
-                : { item: data }
+                ? { id: initialData._id, item: submitData }
+                : { item: submitData }
 
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
@@ -433,19 +467,74 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     </FormItem>
                                                 )}
                                             />
-                                            <FormField
-                                                control={form.control}
-                                                name="password"
-                                                render={({ field }) => (
-                                                    <FormItem>
-                                                        <FormLabel>Password <span className="text-red-500">*</span></FormLabel>
-                                                        <FormControl>
-                                                            <Input type="text" placeholder={initialData?._id ? "••••••••" : "Set password"} {...field} />
-                                                        </FormControl>
-                                                        <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                            />
+                                            {(isOwnRecord || isNewEmployee) ? (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="password"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>Password {isNewEmployee && <span className="text-red-500">*</span>}</FormLabel>
+                                                            <FormControl>
+                                                                <div className="space-y-2">
+                                                                    <div className="relative">
+                                                                        <Input
+                                                                            type={showPassword ? "text" : "password"}
+                                                                            placeholder={initialData?._id ? "••••••••" : "Set password"}
+                                                                            {...field}
+                                                                            className="pr-20"
+                                                                        />
+                                                                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setShowPassword(!showPassword)}
+                                                                                className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                                                                title={showPassword ? "Hide password" : "Show password"}
+                                                                            >
+                                                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                                            </button>
+                                                                            {field.value && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        navigator.clipboard.writeText(field.value || '')
+                                                                                        success('Password copied!')
+                                                                                    }}
+                                                                                    className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                                                                    title="Copy password"
+                                                                                >
+                                                                                    <Copy className="w-4 h-4" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const suggested = generateStrongPassword()
+                                                                            field.onChange(suggested)
+                                                                            setShowPassword(true)
+                                                                        }}
+                                                                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0F4C75] hover:text-[#0a3a5c] transition-colors px-2 py-1 rounded-md hover:bg-blue-50"
+                                                                    >
+                                                                        <RefreshCw className="w-3 h-3" />
+                                                                        Suggest Strong Password
+                                                                    </button>
+                                                                </div>
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            ) : (
+                                                <div>
+                                                    <p className="text-sm font-medium mb-2">Password</p>
+                                                    <div className="flex items-center gap-2 h-10 px-3 border border-slate-200 rounded-lg bg-slate-50">
+                                                        <span className="text-sm text-slate-400 tracking-widest">••••••••</span>
+                                                        <span className="ml-auto text-xs text-slate-400">Hidden</span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-400 mt-1">Only this employee can view their own password</p>
+                                                </div>
+                                            )}
                                             <FormField
                                                 control={form.control}
                                                 name="driverLicense"

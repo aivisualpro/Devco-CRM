@@ -2676,14 +2676,26 @@ export async function POST(request: NextRequest) {
                 const { includeInactive } = payload || {};
                 const empFilter: any = {};
                 if (!includeInactive) empFilter.status = { $ne: 'Inactive' };
-                const employees = await Employee.find(empFilter).sort({ name: 1 });
-                return NextResponse.json({ success: true, result: employees });
+                const employees = await Employee.find(empFilter).sort({ name: 1 }).lean();
+                // Strip passwords from all employees — no one can see anyone else's password in the list
+                const sanitizedEmployees = employees.map((emp: any) => {
+                    const { password, ...rest } = emp;
+                    return rest;
+                });
+                return NextResponse.json({ success: true, result: sanitizedEmployees });
             }
 
             case 'getEmployeeById': {
                 const { id } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-                const employee = await Employee.findById(id);
+                const employee = await Employee.findById(id).lean();
+                if (!employee) return NextResponse.json({ success: false, error: 'Employee not found' }, { status: 404 });
+                // Only show password if the logged-in user is viewing their OWN record
+                const isOwnRecord = userPayload && (userPayload.userId === id || userPayload.email === id);
+                if (!isOwnRecord) {
+                    const { password, ...rest } = employee as any;
+                    return NextResponse.json({ success: true, result: rest });
+                }
                 return NextResponse.json({ success: true, result: employee });
             }
 
