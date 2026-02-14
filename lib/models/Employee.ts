@@ -17,6 +17,7 @@ export interface IEmployee extends Omit<Document, '_id'> {
     hourlyRateDrive?: number;
     dob?: string;
     driverLicense?: string;
+    ssNumber?: string;
     address?: string;
     city?: string;
     state?: string;
@@ -72,6 +73,7 @@ const EmployeeSchema: Schema = new Schema({
     hourlyRateDrive: { type: Number },
     dob: { type: String },
     driverLicense: { type: String },
+    ssNumber: { type: String },
     address: { type: String },
     city: { type: String },
     state: { type: String },

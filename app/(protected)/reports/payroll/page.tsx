@@ -593,6 +593,7 @@ function PayrollReportContent() {
                 employee: ew.email,
                 name: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.label || ew.email,
                 address: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.address || 'N/A',
+                ssNumber: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.ssNumber || '',
                 phone: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.phone || 'N/A',
                 position: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.companyPosition || 'Technician',
                 classification: (employeesMap[ew.email] || employeesMap[Object.keys(employeesMap).find(k => k.toLowerCase() === ew.email) || ''])?.classification || 'N/A',

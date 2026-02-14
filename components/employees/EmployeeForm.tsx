@@ -34,6 +34,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/Badge"
 import { useToast } from "@/hooks/useToast"
 import { MyDropDown } from "@/components/ui/MyDropDown"
+import { usePermissions } from "@/hooks/usePermissions"
 
 
 const DESIGNATION_OPTIONS = [
@@ -75,6 +76,7 @@ const employeeSchema = z.object({
     profilePicture: z.string().optional(),
     signature: z.string().optional(),
     driverLicense: z.string().optional(),
+    ssNumber: z.string().optional(),
 
     // Employment Details
     appRole: z.string().optional(),
@@ -158,6 +160,8 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
     const [companyPositions, setCompanyPositions] = useState(INITIAL_COMPANY_POSITIONS)
     const [isAddingPosition, setIsAddingPosition] = useState(false)
     const { success, error: showError } = useToast()
+    const { user: currentUser } = usePermissions()
+    const isAdminOrSuper = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin'
 
     const handleAddPosition = async (search: string) => {
         setIsAddingPosition(true)
@@ -186,6 +190,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
             profilePicture: initialData?.profilePicture ?? "",
             signature: initialData?.signature ?? "",
             driverLicense: initialData?.driverLicense ?? "",
+            ssNumber: (initialData as any)?.ssNumber ?? "",
             appRole: initialData?.appRole ?? "",
             companyPosition: initialData?.companyPosition ?? "",
             designation: initialData?.designation ?? "",
@@ -454,6 +459,21 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     </FormItem>
                                                 )}
                                             />
+                                            {isAdminOrSuper && (
+                                                <FormField
+                                                    control={form.control}
+                                                    name="ssNumber"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>SS #</FormLabel>
+                                                            <FormControl>
+                                                                <Input placeholder="XXX-XX-XXXX" {...field} />
+                                                            </FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                            )}
                                             
                                             <div className="col-span-2 space-y-4 pt-4">
                                                 <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">

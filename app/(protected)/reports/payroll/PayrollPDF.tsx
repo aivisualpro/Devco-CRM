@@ -190,7 +190,7 @@ export const PayrollPDF = ({
         {data.map((emp, index) => (
           <View key={index} wrap={false} style={{ marginBottom: 20 }}>
             <Text style={styles.employeeHeader}>
-              Name: {emp.name} | Address: {emp.address} | SSN#: ***-**-6020
+              Name: {emp.name} | Address: {emp.address} | SSN#: ***-**-{emp.ssNumber ? emp.ssNumber.replace(/\D/g, '').slice(-4) : '****'}
             </Text>
             
             <View style={styles.table}>

@@ -959,7 +959,7 @@ export async function POST(request: NextRequest) {
                 const [aggResult, ...metadata] = await Promise.all([
                     Schedule.aggregate(pipeline),
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
-                    !skipInitialData ? Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean() : Promise.resolve([]), 
+                    !skipInitialData ? Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive address ssNumber').lean() : Promise.resolve([]), 
                     !skipInitialData ? Constant.find().select('type description color value image').lean() : Promise.resolve([]),
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll')
@@ -1126,7 +1126,9 @@ export async function POST(request: NextRequest) {
                             classification: (e as any).classification,
                             companyPosition: (e as any).companyPosition,
                             designation: (e as any).designation,
-                            isScheduleActive: (e as any).isScheduleActive
+                            isScheduleActive: (e as any).isScheduleActive,
+                            address: (e as any).address || '',
+                            ssNumber: (e as any).ssNumber || ''
                         }]) || []).values()),
                         constants: Array.from(new Map(constants?.filter((c: any) => c?.type && c?.description).map((c: any) => [`${c.type}-${c.description}`, c]) || []).values()),
                         estimates: Array.from(uniqueEstimates.values()),
@@ -1146,7 +1148,7 @@ export async function POST(request: NextRequest) {
             case 'getInitialData': {
                 const [clients, employees, constants, estimates, equipmentItems, overheadItems] = await Promise.all([
                     Client.find().select('name _id').sort({ name: 1 }).lean(),
-                    Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive').lean(),
+                    Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive address ssNumber').lean(),
                     Constant.find().select('type description color value image').lean(),
                     Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone')
@@ -1196,7 +1198,9 @@ export async function POST(request: NextRequest) {
                             classification: (e as any).classification,
                             companyPosition: (e as any).companyPosition,
                             designation: (e as any).designation,
-                            isScheduleActive: (e as any).isScheduleActive
+                            isScheduleActive: (e as any).isScheduleActive,
+                            address: (e as any).address || '',
+                            ssNumber: (e as any).ssNumber || ''
                         }])).values()),
                         constants: Array.from(new Map(constants.filter(c => c?.type && c?.description).map(c => [`${c.type}-${c.description}`, c])).values()),
                         estimates: Array.from(uniqueEstimates.values()),

@@ -238,7 +238,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         'Intent to Lien'
     ];
 
-    const certifiedPayrollDocs = [
+    const baseCertifiedPayrollDocs = [
         'Fringe Benefit Statement',
         'DAS 140',
         'Certified Payroll Report',
@@ -256,6 +256,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         'Skilled & Trained Reporting',
         'Fringe Benefits Proof of Payment'
     ];
+    const customCertifiedPayrollDocs: string[] = formData?.customCertifiedPayrollDocs || [];
+    const certifiedPayrollDocs = [...customCertifiedPayrollDocs, ...baseCertifiedPayrollDocs];
+    const [isAddingPayrollDoc, setIsAddingPayrollDoc] = useState(false);
+    const [newPayrollDocName, setNewPayrollDocName] = useState('');
 
     const jobPlanningDocs = formData?.jobPlanningDocs || [];
     const signedContracts = formData?.signedContracts || [];
@@ -350,7 +354,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         thumbnailUrl: data.thumbnailUrl || '',
                         type: file.type,
                         uploadedAt: new Date().toISOString(),
-                        uploadedBy: currentUser?.email || ''
+                        uploadedBy: currentUser?.email || '',
+                        uploaderImage: (currentUser as any)?.image || ''
                     });
                 } else {
                     toast.error(`Failed to upload ${file.name}`);
@@ -2695,6 +2700,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <span className="text-[10px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-bold">
                             {certifiedPayrollDocs.length}
                         </span>
+                        <button
+                            onClick={() => setIsAddingPayrollDoc(true)}
+                            className="ml-auto w-6 h-6 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                            title="Add Certified Payroll Document"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
                     </div>
 
                     {/* Hidden file input for payroll uploads */}
@@ -2753,18 +2765,31 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         {docName}
                                                     </span>
                                                     {hasUploads && (
-                                                        <span className="text-[10px] text-emerald-600">
-                                                            Uploaded {new Date(uploads[uploads.length - 1].uploadedAt).toLocaleDateString()}
-                                                            {uploads[uploads.length - 1].uploadedBy && (
-                                                                <> by {(() => {
-                                                                    const emp = employees.find(e => e._id === uploads[uploads.length - 1].uploadedBy || 
-                                                                        `${e.firstName} ${e.lastName}`.toLowerCase().includes(uploads[uploads.length - 1].uploadedBy?.toLowerCase?.() || ''));
-                                                                    if (emp?.firstName) return `${emp.firstName} ${emp.lastName || ''}`;
-                                                                    const email = uploads[uploads.length - 1].uploadedBy;
-                                                                    return email?.split('@')[0] || 'Unknown';
-                                                                })()}</>
+                                                        <div className="flex items-center gap-1.5">
+                                                            {uploads[uploads.length - 1].uploaderImage ? (
+                                                                <img 
+                                                                    src={uploads[uploads.length - 1].uploaderImage} 
+                                                                    alt="" 
+                                                                    className="w-4 h-4 rounded-full object-cover flex-shrink-0"
+                                                                />
+                                                            ) : (
+                                                                <div className="w-4 h-4 rounded-full bg-emerald-400 flex items-center justify-center flex-shrink-0">
+                                                                    <User className="w-2.5 h-2.5 text-white" />
+                                                                </div>
                                                             )}
-                                                        </span>
+                                                            <span className="text-[10px] text-emerald-600">
+                                                                Uploaded {new Date(uploads[uploads.length - 1].uploadedAt).toLocaleDateString()}
+                                                                {uploads[uploads.length - 1].uploadedBy && (
+                                                                    <> by {(() => {
+                                                                        const emp = employees.find(e => e._id === uploads[uploads.length - 1].uploadedBy || 
+                                                                            `${e.firstName} ${e.lastName}`.toLowerCase().includes(uploads[uploads.length - 1].uploadedBy?.toLowerCase?.() || ''));
+                                                                        if (emp?.firstName) return `${emp.firstName} ${emp.lastName || ''}`;
+                                                                        const email = uploads[uploads.length - 1].uploadedBy;
+                                                                        return email?.split('@')[0] || 'Unknown';
+                                                                    })()}</>
+                                                                )}
+                                                            </span>
+                                                        </div>
                                                     )}
                                                     {isUploadingThis && !hasUploads && (
                                                         <span className="text-[10px] text-blue-500 font-medium">Uploading...</span>
@@ -2817,6 +2842,26 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 {!DOC_TEMPLATES[docName] && !hasUploads && !isUploadingThis && (
                                                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-[#0F4C75] group-hover:translate-x-1 transition-all duration-300" />
                                                 )}
+
+                                                {/* Delete custom doc */}
+                                                {customCertifiedPayrollDocs.includes(docName) && (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            const updatedCustom = customCertifiedPayrollDocs.filter(d => d !== docName);
+                                                            onUpdate?.('customCertifiedPayrollDocs', updatedCustom);
+                                                            // Also clean up uploads for this doc
+                                                            const updatedUploads = { ...certifiedPayrollUploads };
+                                                            delete updatedUploads[docName];
+                                                            onUpdate?.('certifiedPayrollUploads', updatedUploads);
+                                                            toast.success(`Removed "${docName}"`);
+                                                        }}
+                                                        className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                                                        title="Remove document type"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
 
@@ -2829,7 +2874,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-100 shadow-sm transition-all duration-200 hover:shadow-md group/file"
                                                     >
                                                         <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                                                            <Paperclip className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                                                            {upload.uploaderImage ? (
+                                                                <img 
+                                                                    src={upload.uploaderImage} 
+                                                                    alt="" 
+                                                                    className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                                                                />
+                                                            ) : (
+                                                                <Paperclip className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                                                            )}
                                                             <div className="flex flex-col min-w-0">
                                                                 <span className="text-[10px] font-bold text-emerald-800 truncate max-w-[150px]">
                                                                     {upload.name || `File ${uIdx + 1}`}
@@ -2875,6 +2928,58 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
+                            )}
+
+                            {/* Add new payroll doc inline input */}
+                            {isAddingPayrollDoc && (
+                                <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 border-dashed shadow-sm">
+                                    <Plus className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                                    <input
+                                        type="text"
+                                        autoFocus
+                                        value={newPayrollDocName}
+                                        onChange={(e) => setNewPayrollDocName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && newPayrollDocName.trim()) {
+                                                const updated = [...customCertifiedPayrollDocs, newPayrollDocName.trim()];
+                                                onUpdate?.('customCertifiedPayrollDocs', updated);
+                                                setNewPayrollDocName('');
+                                                setIsAddingPayrollDoc(false);
+                                                toast.success(`Added "${newPayrollDocName.trim()}"`);
+                                            }
+                                            if (e.key === 'Escape') {
+                                                setNewPayrollDocName('');
+                                                setIsAddingPayrollDoc(false);
+                                            }
+                                        }}
+                                        placeholder="Document name... (Enter to save)"
+                                        className="flex-1 text-xs font-bold text-emerald-800 bg-transparent border-none outline-none placeholder:text-emerald-400 placeholder:font-medium"
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            if (newPayrollDocName.trim()) {
+                                                const updated = [...customCertifiedPayrollDocs, newPayrollDocName.trim()];
+                                                onUpdate?.('customCertifiedPayrollDocs', updated);
+                                                setNewPayrollDocName('');
+                                                setIsAddingPayrollDoc(false);
+                                                toast.success(`Added "${newPayrollDocName.trim()}"`);
+                                            }
+                                        }}
+                                        disabled={!newPayrollDocName.trim()}
+                                        className="p-1 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors disabled:opacity-30"
+                                    >
+                                        <Check className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setNewPayrollDocName('');
+                                            setIsAddingPayrollDoc(false);
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
                             )}
                         </div>
                     </div>
