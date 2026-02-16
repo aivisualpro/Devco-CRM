@@ -1397,7 +1397,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             setReplyingTo(null);
 
             // Auto-create a To Do task if employees were tagged (same as Dashboard)
+            console.log('[EstimateChat] safeAssignees:', safeAssignees, 'chatAssignees raw:', chatAssignees);
             if (safeAssignees.length > 0) {
+                console.log('[EstimateChat] Creating task for assignees:', safeAssignees);
                 try {
                     const taskRes = await fetch('/api/tasks', {
                         method: 'POST',
