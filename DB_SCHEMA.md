@@ -581,3 +581,4 @@ vinSerialNumber: String
 documents: Array (VehicleDocument)
 createdAt: Date
 updatedAt: Date
+

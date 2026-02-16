@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
 import type { UploadedFile } from '@/components/ui';
@@ -9,6 +9,9 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, DATA_SCOPE } from '@/lib/permissions/types';
+import { JHAModal } from '@/app/(protected)/jobs/schedules/components/JHAModal';
+import { DJTModal } from '@/app/(protected)/jobs/schedules/components/DJTModal';
+import { getLocalNowISO } from '@/lib/scheduleUtils';
 
 // Google Doc Template IDs
 const DOC_TEMPLATES: Record<string, string> = {
@@ -87,6 +90,63 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [aggregatedReceipts, setAggregatedReceipts] = useState<any[]>([]);
     const [aggregatedBillingTickets, setAggregatedBillingTickets] = useState<any[]>([]); // New State
     const [loadingReceipts, setLoadingReceipts] = useState(false);
+
+    // Job Docs State: JHA, Job Tickets, Pothole Logs, Pre-Bore Logs
+    const [jhaRecords, setJhaRecords] = useState<any[]>([]);
+    const [jobTicketRecords, setJobTicketRecords] = useState<any[]>([]);
+    const [potholeLogRecords, setPotholeLogRecords] = useState<any[]>([]);
+    const [preBoreLogRecords, setPreBoreLogRecords] = useState<any[]>([]);
+    const [loadingJobDocs, setLoadingJobDocs] = useState(false);
+    const [estimateSchedules, setEstimateSchedules] = useState<any[]>([]);
+
+    // JHA Modal State
+    const [jhaModalOpen, setJhaModalOpen] = useState(false);
+    const [selectedJHA, setSelectedJHA] = useState<any>(null);
+    const [isJhaEditMode, setIsJhaEditMode] = useState(false);
+    const [isGeneratingJHAPDF, setIsGeneratingJHAPDF] = useState(false);
+    const [activeSignatureEmployee, setActiveSignatureEmployee] = useState<string | null>(null);
+    const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+    // DJT Modal State
+    const [djtModalOpen, setDjtModalOpen] = useState(false);
+    const [selectedDJT, setSelectedDJT] = useState<any>(null);
+    const [isDjtEditMode, setIsDjtEditMode] = useState(false);
+    const [isGeneratingDJTPDF, setIsGeneratingDJTPDF] = useState(false);
+    const [isSavingSignature, setIsSavingSignature] = useState(false);
+
+    // Pothole Log Modal State
+    const [potholeModalOpen, setPotholeModalOpen] = useState(false);
+    const [selectedPotholeLog, setSelectedPotholeLog] = useState<any>(null);
+    const [potholeCreateOpen, setPotholeCreateOpen] = useState(false);
+    const [newPotholeLog, setNewPotholeLog] = useState<any>({
+        date: format(new Date(), 'yyyy-MM-dd'),
+        estimate: '',
+        projectionLocation: '',
+        potholeItems: [],
+        createdBy: ''
+    });
+
+    // Pre-Bore Log Modal State
+    const [preBoreModalOpen, setPreBoreModalOpen] = useState(false);
+    const [selectedPreBoreLog, setSelectedPreBoreLog] = useState<any>(null);
+    const [preBoreCreateOpen, setPreBoreCreateOpen] = useState(false);
+    const [newPreBoreLog, setNewPreBoreLog] = useState<any>({
+        date: format(new Date(), 'yyyy-MM-dd'),
+        customerForeman: '',
+        customerWorkRequestNumber: '',
+        startTime: '',
+        addressBoreStart: '',
+        addressBoreEnd: '',
+        devcoOperator: '',
+        drillSize: '',
+        pilotBoreSize: '',
+        soilType: '',
+        boreLength: '',
+        pipeSize: '',
+        preBoreLogs: [],
+        createdBy: ''
+    });
+    const [selectedScheduleForPreBore, setSelectedScheduleForPreBore] = useState<string>('');
 
     useEffect(() => {
         const fetchAllVersions = async () => {
@@ -229,6 +289,327 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         fetchAllVersions();
     }, [formData?.estimate, formData?.receiptsAndCosts, formData?.billingTickets]); // Re-run if main formData changes
+
+    // Fetch Job Docs: JHA, DJT, Pothole Logs, Pre-Bore Logs
+    useEffect(() => {
+        const fetchJobDocs = async () => {
+            if (!formData?.estimate) return;
+            setLoadingJobDocs(true);
+            try {
+                // 1. First get schedules for this estimate number
+                const schedRes = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getSchedules', payload: {} })
+                });
+                const schedData = await schedRes.json();
+                const allSchedules = schedData.success ? (schedData.result || []) : [];
+                const filteredSchedules = allSchedules.filter(
+                    (s: any) => String(s.estimate || '').trim() === String(formData.estimate || '').trim()
+                );
+                setEstimateSchedules(filteredSchedules);
+                const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
+
+                // 2. Fetch JHA records for these schedules
+                const jhaRes = await fetch('/api/jha', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500 } })
+                });
+                const jhaData = await jhaRes.json();
+                if (jhaData.success && jhaData.result?.jhas) {
+                    const filtered = jhaData.result.jhas.filter(
+                        (j: any) => scheduleIds.includes(String(j.schedule_id || ''))
+                    );
+                    setJhaRecords(filtered);
+                }
+
+                // 3. Fetch DJT (Job Tickets) for these schedules  
+                const djtRes = await fetch('/api/djt', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500 } })
+                });
+                const djtData = await djtRes.json();
+                if (djtData.success && djtData.result?.djts) {
+                    const filtered = djtData.result.djts.filter(
+                        (d: any) => scheduleIds.includes(String(d.schedule_id || ''))
+                    );
+                    setJobTicketRecords(filtered);
+                }
+
+                // 4. Fetch Pothole Logs (directly by estimate)
+                const phRes = await fetch('/api/pothole-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } })
+                });
+                const phData = await phRes.json();
+                if (phData.success) {
+                    setPotholeLogRecords(phData.result || []);
+                }
+
+                // 5. Fetch Pre-Bore Logs (embedded in schedules)
+                const pbLogs: any[] = [];
+                for (const sched of filteredSchedules) {
+                    if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
+                        sched.preBore.forEach((pb: any) => {
+                            pbLogs.push({
+                                ...pb,
+                                scheduleId: sched._id,
+                                scheduleTitle: sched.title,
+                            });
+                        });
+                    }
+                }
+                setPreBoreLogRecords(pbLogs);
+
+            } catch (err) {
+                console.error('Failed to fetch job docs', err);
+            } finally {
+                setLoadingJobDocs(false);
+            }
+        };
+
+        fetchJobDocs();
+    }, [formData?.estimate]);
+
+    // Refetch helper
+    const refetchJobDocs = useCallback(async () => {
+        if (!formData?.estimate) return;
+        setLoadingJobDocs(true);
+        try {
+            const schedRes = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'getSchedules', payload: {} })
+            });
+            const schedData = await schedRes.json();
+            const allSchedules = schedData.success ? (schedData.result || []) : [];
+            const filteredSchedules = allSchedules.filter(
+                (s: any) => String(s.estimate || '').trim() === String(formData.estimate || '').trim()
+            );
+            setEstimateSchedules(filteredSchedules);
+            const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
+
+            const jhaRes = await fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getJHAs', payload: { page: 1, limit: 500 } }) });
+            const jhaData = await jhaRes.json();
+            if (jhaData.success && jhaData.result?.jhas) setJhaRecords(jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || ''))));
+
+            const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500 } }) });
+            const djtData = await djtRes.json();
+            if (djtData.success && djtData.result?.djts) setJobTicketRecords(djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || ''))));
+
+            const phRes = await fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) });
+            const phData = await phRes.json();
+            if (phData.success) setPotholeLogRecords(phData.result || []);
+
+            const pbLogs: any[] = [];
+            for (const sched of filteredSchedules) {
+                if (sched.preBore && Array.isArray(sched.preBore) && sched.preBore.length > 0) {
+                    sched.preBore.forEach((pb: any) => pbLogs.push({ ...pb, scheduleId: sched._id, scheduleTitle: sched.title }));
+                }
+            }
+            setPreBoreLogRecords(pbLogs);
+        } catch (err) { console.error(err); } finally { setLoadingJobDocs(false); }
+    }, [formData?.estimate]);
+
+    // Normalized employees for modals
+    const normalizedEmployees = useMemo(() => {
+        return (employees || []).map((e: any) => ({
+            ...e,
+            label: e.label || `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email || 'Unknown',
+            value: e.value || e.email || e._id,
+            image: e.profilePicture || e.image
+        }));
+    }, [employees]);
+
+    // --- JHA Handlers ---
+    const handleViewJHA = (jha: any) => {
+        setSelectedJHA({ ...jha, signatures: jha.signatures || [] });
+        setIsJhaEditMode(false);
+        setJhaModalOpen(true);
+    };
+
+    const handleSaveJHA = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedJHA) return;
+        try {
+            const payload = { ...selectedJHA, schedule_id: selectedJHA.schedule_id || selectedJHA._id };
+            const res = await fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveJHA', payload }) });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('JHA Saved');
+                setJhaModalOpen(false);
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to save JHA');
+        } catch (e) { console.error(e); toast.error('Error saving JHA'); }
+    };
+
+    const handleSaveJHASignature = async (dataUrl: string) => {
+        if (!activeSignatureEmployee || !selectedJHA) return;
+        try {
+            const payload = { schedule_id: selectedJHA.schedule_id, employee: activeSignatureEmployee, signature: dataUrl, createdBy: currentUser?.email };
+            const res = await fetch('/api/jha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveJHASignature', payload }) });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Signature Saved');
+                setSelectedJHA((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), data.result] }));
+                setActiveSignatureEmployee(null);
+            } else toast.error(data.error);
+        } catch (e) { console.error(e); }
+    };
+
+    const handleDownloadJHAPDF = async () => {
+        if (!selectedJHA) return;
+        setIsGeneratingJHAPDF(true);
+        try {
+            const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
+            const schedule = estimateSchedules.find(s => s._id === selectedJHA.schedule_id);
+            const variables: any = { ...selectedJHA, customerName: schedule?.customerName, date: selectedJHA.date || new Date().toLocaleDateString() };
+            const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ templateId, variables }) });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'JHA.pdf'; a.click();
+                toast.success('PDF Downloaded');
+            }
+        } catch (e) { console.error(e); } finally { setIsGeneratingJHAPDF(false); }
+    };
+
+    // --- DJT Handlers ---
+    const handleViewDJT = (djt: any) => {
+        setSelectedDJT({ ...djt, schedule_id: djt.schedule_id, signatures: djt.signatures || [] });
+        setIsDjtEditMode(false);
+        setDjtModalOpen(true);
+    };
+
+    const handleSaveDJT = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedDJT) return;
+        try {
+            const payload = { ...selectedDJT, schedule_id: selectedDJT.schedule_id || selectedDJT._id };
+            const res = await fetch('/api/djt', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'saveDJT', payload }) });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('DJT Saved');
+                setDjtModalOpen(false);
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to save DJT');
+        } catch (e) { console.error(e); toast.error('Error saving DJT'); }
+    };
+
+    const handleSaveDJTSignature = async (data: any) => {
+        if (!activeSignatureEmployee || !selectedDJT) return;
+        setIsSavingSignature(true);
+        try {
+            const payload = { schedule_id: selectedDJT.schedule_id, employee: activeSignatureEmployee, signature: typeof data === 'string' ? data : data.signature, createdBy: currentUser?.email, clientNow: getLocalNowISO() };
+            const res = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveDJTSignature', payload }) });
+            const json = await res.json();
+            if (json.success) {
+                setSelectedDJT((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), json.result] }));
+                setActiveSignatureEmployee(null);
+                toast.success('Signature Saved');
+            }
+        } catch (e) { console.error(e); } finally { setIsSavingSignature(false); }
+    };
+
+    const handleDownloadDJTPDF = async () => {
+        if (!selectedDJT) return;
+        setIsGeneratingDJTPDF(true);
+        try {
+            const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
+            const schedule = estimateSchedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
+            const variables: Record<string, any> = {
+                dailyJobDescription: selectedDJT.dailyJobDescription || '',
+                customerPrintName: selectedDJT.customerPrintName || '',
+                customerName: formData?.customerName || schedule?.customerName || '',
+                jobLocation: schedule?.jobLocation || '',
+                estimate: schedule?.estimate || '',
+                foremanName: schedule?.foremanName || '',
+                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString(),
+                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+            };
+            if (selectedDJT.customerSignature) variables['customerSignature'] = selectedDJT.customerSignature;
+            for (let i = 1; i <= 15; i++) { variables[`sig_name_${i}`] = ''; variables[`sig_img_${i}`] = ''; variables[`Print Name_${i}`] = ''; variables[`Times_${i}`] = ''; }
+            if (selectedDJT.signatures?.length > 0) {
+                selectedDJT.signatures.forEach((sig: any, index: number) => {
+                    const empName = normalizedEmployees.find(e => e.value === sig.employee)?.label || sig.employee;
+                    const idx = index + 1;
+                    variables[`sig_name_${idx}`] = empName;
+                    variables[`sig_img_${idx}`] = sig.signature;
+                    variables[`Print Name_${idx}`] = empName;
+                });
+            }
+            const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, variables }) });
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `DJT_${schedule?.customerName || 'Report'}.pdf`; a.click();
+                toast.success('DJT PDF downloaded');
+            }
+        } catch (e) { console.error(e); toast.error('Failed to download PDF'); } finally { setIsGeneratingDJTPDF(false); }
+    };
+
+    // --- Pothole Log Handlers ---
+    const handleViewPotholeLog = (log: any) => {
+        setSelectedPotholeLog(log);
+        setPotholeModalOpen(true);
+    };
+
+    const handleCreatePotholeLog = async () => {
+        if (!formData?.estimate) return;
+        try {
+            const item = {
+                ...newPotholeLog,
+                estimate: formData.estimate,
+                createdBy: currentUser?.email || ''
+            };
+            const res = await fetch('/api/pothole-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'createPotholeLog', payload: { item } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Pothole Log created');
+                setPotholeCreateOpen(false);
+                setNewPotholeLog({ date: format(new Date(), 'yyyy-MM-dd'), estimate: '', projectionLocation: '', potholeItems: [], createdBy: '' });
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to create');
+        } catch (e) { console.error(e); toast.error('Error creating pothole log'); }
+    };
+
+    // --- Pre-Bore Log Handlers ---
+    const handleViewPreBoreLog = (pb: any) => {
+        setSelectedPreBoreLog(pb);
+        setPreBoreModalOpen(true);
+    };
+
+    const handleCreatePreBoreLog = async () => {
+        if (!selectedScheduleForPreBore) { toast.error('Please select a schedule'); return; }
+        try {
+            const item = {
+                ...newPreBoreLog,
+                createdBy: currentUser?.email || '',
+                legacyId: `PB-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+            };
+            const res = await fetch('/api/pre-bore-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'createPreBoreLog', payload: { scheduleId: selectedScheduleForPreBore, item } })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Pre-Bore Log created');
+                setPreBoreCreateOpen(false);
+                setNewPreBoreLog({ date: format(new Date(), 'yyyy-MM-dd'), customerForeman: '', customerWorkRequestNumber: '', startTime: '', addressBoreStart: '', addressBoreEnd: '', devcoOperator: '', drillSize: '', pilotBoreSize: '', soilType: '', boreLength: '', pipeSize: '', preBoreLogs: [], createdBy: '' });
+                setSelectedScheduleForPreBore('');
+                refetchJobDocs();
+            } else toast.error(data.error || 'Failed to create');
+        } catch (e) { console.error(e); toast.error('Error creating pre-bore log'); }
+    };
 
     const prelimDocs = [
         '20 Day Prelim',
@@ -1779,6 +2160,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 pb-6">
+
+
 
 
                 {/* Column 0: Estimate Chat */}
@@ -3335,7 +3718,736 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                     </div>
                 </div>
+
             </div>
+
+            {/* Field Documents Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 pb-6">
+
+                {/* Column: JHA */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white flex items-center justify-center shadow-md">
+                            <AlertTriangle className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-orange-700">JHA</h4>
+                        <span className="text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-bold">
+                            {jhaRecords.length}
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {loadingJobDocs ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-orange-500" />
+                                </div>
+                            ) : jhaRecords.length > 0 ? jhaRecords.map((jha: any, idx: number) => {
+                                const creator = normalizedEmployees.find(e => e.value === jha.createdBy);
+                                const sigs = (jha.signatures || []).filter((s: any) => s.employee && s.signature);
+                                return (
+                                <div
+                                    key={jha._id || idx}
+                                    onClick={() => handleViewJHA(jha)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-orange-50/60 hover:shadow-md hover:border-orange-200 transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                {safeFormatDate(jha.date, 'MM/dd/yyyy')}
+                                            </p>
+                                            <p className="text-xs font-black text-slate-800 truncate">
+                                                {jha.scheduleRef?.title || jha.computedTitle || 'JHA Record'}
+                                            </p>
+                                        </div>
+                                        <Eye className="w-3.5 h-3.5 text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                        {jha.usaNo && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
+                                                USA #{jha.usaNo}
+                                            </span>
+                                        )}
+                                        <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                            {jha.jhaTime || '-'}
+                                        </span>
+                                    </div>
+                                    {/* Creator */}
+                                    <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
+                                        <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                            {creator?.image ? (
+                                                <img src={creator.image} className="w-full h-full object-cover" alt="" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
+                                                    {(creator?.label || jha.createdBy || '?')[0]?.toUpperCase()}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || jha.createdBy || '-'}</span>
+                                    </div>
+                                    {/* Signature Avatars */}
+                                    {sigs.length > 0 && (
+                                        <div className="flex items-center gap-1 mt-2">
+                                            <div className="flex -space-x-1.5">
+                                                {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
+                                                    const emp = normalizedEmployees.find(e => e.value === sig.employee);
+                                                    return (
+                                                        <div
+                                                            key={sIdx}
+                                                            className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
+                                                            title={emp?.label || sig.employee}
+                                                        >
+                                                            {emp?.image ? (
+                                                                <img src={emp.image} className="w-full h-full object-cover" alt="" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
+                                                                    {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {sigs.length > 6 && (
+                                                <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
+                                            )}
+                                            <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
+                                        </div>
+                                    )}
+                                </div>
+                                );
+                            }) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No JHA records</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column: Job Tickets */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-cyan-600 text-white flex items-center justify-center shadow-md">
+                            <Clipboard className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-cyan-700">Job Tickets</h4>
+                        <span className="text-[10px] bg-cyan-100 text-cyan-600 px-2 py-0.5 rounded-full font-bold">
+                            {jobTicketRecords.length}
+                        </span>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {loadingJobDocs ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
+                                </div>
+                            ) : jobTicketRecords.length > 0 ? jobTicketRecords.map((djt: any, idx: number) => (
+                                <div
+                                    key={djt._id || idx}
+                                    onClick={() => handleViewDJT(djt)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-cyan-50/60 hover:shadow-md hover:border-cyan-200 transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                {safeFormatDate(djt.createdAt, 'MM/dd/yyyy')}
+                                            </p>
+                                            <p className="text-xs font-black text-slate-800 truncate">
+                                                {djt.scheduleRef?.title || 'Job Ticket'}
+                                            </p>
+                                        </div>
+                                        <Eye className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    {djt.dailyJobDescription && (
+                                        <p className="text-[10px] text-slate-500 font-medium truncate mt-1">
+                                            {djt.dailyJobDescription}
+                                        </p>
+                                    )}
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                        {djt.djtCost > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                                ${(djt.djtCost || 0).toLocaleString()}
+                                            </span>
+                                        )}
+                                        {djt.signatures?.length > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-100">
+                                                {djt.signatures.length} Signed
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
+                                        <span className="text-[10px] text-slate-400 font-bold truncate">{djt.createdBy || '-'}</span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No job tickets</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column: Pothole Logs */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-rose-500 to-rose-600 text-white flex items-center justify-center shadow-md">
+                            <MapPin className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-rose-700">Pothole Logs</h4>
+                        <span className="text-[10px] bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full font-bold">
+                            {potholeLogRecords.length}
+                        </span>
+                        <button
+                            onClick={() => setPotholeCreateOpen(true)}
+                            className="ml-auto w-6 h-6 rounded-lg bg-rose-500 hover:bg-rose-600 text-white flex items-center justify-center transition-colors shadow-sm"
+                            title="Add Pothole Log"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {loadingJobDocs ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-rose-500" />
+                                </div>
+                            ) : potholeLogRecords.length > 0 ? potholeLogRecords.map((log: any, idx: number) => (
+                                <div
+                                    key={log._id || idx}
+                                    onClick={() => handleViewPotholeLog(log)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-rose-50/60 hover:shadow-md hover:border-rose-200 transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                {safeFormatDate(log.date, 'MM/dd/yyyy')}
+                                            </p>
+                                            <p className="text-xs font-black text-slate-800 truncate">
+                                                {log.projectionLocation || 'Pothole Log'}
+                                            </p>
+                                        </div>
+                                        <Eye className="w-3.5 h-3.5 text-rose-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                        <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-100">
+                                            {(log.potholeItems || []).length} Items
+                                        </span>
+                                        {log.locationOfPothole?.lat && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                                📍 GPS
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
+                                        <span className="text-[10px] text-slate-400 font-bold truncate">{log.createdBy || '-'}</span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No pothole logs</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Column: Pre-Bore Logs */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 text-white flex items-center justify-center shadow-md">
+                            <HardHat className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-indigo-700">Pre-Bore Logs</h4>
+                        <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
+                            {preBoreLogRecords.length}
+                        </span>
+                        <button
+                            onClick={() => setPreBoreCreateOpen(true)}
+                            className="ml-auto w-6 h-6 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white flex items-center justify-center transition-colors shadow-sm"
+                            title="Add Pre-Bore Log"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {loadingJobDocs ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
+                                </div>
+                            ) : preBoreLogRecords.length > 0 ? preBoreLogRecords.map((pb: any, idx: number) => (
+                                <div
+                                    key={pb.legacyId || pb._id || idx}
+                                    onClick={() => handleViewPreBoreLog(pb)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-indigo-50/60 hover:shadow-md hover:border-indigo-200 transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                {safeFormatDate(pb.date, 'MM/dd/yyyy')}
+                                            </p>
+                                            <p className="text-xs font-black text-slate-800 truncate">
+                                                {pb.scheduleTitle || pb.addressBoreStart || 'Pre-Bore Log'}
+                                            </p>
+                                        </div>
+                                        <Eye className="w-3.5 h-3.5 text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                        {pb.devcoOperator && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100">
+                                                {pb.devcoOperator}
+                                            </span>
+                                        )}
+                                        <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                            {(pb.preBoreLogs || []).length} Rods
+                                        </span>
+                                        {pb.boreLength && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                                {pb.boreLength} ft
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
+                                        <span className="text-[10px] text-slate-400 font-bold truncate">{pb.createdBy || pb.customerForeman || '-'}</span>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No pre-bore logs</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            {/* JHA Modal (reused from schedules) */}
+            <JHAModal
+                isOpen={jhaModalOpen}
+                onClose={() => setJhaModalOpen(false)}
+                selectedJHA={selectedJHA}
+                setSelectedJHA={setSelectedJHA}
+                isEditMode={isJhaEditMode}
+                setIsEditMode={setIsJhaEditMode}
+                schedules={estimateSchedules}
+                handleSave={handleSaveJHA}
+                initialData={{ employees: normalizedEmployees }}
+                handleSaveSignature={handleSaveJHASignature}
+                activeSignatureEmployee={activeSignatureEmployee}
+                setActiveSignatureEmployee={setActiveSignatureEmployee}
+                isGeneratingPDF={isGeneratingJHAPDF}
+                handleDownloadPDF={handleDownloadJHAPDF}
+                setEmailModalOpen={setEmailModalOpen}
+            />
+
+            {/* DJT Modal (reused from schedules) */}
+            <DJTModal
+                isOpen={djtModalOpen}
+                onClose={() => setDjtModalOpen(false)}
+                selectedDJT={selectedDJT}
+                setSelectedDJT={setSelectedDJT}
+                isEditMode={isDjtEditMode}
+                setIsEditMode={setIsDjtEditMode}
+                schedules={estimateSchedules}
+                handleSave={handleSaveDJT}
+                initialData={{ employees: normalizedEmployees, equipmentItems: [] }}
+                handleSaveSignature={handleSaveDJTSignature}
+                activeSignatureEmployee={activeSignatureEmployee}
+                setActiveSignatureEmployee={setActiveSignatureEmployee}
+                isSavingSignature={isSavingSignature}
+                isGeneratingPDF={isGeneratingDJTPDF}
+                handleDownloadPDF={handleDownloadDJTPDF}
+            />
+
+            {/* Pothole Log View Modal */}
+            <Modal
+                isOpen={potholeModalOpen}
+                onClose={() => { setPotholeModalOpen(false); setSelectedPotholeLog(null); }}
+                title="Pothole Log Details"
+                maxWidth="3xl"
+            >
+                {selectedPotholeLog && (
+                    <div className="space-y-6 p-2">
+                        {/* Header Info */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Date</p>
+                                <p className="text-sm font-bold text-slate-800">{safeFormatDate(selectedPotholeLog.date, 'MM/dd/yyyy')}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Estimate</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPotholeLog.estimate || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Location</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPotholeLog.projectionLocation || '-'}</p>
+                            </div>
+                            {selectedPotholeLog.locationOfPothole?.lat && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">GPS Coordinates</p>
+                                    <p className="text-sm font-bold text-slate-800">
+                                        {selectedPotholeLog.locationOfPothole.lat.toFixed(6)}, {selectedPotholeLog.locationOfPothole.lng.toFixed(6)}
+                                    </p>
+                                </div>
+                            )}
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Created By</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPotholeLog.createdBy || '-'}</p>
+                            </div>
+                        </div>
+
+                        {/* Pothole Items Table */}
+                        {selectedPotholeLog.potholeItems && selectedPotholeLog.potholeItems.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                    <MapPin className="w-4 h-4 text-rose-500" />
+                                    Pothole Items ({selectedPotholeLog.potholeItems.length})
+                                </h4>
+                                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-200">
+                                                <th className="text-left p-2 font-bold text-slate-600">Pothole #</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Type of Utility</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Soil Type</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Top Depth</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Bottom Depth</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Photos</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedPotholeLog.potholeItems.map((item: any, idx: number) => (
+                                                <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                                                    <td className="p-2 font-bold">{item.potholeNo || idx + 1}</td>
+                                                    <td className="p-2">{item.typeOfUtility || '-'}</td>
+                                                    <td className="p-2">{item.soilType || '-'}</td>
+                                                    <td className="p-2">{item.topDepthOfUtility || '-'}</td>
+                                                    <td className="p-2">{item.bottomDepthOfUtility || '-'}</td>
+                                                    <td className="p-2">
+                                                        <div className="flex gap-1">
+                                                            {item.photo1 && (
+                                                                <a href={item.photo1} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                                                                    <ImageIcon className="w-3.5 h-3.5" />
+                                                                </a>
+                                                            )}
+                                                            {item.photo2 && (
+                                                                <a href={item.photo2} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
+                                                                    <ImageIcon className="w-3.5 h-3.5" />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Modal>
+
+            {/* Pothole Log Create Modal */}
+            <Modal
+                isOpen={potholeCreateOpen}
+                onClose={() => setPotholeCreateOpen(false)}
+                title="Add Pothole Log"
+                maxWidth="lg"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setPotholeCreateOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreatePotholeLog} disabled={!newPotholeLog.date}>Create Pothole Log</Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4 p-2">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Date *</label>
+                            <Input
+                                type="date"
+                                value={newPotholeLog.date}
+                                onChange={(e) => setNewPotholeLog((prev: any) => ({ ...prev, date: e.target.value }))}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Projection Location</label>
+                            <Input
+                                value={newPotholeLog.projectionLocation}
+                                onChange={(e) => setNewPotholeLog((prev: any) => ({ ...prev, projectionLocation: e.target.value }))}
+                                placeholder="Enter location"
+                            />
+                        </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
+                        <p className="text-xs text-slate-500">
+                            <strong>Note:</strong> Pothole items can be added after creating the log.
+                        </p>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Pre-Bore Log View Modal */}
+            <Modal
+                isOpen={preBoreModalOpen}
+                onClose={() => { setPreBoreModalOpen(false); setSelectedPreBoreLog(null); }}
+                title="Pre-Bore Log Details"
+                maxWidth="4xl"
+            >
+                {selectedPreBoreLog && (
+                    <div className="space-y-6 p-2">
+                        {/* Header Info */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Date</p>
+                                <p className="text-sm font-bold text-slate-800">{safeFormatDate(selectedPreBoreLog.date, 'MM/dd/yyyy')}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Schedule</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.scheduleTitle || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Operator</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.devcoOperator || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Customer Foreman</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.customerForeman || '-'}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Start Time</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.startTime || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Address Bore Start</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.addressBoreStart || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Address Bore End</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.addressBoreEnd || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Work Request #</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.customerWorkRequestNumber || '-'}</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Drill Size</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.drillSize || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Pilot Bore Size</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.pilotBoreSize || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Soil Type</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.soilType || '-'}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Bore Length</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.boreLength || '-'} ft</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Pipe Size</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedPreBoreLog.pipeSize || '-'}</p>
+                            </div>
+                        </div>
+
+                        {/* Pre-Bore Rod Items Table */}
+                        {selectedPreBoreLog.preBoreLogs && selectedPreBoreLog.preBoreLogs.length > 0 && (
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+                                    <HardHat className="w-4 h-4 text-indigo-500" />
+                                    Rod Items ({selectedPreBoreLog.preBoreLogs.length})
+                                </h4>
+                                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                    <table className="w-full text-xs">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-200">
+                                                <th className="text-left p-2 font-bold text-slate-600">Rod #</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Distance</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Top Depth</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Bottom Depth</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Over/Under</th>
+                                                <th className="text-left p-2 font-bold text-slate-600">Existing Utilities</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedPreBoreLog.preBoreLogs.map((rod: any, idx: number) => (
+                                                <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
+                                                    <td className="p-2 font-bold">{rod.rodNumber || idx + 1}</td>
+                                                    <td className="p-2">{rod.distance || '-'}</td>
+                                                    <td className="p-2">{rod.topDepth || '-'}</td>
+                                                    <td className="p-2">{rod.bottomDepth || '-'}</td>
+                                                    <td className="p-2">{rod.overOrUnder || '-'}</td>
+                                                    <td className="p-2">{rod.existingUtilities || '-'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Signatures */}
+                        <div className="grid grid-cols-2 gap-4">
+                            {selectedPreBoreLog.foremanSignature && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Foreman Signature</p>
+                                    <img src={selectedPreBoreLog.foremanSignature} alt="Foreman Signature" className="max-h-16 rounded border border-slate-200" />
+                                </div>
+                            )}
+                            {selectedPreBoreLog.customerSignature && (
+                                <div>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Customer Signature</p>
+                                    <img src={selectedPreBoreLog.customerSignature} alt="Customer Signature" className="max-h-16 rounded border border-slate-200" />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Pre-Bore Log Create Modal */}
+            <Modal
+                isOpen={preBoreCreateOpen}
+                onClose={() => setPreBoreCreateOpen(false)}
+                title="Add Pre-Bore Log"
+                maxWidth="2xl"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setPreBoreCreateOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreatePreBoreLog} disabled={!selectedScheduleForPreBore || !newPreBoreLog.date}>Create Pre-Bore Log</Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4 p-2">
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Schedule *</label>
+                        <select
+                            value={selectedScheduleForPreBore}
+                            onChange={(e) => setSelectedScheduleForPreBore(e.target.value)}
+                            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                        >
+                            <option value="">Select a schedule...</option>
+                            {estimateSchedules.map((s: any) => (
+                                <option key={s._id} value={s._id}>{s.title || s.customerName || s._id}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Date *</label>
+                            <Input
+                                type="date"
+                                value={newPreBoreLog.date}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, date: e.target.value }))}
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Start Time</label>
+                            <Input
+                                type="time"
+                                value={newPreBoreLog.startTime}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, startTime: e.target.value }))}
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Customer Foreman</label>
+                            <Input
+                                value={newPreBoreLog.customerForeman}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, customerForeman: e.target.value }))}
+                                placeholder="Customer foreman name"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Devco Operator</label>
+                            <Input
+                                value={newPreBoreLog.devcoOperator}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, devcoOperator: e.target.value }))}
+                                placeholder="Devco operator name"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Address Bore Start</label>
+                            <Input
+                                value={newPreBoreLog.addressBoreStart}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, addressBoreStart: e.target.value }))}
+                                placeholder="Starting address"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Address Bore End</label>
+                            <Input
+                                value={newPreBoreLog.addressBoreEnd}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, addressBoreEnd: e.target.value }))}
+                                placeholder="Ending address"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Drill Size</label>
+                            <Input
+                                value={newPreBoreLog.drillSize}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, drillSize: e.target.value }))}
+                                placeholder="e.g. 4&quot;"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Pilot Bore Size</label>
+                            <Input
+                                value={newPreBoreLog.pilotBoreSize}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, pilotBoreSize: e.target.value }))}
+                                placeholder="e.g. 2&quot;"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Bore Length</label>
+                            <Input
+                                value={newPreBoreLog.boreLength}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, boreLength: e.target.value }))}
+                                placeholder="In feet"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Soil Type</label>
+                            <Input
+                                value={newPreBoreLog.soilType}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, soilType: e.target.value }))}
+                                placeholder="e.g. Clay"
+                            />
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Pipe Size</label>
+                            <Input
+                                value={newPreBoreLog.pipeSize}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, pipeSize: e.target.value }))}
+                                placeholder="e.g. 2&quot;"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-600 mb-1 block">Work Request #</label>
+                            <Input
+                                value={newPreBoreLog.customerWorkRequestNumber}
+                                onChange={(e) => setNewPreBoreLog((prev: any) => ({ ...prev, customerWorkRequestNumber: e.target.value }))}
+                                placeholder="Customer work request number"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </Modal>
 
             {/* Add Signed Contract Modal */}
             <Modal
