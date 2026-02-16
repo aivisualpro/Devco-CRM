@@ -98,6 +98,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [preBoreLogRecords, setPreBoreLogRecords] = useState<any[]>([]);
     const [loadingJobDocs, setLoadingJobDocs] = useState(false);
     const [estimateSchedules, setEstimateSchedules] = useState<any[]>([]);
+    const [equipmentItems, setEquipmentItems] = useState<any[]>([]);
 
     // JHA Modal State
     const [jhaModalOpen, setJhaModalOpen] = useState(false);
@@ -309,6 +310,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 );
                 setEstimateSchedules(filteredSchedules);
                 const scheduleIds = filteredSchedules.map((s: any) => String(s._id));
+
+                // Fetch equipment items for DJT modal
+                const initRes = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getInitialData', payload: {} })
+                });
+                const initData = await initRes.json();
+                if (initData.success && initData.result?.equipmentItems) {
+                    setEquipmentItems(initData.result.equipmentItems);
+                }
 
                 // 2. Fetch JHA records for these schedules
                 const jhaRes = await fetch('/api/jha', {
@@ -4049,7 +4061,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 setIsEditMode={setIsDjtEditMode}
                 schedules={estimateSchedules}
                 handleSave={handleSaveDJT}
-                initialData={{ employees: normalizedEmployees, equipmentItems: [] }}
+                initialData={{ employees: normalizedEmployees, equipmentItems }}
                 handleSaveSignature={handleSaveDJTSignature}
                 activeSignatureEmployee={activeSignatureEmployee}
                 setActiveSignatureEmployee={setActiveSignatureEmployee}
