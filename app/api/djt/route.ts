@@ -15,7 +15,17 @@ export async function POST(request: NextRequest) {
 // ...
             case 'saveDJT': {
                 const djtData = payload;
-                const idToUse = djtData._id || new mongoose.Types.ObjectId().toString();
+                
+                // CRITICAL: Prevent duplicate DJTs per schedule.
+                // If no _id is provided, check if a DJT already exists for this schedule_id.
+                // This prevents creating a new document every time a new DJT form is saved.
+                let idToUse = djtData._id;
+                if (!idToUse && djtData.schedule_id) {
+                    const existing = await DailyJobTicket.findOne({ schedule_id: djtData.schedule_id }, { _id: 1 }).lean();
+                    idToUse = existing ? String(existing._id) : new mongoose.Types.ObjectId().toString();
+                } else if (!idToUse) {
+                    idToUse = new mongoose.Types.ObjectId().toString();
+                }
 
                 // Calculate Cost - Sum of owned equipment costs only
                 let totalCost = 0;
