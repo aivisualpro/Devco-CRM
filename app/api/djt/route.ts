@@ -132,12 +132,17 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getDJTs': {
-                const { page = 1, limit = 20, search = '', scheduleIds: filterScheduleIds } = payload;
+                const { page = 1, limit = 20, search = '', scheduleIds: filterScheduleIds, estimate: filterEstimate } = payload;
                 const skip = (page - 1) * limit;
 
-                // Build base query - optionally filter by scheduleIds
+                // Build base query - optionally filter by scheduleIds or estimate
                 const baseQuery: any = {};
-                if (filterScheduleIds && Array.isArray(filterScheduleIds) && filterScheduleIds.length > 0) {
+                if (filterEstimate) {
+                    // Look up all schedule IDs for this estimate, then filter DJTs by those
+                    const estSchedules = await Schedule.find({ estimate: filterEstimate }, { _id: 1 }).lean();
+                    const estScheduleIds = estSchedules.map((s: any) => String(s._id));
+                    baseQuery.schedule_id = { $in: estScheduleIds };
+                } else if (filterScheduleIds && Array.isArray(filterScheduleIds) && filterScheduleIds.length > 0) {
                     baseQuery.schedule_id = { $in: filterScheduleIds };
                 }
 

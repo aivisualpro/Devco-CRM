@@ -336,11 +336,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     setJhaRecords(filtered);
                 }
 
-                // 3. Fetch DJT (Job Tickets) for these schedules (pass scheduleIds to API for precise filtering)
+                // 3. Fetch DJT (Job Tickets) for this estimate (API looks up schedules internally)
                 const djtRes = await fetch('/api/djt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, scheduleIds } })
+                    body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } })
                 });
                 const djtData = await djtRes.json();
                 if (djtData.success && djtData.result?.djts) {
@@ -407,7 +407,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             const jhaData = await jhaRes.json();
             if (jhaData.success && jhaData.result?.jhas) setJhaRecords(jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || ''))));
 
-            const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, scheduleIds } }) });
+            const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, estimate: formData.estimate } }) });
             const djtData = await djtRes.json();
             if (djtData.success && djtData.result?.djts) {
                 setJobTicketRecords(Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values()));
