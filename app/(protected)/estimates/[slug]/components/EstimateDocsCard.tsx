@@ -3884,6 +3884,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' })
                                                     : safeFormatDate(djt.createdAt, 'MM/dd/yyyy')
                                                 }
+                                                {djt.schedule_id && (
+                                                    <span className="text-slate-300 ml-1.5">· {djt.schedule_id}</span>
+                                                )}
                                             </p>
                                             <p className="text-xs font-black text-slate-800 truncate">
                                                 {djt.scheduleRef?.title || 'Job Ticket'}
