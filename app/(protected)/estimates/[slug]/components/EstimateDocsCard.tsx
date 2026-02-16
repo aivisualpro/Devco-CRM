@@ -3880,7 +3880,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <div className="flex justify-between items-start mb-1">
                                         <div className="flex-1 min-w-0">
                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {safeFormatDate(djt.createdAt, 'MM/dd/yyyy')}
+                                                {(djt.date || djt.scheduleRef?.fromDate) 
+                                                    ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' })
+                                                    : safeFormatDate(djt.createdAt, 'MM/dd/yyyy')
+                                                }
                                             </p>
                                             <p className="text-xs font-black text-slate-800 truncate">
                                                 {djt.scheduleRef?.title || 'Job Ticket'}
