@@ -347,7 +347,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     const filtered = djtData.result.djts.filter(
                         (d: any) => scheduleIds.includes(String(d.schedule_id || ''))
                     );
-                    setJobTicketRecords(filtered);
+                    // Deduplicate by _id
+                    const uniqueDjts = Array.from(new Map(filtered.map((d: any) => [String(d._id), d])).values());
+                    setJobTicketRecords(uniqueDjts);
                 }
 
                 // 4. Fetch Pothole Logs (directly by estimate)
@@ -410,7 +412,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
             const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500 } }) });
             const djtData = await djtRes.json();
-            if (djtData.success && djtData.result?.djts) setJobTicketRecords(djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || ''))));
+            if (djtData.success && djtData.result?.djts) {
+                const filtered = djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || '')));
+                setJobTicketRecords(Array.from(new Map(filtered.map((d: any) => [String(d._id), d])).values()));
+            }
 
             const phRes = await fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) });
             const phData = await phRes.json();
@@ -3854,7 +3859,19 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <div className="flex items-center justify-center py-8">
                                     <Loader2 className="w-5 h-5 animate-spin text-cyan-500" />
                                 </div>
-                            ) : jobTicketRecords.length > 0 ? jobTicketRecords.map((djt: any, idx: number) => (
+                            ) : jobTicketRecords.length > 0 ? jobTicketRecords.map((djt: any, idx: number) => {
+                                const creator = normalizedEmployees.find(e => e.value === djt.createdBy);
+                                const sigs = (djt.signatures || []).filter((s: any) => s.employee && s.signature);
+                                // Equipment cost: owned only
+                                const eqCost = (djt.equipmentUsed || []).reduce((sum: number, eq: any) => {
+                                    if (eq.type?.toLowerCase() === 'owned') {
+                                        return sum + (Number(eq.qty) || 0) * (Number(eq.cost) || 0);
+                                    }
+                                    return sum;
+                                }, 0);
+                                const ownedCount = (djt.equipmentUsed || []).filter((eq: any) => eq.type?.toLowerCase() === 'owned').length;
+                                const rentalCount = (djt.equipmentUsed || []).filter((eq: any) => eq.type?.toLowerCase() === 'rental').length;
+                                return (
                                 <div
                                     key={djt._id || idx}
                                     onClick={() => handleViewDJT(djt)}
@@ -3876,23 +3893,91 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             {djt.dailyJobDescription}
                                         </p>
                                     )}
+                                    {/* Cost Badges */}
                                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                        {eqCost > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title="Equipment (Owned)">
+                                                🔧 ${eqCost.toLocaleString()}
+                                            </span>
+                                        )}
                                         {djt.djtCost > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                ${(djt.djtCost || 0).toLocaleString()}
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100" title="Total Cost">
+                                                💰 ${(djt.djtCost || 0).toLocaleString()}
                                             </span>
                                         )}
-                                        {djt.signatures?.length > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-100">
-                                                {djt.signatures.length} Signed
+                                        {ownedCount > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                                                {ownedCount} Owned
+                                            </span>
+                                        )}
+                                        {rentalCount > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
+                                                {rentalCount} Rental
                                             </span>
                                         )}
                                     </div>
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
-                                        <span className="text-[10px] text-slate-400 font-bold truncate">{djt.createdBy || '-'}</span>
+                                    {/* Equipment Names */}
+                                    {(djt.equipmentUsed || []).length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1.5">
+                                            {(djt.equipmentUsed || []).slice(0, 3).map((eq: any, eIdx: number) => {
+                                                const eqName = equipmentItems.find(e => String(e.value) === String(eq.equipment))?.label || eq.equipment;
+                                                return (
+                                                    <span key={eIdx} className="text-[7px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100 truncate max-w-[120px]" title={eqName}>
+                                                        {eqName}
+                                                    </span>
+                                                );
+                                            })}
+                                            {(djt.equipmentUsed || []).length > 3 && (
+                                                <span className="text-[7px] font-bold text-slate-400">+{(djt.equipmentUsed || []).length - 3}</span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {/* Creator */}
+                                    <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
+                                        <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                            {creator?.image ? (
+                                                <img src={creator.image} className="w-full h-full object-cover" alt="" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
+                                                    {(creator?.label || djt.createdBy || '?')[0]?.toUpperCase()}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || djt.createdBy || '-'}</span>
                                     </div>
+                                    {/* Signature Avatars */}
+                                    {sigs.length > 0 && (
+                                        <div className="flex items-center gap-1 mt-2">
+                                            <div className="flex -space-x-1.5">
+                                                {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
+                                                    const emp = normalizedEmployees.find(e => e.value === sig.employee);
+                                                    return (
+                                                        <div
+                                                            key={sIdx}
+                                                            className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
+                                                            title={emp?.label || sig.employee}
+                                                        >
+                                                            {emp?.image ? (
+                                                                <img src={emp.image} className="w-full h-full object-cover" alt="" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
+                                                                    {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
+                                                                </div>
+                                                            )}
+                                                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                            {sigs.length > 6 && (
+                                                <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
+                                            )}
+                                            <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
+                                        </div>
+                                    )}
                                 </div>
-                            )) : (
+                                );
+                            }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No job tickets</p>
                             )}
                         </div>
