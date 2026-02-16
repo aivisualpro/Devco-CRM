@@ -347,8 +347,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     const filtered = djtData.result.djts.filter(
                         (d: any) => scheduleIds.includes(String(d.schedule_id || ''))
                     );
-                    // Deduplicate by _id
-                    const uniqueDjts = Array.from(new Map(filtered.map((d: any) => [String(d._id), d])).values());
+                    // Deduplicate by schedule_id (keep first/latest per schedule)
+                    const uniqueDjts = Array.from(new Map(filtered.map((d: any) => [String(d.schedule_id), d])).values());
                     setJobTicketRecords(uniqueDjts);
                 }
 
@@ -414,7 +414,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             const djtData = await djtRes.json();
             if (djtData.success && djtData.result?.djts) {
                 const filtered = djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || '')));
-                setJobTicketRecords(Array.from(new Map(filtered.map((d: any) => [String(d._id), d])).values()));
+                setJobTicketRecords(Array.from(new Map(filtered.map((d: any) => [String(d.schedule_id), d])).values()));
             }
 
             const phRes = await fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) });
