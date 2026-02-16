@@ -336,19 +336,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     setJhaRecords(filtered);
                 }
 
-                // 3. Fetch DJT (Job Tickets) for these schedules  
+                // 3. Fetch DJT (Job Tickets) for these schedules (pass scheduleIds to API for precise filtering)
                 const djtRes = await fetch('/api/djt', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500 } })
+                    body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, scheduleIds } })
                 });
                 const djtData = await djtRes.json();
                 if (djtData.success && djtData.result?.djts) {
-                    const filtered = djtData.result.djts.filter(
-                        (d: any) => scheduleIds.includes(String(d.schedule_id || ''))
-                    );
                     // Deduplicate by schedule_id (keep first/latest per schedule)
-                    const uniqueDjts = Array.from(new Map(filtered.map((d: any) => [String(d.schedule_id), d])).values());
+                    const uniqueDjts = Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values());
                     setJobTicketRecords(uniqueDjts);
                 }
 
@@ -410,11 +407,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             const jhaData = await jhaRes.json();
             if (jhaData.success && jhaData.result?.jhas) setJhaRecords(jhaData.result.jhas.filter((j: any) => scheduleIds.includes(String(j.schedule_id || ''))));
 
-            const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500 } }) });
+            const djtRes = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getDJTs', payload: { page: 1, limit: 500, scheduleIds } }) });
             const djtData = await djtRes.json();
             if (djtData.success && djtData.result?.djts) {
-                const filtered = djtData.result.djts.filter((d: any) => scheduleIds.includes(String(d.schedule_id || '')));
-                setJobTicketRecords(Array.from(new Map(filtered.map((d: any) => [String(d.schedule_id), d])).values()));
+                setJobTicketRecords(Array.from(new Map(djtData.result.djts.map((d: any) => [String(d.schedule_id), d])).values()));
             }
 
             const phRes = await fetch('/api/pothole-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getPotholeLogs', payload: { estimate: formData.estimate } }) });

@@ -132,13 +132,19 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getDJTs': {
-                const { page = 1, limit = 20, search = '' } = payload;
+                const { page = 1, limit = 20, search = '', scheduleIds: filterScheduleIds } = payload;
                 const skip = (page - 1) * limit;
+
+                // Build base query - optionally filter by scheduleIds
+                const baseQuery: any = {};
+                if (filterScheduleIds && Array.isArray(filterScheduleIds) && filterScheduleIds.length > 0) {
+                    baseQuery.schedule_id = { $in: filterScheduleIds };
+                }
 
                 if (!search) {
                     // OPTIMIZED PATH: No Search - fast find + manual join
-                    const totalPromise = DailyJobTicket.countDocuments({});
-                    const djts = await DailyJobTicket.find({})
+                    const totalPromise = DailyJobTicket.countDocuments(baseQuery);
+                    const djts = await DailyJobTicket.find(baseQuery)
                         .sort({ date: -1, createdAt: -1 })
                         .skip(skip)
                         .limit(limit)
