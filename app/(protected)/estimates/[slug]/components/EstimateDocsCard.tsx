@@ -1348,12 +1348,25 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (e) e.preventDefault();
         if (!newChatMessage.trim() || !formData?.estimate) return;
 
+        const messageText = newChatMessage;
+
+        // Build assignees with name lookup (chatAssignees is string[] of emails here)
+        const safeAssignees = chatAssignees.map(email => {
+            const emp = employees.find((e: any) => 
+                (e.value || e.email || '')?.toLowerCase() === email.toLowerCase()
+            );
+            return {
+                email,
+                name: emp?.label || `${emp?.firstName || ''} ${emp?.lastName || ''}`.trim() || email
+            };
+        }).filter(a => a.email);
+
         const optimisticMsg = {
             _id: `temp-${Date.now()}`,
-            sender: currentUser?.email || 'Me', // Fallback
+            sender: currentUser?.email || 'Me',
             senderName: currentUser?.email || 'Me',
-            message: newChatMessage,
-            assignees: chatAssignees,
+            message: messageText,
+            assignees: safeAssignees,
             createdAt: new Date().toISOString()
         };
 
@@ -1373,7 +1386,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 body: JSON.stringify({
                     message: optimisticMsg.message,
                     estimate: formData.estimate,
-                    assignees: chatAssignees,
+                    assignees: safeAssignees,
                     replyTo: replyingTo ? {
                         _id: replyingTo._id,
                         sender: replyingTo.sender,
@@ -1382,7 +1395,34 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 })
             });
             setReplyingTo(null);
-            // fetchChat will sync eventual ID
+
+            // Auto-create a To Do task if employees were tagged (same as Dashboard)
+            if (safeAssignees.length > 0) {
+                try {
+                    const taskRes = await fetch('/api/tasks', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            task: messageText.replace(/@\S+/g, '').replace(/#\S+/g, '').trim() || messageText,
+                            status: 'todo',
+                            assignees: safeAssignees.map((a: any) => a.email),
+                            createdBy: currentUser?.email || 'System',
+                            estimate: formData.estimate,
+                            customerId: formData.customerId || '',
+                            customerName: formData.customerName || '',
+                            jobAddress: formData.jobAddress || ''
+                        })
+                    });
+                    if (taskRes.ok) {
+                        const taskData = await taskRes.json();
+                        if (taskData.task) {
+                            toast.success('Task created for assigned employees');
+                        }
+                    }
+                } catch (taskErr) {
+                    console.error('Auto-task creation failed:', taskErr);
+                }
+            }
         } catch (error) {
             console.error('Failed to send', error);
             toast.error('Failed to send message');
