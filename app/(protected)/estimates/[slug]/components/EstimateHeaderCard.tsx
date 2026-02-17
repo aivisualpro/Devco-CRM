@@ -311,7 +311,7 @@ export function EstimateHeaderCard({
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                router.push(`/clients/${formData.customerId}?from=${encodeURIComponent(window.location.pathname)}`);
+                                                window.open(`/clients/${formData.customerId}`, '_blank');
                                             }}
                                             className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
                                         >
