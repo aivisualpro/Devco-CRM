@@ -223,8 +223,12 @@ export async function POST(request: NextRequest) {
             }
 
             case 'createSchedule': {
+                // Schema uses _id: String, so Mongoose can't auto-generate — provide one if missing
+                const { _id: providedId, ...createData } = payload || {};
+                const scheduleId = providedId || new mongoose.Types.ObjectId().toString();
                 const doc = await Schedule.create({
-                    ...payload,
+                    ...createData,
+                    _id: scheduleId,
                     syncedToAppSheet: true,
                     createdAt: new Date(),
                     updatedAt: new Date()

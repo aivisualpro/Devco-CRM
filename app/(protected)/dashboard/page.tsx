@@ -3190,12 +3190,17 @@ function DashboardContent() {
                                     <div className="flex items-center gap-2">
                                         <button
                                             onClick={() => {
-                                                const now = getLocalNowISO();
+                                                const today = new Date();
+                                                const y = today.getFullYear();
+                                                const m = String(today.getMonth() + 1).padStart(2, '0');
+                                                const d = String(today.getDate()).padStart(2, '0');
+                                                const fromDate = `${y}-${m}-${d}T09:00:00.000Z`;
+                                                const toDate = `${y}-${m}-${d}T17:00:00.000Z`;
                                                 const dayOffSchedule: any = {
                                                     item: 'Day Off',
                                                     title: 'Day Off',
-                                                    fromDate: now,
-                                                    toDate: now,
+                                                    fromDate,
+                                                    toDate,
                                                     assignees: [userEmail],
                                                     description: '',
                                                     isDayOffApproved: false,
