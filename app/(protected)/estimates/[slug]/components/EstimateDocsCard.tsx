@@ -2287,13 +2287,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         const AssigneesAvatars = (
                                             <div className="flex -space-x-1.5 overflow-hidden">
                                                 {msg.assignees && msg.assignees.length > 0 ? (
-                                                    msg.assignees.map((email: string, aIdx: number) => {
+                                                    msg.assignees.map((assignee: any, aIdx: number) => {
+                                                        // Handle both string (email) and object ({email, name}) formats
+                                                        const email = typeof assignee === 'string' ? assignee : assignee?.email || '';
                                                         const assEmp = employees.find(e => 
                                                             e.email?.toLowerCase() === email?.toLowerCase() || 
                                                             e._id === email ||
                                                             e.value?.toLowerCase() === email?.toLowerCase()
                                                         );
-                                                        const assName = assEmp?.label || assEmp?.firstName || email || 'U';
+                                                        const assName = assEmp?.label || assEmp?.firstName || (typeof assignee === 'object' ? assignee?.name : null) || email || 'U';
                                                         return (
                                                             <Tooltip key={aIdx}>
                                                                 <TooltipTrigger asChild>
