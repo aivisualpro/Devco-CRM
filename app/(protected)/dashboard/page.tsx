@@ -11,7 +11,7 @@ import {
     Trash2, Edit, Copy, Shield, ShieldCheck, FilePlus, FileCheck, 
     Car, StopCircle, Droplets, Warehouse, Circle, ClipboardList,
     Mail, Loader2, Activity as ActivityIcon, ChevronDown, Truck, Download,
-    Reply, Forward, Trash
+    Reply, Forward, Trash, CalendarOff
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header, Badge, Input, Modal, Button, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, Table, TableHead, TableBody, TableRow, TableHeader, TableCell, SearchableSelect, MyDropDown, Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui';
@@ -1155,6 +1155,7 @@ function DashboardContent() {
     const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
     const [deleteScheduleId, setDeleteScheduleId] = useState<string | null>(null);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [isDayOffMode, setIsDayOffMode] = useState(false);
 
     // Action Confirmation State (for Drive Time, Dump Washout, Shop Time)
     const [inputValue, setInputValue] = useState('');
@@ -3187,6 +3188,40 @@ function DashboardContent() {
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={() => {
+                                                const now = getLocalNowISO();
+                                                const dayOffSchedule: any = {
+                                                    item: 'Day Off',
+                                                    title: 'Day Off',
+                                                    fromDate: now,
+                                                    toDate: now,
+                                                    assignees: [userEmail],
+                                                    description: '',
+                                                    isDayOffApproved: false,
+                                                    customerId: '',
+                                                    customerName: '',
+                                                    estimate: '',
+                                                    jobLocation: '',
+                                                    projectManager: '',
+                                                    foremanName: '',
+                                                    service: '',
+                                                    fringe: '',
+                                                    certifiedPayroll: false,
+                                                    notifyAssignees: false,
+                                                    perDiem: false,
+                                                    createdBy: userEmail,
+                                                };
+                                                setEditingSchedule(dayOffSchedule);
+                                                setIsDayOffMode(true);
+                                                setEditScheduleOpen(true);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] lg:text-xs font-bold rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95"
+                                        >
+                                            <CalendarOff size={14} />
+                                            <span className="hidden sm:inline">Request Time Off</span>
+                                            <span className="sm:hidden">Time Off</span>
+                                        </button>
                                         {upcomingSchedulesScope === 'all' && (
                                             <div className="flex bg-slate-200/50 lg:bg-slate-100 rounded-lg p-0.5">
                                                 <button 
@@ -4597,6 +4632,7 @@ function DashboardContent() {
                 onClose={() => {
                     setEditScheduleOpen(false);
                     setEditingSchedule(null);
+                    setIsDayOffMode(false);
                 }}
                 schedule={editingSchedule}
                 initialData={initialData}
@@ -4607,6 +4643,8 @@ function DashboardContent() {
                         setSchedules(prev => prev.map(s => s._id === savedSchedule._id ? savedSchedule : s));
                     }
                 }}
+                isDayOffRequest={isDayOffMode}
+                canApprove={isSuperAdmin || user?.role === 'Admin'}
             />
 
             {/* Confirm Delete Schedule */}

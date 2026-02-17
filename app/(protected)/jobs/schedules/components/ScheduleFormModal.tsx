@@ -24,6 +24,8 @@ interface ScheduleFormModalProps {
         estimates: any[];
     };
     onSave: (schedule: ScheduleItem, isNew: boolean) => void;
+    isDayOffRequest?: boolean;
+    canApprove?: boolean;
 }
 
 function formatLocalDateTime(dateStr: string): string {
@@ -44,7 +46,7 @@ function formatLocalDateTime(dateStr: string): string {
     }
 }
 
-export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSave }: ScheduleFormModalProps) {
+export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSave, isDayOffRequest = false, canApprove = true }: ScheduleFormModalProps) {
     const { success, error: toastError } = useToast();
     const [editingItem, setEditingItem] = useState<any>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -109,27 +111,36 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                     {/* Row 1: Tag, From Date, To Date */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-2">
-                            <SearchableSelect
-                                id="schedTag"
-                                label="Tag"
-                                placeholder="Select Tag"
-                                disableBlank={true}
-                                options={initialData.constants.filter((c: any) => c.type === 'Schedule Items').map((c: any) => ({
-                                    label: c.description,
-                                    value: c.description,
-                                    image: c.image,
-                                    color: c.color
-                                }))}
-                                value={editingItem?.item || ''}
-                                onChange={(val) => {
-                                    const updates: any = { item: val };
-                                    if (val === 'Day Off') {
-                                        updates.title = 'Day Off';
-                                    }
-                                    setEditingItem((prev: any) => ({ ...prev, ...updates }));
-                                }}
-                                onNext={() => {}}
-                            />
+                            {isDayOffRequest ? (
+                                <>
+                                    <label className="block text-sm font-bold text-slate-900">Tag</label>
+                                    <div className="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 font-medium cursor-not-allowed">
+                                        Day Off
+                                    </div>
+                                </>
+                            ) : (
+                                <SearchableSelect
+                                    id="schedTag"
+                                    label="Tag"
+                                    placeholder="Select Tag"
+                                    disableBlank={true}
+                                    options={initialData.constants.filter((c: any) => c.type === 'Schedule Items').map((c: any) => ({
+                                        label: c.description,
+                                        value: c.description,
+                                        image: c.image,
+                                        color: c.color
+                                    }))}
+                                    value={editingItem?.item || ''}
+                                    onChange={(val) => {
+                                        const updates: any = { item: val };
+                                        if (val === 'Day Off') {
+                                            updates.title = 'Day Off';
+                                        }
+                                        setEditingItem((prev: any) => ({ ...prev, ...updates }));
+                                    }}
+                                    onNext={() => {}}
+                                />
+                            )}
                         </div>
                         <div className="space-y-2">
                             <label className="block text-sm font-bold text-slate-900">From Date & Time</label>
@@ -264,13 +275,18 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
 
                         {editingItem?.item === 'Day Off' && (
                             <div className="flex items-center h-[42px] mt-7">
-                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                <label className={`flex items-center gap-2 select-none ${canApprove ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'}`}>
                                     <div className="relative flex items-center">
                                         <input 
                                             type="checkbox" 
-                                            className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 hover:border-slate-400 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1"
+                                            className={`peer h-5 w-5 appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1 ${canApprove ? 'cursor-pointer hover:border-slate-400' : 'cursor-not-allowed'}`}
                                             checked={editingItem?.isDayOffApproved === true}
-                                            onChange={(e) => setEditingItem({...editingItem, isDayOffApproved: e.target.checked})}
+                                            onChange={(e) => {
+                                                if (canApprove) {
+                                                    setEditingItem({...editingItem, isDayOffApproved: e.target.checked});
+                                                }
+                                            }}
+                                            disabled={!canApprove}
                                         />
                                         <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor" stroke="currentColor" strokeWidth="1">
@@ -279,6 +295,7 @@ export function ScheduleFormModal({ isOpen, onClose, schedule, initialData, onSa
                                         </div>
                                     </div>
                                     <span className="text-sm font-bold text-slate-700">Approved</span>
+                                    {!canApprove && <span className="text-[10px] text-slate-400 italic">(Admin only)</span>}
                                 </label>
                             </div>
                         )}
