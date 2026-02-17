@@ -1366,7 +1366,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             sender: currentUser?.email || 'Me',
             senderName: currentUser?.email || 'Me',
             message: messageText,
-            assignees: safeAssignees,
+            assignees: safeAssignees.map(a => a.email), // Keep as string[] for chat renderer
             createdAt: new Date().toISOString()
         };
 
