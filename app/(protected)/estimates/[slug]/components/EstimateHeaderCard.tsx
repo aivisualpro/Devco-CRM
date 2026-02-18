@@ -1085,11 +1085,6 @@ export function EstimateHeaderCard({
                                                 toast.error("Please select a Fringe Rate first.");
                                                 return;
                                             }
-                                            const contracts = (formData as any).signedContracts;
-                                            if (!contracts || !Array.isArray(contracts) || contracts.length === 0) {
-                                                toast.error("Please upload a Signed Contract first.");
-                                                return;
-                                            }
                                             setIsConfirmWonModalOpen(true);
                                             setActiveDropdown(null);
                                             return;
