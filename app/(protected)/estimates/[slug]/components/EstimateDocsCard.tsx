@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye } from 'lucide-react';
+import { FileText, Shield, ChevronRight, Loader2, Download, Upload, Layout, FileCheck, Receipt, Plus, Trash2, Calendar, DollarSign, Paperclip, X, Image as ImageIcon, Check, Pencil, User, ChevronDown, MessageSquare, Send, Reply, Forward, AlertTriangle, Clipboard, MapPin, HardHat, Eye, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Modal, Input, Button, ConfirmModal, MyDropDown, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, FileDropZone } from '@/components/ui';
 import type { UploadedFile } from '@/components/ui';
@@ -3534,25 +3534,33 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     </div>
 
                                     {item.documents && item.documents.length > 0 && (
-                                        <div className="flex items-center gap-1.5 mt-2.5">
-                                            <div className="flex -space-x-1.5">
-                                                {item.documents.slice(0, 3).map((doc: any, dIdx: number) => (
-                                                    <button 
-                                                        key={dIdx} 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleFileDownload(doc.url, doc.name);
-                                                        }}
-                                                        className="w-5 h-5 rounded-full bg-violet-50 border border-white flex items-center justify-center shadow-sm hover:bg-violet-100 hover:border-violet-200 hover:scale-110 transition-all duration-200 z-10"
-                                                        title={`Download ${doc.name}`}
-                                                    >
-                                                        <Paperclip className="w-2.5 h-2.5 text-violet-600" />
-                                                    </button>
-                                                ))}
-                                            </div>
-                                            <span className="text-[8px] font-bold text-slate-400">
-                                                {item.documents.length} item{item.documents.length !== 1 ? 's' : ''}
-                                            </span>
+                                        <div className="mt-2.5 pt-2 border-t border-violet-100/60 space-y-1.5">
+                                            {item.documents.map((doc: any, dIdx: number) => (
+                                                <button
+                                                    key={dIdx}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleFileDownload(doc.url, doc.name);
+                                                    }}
+                                                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg bg-violet-50/70 hover:bg-violet-100 border border-violet-100/50 hover:border-violet-200 transition-all duration-200 group/doc text-left"
+                                                    title={doc.name}
+                                                >
+                                                    <div className="w-6 h-6 rounded-md bg-violet-100 group-hover/doc:bg-violet-200 flex items-center justify-center flex-shrink-0 transition-colors">
+                                                        <Paperclip className="w-3 h-3 text-violet-600" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[10px] font-bold text-violet-800 truncate leading-tight">
+                                                            {doc.name || `Attachment ${dIdx + 1}`}
+                                                        </p>
+                                                        {doc.uploadedAt && (
+                                                            <p className="text-[8px] text-violet-400 leading-tight">
+                                                                {new Date(doc.uploadedAt).toLocaleDateString()}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <ExternalLink className="w-3 h-3 text-violet-300 group-hover/doc:text-violet-600 flex-shrink-0 transition-colors" />
+                                                </button>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
