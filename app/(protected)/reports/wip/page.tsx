@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Header from '@/components/ui/Header';
 import { BadgeTabs } from '@/components/ui/Tabs';
@@ -128,8 +128,10 @@ function WIPReportContent() {
     };
     const [endDateFilter, setEndDateFilter] = useState('All');
     const [dateRangeFilter, setDateRangeFilter] = useState<string>('all');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(20);
+    const ITEMS_PER_BATCH = 20;
+    const [visibleCount, setVisibleCount] = useState(ITEMS_PER_BATCH);
+    const sentinelRef = useRef<HTMLTableRowElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [employees, setEmployees] = useState<any[]>([]);
     const [equipmentMachines, setEquipmentMachines] = useState<any[]>([]);
     const [activeHighlight, setActiveHighlight] = useState<string[]>([]);
@@ -186,9 +188,16 @@ function WIPReportContent() {
                     startDate: formatDateOnly(p.MetaData.CreateTime),
                     endDate: formatDateOnly(new Date(new Date(p.MetaData.CreateTime).getTime() + 86400000 * 30).toISOString()),
                     isFavorite: Math.random() > 0.8
-                })).sort((a: any, b: any) => 
-                    new Date(b.MetaData.CreateTime).getTime() - new Date(a.MetaData.CreateTime).getTime()
-                );
+                })).sort((a: any, b: any) => {
+                    // Sort by Proposal # descending (newest to oldest)
+                    // Projects without a proposal number go to the bottom
+                    const aNum = a.proposalNumber || '';
+                    const bNum = b.proposalNumber || '';
+                    if (!aNum && !bNum) return 0;
+                    if (!aNum) return 1;
+                    if (!bNum) return -1;
+                    return bNum.localeCompare(aNum, undefined, { numeric: true });
+                });
                 
                 setProjects(enhanced);
                 if (isRefresh) toast.success('Projects refreshed successfully');
@@ -591,19 +600,35 @@ function WIPReportContent() {
     const clearFilters = () => {
         setSearchQuery('');
         setDateRangeFilter('all');
-        setCurrentPage(1);
+        setVisibleCount(ITEMS_PER_BATCH);
     };
 
     // Pagination logic
-    const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
-    const paginatedProjects = filteredProjects.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const visibleProjects = filteredProjects.slice(0, visibleCount);
+    const hasMore = visibleCount < filteredProjects.length;
 
     useEffect(() => {
-        setCurrentPage(1);
+        setVisibleCount(ITEMS_PER_BATCH);
     }, [searchQuery, dateRangeFilter]);
+
+    // Infinite scroll: IntersectionObserver on sentinel row
+    useEffect(() => {
+        const sentinel = sentinelRef.current;
+        const container = scrollContainerRef.current;
+        if (!sentinel || !container) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && hasMore) {
+                    setVisibleCount(prev => prev + ITEMS_PER_BATCH);
+                }
+            },
+            { root: container, rootMargin: '200px', threshold: 0 }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, visibleCount]);
 
     return (
         <div className="flex flex-col h-screen overflow-hidden">
@@ -1382,7 +1407,7 @@ function WIPReportContent() {
 
                                         {/* Table Layout */}
                                         <div className="flex-1 min-h-0 mt-4 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col">
-                                            <div className="flex-1 overflow-y-auto">
+                                            <div className="flex-1 overflow-y-auto" ref={scrollContainerRef}>
                                                 <table className="w-full text-left border-collapse border border-slate-200">
                                                     <thead className="sticky top-0 z-10 bg-white">
                                                         <tr className="bg-slate-50/50">
@@ -1587,8 +1612,8 @@ function WIPReportContent() {
                                                             Array.from({ length: 15 }).map((_, i) => (
                                                                 <SkeletonTableRow key={i} columns={22} />
                                                             ))
-                                                        ) : paginatedProjects.length > 0 ? (
-                                                            paginatedProjects.map((project) => {
+                                                        ) : visibleProjects.length > 0 ? (
+                                                            visibleProjects.map((project) => {
                                                                 const originalContract = project.originalContract || 0;
                                                                 const changeOrders = project.changeOrders || 0;
                                                                 const updatedContract = originalContract + changeOrders;
@@ -1827,59 +1852,29 @@ function WIPReportContent() {
                                                                 </td>
                                                             </tr>
                                                         )}
+                                                        {/* Infinite scroll sentinel */}
+                                                        {!loading && (
+                                                            <tr ref={sentinelRef} style={{ height: 1 }}>
+                                                                <td colSpan={22}>
+                                                                    {hasMore && (
+                                                                        <div className="flex items-center justify-center py-4">
+                                                                            <div className="w-5 h-5 border-2 border-slate-300 border-t-[#0F4C75] rounded-full animate-spin" />
+                                                                            <span className="ml-2 text-[10px] font-bold text-slate-400">Loading more...</span>
+                                                                        </div>
+                                                                    )}
+                                                                </td>
+                                                            </tr>
+                                                        )}
                                                     </tbody>
                                                 </table>
                                             </div>
 
-                                            {/* Table Pagination Footer */}
+                                            {/* Table Footer - count info */}
                                             {filteredProjects.length > 0 && (
                                                 <div className="py-2 px-4 border-t border-slate-50 flex items-center justify-between bg-white">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-[10px] font-bold text-slate-500">
-                                                            Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filteredProjects.length)}</span> of <span className="text-slate-900">{filteredProjects.length}</span> projects
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.max(prev - 1, 1)); }}
-                                                            disabled={currentPage === 1}
-                                                            className="px-2 py-1 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                                                        >
-                                                            Previous
-                                                        </button>
-                                                        <div className="flex items-center gap-1">
-                                                            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                                                                let pageNum = i + 1;
-                                                                if (totalPages > 5 && currentPage > 3) {
-                                                                    pageNum = currentPage - 3 + i + 1;
-                                                                    if (pageNum > totalPages) pageNum = totalPages - (4 - i);
-                                                                }
-                                                                if (pageNum <= 0) return null;
-                                                                if (pageNum > totalPages) return null;
-
-                                                                return (
-                                                                    <button
-                                                                        key={pageNum}
-                                                                        onClick={(e) => { e.stopPropagation(); setCurrentPage(pageNum); }}
-                                                                        className={`w-6 h-6 rounded-lg text-[10px] font-bold transition-all ${
-                                                                            currentPage === pageNum 
-                                                                            ? 'bg-[#0F4C75] text-white shadow-md' 
-                                                                            : 'text-slate-500 hover:bg-slate-50'
-                                                                        }`}
-                                                                    >
-                                                                        {pageNum}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); setCurrentPage(prev => Math.min(prev + 1, totalPages)); }}
-                                                            disabled={currentPage === totalPages}
-                                                            className="px-2 py-1 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-50 transition-colors"
-                                                        >
-                                                            Next
-                                                        </button>
-                                                    </div>
+                                                    <span className="text-[10px] font-bold text-slate-500">
+                                                        Showing <span className="text-slate-900">{Math.min(visibleCount, filteredProjects.length)}</span> of <span className="text-slate-900">{filteredProjects.length}</span> projects
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
