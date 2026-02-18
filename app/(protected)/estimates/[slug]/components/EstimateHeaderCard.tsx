@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink } from 'lucide-react';
+import { ChevronDown, Layers, Activity, HardHat, Percent, Calculator, FileSpreadsheet, Plus, Check, ExternalLink, AlertTriangle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { MyDropDown, Modal, Input, Button, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
@@ -1217,6 +1217,23 @@ export function EstimateHeaderCard({
                             {formData.fringe || 'None'}
                         </p>
                     </div>
+
+                    {/* Signed Contract Warning */}
+                    {(() => {
+                        const contracts = (formData as any).signedContracts;
+                        const hasContracts = contracts && Array.isArray(contracts) && contracts.length > 0;
+                        if (!hasContracts) {
+                            return (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 w-full flex items-start gap-2">
+                                    <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                                    <p className="text-xs text-red-600 leading-relaxed">
+                                        No Signed Contract has been uploaded yet. It is recommended to upload a signed contract before marking as Won.
+                                    </p>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
 
                     <p className="text-[10px] font-bold text-amber-500 uppercase tracking-wider bg-amber-50 px-3 py-1.5 rounded-full border border-amber-100">
                         <span className="mr-1">⚠️</span> This will lock the Fringe Rate

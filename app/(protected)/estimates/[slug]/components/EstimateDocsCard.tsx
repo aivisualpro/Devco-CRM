@@ -1822,8 +1822,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     const num = parseFloat(rawVal);
                     const formatted = !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : releaseItem.amountOfCheck;
                     variables.amountOfCheck = formatted;
-                    // Also set receivedProgressPayment for CP template compatibility
-                    variables.receivedProgressPayment = formatted;
+                    // Also set receivedProgressPayments for CP template compatibility
+                    variables.receivedProgressPayments = formatted;
                 }
                 
                 if (releaseItem.disputedClaims) {
@@ -1864,7 +1864,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 
                 // Received Progress Payments array (for UP)
                 if (releaseItem.receivedProgressPayments && Array.isArray(releaseItem.receivedProgressPayments)) {
-                     variables.receivedProgressPayment = releaseItem.receivedProgressPayments.join(', ');
+                     variables.receivedProgressPayments = releaseItem.receivedProgressPayments.join(', ');
                 }
             }
 
