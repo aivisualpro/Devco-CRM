@@ -1456,6 +1456,13 @@ export default function EstimateViewPage() {
         if (!formData) return;
         setFormData(prev => prev ? { ...prev, status: newStatus } : null);
         setUnsavedChanges(true);
+
+        // Auto-save status changes immediately (fire-and-forget)
+        // Critical for "Won" and "Completed" transitions that must persist without manual save
+        if (estimate) {
+            apiCall('updateEstimate', { id: estimate._id, status: newStatus })
+                .catch(err => console.error('Status auto-save failed:', err));
+        }
     };
 
     const handleItemUpdate = (section: SectionConfig, item: LineItem, field: string, value: string | number) => {

@@ -1200,9 +1200,36 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const confirmRemoveBillingTicket = () => {
         if (!onUpdate || billingTicketToDelete === null) return;
         const updated = billingTickets.filter((_: any, i: number) => i !== billingTicketToDelete);
-        onUpdate('billingTickets', updated);
+        
+        // Immediately update the aggregated state so UI reflects the deletion right away
+        // (prevents the stale useEffect refetch from re-adding the deleted ticket)
+        setAggregatedBillingTickets(updated);
+        
+        // Sanitize createdBy to prevent CastError
+        const sanitized = updated.map((t: any) => ({
+            ...t,
+            createdBy: Array.isArray(t.createdBy) ? t.createdBy.join(', ') : (t.createdBy || '')
+        }));
+        
+        onUpdate('billingTickets', sanitized);
         setBillingTicketToDelete(null);
         toast.success('Billing ticket removed');
+
+        // Background save — fire and forget so UI stays responsive
+        if (formData?.estimate) {
+            // Get the _id for this estimate version
+            const estId = (formData as any)?._id;
+            if (estId) {
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'updateEstimate',
+                        payload: { id: estId, billingTickets: sanitized }
+                    })
+                }).catch(err => console.error('Background billing ticket save failed:', err));
+            }
+        }
     };
 
     const handleBillingTicketFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
