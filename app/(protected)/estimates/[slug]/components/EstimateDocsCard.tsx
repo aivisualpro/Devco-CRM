@@ -1820,7 +1820,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 if (releaseItem.amountOfCheck) {
                     const rawVal = String(releaseItem.amountOfCheck).replace(/[^0-9.-]+/g, '');
                     const num = parseFloat(rawVal);
-                    variables.amountOfCheck = !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : releaseItem.amountOfCheck;
+                    const formatted = !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : releaseItem.amountOfCheck;
+                    variables.amountOfCheck = formatted;
+                    // Also set receivedProgressPayment for CP template compatibility
+                    variables.receivedProgressPayment = formatted;
                 }
                 
                 if (releaseItem.disputedClaims) {
