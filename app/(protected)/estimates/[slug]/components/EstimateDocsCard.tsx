@@ -1769,7 +1769,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }
 
             // Inject Release specific fields if this doc is a Release type
-            const releaseItem = releases?.find((r: any) => r.documentType === docName);
+            // Use itemIndex when available to get the correct release (not just the first match by type)
+            const releaseItem = (itemIndex !== undefined && releases?.[itemIndex])
+                ? releases[itemIndex]
+                : releases?.find((r: any) => r.documentType === docName);
             if (releaseItem) {
                 // Set {{today}} to the release's createdAt date (when the release was created)
                 if (releaseItem.createdAt) {
