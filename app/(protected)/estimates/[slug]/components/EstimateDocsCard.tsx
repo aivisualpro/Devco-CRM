@@ -1920,19 +1920,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 throw new Error(error.error || 'Failed to generate PDF');
             }
 
-            // Download the PDF
+            // Open the PDF in a new tab
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${docName.replace(/\s+/g, '_')}_${formData.estimate || 'doc'}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            a.remove();
+            window.open(url, '_blank');
 
             setGeneratingProgress(100);
-            toast.success(`${docName} downloaded successfully!`);
+            toast.success(`${docName} opened in new tab!`);
         } catch (error: any) {
             console.error('PDF Generation Error:', error);
             toast.error(error.message || 'Failed to generate PDF');
