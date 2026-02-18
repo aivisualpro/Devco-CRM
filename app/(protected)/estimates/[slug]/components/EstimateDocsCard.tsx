@@ -1098,7 +1098,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             uploads: [],
             titleDescriptions: [{ title: '', description: '' }],
             lumpSum: '',
-            createdBy: formData?.proposalWriter || ''
+            createdBy: Array.isArray(formData?.proposalWriter) ? formData.proposalWriter.join(', ') : (formData?.proposalWriter || '')
         });
         setEditingBillingTicketIndex(null);
         setIsBillingTicketModalOpen(true);
@@ -1156,7 +1156,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             uploads: item.uploads || [],
             titleDescriptions: item.titleDescriptions?.length ? item.titleDescriptions : [{ title: '', description: '' }],
             lumpSum: safeLumpSum,
-            createdBy: item.createdBy || ''
+            createdBy: Array.isArray(item.createdBy) ? item.createdBy.join(', ') : (item.createdBy || '')
         });
         setEditingBillingTicketIndex(index);
         setIsBillingTicketModalOpen(true);
@@ -1185,7 +1185,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }];
         }
 
-        onUpdate('billingTickets', updated);
+        // Sanitize all billing tickets to ensure createdBy is always a string (fixes existing bad data)
+        const sanitized = updated.map((t: any) => ({
+            ...t,
+            createdBy: Array.isArray(t.createdBy) ? t.createdBy.join(', ') : (t.createdBy || '')
+        }));
+
+        onUpdate('billingTickets', sanitized);
         setIsBillingTicketModalOpen(false);
         setEditingBillingTicketIndex(null);
         toast.success(editingBillingTicketIndex !== null ? 'Billing ticket updated' : 'Billing ticket added');

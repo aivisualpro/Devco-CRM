@@ -1602,6 +1602,14 @@ export default function EstimateViewPage() {
                 prevailingWage: formData.certifiedPayroll === 'Yes' ? formData.prevailingWage : false
             };
 
+            // Sanitize billingTickets to ensure createdBy is always a string (not an array)
+            if ((payload as any).billingTickets && Array.isArray((payload as any).billingTickets)) {
+                (payload as any).billingTickets = (payload as any).billingTickets.map((t: any) => ({
+                    ...t,
+                    createdBy: Array.isArray(t.createdBy) ? t.createdBy.join(', ') : (t.createdBy || '')
+                }));
+            }
+
             const result = await apiCall('updateEstimate', payload);
             if (!result.success) throw new Error(result.error || 'Save failed');
 
