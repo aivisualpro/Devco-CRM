@@ -1722,7 +1722,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 workRequestNo: formData.workRequestNo || '',
                 subContractAgreementNo: formData.subContractAgreementNo || '',
                 customerJobNo: formData.customerJobNo || '',
+                customerJobNumber: formData.customerJobNo || '',
                 DIRProjectNo: formData.DIRProjectNo || '',
+                
+                // Grand Total (from saved estimate data)
+                grandTotal: (() => {
+                    const gt = formData.grandTotal;
+                    if (gt !== undefined && gt !== null && gt !== '') {
+                        const num = parseFloat(String(gt).replace(/[^0-9.-]+/g, ''));
+                        return !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
+                    }
+                    return '';
+                })(),
                 
                 // Customer ID should be the client name
                 customerId: formData.customerName || formData.customer || '',
@@ -1758,6 +1769,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     return '';
                 })(),
                 companyPosition: (() => {
+                    const proposalWriterEmail = formData.proposalWriter;
+                    if (proposalWriterEmail && employees.length > 0) {
+                        const emp = employees.find(e => e._id === proposalWriterEmail);
+                        return emp?.companyPosition || '';
+                    }
+                    return '';
+                })(),
+                position: (() => {
                     const proposalWriterEmail = formData.proposalWriter;
                     if (proposalWriterEmail && employees.length > 0) {
                         const emp = employees.find(e => e._id === proposalWriterEmail);
