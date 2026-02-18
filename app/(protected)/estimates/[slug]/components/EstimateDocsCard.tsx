@@ -3091,20 +3091,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         >
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </button>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleDocClick(item.documentType, idx);
-                                            }}
-                                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-8"
-                                            title="Download PDF"
-                                        >
-                                            {generatingDoc === item.documentType ? (
-                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                                            ) : (
-                                                <Download className="w-3.5 h-3.5" />
-                                            )}
-                                        </button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 border-t border-slate-100/50 pt-2">
                                         {/* Dynamic content summary */}
@@ -3125,6 +3111,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             </div>
                                         )}
                                     </div>
+                                    <button 
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDocClick(item.documentType, idx);
+                                        }}
+                                        className="absolute bottom-2 right-2 p-1.5 rounded-lg text-cyan-700 hover:text-white hover:bg-cyan-600 transition-all duration-200"
+                                        title="Download PDF"
+                                    >
+                                        {generatingDoc === item.documentType && generatingIndex === idx ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Download className="w-4 h-4" />
+                                        )}
+                                    </button>
                                 </div>
                             )) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No release docs</p>
