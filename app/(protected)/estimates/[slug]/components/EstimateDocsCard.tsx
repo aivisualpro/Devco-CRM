@@ -1947,17 +1947,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             return;
         }
 
-        // Use our server-side proxy to force download and bypass CORS/Cloudinary issues
-        const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fileName)}`;
-        
-        const link = document.createElement('a');
-        link.href = proxyUrl;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        toast.success('Download starting...');
+        // Open file in a new tab
+        window.open(url, '_blank');
     };
 
 
