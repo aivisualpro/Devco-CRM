@@ -1,53 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { qboQuery, getProjects, QBO_REALM_ID } from '@/lib/quickbooks';
 import { resolveProjectIdsFromEntity, syncProjectToDb } from '@/lib/qbo-sync';
 
-// Test endpoint: GET /api/webhooks/quickbooks/test?entityName=Customer&entityId=772917373
-// This simulates what happens when a webhook arrives, so you can verify the full pipeline
+// Debug endpoint: GET /api/webhooks/quickbooks/test?entityName=Customer&entityId=772917373
 export async function GET(req: NextRequest) {
     const entityName = req.nextUrl.searchParams.get('entityName') || 'Customer';
     const entityId = req.nextUrl.searchParams.get('entityId');
 
-    if (!entityId) {
-        return NextResponse.json({ error: 'entityId query param required' }, { status: 400 });
-    }
-
     try {
-        console.log(`[QBO-WEBHOOK-TEST] Testing webhook pipeline for ${entityName}/${entityId}`);
-        
-        // Step 1: Resolve project IDs (same as webhook handler does)
-        const resolvedIds = await resolveProjectIdsFromEntity(entityName, entityId);
-        console.log(`[QBO-WEBHOOK-TEST] Resolved project IDs:`, resolvedIds);
+        const diagnostics: any = {
+            realmId: QBO_REALM_ID,
+            timestamp: new Date().toISOString(),
+        };
 
-        if (resolvedIds.length === 0) {
-            return NextResponse.json({ 
-                success: false, 
-                message: `No project IDs resolved for ${entityName}/${entityId}. This entity might not be a project.`,
-                resolvedIds: []
-            });
-        }
+        // If entityId provided, query that specific customer
+        if (entityId) {
+            console.log(`[QBO-TEST] Querying Customer ${entityId} in realm ${QBO_REALM_ID}...`);
+            
+            // Raw query to see exactly what QBO returns
+            const rawResult = await qboQuery(`SELECT Id, DisplayName, FullyQualifiedName, Job, IsProject, Active, ParentRef FROM Customer WHERE Id = '${entityId}'`);
+            diagnostics.rawQueryResult = rawResult;
+            
+            const customer = rawResult.QueryResponse?.Customer?.[0];
+            diagnostics.customerFound = !!customer;
+            
+            if (customer) {
+                diagnostics.customer = {
+                    Id: customer.Id,
+                    DisplayName: customer.DisplayName,
+                    FullyQualifiedName: customer.FullyQualifiedName,
+                    Job: customer.Job,
+                    IsProject: customer.IsProject,
+                    Active: customer.Active,
+                    ParentRef: customer.ParentRef,
+                };
+                diagnostics.isProjectOrJob = customer.Job === true || customer.IsProject === true;
+            }
 
-        // Step 2: Sync each resolved project
-        const results = [];
-        for (const projectId of resolvedIds) {
+            // Also try resolving project IDs
             try {
-                const project = await syncProjectToDb(projectId);
-                results.push({ projectId, success: true, projectName: project.project || project.DisplayName });
+                const resolvedIds = await resolveProjectIdsFromEntity(entityName, entityId);
+                diagnostics.resolvedProjectIds = resolvedIds;
             } catch (err: any) {
-                results.push({ projectId, success: false, error: err.message });
+                diagnostics.resolveError = err.message;
             }
         }
 
-        return NextResponse.json({ 
-            success: true, 
-            message: `Processed ${results.length} project(s)`,
-            resolvedIds,
-            results 
-        });
+        // Also list the first 5 projects to verify API is working
+        try {
+            console.log(`[QBO-TEST] Fetching projects list from realm ${QBO_REALM_ID}...`);
+            const allProjectsRaw = await qboQuery(`SELECT Id, DisplayName, Job, IsProject FROM Customer WHERE IsProject = true MAXRESULTS 5`);
+            diagnostics.sampleProjects = allProjectsRaw.QueryResponse?.Customer?.map((c: any) => ({
+                Id: c.Id,
+                DisplayName: c.DisplayName,
+                Job: c.Job,
+                IsProject: c.IsProject,
+            })) || [];
+            diagnostics.totalProjectsReturned = allProjectsRaw.QueryResponse?.totalCount || allProjectsRaw.QueryResponse?.Customer?.length || 0;
+        } catch (err: any) {
+            diagnostics.projectListError = err.message;
+        }
+
+        return NextResponse.json(diagnostics, { status: 200 });
     } catch (error: any) {
-        console.error(`[QBO-WEBHOOK-TEST] Error:`, error);
+        console.error(`[QBO-TEST] Error:`, error);
         return NextResponse.json({ 
             success: false, 
-            error: error.message 
+            error: error.message,
+            realmId: QBO_REALM_ID,
         }, { status: 500 });
     }
 }
