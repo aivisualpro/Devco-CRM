@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin } from 'lucide-react';
+import { ChevronDown, FileText, Package, Calculator, Sliders, Users, Contact, Briefcase, FileSpreadsheet, Calendar, DollarSign, ClipboardCheck, AlertTriangle, Truck, Wrench, Settings, BarChart, FileCheck, Search, Bell, BookOpen, Command, LogOut, User as UserIcon, Clock, Import, X, Menu, MessageSquare, GraduationCap, Activity, Receipt, MapPin, Download } from 'lucide-react';
 import { MyDropDown } from './MyDropDown';
 
 import { usePermissions } from '@/hooks/usePermissions';
@@ -96,6 +96,8 @@ interface HeaderProps {
         setDateRangeFilter: (range: string) => void;
         hasActiveFilters: boolean;
         clearFilters: () => void;
+        onExportExcel?: () => void;
+        isExporting?: boolean;
     };
 }
 
@@ -312,6 +314,23 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                         <div className="flex items-center gap-3">
                             {wipReportFilters && (
                                 <div className="flex items-center gap-3 mr-4">
+                                    {/* Export Excel Button */}
+                                    {wipReportFilters.onExportExcel && (
+                                        <button
+                                            onClick={wipReportFilters.onExportExcel}
+                                            disabled={wipReportFilters.isExporting}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                                            title="Export WIP Report to Excel"
+                                        >
+                                            {wipReportFilters.isExporting ? (
+                                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <Download className="w-3 h-3" />
+                                            )}
+                                            <span className="hidden sm:inline">{wipReportFilters.isExporting ? 'Exporting...' : 'Export'}</span>
+                                        </button>
+                                    )}
+
                                     {/* Toggle WIP/QuickBooks */}
                                     <div className="flex p-0.5 bg-slate-200/50 rounded-xl border border-slate-200/50">
                                         <button 

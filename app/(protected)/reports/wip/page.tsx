@@ -20,6 +20,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTo
 import { DJTModal } from '../../jobs/schedules/components/DJTModal';
 import { formatDateOnly } from '@/lib/timeCardUtils';
 import { getLocalNowISO } from '@/lib/scheduleUtils';
+import * as XLSX from 'xlsx';
 
 interface Project {
     Id: string;
@@ -76,6 +77,7 @@ function WIPReportContent() {
     const [editingValue, setEditingValue] = useState('');
 
     const [transactions, setTransactions] = useState<any[]>([]);
+    const [isExporting, setIsExporting] = useState(false);
 
     const handleSaveManualValue = async (projectId: string, field: 'originalContract' | 'changeOrders', value: string) => {
         try {
@@ -603,6 +605,81 @@ function WIPReportContent() {
         setVisibleCount(ITEMS_PER_BATCH);
     };
 
+    const handleExportExcel = useCallback(() => {
+        setIsExporting(true);
+        try {
+            const fmt = (val: number) => Math.round(val * 100) / 100;
+
+            const rows = filteredProjects.map((project) => {
+                const originalContract = project.originalContract || 0;
+                const changeOrders = project.changeOrders || 0;
+                const updatedContract = originalContract + changeOrders;
+
+                const originalContractCost = (project as any).originalContractCost || 0;
+                const changeOrderCost = 0;
+                const totalEstimatedCost = originalContractCost + changeOrderCost;
+
+                const originalContractGP = originalContract - originalContractCost;
+                const changeOrderGP = 0;
+                const estimatedGP = updatedContract - totalEstimatedCost;
+
+                const revenueToDate = project.income || 0;
+                const costOfRevenue = project.cost || 0;
+                const grossProfit = revenueToDate - costOfRevenue;
+                const grossProfitPct = revenueToDate > 0 ? (grossProfit / revenueToDate) * 100 : 0;
+                const grossMarkupPct = costOfRevenue > 0 ? (grossProfit / costOfRevenue) * 100 : 0;
+                const percentageComplete = updatedContract > 0 ? (revenueToDate / updatedContract) * 100 : 0;
+
+                return {
+                    'Project': project.DisplayName || '',
+                    'Proposal #': project.proposalNumber || '',
+                    'Date': formatDateOnly(project.startDate) || '',
+                    'Proposal Writers': (project.proposalWriters || []).join(', '),
+                    'Client': project.CompanyName || '',
+                    'Original Contract': fmt(originalContract),
+                    'Change Orders': fmt(changeOrders),
+                    'Updated Contract': fmt(updatedContract),
+                    'Original Contract Cost': fmt(originalContractCost),
+                    'Change Order Cost': fmt(changeOrderCost),
+                    'Total Estimated Cost': fmt(totalEstimatedCost),
+                    'Original Contract GP': fmt(originalContractGP),
+                    'Change Order GP': fmt(changeOrderGP),
+                    'Estimated GP': fmt(estimatedGP),
+                    'Revenue Earned to Date': fmt(revenueToDate),
+                    'Cost of Revenue Earned': fmt(costOfRevenue),
+                    'Gross Profit (Loss)': fmt(grossProfit),
+                    'Gross Profit (%)': fmt(grossProfitPct),
+                    'Gross Markup on Cost (%)': fmt(grossMarkupPct),
+                    '% Complete': fmt(percentageComplete),
+                };
+            });
+
+            const ws = XLSX.utils.json_to_sheet(rows);
+
+            // Auto-size columns based on content
+            const colWidths = Object.keys(rows[0] || {}).map((key) => {
+                const maxLen = Math.max(
+                    key.length,
+                    ...rows.map(r => String((r as any)[key] ?? '').length)
+                );
+                return { wch: Math.min(maxLen + 2, 30) };
+            });
+            ws['!cols'] = colWidths;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'WIP Report');
+
+            const dateStr = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `WIP_Report_${dateStr}.xlsx`);
+            toast.success('WIP Report exported successfully');
+        } catch (error) {
+            console.error('Export error:', error);
+            toast.error('Failed to export WIP report');
+        } finally {
+            setIsExporting(false);
+        }
+    }, [filteredProjects]);
+
     // Pagination logic
     const visibleProjects = filteredProjects.slice(0, visibleCount);
     const hasMore = visibleCount < filteredProjects.length;
@@ -643,7 +720,9 @@ function WIPReportContent() {
                     dateRangeFilter,
                     setDateRangeFilter,
                     hasActiveFilters,
-                    clearFilters
+                    clearFilters,
+                    onExportExcel: handleExportExcel,
+                    isExporting
                 }}
             />
             
