@@ -1,64 +1,94 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { qboQuery, QBO_REALM_ID, BASE_URL } from '@/lib/quickbooks';
-import { resolveProjectIdsFromEntity, syncProjectToDb } from '@/lib/qbo-sync';
+import { connectToDatabase } from '@/lib/db';
+import { DevcoQuickBooks } from '@/lib/models';
+import { syncProjectToDb } from '@/lib/qbo-sync';
 
-// Debug endpoint: GET /api/webhooks/quickbooks/test?entityId=772917373
+// Debug endpoint: GET /api/webhooks/quickbooks/test?search=Laguna
 export async function GET(req: NextRequest) {
     const entityId = req.nextUrl.searchParams.get('entityId');
-
-    if (!entityId) {
-        return NextResponse.json({ error: 'entityId query param required' }, { status: 400 });
-    }
+    const search = req.nextUrl.searchParams.get('search') || '0534';
 
     try {
+        await connectToDatabase();
+
         const diagnostics: any = {
             realmId: QBO_REALM_ID,
             baseUrl: BASE_URL,
             timestamp: new Date().toISOString(),
         };
 
-        // RAW QUERY: Show exactly what QBO returns for this customer
-        try {
-            const raw = await qboQuery(`SELECT * FROM Customer WHERE Id = '${entityId}'`);
-            const customer = raw.QueryResponse?.Customer?.[0];
-            diagnostics.customerFound = !!customer;
-            if (customer) {
-                diagnostics.rawCustomer = {
-                    Id: customer.Id,
-                    DisplayName: customer.DisplayName,
-                    FullyQualifiedName: customer.FullyQualifiedName,
-                    CompanyName: customer.CompanyName,
-                    Job: customer.Job,
-                    IsProject: customer.IsProject,
-                    Active: customer.Active,
-                    ParentRef: customer.ParentRef,
-                    JobStatus: customer.JobStatus,
-                    // Show all keys to find project indicator
-                    allKeys: Object.keys(customer),
+        // 1. Show DB records matching the search term to find the real project ID
+        const dbProjects = await DevcoQuickBooks.find({
+            $or: [
+                { project: { $regex: search, $options: 'i' } },
+                { proposalNumber: { $regex: search, $options: 'i' } }
+            ]
+        }).limit(5).lean();
+
+        diagnostics.dbProjects = dbProjects.map((p: any) => ({
+            _id: p._id,
+            projectId: p.projectId,
+            project: p.project,
+            customer: p.customer,
+            proposalNumber: p.proposalNumber,
+            status: p.status,
+        }));
+
+        // 2. If entityId provided, check if it exists in QBO
+        if (entityId) {
+            try {
+                const raw = await qboQuery(`SELECT * FROM Customer WHERE Id = '${entityId}'`);
+                const customer = raw.QueryResponse?.Customer?.[0];
+                diagnostics.qboLookup = {
+                    entityId,
+                    found: !!customer,
+                    data: customer ? {
+                        Id: customer.Id,
+                        DisplayName: customer.DisplayName,
+                        Job: customer.Job,
+                        IsProject: customer.IsProject,
+                    } : null,
                 };
-            } else {
-                diagnostics.message = `Customer ${entityId} NOT FOUND in realm ${QBO_REALM_ID}`;
+            } catch (err: any) {
+                diagnostics.qboLookup = { entityId, error: err.message };
             }
-        } catch (err: any) {
-            diagnostics.rawQueryError = err.message;
         }
 
-        // RESOLVE: What the webhook handler would do
-        const resolvedIds = await resolveProjectIdsFromEntity('Customer', entityId);
-        diagnostics.resolvedProjectIds = resolvedIds;
+        // 3. If we found a DB project, try looking it up in QBO using the stored projectId
+        if (dbProjects.length > 0) {
+            const dbProjectId = (dbProjects[0] as any).projectId;
+            diagnostics.dbProjectIdUsed = dbProjectId;
+            
+            try {
+                const raw = await qboQuery(`SELECT * FROM Customer WHERE Id = '${dbProjectId}'`);
+                const customer = raw.QueryResponse?.Customer?.[0];
+                diagnostics.qboLookupByDbId = {
+                    found: !!customer,
+                    data: customer ? {
+                        Id: customer.Id,
+                        DisplayName: customer.DisplayName,
+                        Job: customer.Job,
+                        IsProject: customer.IsProject,
+                        Active: customer.Active,
+                    } : null,
+                };
 
-        // If resolved, try syncing
-        if (resolvedIds.length > 0) {
-            const results = [];
-            for (const pid of resolvedIds) {
-                try {
-                    const project = await syncProjectToDb(pid);
-                    results.push({ projectId: pid, success: true, name: project.project || project.DisplayName });
-                } catch (err: any) {
-                    results.push({ projectId: pid, success: false, error: err.message });
+                // 4. If found, try a full sync
+                if (customer) {
+                    try {
+                        const result = await syncProjectToDb(dbProjectId);
+                        diagnostics.syncResult = {
+                            success: true,
+                            projectName: result.project || result.DisplayName,
+                        };
+                    } catch (err: any) {
+                        diagnostics.syncResult = { success: false, error: err.message };
+                    }
                 }
+            } catch (err: any) {
+                diagnostics.qboLookupByDbId = { error: err.message };
             }
-            diagnostics.syncResults = results;
         }
 
         return NextResponse.json(diagnostics, { status: 200 });
