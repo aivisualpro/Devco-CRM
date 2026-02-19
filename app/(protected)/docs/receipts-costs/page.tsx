@@ -87,6 +87,10 @@ export default function ReceiptsCostsPage() {
 
     const [employees, setEmployees] = useState<any[]>([]); // For ReceiptModal tags
     
+    // Filter Tabs
+    const [approvalFilter, setApprovalFilter] = useState<'All' | 'Approved' | 'Not Approved'>('All');
+    const [paymentFilter, setPaymentFilter] = useState<'All' | 'Paid' | 'Unpaid'>('All');
+
     // Estimate Selection
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
     const [estimateSearch, setEstimateSearch] = useState('');
@@ -198,6 +202,22 @@ export default function ReceiptsCostsPage() {
             );
         }
 
+        // Approval filter
+        if (approvalFilter !== 'All') {
+            result = result.filter(r => {
+                if (approvalFilter === 'Approved') return r.approvalStatus === 'Approved';
+                return r.approvalStatus !== 'Approved'; // 'Not Approved' or undefined/Pending
+            });
+        }
+
+        // Payment filter
+        if (paymentFilter !== 'All') {
+            result = result.filter(r => {
+                if (paymentFilter === 'Paid') return !!r.status; // 'Devco Paid' or any truthy
+                return !r.status; // empty string or undefined
+            });
+        }
+
         result.sort((a: any, b: any) => {
             const valA = a[sortConfig.key];
             const valB = b[sortConfig.key];
@@ -208,7 +228,18 @@ export default function ReceiptsCostsPage() {
         });
 
         return result;
-    }, [allReceipts, search, sortConfig]);
+    }, [allReceipts, search, sortConfig, approvalFilter, paymentFilter]);
+
+    // Counts for filter badges
+    const approvalCounts = useMemo(() => {
+        const approved = allReceipts.filter(r => r.approvalStatus === 'Approved').length;
+        return { all: allReceipts.length, approved, notApproved: allReceipts.length - approved };
+    }, [allReceipts]);
+
+    const paymentCounts = useMemo(() => {
+        const paid = allReceipts.filter(r => !!r.status).length;
+        return { all: allReceipts.length, paid, unpaid: allReceipts.length - paid };
+    }, [allReceipts]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({
@@ -430,6 +461,79 @@ export default function ReceiptsCostsPage() {
             />
 
             <div className="flex-1 p-4 lg:p-6 overflow-auto flex flex-col min-h-0">
+                {/* Filter Tabs */}
+                {!loading && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-4">
+                        {/* By Approval */}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Approval</span>
+                            {(['All', 'Approved', 'Not Approved'] as const).map((tab) => {
+                                const count = tab === 'All' ? approvalCounts.all : tab === 'Approved' ? approvalCounts.approved : approvalCounts.notApproved;
+                                const isActive = approvalFilter === tab;
+                                return (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setApprovalFilter(tab)}
+                                        className={cn(
+                                            'px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5',
+                                            isActive
+                                                ? tab === 'Approved'
+                                                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200'
+                                                    : tab === 'Not Approved'
+                                                        ? 'bg-amber-500 text-white shadow-sm shadow-amber-200'
+                                                        : 'bg-[#0F4C75] text-white shadow-sm shadow-blue-200'
+                                                : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                        )}
+                                    >
+                                        {tab}
+                                        <span className={cn(
+                                            'text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center',
+                                            isActive ? 'bg-white/20' : 'bg-slate-100 text-slate-500'
+                                        )}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        <div className="hidden sm:block w-px h-6 bg-slate-200" />
+
+                        {/* By Payment */}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Payment</span>
+                            {(['All', 'Paid', 'Unpaid'] as const).map((tab) => {
+                                const count = tab === 'All' ? paymentCounts.all : tab === 'Paid' ? paymentCounts.paid : paymentCounts.unpaid;
+                                const isActive = paymentFilter === tab;
+                                return (
+                                    <button
+                                        key={tab}
+                                        onClick={() => setPaymentFilter(tab)}
+                                        className={cn(
+                                            'px-3 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5',
+                                            isActive
+                                                ? tab === 'Paid'
+                                                    ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200'
+                                                    : tab === 'Unpaid'
+                                                        ? 'bg-rose-500 text-white shadow-sm shadow-rose-200'
+                                                        : 'bg-[#0F4C75] text-white shadow-sm shadow-blue-200'
+                                                : 'bg-white text-slate-500 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                                        )}
+                                    >
+                                        {tab}
+                                        <span className={cn(
+                                            'text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center',
+                                            isActive ? 'bg-white/20' : 'bg-slate-100 text-slate-500'
+                                        )}>
+                                            {count}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center">
                         <div className="flex flex-col items-center gap-2">

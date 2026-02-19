@@ -449,8 +449,7 @@ export const DJTModal = ({
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">Date & Time</p>
                                             <p className="text-sm font-bold text-slate-700">
                                                 {(() => {
-                                                    const schedule = selectedDJT.scheduleRef || schedules.find((s: any) => String(s._id) === String(selectedDJT.schedule_id || selectedDJT._id));
-                                                    const dateVal = schedule?.fromDate || selectedDJT.date || selectedDJT.createdAt;
+                                                    const dateVal = selectedDJT.createdAt || selectedDJT.date;
                                                     if (!dateVal) return 'N/A';
                                                     const d = new Date(dateVal);
                                                     if (isNaN(d.getTime())) return 'N/A';
