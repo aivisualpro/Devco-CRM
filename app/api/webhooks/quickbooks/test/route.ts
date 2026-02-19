@@ -17,36 +17,51 @@ export async function GET(req: NextRequest) {
             timestamp: new Date().toISOString(),
         };
 
-        // Step 1: Resolve project IDs (same as webhook handler does)
+        // RAW QUERY: Show exactly what QBO returns for this customer
+        try {
+            const raw = await qboQuery(`SELECT * FROM Customer WHERE Id = '${entityId}'`);
+            const customer = raw.QueryResponse?.Customer?.[0];
+            diagnostics.customerFound = !!customer;
+            if (customer) {
+                diagnostics.rawCustomer = {
+                    Id: customer.Id,
+                    DisplayName: customer.DisplayName,
+                    FullyQualifiedName: customer.FullyQualifiedName,
+                    CompanyName: customer.CompanyName,
+                    Job: customer.Job,
+                    IsProject: customer.IsProject,
+                    Active: customer.Active,
+                    ParentRef: customer.ParentRef,
+                    JobStatus: customer.JobStatus,
+                    // Show all keys to find project indicator
+                    allKeys: Object.keys(customer),
+                };
+            } else {
+                diagnostics.message = `Customer ${entityId} NOT FOUND in realm ${QBO_REALM_ID}`;
+            }
+        } catch (err: any) {
+            diagnostics.rawQueryError = err.message;
+        }
+
+        // RESOLVE: What the webhook handler would do
         const resolvedIds = await resolveProjectIdsFromEntity('Customer', entityId);
         diagnostics.resolvedProjectIds = resolvedIds;
 
-        if (resolvedIds.length === 0) {
-            return NextResponse.json({ 
-                ...diagnostics,
-                success: false, 
-                message: `No project IDs resolved for Customer/${entityId}. Checking raw data...`,
-            });
-        }
-
-        // Step 2: Sync each resolved project
-        const results = [];
-        for (const projectId of resolvedIds) {
-            try {
-                const project = await syncProjectToDb(projectId);
-                results.push({ projectId, success: true, projectName: project.project || project.DisplayName });
-            } catch (err: any) {
-                results.push({ projectId, success: false, error: err.message });
+        // If resolved, try syncing
+        if (resolvedIds.length > 0) {
+            const results = [];
+            for (const pid of resolvedIds) {
+                try {
+                    const project = await syncProjectToDb(pid);
+                    results.push({ projectId: pid, success: true, name: project.project || project.DisplayName });
+                } catch (err: any) {
+                    results.push({ projectId: pid, success: false, error: err.message });
+                }
             }
+            diagnostics.syncResults = results;
         }
 
-        return NextResponse.json({ 
-            ...diagnostics,
-            success: true, 
-            message: `Synced ${results.length} project(s)`,
-            resolvedIds,
-            results 
-        });
+        return NextResponse.json(diagnostics, { status: 200 });
     } catch (error: any) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
