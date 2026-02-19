@@ -723,9 +723,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const certifiedPayrollUploads: Record<string, any[]> = formData?.certifiedPayrollUploads || {};
     const payrollUploadRef = React.useRef<HTMLInputElement>(null);
     const [payrollUploadingDoc, setPayrollUploadingDoc] = useState<string | null>(null);
+    const [pendingPayrollUpload, setPendingPayrollUpload] = useState<{ docName: string, files: FileList } | null>(null);
+    const [payrollDescription, setPayrollDescription] = useState('');
 
-    const handlePayrollDocUpload = async (docName: string, e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files;
+    const handlePayrollDocUpload = async (docName: string, files: FileList, description: string) => {
         if (!files || files.length === 0 || !onUpdate) return;
 
         setPayrollUploadingDoc(docName);
@@ -747,6 +748,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         url: data.url,
                         thumbnailUrl: data.thumbnailUrl || '',
                         type: file.type,
+                        description: description,
                         uploadedAt: new Date().toISOString(),
                         uploadedBy: currentUser?.email || '',
                         uploaderImage: (currentUser as any)?.image || ''
@@ -3192,15 +3194,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </button>
                     </div>
 
-                    {/* Hidden file input for payroll uploads */}
                     <input
                         ref={payrollUploadRef}
                         type="file"
                         multiple
                         className="hidden"
                         onChange={(e) => {
-                            if (payrollUploadingDoc) {
-                                handlePayrollDocUpload(payrollUploadingDoc, e);
+                            if (payrollUploadingDoc && e.target.files?.length) {
+                                setPendingPayrollUpload({ docName: payrollUploadingDoc, files: e.target.files });
+                                setPayrollDescription('');
                             }
                         }}
                     />
@@ -3367,9 +3369,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 <Paperclip className="w-3 h-3 text-emerald-500 flex-shrink-0" />
                                                             )}
                                                             <div className="flex flex-col min-w-0">
-                                                                <span className="text-[10px] font-bold text-emerald-800 truncate max-w-[150px]">
-                                                                    {upload.name || `File ${uIdx + 1}`}
+                                                                <span className="text-[10px] font-bold text-emerald-800 truncate max-w-[150px]" title={upload.description || upload.name}>
+                                                                    {upload.description || upload.name || `File ${uIdx + 1}`}
                                                                 </span>
+                                                                {upload.description && upload.name && (
+                                                                    <span className="text-[8px] font-medium text-emerald-600/80 truncate max-w-[150px]" title={upload.name}>
+                                                                        {upload.name}
+                                                                    </span>
+                                                                )}
                                                                 <span className="text-[8px] text-emerald-500">
                                                                     {upload.uploadedAt ? new Date(upload.uploadedAt).toLocaleDateString() : ''}
                                                                     {upload.uploadedBy && (
@@ -3466,6 +3473,72 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             )}
                         </div>
                     </div>
+
+                    {/* Payroll Document Description Modal */}
+                    <Modal
+                        isOpen={!!pendingPayrollUpload}
+                        onClose={() => {
+                            setPendingPayrollUpload(null);
+                            setPayrollDescription('');
+                            setPayrollUploadingDoc(null);
+                            if (payrollUploadRef.current) payrollUploadRef.current.value = '';
+                        }}
+                        title="Upload Document(s)"
+                        maxWidth="md"
+                    >
+                        <div className="space-y-4 pt-2 pb-2">
+                            <p className="text-[11px] text-slate-600 font-medium bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                                You selected {pendingPayrollUpload?.files.length} file(s) for <strong className="text-emerald-700">{pendingPayrollUpload?.docName}</strong>.
+                            </p>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 mb-1.5 ml-1">
+                                    Document Description (Optional)
+                                </label>
+                                <Input
+                                    autoFocus
+                                    placeholder="e.g. Week 12 Payroll, Final Release"
+                                    value={payrollDescription}
+                                    onChange={(e) => setPayrollDescription(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && pendingPayrollUpload) {
+                                            handlePayrollDocUpload(pendingPayrollUpload.docName, pendingPayrollUpload.files, payrollDescription);
+                                            setPendingPayrollUpload(null);
+                                            setPayrollDescription('');
+                                        }
+                                    }}
+                                />
+                                <p className="text-[9px] text-slate-400 mt-1.5 ml-1">
+                                    This description will be displayed alongside your document in the list.
+                                </p>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <Button 
+                                    variant="secondary" 
+                                    onClick={() => {
+                                        setPendingPayrollUpload(null);
+                                        setPayrollDescription('');
+                                        setPayrollUploadingDoc(null);
+                                        if (payrollUploadRef.current) payrollUploadRef.current.value = '';
+                                    }}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        if (pendingPayrollUpload) {
+                                            handlePayrollDocUpload(pendingPayrollUpload.docName, pendingPayrollUpload.files, payrollDescription);
+                                            setPendingPayrollUpload(null);
+                                            setPayrollDescription('');
+                                        }
+                                    }}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+                                >
+                                    Upload {pendingPayrollUpload?.files.length} File(s)
+                                </Button>
+                            </div>
+                        </div>
+                    </Modal>
+
                 </div>
 
                 {/* Column 5: Planning */}
