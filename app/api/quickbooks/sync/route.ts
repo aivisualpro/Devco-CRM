@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
 import { DevcoQuickBooks } from '@/lib/models';
-import { getProjects, getSingleProject } from '@/lib/quickbooks';
+import { getProjects, getSingleProject, getProjectProfitability, getAccessToken } from '@/lib/quickbooks';
+import { BASE_URL, QBO_REALM_ID } from '@/lib/quickbooks';
+
+// Extend Vercel function timeout to max allowed (300s for Pro, 60s for Hobby)
+export const maxDuration = 300;
 
 export async function POST(req: Request) {
     try {
@@ -25,12 +29,136 @@ export async function POST(req: Request) {
                 const singleProject = await getSingleProject(projectId);
                 liveProjects = [singleProject];
             } else {
-                // LIGHTWEIGHT BULK SYNC: Only fetch basic project metadata (single QBO API call).
-                // This avoids Vercel 504 timeouts caused by fetching profitability + transactions
-                // for every project. Per-project financials are fetched on-demand or via individual sync.
+                // For bulk sync, get projects first
                 const projects = await getProjects();
-                console.log(`[QBO-SYNC] Lightweight bulk sync: fetched ${projects.length} projects (metadata only)`);
-                liveProjects = projects;
+
+                // Process projects in batches to fetch transactions using reports
+                const batchSize = 5; // Reduced batch size to minimize rate limiting
+                const processedProjects = [];
+                const rateLimitDelay = 1000; // 1 second delay between batches
+
+                for (let i = 0; i < projects.length; i += batchSize) {
+                    const batch = projects.slice(i, i + batchSize);
+                    console.log(`Processing batch ${Math.floor(i / batchSize) + 1} of ${Math.ceil(projects.length / batchSize)} (${batch.length} projects)`);
+
+                    const batchPromises = batch.map(async (project) => {
+                        try {
+                            // Add delay between individual project requests to avoid rate limiting
+                            await new Promise(resolve => setTimeout(resolve, 200));
+
+                            // Fetch transactions using the same method as getSingleProject
+                            const profitability = await getProjectProfitability(project.Id);
+
+                            let transactionsData: any[] = [];
+                            try {
+                                const accessToken = await getAccessToken();
+                                const reportUrl = `${BASE_URL}/v3/company/${QBO_REALM_ID}/reports/ProfitAndLossDetail?customer=${project.Id}&date_macro=All&minorversion=70`;
+
+                                const reportResponse = await fetch(reportUrl, {
+                                    headers: {
+                                        'Authorization': `Bearer ${accessToken}`,
+                                        'Accept': 'application/json',
+                                    },
+                                    cache: 'no-store'
+                                });
+
+                                if (reportResponse.ok) {
+                                    const reportData = await reportResponse.json();
+
+                                    const parseAmount = (val: any) => parseFloat(String(val).replace(/[^0-9.-]/g, '')) || 0;
+                                    const transactionsMap = new Map<string, any>();
+
+                                    const traverseRows = (rows: any[]) => {
+                                        for (const row of rows) {
+                                            if (row.type === 'Data' && row.ColData) {
+                                                const getValue = (idx: number) => (row.ColData[idx]?.value) || "";
+                                                const getId = (idx: number) => (row.ColData[idx]?.id) || null;
+
+                                                const date = getValue(0);
+                                                const type = getValue(1);
+                                                const txnIdRaw = getId(1);
+                                                const num = getValue(2);
+                                                const name = getValue(3);
+                                                const memo = getValue(4);
+                                                const split = getValue(5);
+                                                const amountRaw = getValue(6);
+                                                const amount = parseAmount(amountRaw);
+
+                                                const groupKey = txnIdRaw || `${date}_${type}_${num}_${amount}`;
+
+                                                if (!transactionsMap.has(groupKey)) {
+                                                    transactionsMap.set(groupKey, {
+                                                        id: txnIdRaw || `report-${groupKey}`,
+                                                        date,
+                                                        type,
+                                                        no: num,
+                                                        from: name,
+                                                        memo: "",
+                                                        split: "",
+                                                        amount: 0,
+                                                        status: 'Cleared'
+                                                    });
+                                                }
+
+                                                const tx = transactionsMap.get(groupKey);
+                                                tx.amount += amount;
+                                                if (memo && memo.length > (tx.memo?.length || 0)) tx.memo = memo;
+                                                if (split && split.length > (tx.split?.length || 0)) tx.split = split;
+                                                if (!tx.no && num) tx.no = num;
+                                                if (!tx.from && name) tx.from = name;
+                                            } else if (row.Rows?.Row) {
+                                                traverseRows(row.Rows.Row);
+                                            }
+                                        }
+                                    };
+
+                                    if (reportData.Rows?.Row) {
+                                        traverseRows(reportData.Rows.Row);
+                                    }
+
+                                    transactionsData = Array.from(transactionsMap.values());
+                                    console.log(`Project ${project.Id}: Parsed ${transactionsData.length} transactions from ProfitAndLossDetail report`);
+                                } else if (reportResponse.status === 429) {
+                                    console.log(`ProfitAndLossDetail report failed for project ${project.Id}: 429 Too Many Requests - Rate limited`);
+                                    // Return empty transactions but continue processing
+                                    transactionsData = [];
+                                } else {
+                                    console.log(`ProfitAndLossDetail report failed for project ${project.Id}: ${reportResponse.status}`);
+                                }
+                            } catch (e) {
+                                console.log('Error fetching ProfitAndLossDetail report for project', project.Id, ':', e);
+                            }
+
+                            return {
+                                ...project,
+                                income: profitability.income,
+                                cost: profitability.cost,
+                                profitMargin: profitability.profitMargin,
+                                transactions: transactionsData
+                            };
+                        } catch (error) {
+                            console.error(`Error processing project ${project.Id}:`, error);
+                            return {
+                                ...project,
+                                income: 0,
+                                cost: 0,
+                                profitMargin: 0,
+                                transactions: []
+                            };
+                        }
+                    });
+
+                    const batchResults = await Promise.all(batchPromises);
+                    processedProjects.push(...batchResults);
+
+                    // Add delay between batches to avoid rate limiting
+                    if (i + batchSize < projects.length) {
+                        console.log(`Waiting ${rateLimitDelay}ms before next batch to avoid rate limiting...`);
+                        await new Promise(resolve => setTimeout(resolve, rateLimitDelay));
+                    }
+                }
+
+                liveProjects = processedProjects;
             }
         } catch (error: any) {
             throw error;
