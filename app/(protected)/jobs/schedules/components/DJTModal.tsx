@@ -449,11 +449,14 @@ export const DJTModal = ({
                                             <p className="text-[10px] font-bold text-slate-400 uppercase">Date & Time</p>
                                             <p className="text-sm font-bold text-slate-700">
                                                 {(() => {
-                                                    const dateVal = selectedDJT.date || selectedDJT.createdAt;
+                                                    const schedule = selectedDJT.scheduleRef || schedules.find((s: any) => String(s._id) === String(selectedDJT.schedule_id || selectedDJT._id));
+                                                    const dateVal = schedule?.fromDate || selectedDJT.date || selectedDJT.createdAt;
                                                     if (!dateVal) return 'N/A';
                                                     const d = new Date(dateVal);
                                                     if (isNaN(d.getTime())) return 'N/A';
-                                                    return `${d.toLocaleDateString('en-US', { timeZone: 'UTC' })} at ${selectedDJT.djtTime || d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+                                                    const dateStr = d.toLocaleDateString('en-US', { timeZone: 'UTC' });
+                                                    const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+                                                    return `${dateStr} at ${timeStr}`;
                                                 })()}
                                             </p>
                                         </div>

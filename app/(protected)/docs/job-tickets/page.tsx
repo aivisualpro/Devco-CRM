@@ -229,11 +229,12 @@ export default function JobTicketPage() {
 
         // Initialize new DJT
         const userEmail = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email : null;
+        const scheduleDate = schedule.fromDate ? new Date(schedule.fromDate) : new Date();
         const newDJT: DJT = {
             schedule_id: schedule._id,
             scheduleRef: schedule,
-            date: new Date().toISOString(), 
-            djtTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            date: scheduleDate.toISOString(), 
+            djtTime: scheduleDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
             createdBy: userEmail || 'system',
             signatures: [],
             dailyJobDescription: '',
