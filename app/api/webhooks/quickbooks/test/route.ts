@@ -1,75 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { qboQuery, QBO_REALM_ID, BASE_URL } from '@/lib/quickbooks';
+import { resolveProjectIdsFromEntity, syncProjectToDb } from '@/lib/qbo-sync';
 
 // Debug endpoint: GET /api/webhooks/quickbooks/test?entityId=772917373
 export async function GET(req: NextRequest) {
     const entityId = req.nextUrl.searchParams.get('entityId');
 
+    if (!entityId) {
+        return NextResponse.json({ error: 'entityId query param required' }, { status: 400 });
+    }
+
     try {
         const diagnostics: any = {
             realmId: QBO_REALM_ID,
             baseUrl: BASE_URL,
-            qboIsProduction: process.env.QBO_IS_PRODUCTION,
-            nodeEnv: process.env.NODE_ENV,
             timestamp: new Date().toISOString(),
         };
 
-        // Query 1: Simple customer query WITHOUT IsProject (to test basic connectivity)
-        if (entityId) {
+        // Step 1: Resolve project IDs (same as webhook handler does)
+        const resolvedIds = await resolveProjectIdsFromEntity('Customer', entityId);
+        diagnostics.resolvedProjectIds = resolvedIds;
+
+        if (resolvedIds.length === 0) {
+            return NextResponse.json({ 
+                ...diagnostics,
+                success: false, 
+                message: `No project IDs resolved for Customer/${entityId}. Checking raw data...`,
+            });
+        }
+
+        // Step 2: Sync each resolved project
+        const results = [];
+        for (const projectId of resolvedIds) {
             try {
-                const simpleResult = await qboQuery(`SELECT Id, DisplayName, FullyQualifiedName, Job, Active FROM Customer WHERE Id = '${entityId}'`);
-                diagnostics.simpleQuery = {
-                    success: true,
-                    customer: simpleResult.QueryResponse?.Customer?.[0] || null,
-                    totalCount: simpleResult.QueryResponse?.totalCount || 0
-                };
+                const project = await syncProjectToDb(projectId);
+                results.push({ projectId, success: true, projectName: project.project || project.DisplayName });
             } catch (err: any) {
-                diagnostics.simpleQuery = { success: false, error: err.message };
+                results.push({ projectId, success: false, error: err.message });
             }
         }
 
-        // Query 2: Try with IsProject - the one that failed before
-        try {
-            const projectQuery = await qboQuery(`SELECT Id, DisplayName, Job FROM Customer WHERE Job = true MAXRESULTS 5`);
-            diagnostics.jobQuery = {
-                success: true,
-                results: projectQuery.QueryResponse?.Customer?.map((c: any) => ({
-                    Id: c.Id,
-                    DisplayName: c.DisplayName,
-                    Job: c.Job,
-                })) || [],
-                totalCount: projectQuery.QueryResponse?.totalCount || 0
-            };
-        } catch (err: any) {
-            diagnostics.jobQuery = { success: false, error: err.message };
-        }
-
-        // Query 3: Try IsProject query separately
-        try {
-            const isProjectQuery = await qboQuery(`SELECT Id, DisplayName, IsProject FROM Customer WHERE IsProject = true MAXRESULTS 5`);
-            diagnostics.isProjectQuery = {
-                success: true,
-                results: isProjectQuery.QueryResponse?.Customer?.map((c: any) => ({
-                    Id: c.Id,
-                    DisplayName: c.DisplayName,
-                    IsProject: c.IsProject,
-                })) || [],
-                totalCount: isProjectQuery.QueryResponse?.totalCount || 0
-            };
-        } catch (err: any) {
-            diagnostics.isProjectQuery = { success: false, error: err.message };
-        }
-
-        return NextResponse.json(diagnostics, { status: 200 });
-    } catch (error: any) {
-        console.error(`[QBO-TEST] Error:`, error);
         return NextResponse.json({ 
-            success: false, 
-            error: error.message,
-            realmId: QBO_REALM_ID,
-            baseUrl: BASE_URL,
-            qboIsProduction: process.env.QBO_IS_PRODUCTION,
-            nodeEnv: process.env.NODE_ENV,
-        }, { status: 500 });
+            ...diagnostics,
+            success: true, 
+            message: `Synced ${results.length} project(s)`,
+            resolvedIds,
+            results 
+        });
+    } catch (error: any) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

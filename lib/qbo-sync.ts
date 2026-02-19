@@ -60,7 +60,7 @@ export async function resolveProjectIdsFromEntity(entityName: string, entityId: 
         if (entityName === 'Customer') {
             // Check if it's a project (Job=true or IsProject=true)
             // Querying it to be safe, though Webhook implies it's a Customer entity
-            const res = await qboQuery(`SELECT Id, Job, IsProject, ParentRef FROM Customer WHERE Id = '${entityId}'`);
+            const res = await qboQuery(`SELECT * FROM Customer WHERE Id = '${entityId}'`);
             const customer = res.QueryResponse?.Customer?.[0];
             
             if (!customer) return [];
