@@ -1,12 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { connectToDatabase } from '@/lib/db';
+import WebhookLog from '@/lib/models/WebhookLog';
 import { resolveProjectIdsFromEntity, syncProjectToDb } from '@/lib/qbo-sync';
 
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
+    const receivedAt = new Date();
+    let logEntry: any = null;
+
     try {
+        await connectToDatabase();
+
         const payload = await req.text();
         const signature = req.headers.get('intuit-signature');
         const verifierToken = process.env.QBO_WEBHOOK_VERIFIER_TOKEN;
+
+        // Log the incoming webhook immediately
+        const headers: Record<string, string> = {};
+        req.headers.forEach((value, key) => { headers[key] = value; });
+
+        logEntry = await WebhookLog.create({
+            source: 'quickbooks',
+            payload: payload ? JSON.parse(payload) : null,
+            headers: { 'intuit-signature': signature || 'none', 'content-type': headers['content-type'] || '' },
+            status: 'received',
+            receivedAt,
+            entitiesProcessed: 0,
+            projectsSynced: [],
+        });
+
+        console.log(`[QBO-WEBHOOK] Log ID: ${logEntry._id} - Received webhook at ${receivedAt.toISOString()}`);
 
         // Verify signature if token is provided
         if (verifierToken && signature) {
@@ -17,6 +42,7 @@ export async function POST(req: NextRequest) {
 
             if (hash !== signature) {
                 console.error('[QBO-WEBHOOK] Invalid QuickBooks Webhook Signature');
+                await WebhookLog.findByIdAndUpdate(logEntry._id, { status: 'failed', error: 'Invalid signature', processedAt: new Date() });
                 return new NextResponse('Invalid signature', { status: 401 });
             }
         }
@@ -24,31 +50,30 @@ export async function POST(req: NextRequest) {
         const data = JSON.parse(payload);
         console.log('[QBO-WEBHOOK] Received:', JSON.stringify(data, null, 2));
 
+        const syncedProjects: string[] = [];
+        let totalEntities = 0;
+
         // Process events
         if (data.eventNotifications) {
             for (const notification of data.eventNotifications) {
                 const realmId = notification.realmId;
-
-                // FIX: QuickBooks webhook payload uses "dataChangeEvent" (singular), NOT "dataEvents"
-                // See: https://developer.intuit.com/app/developer/qbo/docs/develop/webhooks
                 const entities = notification.dataChangeEvent?.entities || [];
                 
                 console.log(`[QBO-WEBHOOK] Realm ${realmId}: Processing ${entities.length} entities`);
-                
+                totalEntities += entities.length;
+
                 if (entities.length === 0) {
-                    console.warn('[QBO-WEBHOOK] No entities found in notification. Raw notification keys:', Object.keys(notification));
+                    console.warn('[QBO-WEBHOOK] No entities found. Raw notification keys:', Object.keys(notification));
                 }
 
-                // We use a set to avoid double-syncing the same project if multiple updates come in one batch
                 const projectsToSync = new Set<string>();
                 
                 for (const entity of entities) {
-                    console.log(`[QBO-WEBHOOK] Realm ${realmId}: Entity ${entity.name} with ID ${entity.id} was ${entity.operation}d`);
+                    console.log(`[QBO-WEBHOOK] Entity ${entity.name} ID=${entity.id} operation=${entity.operation}`);
                     
                     try {
-                        // For newly created entities, add a small delay to allow QBO to fully propagate
                         if (entity.operation === 'Create') {
-                            console.log(`[QBO-WEBHOOK] New entity created, waiting 2s for QBO propagation...`);
+                            console.log(`[QBO-WEBHOOK] New entity, waiting 2s for QBO propagation...`);
                             await new Promise(resolve => setTimeout(resolve, 2000));
                         }
 
@@ -60,15 +85,15 @@ export async function POST(req: NextRequest) {
                     }
                 }
                 
-                // Trigger Syncs
                 if (projectsToSync.size > 0) {
-                    console.log(`[QBO-WEBHOOK] Triggering sync for ${projectsToSync.size} projects:`, Array.from(projectsToSync));
+                    console.log(`[QBO-WEBHOOK] Syncing ${projectsToSync.size} projects:`, Array.from(projectsToSync));
                     for (const projectId of Array.from(projectsToSync)) {
                         try {
-                             await syncProjectToDb(projectId);
-                             console.log(`[QBO-WEBHOOK] Successfully synced project ${projectId}`);
+                            await syncProjectToDb(projectId);
+                            syncedProjects.push(projectId);
+                            console.log(`[QBO-WEBHOOK] Successfully synced project ${projectId}`);
                         } catch (err) {
-                             console.error(`[QBO-WEBHOOK] Failed to sync project ${projectId} from webhook:`, err);
+                            console.error(`[QBO-WEBHOOK] Failed to sync project ${projectId}:`, err);
                         }
                     }
                 } else {
@@ -79,15 +104,30 @@ export async function POST(req: NextRequest) {
             console.warn('[QBO-WEBHOOK] No eventNotifications in payload. Keys:', Object.keys(data));
         }
 
-        // QuickBooks requires a 200 response within 5 seconds
+        // Update log with final status
+        await WebhookLog.findByIdAndUpdate(logEntry._id, {
+            status: 'processed',
+            entitiesProcessed: totalEntities,
+            projectsSynced: syncedProjects,
+            processedAt: new Date(),
+        });
+
         return new NextResponse('OK', { status: 200 });
-    } catch (error) {
+    } catch (error: any) {
         console.error('[QBO-WEBHOOK] Error:', error);
+        
+        if (logEntry?._id) {
+            await WebhookLog.findByIdAndUpdate(logEntry._id, { 
+                status: 'failed', 
+                error: error.message, 
+                processedAt: new Date() 
+            }).catch(() => {});
+        }
+
         return new NextResponse('Internal Server Error', { status: 500 });
     }
 }
 
-// QBO might send a GET request to verify the endpoint during setup (though usually it's just a POST)
 export async function GET() {
     return new NextResponse('QuickBooks Webhook Endpoint Active', { status: 200 });
 }
