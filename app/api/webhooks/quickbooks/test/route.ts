@@ -1,64 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { qboQuery, getProjects, QBO_REALM_ID } from '@/lib/quickbooks';
-import { resolveProjectIdsFromEntity, syncProjectToDb } from '@/lib/qbo-sync';
+import { qboQuery, QBO_REALM_ID, BASE_URL } from '@/lib/quickbooks';
 
-// Debug endpoint: GET /api/webhooks/quickbooks/test?entityName=Customer&entityId=772917373
+// Debug endpoint: GET /api/webhooks/quickbooks/test?entityId=772917373
 export async function GET(req: NextRequest) {
-    const entityName = req.nextUrl.searchParams.get('entityName') || 'Customer';
     const entityId = req.nextUrl.searchParams.get('entityId');
 
     try {
         const diagnostics: any = {
             realmId: QBO_REALM_ID,
+            baseUrl: BASE_URL,
+            qboIsProduction: process.env.QBO_IS_PRODUCTION,
+            nodeEnv: process.env.NODE_ENV,
             timestamp: new Date().toISOString(),
         };
 
-        // If entityId provided, query that specific customer
+        // Query 1: Simple customer query WITHOUT IsProject (to test basic connectivity)
         if (entityId) {
-            console.log(`[QBO-TEST] Querying Customer ${entityId} in realm ${QBO_REALM_ID}...`);
-            
-            // Raw query to see exactly what QBO returns
-            const rawResult = await qboQuery(`SELECT Id, DisplayName, FullyQualifiedName, Job, IsProject, Active, ParentRef FROM Customer WHERE Id = '${entityId}'`);
-            diagnostics.rawQueryResult = rawResult;
-            
-            const customer = rawResult.QueryResponse?.Customer?.[0];
-            diagnostics.customerFound = !!customer;
-            
-            if (customer) {
-                diagnostics.customer = {
-                    Id: customer.Id,
-                    DisplayName: customer.DisplayName,
-                    FullyQualifiedName: customer.FullyQualifiedName,
-                    Job: customer.Job,
-                    IsProject: customer.IsProject,
-                    Active: customer.Active,
-                    ParentRef: customer.ParentRef,
-                };
-                diagnostics.isProjectOrJob = customer.Job === true || customer.IsProject === true;
-            }
-
-            // Also try resolving project IDs
             try {
-                const resolvedIds = await resolveProjectIdsFromEntity(entityName, entityId);
-                diagnostics.resolvedProjectIds = resolvedIds;
+                const simpleResult = await qboQuery(`SELECT Id, DisplayName, FullyQualifiedName, Job, Active FROM Customer WHERE Id = '${entityId}'`);
+                diagnostics.simpleQuery = {
+                    success: true,
+                    customer: simpleResult.QueryResponse?.Customer?.[0] || null,
+                    totalCount: simpleResult.QueryResponse?.totalCount || 0
+                };
             } catch (err: any) {
-                diagnostics.resolveError = err.message;
+                diagnostics.simpleQuery = { success: false, error: err.message };
             }
         }
 
-        // Also list the first 5 projects to verify API is working
+        // Query 2: Try with IsProject - the one that failed before
         try {
-            console.log(`[QBO-TEST] Fetching projects list from realm ${QBO_REALM_ID}...`);
-            const allProjectsRaw = await qboQuery(`SELECT Id, DisplayName, Job, IsProject FROM Customer WHERE IsProject = true MAXRESULTS 5`);
-            diagnostics.sampleProjects = allProjectsRaw.QueryResponse?.Customer?.map((c: any) => ({
-                Id: c.Id,
-                DisplayName: c.DisplayName,
-                Job: c.Job,
-                IsProject: c.IsProject,
-            })) || [];
-            diagnostics.totalProjectsReturned = allProjectsRaw.QueryResponse?.totalCount || allProjectsRaw.QueryResponse?.Customer?.length || 0;
+            const projectQuery = await qboQuery(`SELECT Id, DisplayName, Job FROM Customer WHERE Job = true MAXRESULTS 5`);
+            diagnostics.jobQuery = {
+                success: true,
+                results: projectQuery.QueryResponse?.Customer?.map((c: any) => ({
+                    Id: c.Id,
+                    DisplayName: c.DisplayName,
+                    Job: c.Job,
+                })) || [],
+                totalCount: projectQuery.QueryResponse?.totalCount || 0
+            };
         } catch (err: any) {
-            diagnostics.projectListError = err.message;
+            diagnostics.jobQuery = { success: false, error: err.message };
+        }
+
+        // Query 3: Try IsProject query separately
+        try {
+            const isProjectQuery = await qboQuery(`SELECT Id, DisplayName, IsProject FROM Customer WHERE IsProject = true MAXRESULTS 5`);
+            diagnostics.isProjectQuery = {
+                success: true,
+                results: isProjectQuery.QueryResponse?.Customer?.map((c: any) => ({
+                    Id: c.Id,
+                    DisplayName: c.DisplayName,
+                    IsProject: c.IsProject,
+                })) || [],
+                totalCount: isProjectQuery.QueryResponse?.totalCount || 0
+            };
+        } catch (err: any) {
+            diagnostics.isProjectQuery = { success: false, error: err.message };
         }
 
         return NextResponse.json(diagnostics, { status: 200 });
@@ -68,6 +67,9 @@ export async function GET(req: NextRequest) {
             success: false, 
             error: error.message,
             realmId: QBO_REALM_ID,
+            baseUrl: BASE_URL,
+            qboIsProduction: process.env.QBO_IS_PRODUCTION,
+            nodeEnv: process.env.NODE_ENV,
         }, { status: 500 });
     }
 }
