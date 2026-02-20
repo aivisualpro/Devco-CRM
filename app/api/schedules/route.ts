@@ -235,20 +235,24 @@ export async function POST(request: NextRequest) {
                     updatedAt: new Date()
                 });
 
+                // ── SMS Notification (must be awaited on Vercel serverless) ──
                 const docAny = doc as any;
                 if (docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true') {
                     if (Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
                         const fmtDate = docAny.fromDate ? new Date(docAny.fromDate).toLocaleDateString() : 'N/A';
                         const messageBody = `You have been assigned to a new devco schedule: ${docAny.title || docAny.jobLocation || 'Job Schedule'}. Date: ${fmtDate}`;
                         
-                        Employee.find({ email: { $in: docAny.assignees } }).lean().then(assigneesDocs => {
-                            for (const employee of assigneesDocs) {
-                                const phone = employee.phone || employee.mobile;
-                                if (phone) {
-                                    sendSMS(phone, messageBody).catch(console.error);
-                                }
-                            }
-                        }).catch(console.error);
+                        try {
+                            const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
+                            const smsPromises = assigneesDocs
+                                .map(emp => emp.phone || emp.mobile)
+                                .filter(Boolean)
+                                .map(phone => sendSMS(phone!, messageBody).catch(err => console.error('[SMS] Failed for', phone, err)));
+                            await Promise.all(smsPromises);
+                            console.log(`[SMS] Sent ${smsPromises.length} notification(s) for schedule ${scheduleId}`);
+                        } catch (smsErr) {
+                            console.error('[SMS] Error sending notifications:', smsErr);
+                        }
                     }
                 }
 

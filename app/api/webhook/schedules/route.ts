@@ -194,14 +194,16 @@ export async function POST(request: NextRequest) {
                             const fmtDate = docAny.fromDate ? new Date(docAny.fromDate).toLocaleDateString() : 'N/A';
                             const messageBody = `You have been assigned to a new devco schedule: ${docAny.title || docAny.jobLocation || 'Job Schedule'}. Date: ${fmtDate}`;
                             
-                            Employee.find({ email: { $in: docAny.assignees } }).lean().then(assigneesDocs => {
-                                for (const employee of assigneesDocs) {
-                                    const phone = employee.phone || employee.mobile;
-                                    if (phone) {
-                                        sendSMS(phone, messageBody).catch(console.error);
-                                    }
-                                }
-                            }).catch(console.error);
+                            try {
+                                const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
+                                const smsPromises = assigneesDocs
+                                    .map(emp => emp.phone || emp.mobile)
+                                    .filter(Boolean)
+                                    .map(phone => sendSMS(phone!, messageBody).catch(err => console.error('[SMS] Failed for', phone, err)));
+                                await Promise.all(smsPromises);
+                            } catch (smsErr) {
+                                console.error('[SMS] Error sending notifications:', smsErr);
+                            }
                         }
                     }
 
