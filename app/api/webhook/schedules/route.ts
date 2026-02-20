@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/db';
-import { Schedule } from '@/lib/models';
+import { Schedule, Employee } from '@/lib/models';
+import { sendSMS } from '@/lib/signalwire';
 
 /**
  * Webhook endpoint for AppSheet to add/update schedules
@@ -187,6 +188,23 @@ export async function POST(request: NextRequest) {
                     });
                     await doc.save();
                     
+                    const docAny = doc as any;
+                    if (docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true') {
+                        if (Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
+                            const fmtDate = docAny.fromDate ? new Date(docAny.fromDate).toLocaleDateString() : 'N/A';
+                            const messageBody = `You have been assigned to a new devco schedule: ${docAny.title || docAny.jobLocation || 'Job Schedule'}. Date: ${fmtDate}`;
+                            
+                            Employee.find({ email: { $in: docAny.assignees } }).lean().then(assigneesDocs => {
+                                for (const employee of assigneesDocs) {
+                                    const phone = employee.phone || employee.mobile;
+                                    if (phone) {
+                                        sendSMS(phone, messageBody).catch(console.error);
+                                    }
+                                }
+                            }).catch(console.error);
+                        }
+                    }
+
                     results.push({ 
                         success: true, 
                         action: 'created', 

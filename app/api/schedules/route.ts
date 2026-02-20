@@ -7,6 +7,7 @@ import { getLocalNowISO } from '@/lib/scheduleUtils';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { getUserPermissions, getDataScope, isSuperAdmin } from '@/lib/permissions/service';
 import { MODULES } from '@/lib/permissions/types';
+import { sendSMS } from '@/lib/signalwire';
 const getAppSheetConfig = () => ({
     appId: process.env.APPSHEET_APP_ID || "3a1353f3-966e-467d-8947-a4a4d0c4c0c5",
     accessKey: process.env.APPSHEET_ACCESS || "V2-lWtLA-VV7bn-bEktT-S5xM7-2WUIf-UQmIA-GY6qH-A1S3E",
@@ -233,6 +234,23 @@ export async function POST(request: NextRequest) {
                     createdAt: new Date(),
                     updatedAt: new Date()
                 });
+
+                const docAny = doc as any;
+                if (docAny.notifyAssignees === true || docAny.notifyAssignees === 'Yes' || docAny.notifyAssignees === 'true') {
+                    if (Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
+                        const fmtDate = docAny.fromDate ? new Date(docAny.fromDate).toLocaleDateString() : 'N/A';
+                        const messageBody = `You have been assigned to a new devco schedule: ${docAny.title || docAny.jobLocation || 'Job Schedule'}. Date: ${fmtDate}`;
+                        
+                        Employee.find({ email: { $in: docAny.assignees } }).lean().then(assigneesDocs => {
+                            for (const employee of assigneesDocs) {
+                                const phone = employee.phone || employee.mobile;
+                                if (phone) {
+                                    sendSMS(phone, messageBody).catch(console.error);
+                                }
+                            }
+                        }).catch(console.error);
+                    }
+                }
 
                 // Propagate images to associated estimates (all versions)
                 if (payload.estimate) {
