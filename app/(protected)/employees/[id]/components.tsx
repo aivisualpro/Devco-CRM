@@ -390,21 +390,30 @@ export function DetailRow({ label, value, isLink, href }: DetailRowProps) {
     );
 }
 
-export function AccordionCard({ title, isOpen, onToggle, children, icon: Icon }: any) {
+export function AccordionCard({ title, isOpen, onToggle, children, icon: Icon, action }: any) {
     return (
         <div className="bg-white rounded-2xl shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] overflow-hidden transition-all duration-300 border border-gray-100">
-            <button
+            <div
                 onClick={onToggle}
-                className={`w-full flex items-center justify-between p-4 sm:p-5 transition-colors ${isOpen ? 'bg-slate-50/80' : 'bg-white hover:bg-gray-50'}`}
+                role="button"
+                tabIndex={0}
+                className={`w-full flex items-center justify-between p-4 sm:p-5 cursor-pointer transition-colors ${isOpen ? 'bg-slate-50/80' : 'bg-white hover:bg-gray-50'}`}
             >
                 <div className="flex items-center gap-3">
                     {Icon && <Icon className="w-5 h-5 text-indigo-500" />}
                     <h3 className="text-lg font-bold text-slate-700 tracking-tight">{title}</h3>
                 </div>
-                <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-                    <ChevronDown className="w-5 h-5" />
+                <div className="flex items-center gap-2">
+                    {action && (
+                        <div onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                            {action}
+                        </div>
+                    )}
+                    <div className={`text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                        <ChevronDown className="w-5 h-5" />
+                    </div>
                 </div>
-            </button>
+            </div>
             <div
                 className={`transition-all duration-300 ease-in-out overflow-hidden ${isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
             >

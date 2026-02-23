@@ -101,10 +101,46 @@ export default function EmployeeViewPage() {
     const emptyTraining = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', description: '', status: '', fileUrl: '', createdBy: '', createdAt: '' };
     const [newTraining, setNewTraining] = useState<any>({ ...emptyTraining });
 
+    // Document adding state
+    const [isAddingDocument, setIsAddingDocument] = useState(false);
+    const emptyDocument = { date: '', type: '', description: '', fileUrl: '' };
+    const [newDocument, setNewDocument] = useState<any>({ ...emptyDocument });
+    const [savingDocument, setSavingDocument] = useState(false);
+
+    // Drug testing adding state
+    const [isAddingDrugTest, setIsAddingDrugTest] = useState(false);
+    const emptyDrugTest = { date: '', type: '', description: '', fileUrl: '' };
+    const [newDrugTest, setNewDrugTest] = useState<any>({ ...emptyDrugTest });
+    const [savingDrugTest, setSavingDrugTest] = useState(false);
+
     const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED'];
     const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid'];
     const TRAINING_FREQUENCIES = ['N/A', 'None', 'Once', 'One Time', 'W/R', 'Annually', 'Bi-Annually', 'Every 3 Years', 'Every 5 Years', 'As Needed'];
     const TRAINING_STATUSES = ['Pending', 'In Progress', 'Completed', 'Expired', 'Renewed'];
+
+    // Normalize any date string to YYYY-MM-DD for <input type="date">
+    const toDateInputValue = (val: string | undefined) => {
+        if (!val) return '';
+        // Already YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+        // MM/DD/YYYY
+        const mdyMatch = val.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (mdyMatch) return `${mdyMatch[3]}-${mdyMatch[1].padStart(2, '0')}-${mdyMatch[2].padStart(2, '0')}`;
+        // ISO string like 2025-01-01T00:00:00.000Z
+        if (val.includes('T')) return val.split('T')[0];
+        return val;
+    };
+
+    // Format date for table display as MM/DD/YYYY
+    const formatDateDisplay = (val: string | undefined) => {
+        if (!val) return '-';
+        const iso = toDateInputValue(val);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+            const [y, m, d] = iso.split('-');
+            return `${m}/${d}/${y}`;
+        }
+        return val || '-';
+    };
 
     // Open base64 data URIs as blob URLs (direct href to data: causes about:blank)
     const openFileUrl = (fileUrl: string) => {
@@ -196,6 +232,58 @@ export default function EmployeeViewPage() {
             toastError('Error adding record');
         } finally {
             setSavingTraining(false);
+        }
+    };
+
+    const handleAddDocument = async () => {
+        if (!employee) return;
+        if (!newDocument.type && !newDocument.description) {
+            toastError('Please enter at least a type or description');
+            return;
+        }
+        setSavingDocument(true);
+        try {
+            const record = { ...newDocument, date: newDocument.date || new Date().toISOString().split('T')[0] };
+            const updated = [...(employee.documents || []), record];
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { documents: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, documents: updated });
+                success('Document added');
+                setNewDocument({ ...emptyDocument });
+                setIsAddingDocument(false);
+            } else {
+                toastError('Failed to add document');
+            }
+        } catch (e) {
+            toastError('Error adding document');
+        } finally {
+            setSavingDocument(false);
+        }
+    };
+
+    const handleAddDrugTest = async () => {
+        if (!employee) return;
+        if (!newDrugTest.type && !newDrugTest.description) {
+            toastError('Please enter at least a type or description');
+            return;
+        }
+        setSavingDrugTest(true);
+        try {
+            const record = { ...newDrugTest, date: newDrugTest.date || new Date().toISOString().split('T')[0] };
+            const updated = [...(employee.drugTestingRecords || []), record];
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, drugTestingRecords: updated });
+                success('Drug test record added');
+                setNewDrugTest({ ...emptyDrugTest });
+                setIsAddingDrugTest(false);
+            } else {
+                toastError('Failed to add record');
+            }
+        } catch (e) {
+            toastError('Error adding record');
+        } finally {
+            setSavingDrugTest(false);
         }
     };
 
@@ -463,14 +551,78 @@ export default function EmployeeViewPage() {
                         </div>
 
                         {/* Documents */}
-                        {(employee.documents?.length ?? 0) > 0 && (
                             <div className="col-span-1 xl:col-span-2">
                                 <AccordionCard
                                     title={`Documents (${employee.documents?.length || 0})`}
                                     icon={FileText}
                                     isOpen={openSections['documents']}
                                     onToggle={() => handleToggle('documents')}
+                                    action={
+                                        <button
+                                            onClick={() => { setIsAddingDocument(true); setOpenSections(prev => ({ ...prev, documents: true })); }}
+                                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                            title="Add Document"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                        </button>
+                                    }
                                 >
+                                    {/* Add Document Form */}
+                                    {isAddingDocument && (
+                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Add New Document</h4>
+                                                <button onClick={() => { setIsAddingDocument(false); setNewDocument({ ...emptyDocument }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={toDateInputValue(newDocument.date)} onChange={e => setNewDocument({ ...newDocument, date: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Input placeholder="e.g. ID, Contract" value={newDocument.type || ''} onChange={e => setNewDocument({ ...newDocument, type: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newDocument.description || ''} onChange={e => setNewDocument({ ...newDocument, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {newDocument.fileUrl && <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {newDocument.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setNewDocument({ ...newDocument, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {newDocument.fileUrl && (
+                                                            <button type="button" onClick={() => setNewDocument({ ...newDocument, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddDocument} disabled={savingDocument}>
+                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingDocument ? 'Adding...' : 'Add Document'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingDocument(false); setNewDocument({ ...emptyDocument }); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(employee.documents?.length ?? 0) > 0 ? (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
                                             <thead>
@@ -484,28 +636,94 @@ export default function EmployeeViewPage() {
                                             <tbody>
                                                 {employee.documents?.map((doc: any, i: number) => (
                                                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                                        <td className="py-2 px-3 text-slate-600">{doc.date || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(doc.date)}</td>
                                                         <td className="py-2 px-3 text-slate-800 font-medium">{doc.type || '-'}</td>
                                                         <td className="py-2 px-3 text-slate-600">{doc.description || '-'}</td>
-                                                        <td className="py-2 px-3">{doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</a> : '-'}</td>
+                                                        <td className="py-2 px-3">{doc.fileUrl ? <button onClick={() => openFileUrl(doc.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     </div>
+                                    ) : (
+                                        <div className="py-8 text-center text-sm text-slate-400 italic">No documents uploaded yet</div>
+                                    )}
                                 </AccordionCard>
                             </div>
-                        )}
 
                         {/* Drug Testing Records */}
-                        {(employee.drugTestingRecords?.length ?? 0) > 0 && (
                             <div className="col-span-1 xl:col-span-2">
                                 <AccordionCard
                                     title={`Drug Testing Records (${employee.drugTestingRecords?.length || 0})`}
                                     icon={FlaskConical}
                                     isOpen={openSections['drugTesting']}
                                     onToggle={() => handleToggle('drugTesting')}
+                                    action={
+                                        <button
+                                            onClick={() => { setIsAddingDrugTest(true); setOpenSections(prev => ({ ...prev, drugTesting: true })); }}
+                                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                            title="Add Drug Test Record"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                        </button>
+                                    }
                                 >
+                                    {/* Add Drug Test Form */}
+                                    {isAddingDrugTest && (
+                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Add New Drug Test Record</h4>
+                                                <button onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={toDateInputValue(newDrugTest.date)} onChange={e => setNewDrugTest({ ...newDrugTest, date: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Input placeholder="e.g. Random, Pre-Employment" value={newDrugTest.type || ''} onChange={e => setNewDrugTest({ ...newDrugTest, type: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newDrugTest.description || ''} onChange={e => setNewDrugTest({ ...newDrugTest, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {newDrugTest.fileUrl && <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {newDrugTest.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setNewDrugTest({ ...newDrugTest, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {newDrugTest.fileUrl && (
+                                                            <button type="button" onClick={() => setNewDrugTest({ ...newDrugTest, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddDrugTest} disabled={savingDrugTest}>
+                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingDrugTest ? 'Adding...' : 'Add Record'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingDrugTest(false); setNewDrugTest({ ...emptyDrugTest }); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {(employee.drugTestingRecords?.length ?? 0) > 0 ? (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
                                             <thead>
@@ -519,18 +737,20 @@ export default function EmployeeViewPage() {
                                             <tbody>
                                                 {employee.drugTestingRecords?.map((rec: any, i: number) => (
                                                     <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
-                                                        <td className="py-2 px-3 text-slate-600">{rec.date || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.date)}</td>
                                                         <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
                                                         <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
-                                                        <td className="py-2 px-3">{rec.fileUrl && rec.fileUrl.startsWith('http') ? <a href={rec.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</a> : '-'}</td>
+                                                        <td className="py-2 px-3">{rec.fileUrl ? <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
                                     </div>
+                                    ) : (
+                                        <div className="py-8 text-center text-sm text-slate-400 italic">No drug testing records yet</div>
+                                    )}
                                 </AccordionCard>
                             </div>
-                        )}
 
                         {/* Training & Certifications */}
                             <div className="col-span-1 xl:col-span-2">
@@ -539,6 +759,15 @@ export default function EmployeeViewPage() {
                                     icon={GraduationCap}
                                     isOpen={openSections['training']}
                                     onToggle={() => handleToggle('training')}
+                                    action={
+                                        <button
+                                            onClick={() => { setIsAddingTraining(true); setOpenSections(prev => ({ ...prev, training: true })); }}
+                                            className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 transition-colors"
+                                            title="Add Training / Certification"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                        </button>
+                                    }
                                 >
                                     {/* Inline Edit Form */}
                                     {editingTrainingIdx !== null && editingTraining && (
@@ -579,15 +808,15 @@ export default function EmployeeViewPage() {
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
-                                                    <Input type="date" value={editingTraining.assignedDate || ''} onChange={e => setEditingTraining({ ...editingTraining, assignedDate: e.target.value })} />
+                                                    <Input type="date" value={toDateInputValue(editingTraining.assignedDate)} onChange={e => setEditingTraining({ ...editingTraining, assignedDate: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
-                                                    <Input type="date" value={editingTraining.completionDate || ''} onChange={e => setEditingTraining({ ...editingTraining, completionDate: e.target.value })} />
+                                                    <Input type="date" value={toDateInputValue(editingTraining.completionDate)} onChange={e => setEditingTraining({ ...editingTraining, completionDate: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
-                                                    <Input type="date" value={editingTraining.renewalDate || ''} onChange={e => setEditingTraining({ ...editingTraining, renewalDate: e.target.value })} />
+                                                    <Input type="date" value={toDateInputValue(editingTraining.renewalDate)} onChange={e => setEditingTraining({ ...editingTraining, renewalDate: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
@@ -680,15 +909,15 @@ export default function EmployeeViewPage() {
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
-                                                    <Input type="date" value={newTraining.assignedDate || ''} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
+                                                    <Input type="date" value={toDateInputValue(newTraining.assignedDate)} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
-                                                    <Input type="date" value={newTraining.completionDate || ''} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
+                                                    <Input type="date" value={toDateInputValue(newTraining.completionDate)} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
-                                                    <Input type="date" value={newTraining.renewalDate || ''} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
+                                                    <Input type="date" value={toDateInputValue(newTraining.renewalDate)} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
                                                 </div>
                                                 <div>
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
@@ -740,14 +969,6 @@ export default function EmployeeViewPage() {
                                         </div>
                                     )}
 
-                                    {/* Add button when not in add mode */}
-                                    {!isAddingTraining && editingTrainingIdx === null && (
-                                        <div className="mb-3">
-                                            <Button size="sm" variant="outline" className="border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400" onClick={() => setIsAddingTraining(true)}>
-                                                <Plus className="w-3.5 h-3.5 mr-1" /> Add Training / Certification
-                                            </Button>
-                                        </div>
-                                    )}
 
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
@@ -771,9 +992,9 @@ export default function EmployeeViewPage() {
                                                         <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
                                                         <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
                                                         <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{rec.assignedDate || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{rec.completionDate || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{rec.renewalDate || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.assignedDate)}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.completionDate)}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.renewalDate)}</td>
                                                         <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
                                                         <td className="py-2 px-3">
                                                             {rec.status ? (
