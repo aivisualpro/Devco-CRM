@@ -2208,6 +2208,7 @@ export default function EstimateViewPage() {
                                 onUpdate={handleHeaderUpdate}
                                 planningOptions={planningOptions}
                                 activeClient={activeClient}
+                                chartData={chartData}
                             />
                         </div>
                     )}

@@ -69,9 +69,10 @@ interface EstimateDocsCardProps {
     onUpdate?: (field: string, value: any) => void;
     planningOptions?: { id: string; label: string; value: string; color?: string }[];
     activeClient?: any;
+    chartData?: { slices: any[]; subTotal: number; grandTotal: number; markupPct: number };
 }
 
-export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient }) => {
+export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient, chartData }) => {
     const { user: currentUser, getDataScope } = usePermissions();
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
@@ -1727,8 +1728,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 customerJobNumber: formData.customerJobNo || '',
                 DIRProjectNo: formData.DIRProjectNo || '',
                 
-                // Grand Total (from saved estimate data)
+                // Grand Total - prefer live chartData (calculated from line items) over saved DB value
                 grandTotal: (() => {
+                    // 1. Try chartData.grandTotal first (live calculated value)
+                    const liveGT = chartData?.grandTotal;
+                    if (liveGT !== undefined && liveGT !== null && liveGT > 0) {
+                        return `$${liveGT.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    }
+                    // 2. Fallback to formData.grandTotal (saved DB value)
                     const gt = formData.grandTotal;
                     if (gt !== undefined && gt !== null && gt !== '') {
                         const num = parseFloat(String(gt).replace(/[^0-9.-]+/g, ''));
