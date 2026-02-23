@@ -2,13 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil } from 'lucide-react';
+import { Save, Trash2, ArrowLeft, Briefcase, FileText, User, Pencil, FlaskConical, GraduationCap, X, Check, Plus, Upload } from 'lucide-react';
 import { Header, Button, ConfirmModal, Modal, Input, SearchableSelect, UnderlineTabs, SaveButton, CancelButton, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui';
 import { SignaturePad } from '@/components/ui/SignaturePad';
 import { useToast } from '@/hooks/useToast';
 import { EmployeeHeaderCard, AccordionCard, DetailRow } from './components';
 import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 // Types (Mirrors Employee Interface)
 interface Employee {
@@ -16,6 +17,7 @@ interface Employee {
     firstName: string;
     lastName: string;
     email: string;
+    recordId?: string;
     phone?: string;
     mobile?: string;
     appRole?: string;
@@ -55,6 +57,11 @@ interface Employee {
     profilePicture?: string;
     signature?: string;
 
+    // Sub-document arrays
+    documents?: Array<{ date?: string; type?: string; description?: string; fileUrl?: string }>;
+    drugTestingRecords?: Array<{ date?: string; type?: string; description?: string; fileUrl?: string }>;
+    trainingCertifications?: Array<{ category?: string; type?: string; frequency?: string; assignedDate?: string; completionDate?: string; renewalDate?: string; description?: string; status?: string; fileUrl?: string; createdBy?: string; createdAt?: string }>;
+
     [key: string]: any;
 }
 
@@ -84,6 +91,113 @@ export default function EmployeeViewPage() {
 
     const [saving, setSaving] = useState(false);
     const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+
+    // Training record editing state
+    const [editingTrainingIdx, setEditingTrainingIdx] = useState<number | null>(null);
+    const [editingTraining, setEditingTraining] = useState<any>(null);
+    const [savingTraining, setSavingTraining] = useState(false);
+    const [deletingTrainingIdx, setDeletingTrainingIdx] = useState<number | null>(null);
+    const [isAddingTraining, setIsAddingTraining] = useState(false);
+    const emptyTraining = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', description: '', status: '', fileUrl: '', createdBy: '', createdAt: '' };
+    const [newTraining, setNewTraining] = useState<any>({ ...emptyTraining });
+
+    const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED'];
+    const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid'];
+    const TRAINING_FREQUENCIES = ['N/A', 'None', 'Once', 'One Time', 'W/R', 'Annually', 'Bi-Annually', 'Every 3 Years', 'Every 5 Years', 'As Needed'];
+    const TRAINING_STATUSES = ['Pending', 'In Progress', 'Completed', 'Expired', 'Renewed'];
+
+    // Open base64 data URIs as blob URLs (direct href to data: causes about:blank)
+    const openFileUrl = (fileUrl: string) => {
+        if (!fileUrl) return;
+        if (fileUrl.startsWith('http')) {
+            window.open(fileUrl, '_blank');
+            return;
+        }
+        // Handle base64 data URI
+        try {
+            const [header, base64] = fileUrl.split(',');
+            const mimeMatch = header.match(/data:([^;]+)/);
+            const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes], { type: mime });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        } catch (e) {
+            console.error('Error opening file:', e);
+            toastError('Could not open file');
+        }
+    };
+
+    const handleDeleteTrainingRecord = async (index: number) => {
+        if (!employee) return;
+        setSavingTraining(true);
+        try {
+            const updated = [...(employee.trainingCertifications || [])];
+            updated.splice(index, 1);
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, trainingCertifications: updated });
+                success('Record deleted');
+                setDeletingTrainingIdx(null);
+            } else {
+                toastError('Failed to delete record');
+            }
+        } catch (e) {
+            toastError('Error deleting record');
+        } finally {
+            setSavingTraining(false);
+        }
+    };
+
+    const handleSaveTrainingEdit = async () => {
+        if (!employee || editingTrainingIdx === null || !editingTraining) return;
+        setSavingTraining(true);
+        try {
+            const updated = [...(employee.trainingCertifications || [])];
+            updated[editingTrainingIdx] = editingTraining;
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, trainingCertifications: updated });
+                success('Record updated');
+                setEditingTrainingIdx(null);
+                setEditingTraining(null);
+            } else {
+                toastError('Failed to update record');
+            }
+        } catch (e) {
+            toastError('Error updating record');
+        } finally {
+            setSavingTraining(false);
+        }
+    };
+
+    const handleAddTrainingRecord = async () => {
+        if (!employee) return;
+        if (!newTraining.type && !newTraining.category) {
+            toastError('Please select at least a category or type');
+            return;
+        }
+        setSavingTraining(true);
+        try {
+            const record = { ...newTraining, createdAt: new Date().toISOString() };
+            const updated = [...(employee.trainingCertifications || []), record];
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { trainingCertifications: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, trainingCertifications: updated });
+                success('Record added');
+                setNewTraining({ ...emptyTraining });
+                setIsAddingTraining(false);
+            } else {
+                toastError('Failed to add record');
+            }
+        } catch (e) {
+            toastError('Error adding record');
+        } finally {
+            setSavingTraining(false);
+        }
+    };
 
     // Dropdown options for edit modal
     const [appRoleOptions, setAppRoleOptions] = useState<string[]>([]);
@@ -347,6 +461,375 @@ export default function EmployeeViewPage() {
                                 </div>
                             </AccordionCard>
                         </div>
+
+                        {/* Documents */}
+                        {(employee.documents?.length ?? 0) > 0 && (
+                            <div className="col-span-1 xl:col-span-2">
+                                <AccordionCard
+                                    title={`Documents (${employee.documents?.length || 0})`}
+                                    icon={FileText}
+                                    isOpen={openSections['documents']}
+                                    onToggle={() => handleToggle('documents')}
+                                >
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-slate-100">
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {employee.documents?.map((doc: any, i: number) => (
+                                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                        <td className="py-2 px-3 text-slate-600">{doc.date || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-800 font-medium">{doc.type || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{doc.description || '-'}</td>
+                                                        <td className="py-2 px-3">{doc.fileUrl ? <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</a> : '-'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </AccordionCard>
+                            </div>
+                        )}
+
+                        {/* Drug Testing Records */}
+                        {(employee.drugTestingRecords?.length ?? 0) > 0 && (
+                            <div className="col-span-1 xl:col-span-2">
+                                <AccordionCard
+                                    title={`Drug Testing Records (${employee.drugTestingRecords?.length || 0})`}
+                                    icon={FlaskConical}
+                                    isOpen={openSections['drugTesting']}
+                                    onToggle={() => handleToggle('drugTesting')}
+                                >
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-slate-100">
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {employee.drugTestingRecords?.map((rec: any, i: number) => (
+                                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                        <td className="py-2 px-3 text-slate-600">{rec.date || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
+                                                        <td className="py-2 px-3">{rec.fileUrl && rec.fileUrl.startsWith('http') ? <a href={rec.fileUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</a> : '-'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </AccordionCard>
+                            </div>
+                        )}
+
+                        {/* Training & Certifications */}
+                            <div className="col-span-1 xl:col-span-2">
+                                <AccordionCard
+                                    title={`Training & Certifications (${employee.trainingCertifications?.length || 0})`}
+                                    icon={GraduationCap}
+                                    isOpen={openSections['training']}
+                                    onToggle={() => handleToggle('training')}
+                                >
+                                    {/* Inline Edit Form */}
+                                    {editingTrainingIdx !== null && editingTraining && (
+                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingTrainingIdx + 1}</h4>
+                                                <button onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, category: val })} value={editingTraining.category || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, type: val })} value={editingTraining.type || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, frequency: val })} value={editingTraining.frequency || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
+                                                    <Input type="date" value={editingTraining.assignedDate || ''} onChange={e => setEditingTraining({ ...editingTraining, assignedDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
+                                                    <Input type="date" value={editingTraining.completionDate || ''} onChange={e => setEditingTraining({ ...editingTraining, completionDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
+                                                    <Input type="date" value={editingTraining.renewalDate || ''} onChange={e => setEditingTraining({ ...editingTraining, renewalDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                                                    <Select onValueChange={val => setEditingTraining({ ...editingTraining, status: val })} value={editingTraining.status || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={editingTraining.description || ''} onChange={e => setEditingTraining({ ...editingTraining, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {editingTraining.fileUrl && (
+                                                            <button type="button" onClick={() => openFileUrl(editingTraining.fileUrl)} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1">
+                                                                <FileText className="w-3.5 h-3.5" /> Current File
+                                                            </button>
+                                                        )}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {editingTraining.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setEditingTraining({ ...editingTraining, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {editingTraining.fileUrl && (
+                                                            <button type="button" onClick={() => setEditingTraining({ ...editingTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={handleSaveTrainingEdit} disabled={savingTraining}>
+                                                    <Check className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setEditingTrainingIdx(null); setEditingTraining(null); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Add New Record Form */}
+                                    {isAddingTraining && (
+                                        <div className="mb-4 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Add New Training / Certification</h4>
+                                                <button onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, category: val })} value={newTraining.category || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, type: val })} value={newTraining.type || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, frequency: val })} value={newTraining.frequency || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select frequency" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
+                                                    <Input type="date" value={newTraining.assignedDate || ''} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
+                                                    <Input type="date" value={newTraining.completionDate || ''} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
+                                                    <Input type="date" value={newTraining.renewalDate || ''} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, status: val })} value={newTraining.status || ''}>
+                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newTraining.description || ''} onChange={e => setNewTraining({ ...newTraining, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {newTraining.fileUrl && (
+                                                            <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>
+                                                        )}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {newTraining.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setNewTraining({ ...newTraining, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {newTraining.fileUrl && (
+                                                            <button type="button" onClick={() => setNewTraining({ ...newTraining, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handleAddTrainingRecord} disabled={savingTraining}>
+                                                    <Plus className="w-3.5 h-3.5 mr-1" /> {savingTraining ? 'Adding...' : 'Add Record'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setIsAddingTraining(false); setNewTraining({ ...emptyTraining }); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Add button when not in add mode */}
+                                    {!isAddingTraining && editingTrainingIdx === null && (
+                                        <div className="mb-3">
+                                            <Button size="sm" variant="outline" className="border-dashed border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400" onClick={() => setIsAddingTraining(true)}>
+                                                <Plus className="w-3.5 h-3.5 mr-1" /> Add Training / Certification
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-slate-100">
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Category</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Frequency</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Assigned</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Completed</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Renewal</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
+                                                    <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {employee.trainingCertifications?.map((rec: any, i: number) => (
+                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingTrainingIdx === i ? 'bg-blue-50/30' : ''}`}>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.category || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.frequency || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.assignedDate || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.completionDate || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.renewalDate || '-'}</td>
+                                                        <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
+                                                        <td className="py-2 px-3">
+                                                            {rec.status ? (
+                                                                <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>
+                                                            ) : '-'}
+                                                        </td>
+                                                        <td className="py-2 px-3">
+                                                            {rec.fileUrl ? (
+                                                                <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">
+                                                                    View File
+                                                                </button>
+                                                            ) : '-'}
+                                                        </td>
+                                                        <td className="py-2 px-3 text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button
+                                                                    onClick={() => { setEditingTrainingIdx(i); setEditingTraining({ ...rec }); }}
+                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
+                                                                    title="Edit record"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                {deletingTrainingIdx === i ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => handleDeleteTrainingRecord(i)}
+                                                                            className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
+                                                                            disabled={savingTraining}
+                                                                        >
+                                                                            {savingTraining ? '...' : 'Yes'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setDeletingTrainingIdx(null)}
+                                                                            className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
+                                                                        >
+                                                                            No
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => setDeletingTrainingIdx(i)}
+                                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                                        title="Delete record"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </AccordionCard>
+                            </div>
                     </div>
 
                 </div>
@@ -468,6 +951,14 @@ export default function EmployeeViewPage() {
                                 <Input
                                     value={currentEmployee.lastName || ''}
                                     onChange={(e) => setCurrentEmployee({ ...currentEmployee, lastName: e.target.value })}
+                                />
+                            </div>
+                            <div className="col-span-12 md:col-span-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                                <Input
+                                    value={currentEmployee.recordId || ''}
+                                    onChange={(e) => setCurrentEmployee({ ...currentEmployee, recordId: e.target.value })}
+                                    placeholder="EMP-001"
                                 />
                             </div>
                             <div className="col-span-12 md:col-span-4">

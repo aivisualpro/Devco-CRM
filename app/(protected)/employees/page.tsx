@@ -14,6 +14,7 @@ interface Employee {
     firstName: string;
     lastName: string;
     email: string;
+    recordId?: string;
     phone?: string;
     mobile?: string;
     appRole?: string;
@@ -74,6 +75,7 @@ const ROLE_ICONS: Record<string, React.ReactNode> = {
 const defaultEmployee: Partial<Employee> = {
     firstName: '',
     lastName: '',
+    recordId: '',
     email: '',
     phone: '',
     mobile: '',
@@ -318,6 +320,7 @@ export default function EmployeesPage() {
                     (c.firstName || '').toLowerCase().includes(lowerSearch) ||
                     (c.lastName || '').toLowerCase().includes(lowerSearch) ||
                     (c.email || '').toLowerCase().includes(lowerSearch) ||
+                    (c.recordId || '').toLowerCase().includes(lowerSearch) ||
                     (c.companyPosition || '').toLowerCase().includes(lowerSearch) ||
                     (c.appRole || '').toLowerCase().includes(lowerSearch)
                 );
@@ -680,6 +683,13 @@ export default function EmployeesPage() {
                                             Name
                                         </TableHeader>
                                         <TableHeader
+                                            onClick={() => handleSort('recordId')}
+                                            sortable={true}
+                                            sortDirection={sortConfig?.key === 'recordId' ? sortConfig.direction : null}
+                                        >
+                                            Employee ID
+                                        </TableHeader>
+                                        <TableHeader
                                             onClick={() => handleSort('companyPosition')}
                                             sortable={true}
                                             sortDirection={sortConfig?.key === 'companyPosition' ? sortConfig.direction : null}
@@ -727,7 +737,7 @@ export default function EmployeesPage() {
                                 <TableBody>
                                     {paginatedEmployees.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                                            <TableCell colSpan={9} className="text-center py-8 text-gray-500">
                                                 <div className="flex flex-col items-center justify-center">
                                                     <p className="text-base font-medium text-gray-900">No employees found</p>
                                                     <p className="text-sm text-gray-500 mt-1">Get started by adding a new employee.</p>
@@ -753,6 +763,8 @@ export default function EmployeesPage() {
                                                         <span>{emp.firstName} {emp.lastName}</span>
                                                     </div>
                                                 </TableCell>
+
+                                                <TableCell className="text-sm text-gray-600">{emp.recordId || '-'}</TableCell>
 
                                                 <TableCell>{emp.companyPosition || '-'}</TableCell>
                                                 <TableCell>{emp.email}</TableCell>

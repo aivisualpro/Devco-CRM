@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin, FileBarChart, Search, X, Drill } from 'lucide-react';
+import { Upload, Clock, Import, ClipboardList, FileSpreadsheet, FileText, Loader2, ChevronRight, RefreshCw, Image, Footprints, DollarSign, Layout, Receipt, Link as LinkIcon, MapPin, FileBarChart, Search, X, Drill, GraduationCap } from 'lucide-react';
 import { Header } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import Papa from 'papaparse';
@@ -46,6 +46,7 @@ export default function ImportsPage() {
     const preBoreLogsInputRef = useRef<HTMLInputElement>(null);
     const preBoreLogItemsInputRef = useRef<HTMLInputElement>(null);
     const estimatesInputRef = useRef<HTMLInputElement>(null);
+    const certificationsInputRef = useRef<HTMLInputElement>(null);
 
     const parseCSV = (csvText: string) => {
         const rows: string[][] = [];
@@ -852,12 +853,47 @@ export default function ImportsPage() {
         window.location.href = '/api/auth/quickbooks';
     };
 
+    const handleImportCertifications = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsImporting(true);
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const text = event.target?.result as string;
+                const { data } = Papa.parse(text, { header: true, skipEmptyLines: true });
+                if (!data || data.length === 0) throw new Error("No data found in CSV");
+
+                const res = await fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'importEmployeeCertifications', payload: { records: data } })
+                });
+                const resData = await res.json();
+                if (resData.success) {
+                    success(`Successfully imported ${resData.count || data.length} certifications across ${resData.employeesUpdated || 0} employees`);
+                } else {
+                    toastError(resData.error || 'Import failed');
+                }
+            } catch (err: any) {
+                console.error(err);
+                toastError(err.message || 'Error parsing CSV');
+            } finally {
+                setIsImporting(false);
+                if (certificationsInputRef.current) certificationsInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     // All import items with categories for grouping and searching
     const importItems = [
         { title: 'Import Estimates', icon: FileBarChart, color: 'bg-sky-600', description: 'Bulk import estimate records from CSV', category: 'Core Data', onClick: () => estimatesInputRef.current?.click() },
         { title: 'Import Schedules', icon: Upload, color: 'bg-teal-500', description: 'Upload your project schedules and timelines', category: 'Core Data', onClick: () => fileInputRef.current?.click() },
         { title: 'Import Timesheets', icon: Clock, color: 'bg-purple-500', description: 'Bulk upload employee time card entries', category: 'Core Data', onClick: () => timesheetInputRef.current?.click() },
         { title: 'Import Planning Docs', icon: Layout, color: 'bg-violet-700', description: 'Bulk import USA tickets and job planning documents', category: 'Core Data', onClick: () => planningDocsInputRef.current?.click() },
+        { title: 'Import Employee Certifications', icon: GraduationCap, color: 'bg-cyan-600', description: 'Bulk import training & certification records for employees', category: 'Core Data', onClick: () => certificationsInputRef.current?.click() },
         { title: 'Import JHA', icon: Import, color: 'bg-rose-500', description: 'Import Job Hazard Analysis safety records', category: 'Documents & Signatures', onClick: () => jhaInputRef.current?.click() },
         { title: 'Import JHA Signatures', icon: ClipboardList, color: 'bg-rose-600', description: 'Restore signatures for JHA safety forms', category: 'Documents & Signatures', onClick: () => jhaSignatureInputRef.current?.click() },
         { title: 'Import DJT', icon: FileSpreadsheet, color: 'bg-violet-500', description: 'Upload Daily Job Ticket execution data', category: 'Documents & Signatures', onClick: () => djtInputRef.current?.click() },
@@ -923,6 +959,7 @@ export default function ImportsPage() {
             {/* Hidden file inputs */}
             <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".csv" />
             <input type="file" ref={estimatesInputRef} onChange={handleImportEstimates} className="hidden" accept=".csv" />
+            <input type="file" ref={certificationsInputRef} onChange={handleImportCertifications} className="hidden" accept=".csv" />
             <input type="file" ref={timesheetInputRef} onChange={handleImportTimesheets} className="hidden" accept=".csv" />
             <input type="file" ref={jhaInputRef} onChange={handleImportJHA} className="hidden" accept=".csv" />
             <input type="file" ref={jhaSignatureInputRef} onChange={handleImportJHASignatures} className="hidden" accept=".csv" />

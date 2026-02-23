@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, Upload, User, Shield, Check, X, ChevronRight, Save, ChevronDown, Eye, EyeOff, RefreshCw, Copy } from "lucide-react"
+import { Loader2, Upload, User, Shield, Check, X, ChevronRight, Save, ChevronDown, Eye, EyeOff, RefreshCw, Copy, FileText, FlaskConical, GraduationCap, Plus, Trash2 } from "lucide-react"
 
 import {
     Dialog,
@@ -61,9 +61,9 @@ const INITIAL_COMPANY_POSITIONS = [
 // Schema Definition
 // -----------------------------------------------------------------------------
 const employeeSchema = z.object({
-    // Personal Info
     firstName: z.string().min(1, "First name is required"),
     lastName: z.string().min(1, "Last name is required"),
+    recordId: z.string().optional(),
     email: z.string().email("Invalid email address"),
     phone: z.string().optional(),
     mobile: z.string().optional(),
@@ -179,12 +179,37 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
     const [companyPositionOpen, setCompanyPositionOpen] = useState(false)
     const [companyPositions, setCompanyPositions] = useState(INITIAL_COMPANY_POSITIONS)
     const [isAddingPosition, setIsAddingPosition] = useState(false)
+    const [frequencyOpen, setFrequencyOpen] = useState(false)
+    const [isAddingFrequency, setIsAddingFrequency] = useState(false)
     const [showPassword, setShowPassword] = useState(false)
     const { success, error: showError } = useToast()
     const { user: currentUser } = usePermissions()
     const isAdminOrSuper = currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin'
     const isOwnRecord = !initialData?._id || currentUser?.email === initialData?._id || currentUser?.userId === initialData?._id
     const isNewEmployee = !initialData?._id
+
+    // --- Sub-document array state ---
+    type DocRecord = { date: string; type: string; description: string; fileUrl: string }
+    type DrugRecord = { date: string; type: string; description: string; fileUrl: string }
+    type TrainingRecord = { category: string; type: string; frequency: string; assignedDate: string; completionDate: string; renewalDate: string; description: string; status: string; fileUrl: string; createdBy: string; createdAt: string }
+
+    const [documents, setDocuments] = useState<DocRecord[]>((initialData as any)?.documents || [])
+    const [drugRecords, setDrugRecords] = useState<DrugRecord[]>((initialData as any)?.drugTestingRecords || [])
+    const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>((initialData as any)?.trainingCertifications || [])
+
+    const emptyDoc: DocRecord = { date: '', type: '', description: '', fileUrl: '' }
+    const emptyDrug: DrugRecord = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '' }
+    const emptyTraining: TrainingRecord = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', description: '', status: '', fileUrl: '', createdBy: '', createdAt: '' }
+
+    const [newDoc, setNewDoc] = useState<DocRecord>({ ...emptyDoc })
+    const [newDrug, setNewDrug] = useState<DrugRecord>({ ...emptyDrug })
+    const [newTraining, setNewTraining] = useState<TrainingRecord>({ ...emptyTraining })
+
+    const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid']
+    const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED']
+    const TRAINING_STATUSES = ['Pending', 'In Progress', 'Completed', 'Expired', 'Renewed']
+    const DEFAULT_FREQUENCIES = ['N/A', 'None', 'Once', 'One Time', 'W/R', 'Annually', 'Bi-Annually', 'Every 3 Years', 'Every 5 Years', 'As Needed']
+    const [trainingFrequencies, setTrainingFrequencies] = useState<string[]>(DEFAULT_FREQUENCIES)
 
     const handleAddPosition = async (search: string) => {
         setIsAddingPosition(true)
@@ -201,6 +226,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
         defaultValues: {
             firstName: initialData?.firstName ?? "",
             lastName: initialData?.lastName ?? "",
+            recordId: (initialData as any)?.recordId ?? "",
             email: initialData?.email ?? "",
             phone: initialData?.phone ?? "",
             mobile: initialData?.mobile ?? "",
@@ -256,10 +282,15 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
         try {
             const action = initialData?._id ? 'updateEmployee' : 'addEmployee'
             // Strip empty password from update payloads to avoid overwriting
-            const submitData = { ...data }
+            const submitData: any = { ...data }
             if (initialData?._id && (!submitData.password || submitData.password.trim() === '')) {
-                delete (submitData as any).password
+                delete submitData.password
             }
+            // Attach sub-document arrays
+            submitData.documents = documents
+            submitData.drugTestingRecords = drugRecords
+            submitData.trainingCertifications = trainingRecords
+
             const payload = initialData?._id
                 ? { id: initialData._id, item: submitData }
                 : { item: submitData }
@@ -357,6 +388,21 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                             label="Files & Compliance" 
                                             icon={Check} 
                                         />
+                                        <SidebarTabTrigger 
+                                            value="documents" 
+                                            label="Documents" 
+                                            icon={FileText} 
+                                        />
+                                        <SidebarTabTrigger 
+                                            value="drugTesting" 
+                                            label="Drug Testing" 
+                                            icon={FlaskConical} 
+                                        />
+                                        <SidebarTabTrigger 
+                                            value="training" 
+                                            label="Training & Certs" 
+                                            icon={GraduationCap} 
+                                        />
                                     </TabsList>
                                 </Tabs>
                                 
@@ -373,7 +419,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                 <div className="p-8 max-w-3xl mx-auto">
                                     {/* --- Tab: Personal Info --- */}
                                     <div className={cn(activeTab === "personal" ? "block" : "hidden", "space-y-8 animate-in fade-in duration-300 slide-in-from-right-4")}>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             <FormField
                                                 control={form.control}
                                                 name="firstName"
@@ -402,6 +448,19 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                             />
                                             <FormField
                                                 control={form.control}
+                                                name="recordId"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Employee ID</FormLabel>
+                                                        <FormControl>
+                                                            <Input placeholder="EMP-001" {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
                                                 name="email"
                                                 render={({ field }) => (
                                                     <FormItem>
@@ -409,7 +468,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                         <FormControl>
                                                             <Input type="email" placeholder="john.doe@company.com" {...field} disabled={!!initialData?._id} />
                                                         </FormControl>
-                                                        {!!initialData?._id && <FormDescription>Email cannot be changed once created.</FormDescription>}
+
                                                         <FormMessage />
                                                     </FormItem>
                                                 )}
@@ -474,53 +533,53 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     render={({ field }) => (
                                                         <FormItem>
                                                             <FormLabel>Password {isNewEmployee && <span className="text-red-500">*</span>}</FormLabel>
-                                                            <FormControl>
-                                                                <div className="space-y-2">
-                                                                    <div className="relative">
-                                                                        <Input
-                                                                            type={showPassword ? "text" : "password"}
-                                                                            placeholder={initialData?._id ? "••••••••" : "Set password"}
-                                                                            {...field}
-                                                                            className="pr-20"
-                                                                        />
-                                                                        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setShowPassword(!showPassword)}
-                                                                                className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                                                                                title={showPassword ? "Hide password" : "Show password"}
-                                                                            >
-                                                                                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                                                            </button>
-                                                                            {field.value && (
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => {
-                                                                                        navigator.clipboard.writeText(field.value || '')
-                                                                                        success('Password copied!')
-                                                                                    }}
-                                                                                    className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-                                                                                    title="Copy password"
-                                                                                >
-                                                                                    <Copy className="w-4 h-4" />
-                                                                                </button>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
+                                                            <div className="relative">
+                                                                <FormControl>
+                                                                    <Input
+                                                                        type={showPassword ? "text" : "password"}
+                                                                        placeholder={initialData?._id ? "••••••••" : "Set password"}
+                                                                        {...field}
+                                                                        className="pr-24"
+                                                                    />
+                                                                </FormControl>
+                                                                <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => {
+                                                                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowPassword(!showPassword); }}
+                                                                        className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                                                        title={showPassword ? "Hide password" : "Show password"}
+                                                                    >
+                                                                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault(); e.stopPropagation();
                                                                             const suggested = generateStrongPassword()
                                                                             field.onChange(suggested)
                                                                             setShowPassword(true)
                                                                         }}
-                                                                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#0F4C75] hover:text-[#0a3a5c] transition-colors px-2 py-1 rounded-md hover:bg-blue-50"
+                                                                        className="p-1.5 rounded-md text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors"
+                                                                        title="Generate strong password"
                                                                     >
-                                                                        <RefreshCw className="w-3 h-3" />
-                                                                        Suggest Strong Password
+                                                                        <RefreshCw className="w-4 h-4" />
                                                                     </button>
+                                                                    {field.value && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault(); e.stopPropagation();
+                                                                                navigator.clipboard.writeText(field.value || '')
+                                                                                success('Password copied!')
+                                                                            }}
+                                                                            className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                                                                            title="Copy password"
+                                                                        >
+                                                                            <Copy className="w-4 h-4" />
+                                                                        </button>
+                                                                    )}
                                                                 </div>
-                                                            </FormControl>
+                                                            </div>
                                                             <FormMessage />
                                                         </FormItem>
                                                     )}
@@ -563,19 +622,12 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     )}
                                                 />
                                             )}
-                                            
-                                            <div className="col-span-2 space-y-4 pt-4">
-                                                <h4 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-                                                    Address Information
-                                                </h4>
-                                                <Separator />
-                                            </div>
 
                                             <FormField
                                                 control={form.control}
                                                 name="address"
                                                 render={({ field }) => (
-                                                    <FormItem className="col-span-2">
+                                                    <FormItem className="md:col-span-2">
                                                         <FormLabel>Street Address</FormLabel>
                                                         <FormControl>
                                                             <Input placeholder="123 Main St" {...field} />
@@ -597,34 +649,32 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     </FormItem>
                                                 )}
                                             />
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <FormField
-                                                    control={form.control}
-                                                    name="state"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>State</FormLabel>
-                                                            <FormControl>
-                                                                <Input placeholder="NY" {...field} />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="zip"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>Zip</FormLabel>
-                                                            <FormControl>
-                                                                <Input placeholder="10001" {...field} />
-                                                            </FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                            </div>
+                                            <FormField
+                                                control={form.control}
+                                                name="state"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>State</FormLabel>
+                                                        <FormControl>
+                                                            <Input placeholder="NY" {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
+                                            <FormField
+                                                control={form.control}
+                                                name="zip"
+                                                render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>Zip</FormLabel>
+                                                        <FormControl>
+                                                            <Input placeholder="10001" {...field} />
+                                                        </FormControl>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                            />
                                         </div>
 
                                         <Separator />
@@ -977,6 +1027,248 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                 />
                                             ))}
                                         </div>
+                                    </div>
+
+                                    {/* --- Tab: Documents --- */}
+                                    <div className={cn(activeTab === "documents" ? "block" : "hidden", "space-y-6 animate-in fade-in duration-300 slide-in-from-right-4")}>
+                                        <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 space-y-4">
+                                            <h4 className="text-sm font-semibold text-slate-700">Add Document</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={newDoc.date} onChange={e => setNewDoc({ ...newDoc, date: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Input placeholder="Document type" value={newDoc.type} onChange={e => setNewDoc({ ...newDoc, type: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newDoc.description} onChange={e => setNewDoc({ ...newDoc, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document Upload</label>
+                                                    <Input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={e => {
+                                                        const file = e.target.files?.[0]
+                                                        if (file) {
+                                                            const reader = new FileReader()
+                                                            reader.onloadend = () => setNewDoc({ ...newDoc, fileUrl: reader.result as string })
+                                                            reader.readAsDataURL(file)
+                                                        }
+                                                    }} />
+                                                </div>
+                                            </div>
+                                            <Button type="button" size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={() => {
+                                                if (!newDoc.date && !newDoc.type) return
+                                                setDocuments([...documents, { ...newDoc }])
+                                                setNewDoc({ ...emptyDoc })
+                                            }}>
+                                                <Plus className="w-4 h-4 mr-1" /> Add Document
+                                            </Button>
+                                        </div>
+
+                                        {documents.length > 0 && (
+                                            <div className="space-y-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Saved Documents ({documents.length})</h4>
+                                                {documents.map((doc, i) => (
+                                                    <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                                                        <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-slate-800 truncate">{doc.type || 'Untitled'}</p>
+                                                            <p className="text-xs text-slate-400">{doc.date}{doc.description ? ` — ${doc.description}` : ''}</p>
+                                                        </div>
+                                                        {doc.fileUrl && <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">File attached</span>}
+                                                        <button type="button" onClick={() => setDocuments(documents.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* --- Tab: Drug Testing Records --- */}
+                                    <div className={cn(activeTab === "drugTesting" ? "block" : "hidden", "space-y-6 animate-in fade-in duration-300 slide-in-from-right-4")}>
+                                        <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 space-y-4">
+                                            <h4 className="text-sm font-semibold text-slate-700">Add Drug Testing Record</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={newDrug.date} onChange={e => setNewDrug({ ...newDrug, date: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Input value={newDrug.type} disabled className="bg-slate-100" />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newDrug.description} onChange={e => setNewDrug({ ...newDrug, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document Upload</label>
+                                                    <Input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={e => {
+                                                        const file = e.target.files?.[0]
+                                                        if (file) {
+                                                            const reader = new FileReader()
+                                                            reader.onloadend = () => setNewDrug({ ...newDrug, fileUrl: reader.result as string })
+                                                            reader.readAsDataURL(file)
+                                                        }
+                                                    }} />
+                                                </div>
+                                            </div>
+                                            <Button type="button" size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={() => {
+                                                if (!newDrug.date) return
+                                                setDrugRecords([...drugRecords, { ...newDrug }])
+                                                setNewDrug({ ...emptyDrug })
+                                            }}>
+                                                <Plus className="w-4 h-4 mr-1" /> Add Record
+                                            </Button>
+                                        </div>
+
+                                        {drugRecords.length > 0 && (
+                                            <div className="space-y-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Saved Records ({drugRecords.length})</h4>
+                                                {drugRecords.map((rec, i) => (
+                                                    <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                                                        <FlaskConical className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-slate-800 truncate">{rec.type}</p>
+                                                            <p className="text-xs text-slate-400">{rec.date}{rec.description ? ` — ${rec.description}` : ''}</p>
+                                                        </div>
+                                                        {rec.fileUrl && <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">File attached</span>}
+                                                        <button type="button" onClick={() => setDrugRecords(drugRecords.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* --- Tab: Training & Certifications --- */}
+                                    <div className={cn(activeTab === "training" ? "block" : "hidden", "space-y-6 animate-in fade-in duration-300 slide-in-from-right-4")}>
+                                        <div className="bg-slate-50 p-5 rounded-xl border border-slate-100 space-y-4">
+                                            <h4 className="text-sm font-semibold text-slate-700">Add Training / Certification</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Category</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, category: val })} value={newTraining.category}>
+                                                        <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, type: val })} value={newTraining.type}>
+                                                        <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="relative">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
+                                                    <div 
+                                                        id="frequency-trigger"
+                                                        className="flex items-center justify-between px-3 h-10 border border-slate-200 rounded-lg bg-white cursor-pointer hover:border-[#0F4C75] transition-all"
+                                                        onClick={() => setFrequencyOpen(!frequencyOpen)}
+                                                    >
+                                                        <span className={cn("text-sm truncate", !newTraining.frequency && "text-slate-400")}>
+                                                            {newTraining.frequency || "Select frequency"}
+                                                        </span>
+                                                        <ChevronDown className={cn("w-4 h-4 text-slate-400 transition-transform flex-shrink-0", frequencyOpen && "rotate-180")} />
+                                                    </div>
+                                                    <MyDropDown
+                                                        isOpen={frequencyOpen}
+                                                        onClose={() => setFrequencyOpen(false)}
+                                                        options={trainingFrequencies.map(f => ({ id: f, label: f, value: f }))}
+                                                        selectedValues={newTraining.frequency ? [newTraining.frequency] : []}
+                                                        onSelect={(val) => {
+                                                            setNewTraining({ ...newTraining, frequency: val })
+                                                            setFrequencyOpen(false)
+                                                        }}
+                                                        onAdd={async (search) => {
+                                                            setIsAddingFrequency(true)
+                                                            setTrainingFrequencies(prev => [...prev, search])
+                                                            setNewTraining({ ...newTraining, frequency: search })
+                                                            setIsAddingFrequency(false)
+                                                            setFrequencyOpen(false)
+                                                        }}
+                                                        isAdding={isAddingFrequency}
+                                                        anchorId="frequency-trigger"
+                                                        width="w-full"
+                                                        placeholder="Search or add frequency..."
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Assigned Date</label>
+                                                    <Input type="date" value={newTraining.assignedDate} onChange={e => setNewTraining({ ...newTraining, assignedDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Completion Date</label>
+                                                    <Input type="date" value={newTraining.completionDate} onChange={e => setNewTraining({ ...newTraining, completionDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Renewal Date</label>
+                                                    <Input type="date" value={newTraining.renewalDate} onChange={e => setNewTraining({ ...newTraining, renewalDate: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+                                                    <Select onValueChange={val => setNewTraining({ ...newTraining, status: val })} value={newTraining.status}>
+                                                        <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {TRAINING_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={newTraining.description} onChange={e => setNewTraining({ ...newTraining, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document Upload</label>
+                                                    <Input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={e => {
+                                                        const file = e.target.files?.[0]
+                                                        if (file) {
+                                                            const reader = new FileReader()
+                                                            reader.onloadend = () => setNewTraining({ ...newTraining, fileUrl: reader.result as string })
+                                                            reader.readAsDataURL(file)
+                                                        }
+                                                    }} />
+                                                </div>
+                                            </div>
+                                            <Button type="button" size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={() => {
+                                                if (!newTraining.type && !newTraining.category) return
+                                                setTrainingRecords([...trainingRecords, { ...newTraining, createdAt: new Date().toISOString() }])
+                                                setNewTraining({ ...emptyTraining })
+                                            }}>
+                                                <Plus className="w-4 h-4 mr-1" /> Add Training
+                                            </Button>
+                                        </div>
+
+                                        {trainingRecords.length > 0 && (
+                                            <div className="space-y-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Saved Records ({trainingRecords.length})</h4>
+                                                {trainingRecords.map((rec, i) => (
+                                                    <div key={i} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
+                                                        <GraduationCap className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-sm font-medium text-slate-800 truncate">{rec.type || 'Untitled'}</p>
+                                                            <p className="text-xs text-slate-400">
+                                                                {rec.category}{rec.frequency ? ` · ${rec.frequency}` : ''}{rec.status ? ` · ${rec.status}` : ''}{rec.description ? ` — ${rec.description}` : ''}
+                                                            </p>
+                                                        </div>
+                                                        {rec.status && <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${rec.status === 'Completed' ? 'bg-emerald-50 text-emerald-600' : rec.status === 'Expired' ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'}`}>{rec.status}</span>}
+                                                        {rec.fileUrl && <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">File</span>}
+                                                        <button type="button" onClick={() => setTrainingRecords(trainingRecords.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                 </div>

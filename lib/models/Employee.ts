@@ -5,6 +5,7 @@ export interface IEmployee extends Omit<Document, '_id'> {
     firstName: string;
     lastName: string;
     email: string;
+    recordId?: string;
     phone?: string;
     mobile?: string;
     appRole?: string;
@@ -51,6 +52,10 @@ export interface IEmployee extends Omit<Document, '_id'> {
     estimateSettings?: string[];
     reportFilters?: Record<string, any>;
 
+    // Sub-document arrays
+    documents?: Array<{ date?: string; type?: string; description?: string; fileUrl?: string }>;
+    drugTestingRecords?: Array<{ date?: string; type?: string; description?: string; fileUrl?: string }>;
+    trainingCertifications?: Array<{ category?: string; type?: string; frequency?: string; assignedDate?: string; completionDate?: string; renewalDate?: string; description?: string; status?: string; fileUrl?: string; createdBy?: string; createdAt?: string }>;
 
     createdAt?: Date;
     updatedAt?: Date;
@@ -61,6 +66,7 @@ const EmployeeSchema: Schema = new Schema({
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
     email: { type: String, required: true },
+    recordId: { type: String },
     phone: { type: String },
     mobile: { type: String },
     appRole: { type: String },
@@ -105,6 +111,33 @@ const EmployeeSchema: Schema = new Schema({
     estimateSettings: [{ type: String }],
     reportFilters: { type: Schema.Types.Mixed, default: {} },
 
+    // Sub-document arrays — all fields use explicit { type: String } to avoid
+    // Mongoose misinterpreting the field named 'type' as the schema type keyword.
+    documents: [{
+        date: { type: String },
+        type: { type: String },
+        description: { type: String },
+        fileUrl: { type: String },
+    }],
+    drugTestingRecords: [{
+        date: { type: String },
+        type: { type: String },
+        description: { type: String },
+        fileUrl: { type: String },
+    }],
+    trainingCertifications: [{
+        category: { type: String },
+        type: { type: String },
+        frequency: { type: String },
+        assignedDate: { type: String },
+        completionDate: { type: String },
+        renewalDate: { type: String },
+        description: { type: String },
+        status: { type: String },
+        fileUrl: { type: String },
+        createdBy: { type: String },
+        createdAt: { type: String },
+    }],
 
 }, {
     timestamps: true,
@@ -112,7 +145,10 @@ const EmployeeSchema: Schema = new Schema({
 });
 
 
-// Prevent model overwrite in development
-const Employee: Model<IEmployee> = mongoose.models.Employee || mongoose.model<IEmployee>('Employee', EmployeeSchema);
+// Force fresh model registration to pick up schema changes across hot reloads
+if (mongoose.models.Employee) {
+    delete mongoose.models.Employee;
+}
+const Employee: Model<IEmployee> = mongoose.model<IEmployee>('Employee', EmployeeSchema);
 
 export default Employee;
