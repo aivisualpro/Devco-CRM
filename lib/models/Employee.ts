@@ -118,6 +118,9 @@ const EmployeeSchema: Schema = new Schema({
         type: { type: String },
         description: { type: String },
         fileUrl: { type: String },
+        fileName: { type: String },
+        expiryDate: { type: String },
+        createdAt: { type: String },
     }],
     drugTestingRecords: [{
         date: { type: String },
