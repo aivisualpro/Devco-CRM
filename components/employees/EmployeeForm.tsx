@@ -190,7 +190,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
 
     // --- Sub-document array state ---
     type DocRecord = { date: string; type: string; description: string; fileUrl: string }
-    type DrugRecord = { date: string; type: string; description: string; fileUrl: string }
+    type DrugRecord = { date: string; type: string; description: string; fileUrl: string; files: string[] }
     type TrainingRecord = { category: string; type: string; frequency: string; assignedDate: string; completionDate: string; renewalDate: string; description: string; status: string; fileUrl: string; createdBy: string; createdAt: string }
 
     const [documents, setDocuments] = useState<DocRecord[]>((initialData as any)?.documents || [])
@@ -198,7 +198,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
     const [trainingRecords, setTrainingRecords] = useState<TrainingRecord[]>((initialData as any)?.trainingCertifications || [])
 
     const emptyDoc: DocRecord = { date: '', type: '', description: '', fileUrl: '' }
-    const emptyDrug: DrugRecord = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '' }
+    const emptyDrug: DrugRecord = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '', files: [] }
     const emptyTraining: TrainingRecord = { category: '', type: '', frequency: '', assignedDate: '', completionDate: '', renewalDate: '', description: '', status: '', fileUrl: '', createdBy: '', createdAt: '' }
 
     const [newDoc, setNewDoc] = useState<DocRecord>({ ...emptyDoc })
@@ -1097,28 +1097,41 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     <Input type="date" value={newDrug.date} onChange={e => setNewDrug({ ...newDrug, date: e.target.value })} />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                                                    <Input value={newDrug.type} disabled className="bg-slate-100" />
-                                                </div>
-                                                <div className="md:col-span-2">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
                                                     <Input placeholder="Brief description" value={newDrug.description} onChange={e => setNewDrug({ ...newDrug, description: e.target.value })} />
                                                 </div>
                                                 <div className="md:col-span-2">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document Upload</label>
-                                                    <Input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" onChange={e => {
-                                                        const file = e.target.files?.[0]
-                                                        if (file) {
-                                                            const reader = new FileReader()
-                                                            reader.onloadend = () => setNewDrug({ ...newDrug, fileUrl: reader.result as string })
-                                                            reader.readAsDataURL(file)
-                                                        }
-                                                    }} />
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents (multiple allowed)</label>
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {newDrug.files.length > 0 && <span className="text-xs text-emerald-600 font-medium">{newDrug.files.length} file(s) attached ✓</span>}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            Add File
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                                                const fileList = e.target.files;
+                                                                if (fileList) {
+                                                                    Array.from(fileList).forEach(file => {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setNewDrug(prev => ({ ...prev, files: [...prev.files, reader.result as string], fileUrl: prev.fileUrl || reader.result as string }));
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    });
+                                                                }
+                                                                e.target.value = '';
+                                                            }} />
+                                                        </label>
+                                                        {newDrug.files.map((_, idx) => (
+                                                            <button key={idx} type="button" onClick={() => setNewDrug(prev => ({ ...prev, files: prev.files.filter((__, j) => j !== idx) }))} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove #{idx + 1}
+                                                            </button>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <Button type="button" size="sm" className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white" onClick={() => {
                                                 if (!newDrug.date) return
-                                                setDrugRecords([...drugRecords, { ...newDrug }])
+                                                setDrugRecords([...drugRecords, { ...newDrug, fileUrl: newDrug.files[0] || '' }])
                                                 setNewDrug({ ...emptyDrug })
                                             }}>
                                                 <Plus className="w-4 h-4 mr-1" /> Add Record
@@ -1135,7 +1148,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                             <p className="text-sm font-medium text-slate-800 truncate">{rec.type}</p>
                                                             <p className="text-xs text-slate-400">{rec.date}{rec.description ? ` — ${rec.description}` : ''}</p>
                                                         </div>
-                                                        {rec.fileUrl && <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">File attached</span>}
+                                                        {rec.files && rec.files.length > 0 && <span className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">{rec.files.length} file(s)</span>}
                                                         <button type="button" onClick={() => setDrugRecords(drugRecords.filter((_, idx) => idx !== i))} className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors">
                                                             <Trash2 className="w-3.5 h-3.5" />
                                                         </button>

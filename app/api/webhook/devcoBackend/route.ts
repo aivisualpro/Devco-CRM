@@ -2773,6 +2773,52 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ success: true, count: totalRecords, employeesUpdated });
             }
 
+            case 'importDrugTestingRecords': {
+                const { records } = payload || {};
+                if (!Array.isArray(records)) return NextResponse.json({ success: false, error: 'Invalid records array' }, { status: 400 });
+
+                // Group records by employeeId (the employee _id / email in DB)
+                const groups: Record<string, any[]> = {};
+                for (const r of records) {
+                    const empId = String(r.employeeId || r.employee_Id || r.EmployeeId || r.Employee_Id || '').trim();
+                    if (!empId) continue;
+                    if (!groups[empId]) groups[empId] = [];
+
+                    // Collect doc1-doc4 into a files array, filtering out empty values
+                    const files = [
+                        r.doc1 || r.Doc1 || '',
+                        r.doc2 || r.Doc2 || '',
+                        r.doc3 || r.Doc3 || '',
+                        r.doc4 || r.Doc4 || '',
+                    ].filter(f => f.trim() !== '');
+
+                    groups[empId].push({
+                        date: r.date || r.Date || '',
+                        type: r.type || r.Type || '',
+                        description: r.description || r.Description || '',
+                        fileUrl: files[0] || '',
+                        files,
+                        createdBy: r.createdBy || r.CreatedBy || '',
+                        createdAt: r.createdAt || r.CreatedAt || new Date().toISOString(),
+                    });
+                }
+
+                let employeesUpdated = 0;
+                let totalRecords2 = 0;
+                for (const [empId, recs] of Object.entries(groups)) {
+                    const result = await Employee.collection.updateOne(
+                        { _id: empId } as any,
+                        { $push: { drugTestingRecords: { $each: recs } } } as any
+                    );
+                    if (result.modifiedCount > 0) {
+                        employeesUpdated++;
+                        totalRecords2 += recs.length;
+                    }
+                }
+
+                return NextResponse.json({ success: true, count: totalRecords2, employeesUpdated });
+            }
+
             case 'importEmployees': {
                 const { employees } = payload || {};
                 if (!Array.isArray(employees)) return NextResponse.json({ success: false, error: 'Invalid employees array' }, { status: 400 });

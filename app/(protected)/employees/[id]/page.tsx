@@ -106,12 +106,18 @@ export default function EmployeeViewPage() {
     const emptyDocument = { date: '', type: '', description: '', fileUrl: '' };
     const [newDocument, setNewDocument] = useState<any>({ ...emptyDocument });
     const [savingDocument, setSavingDocument] = useState(false);
+    const [editingDocIdx, setEditingDocIdx] = useState<number | null>(null);
+    const [editingDoc, setEditingDoc] = useState<any>(null);
+    const [deletingDocIdx, setDeletingDocIdx] = useState<number | null>(null);
 
     // Drug testing adding state
     const [isAddingDrugTest, setIsAddingDrugTest] = useState(false);
-    const emptyDrugTest = { date: '', type: '', description: '', fileUrl: '' };
+    const emptyDrugTest = { date: '', type: 'Drug / Alcohol Testing Auth', description: '', fileUrl: '', files: [] as string[] };
     const [newDrugTest, setNewDrugTest] = useState<any>({ ...emptyDrugTest });
     const [savingDrugTest, setSavingDrugTest] = useState(false);
+    const [editingDrugTestIdx, setEditingDrugTestIdx] = useState<number | null>(null);
+    const [editingDrugTest, setEditingDrugTest] = useState<any>(null);
+    const [deletingDrugTestIdx, setDeletingDrugTestIdx] = useState<number | null>(null);
 
     const TRAINING_CATEGORIES = ['Other', 'HEAVY EQUIPMENT RELATED'];
     const TRAINING_TYPES = ['Union Bootcamp', 'Osha', 'First Aid', 'Veriforce', 'Trenching and Excavating', 'Additional Training', 'CPR/First Aid'];
@@ -261,6 +267,49 @@ export default function EmployeeViewPage() {
         }
     };
 
+    const handleSaveDocEdit = async () => {
+        if (!employee || editingDocIdx === null || !editingDoc) return;
+        setSavingDocument(true);
+        try {
+            const updated = [...(employee.documents || [])];
+            updated[editingDocIdx] = editingDoc;
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { documents: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, documents: updated });
+                success('Document updated');
+                setEditingDocIdx(null);
+                setEditingDoc(null);
+            } else {
+                toastError('Failed to update document');
+            }
+        } catch (e) {
+            toastError('Error updating document');
+        } finally {
+            setSavingDocument(false);
+        }
+    };
+
+    const handleDeleteDocument = async (index: number) => {
+        if (!employee) return;
+        setSavingDocument(true);
+        try {
+            const updated = [...(employee.documents || [])];
+            updated.splice(index, 1);
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { documents: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, documents: updated });
+                success('Document deleted');
+                setDeletingDocIdx(null);
+            } else {
+                toastError('Failed to delete document');
+            }
+        } catch (e) {
+            toastError('Error deleting document');
+        } finally {
+            setSavingDocument(false);
+        }
+    };
+
     const handleAddDrugTest = async () => {
         if (!employee) return;
         if (!newDrugTest.type && !newDrugTest.description) {
@@ -269,7 +318,8 @@ export default function EmployeeViewPage() {
         }
         setSavingDrugTest(true);
         try {
-            const record = { ...newDrugTest, date: newDrugTest.date || new Date().toISOString().split('T')[0] };
+            const files = newDrugTest.files || [];
+            const record = { ...newDrugTest, date: newDrugTest.date || new Date().toISOString().split('T')[0], fileUrl: files[0] || newDrugTest.fileUrl || '', files, createdAt: new Date().toISOString() };
             const updated = [...(employee.drugTestingRecords || []), record];
             const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: updated } });
             if (res.success) {
@@ -282,6 +332,49 @@ export default function EmployeeViewPage() {
             }
         } catch (e) {
             toastError('Error adding record');
+        } finally {
+            setSavingDrugTest(false);
+        }
+    };
+
+    const handleSaveDrugTestEdit = async () => {
+        if (!employee || editingDrugTestIdx === null || !editingDrugTest) return;
+        setSavingDrugTest(true);
+        try {
+            const updated = [...(employee.drugTestingRecords || [])];
+            updated[editingDrugTestIdx] = editingDrugTest;
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, drugTestingRecords: updated });
+                success('Record updated');
+                setEditingDrugTestIdx(null);
+                setEditingDrugTest(null);
+            } else {
+                toastError('Failed to update record');
+            }
+        } catch (e) {
+            toastError('Error updating record');
+        } finally {
+            setSavingDrugTest(false);
+        }
+    };
+
+    const handleDeleteDrugTest = async (index: number) => {
+        if (!employee) return;
+        setSavingDrugTest(true);
+        try {
+            const updated = [...(employee.drugTestingRecords || [])];
+            updated.splice(index, 1);
+            const res = await apiCall('updateEmployee', { id: employee._id, item: { drugTestingRecords: updated } });
+            if (res.success) {
+                setEmployee({ ...employee, drugTestingRecords: updated });
+                success('Record deleted');
+                setDeletingDrugTestIdx(null);
+            } else {
+                toastError('Failed to delete record');
+            }
+        } catch (e) {
+            toastError('Error deleting record');
         } finally {
             setSavingDrugTest(false);
         }
@@ -622,6 +715,65 @@ export default function EmployeeViewPage() {
                                         </div>
                                     )}
 
+                                    {/* Inline Edit Document Form */}
+                                    {editingDocIdx !== null && editingDoc && (
+                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Edit Document #{editingDocIdx + 1}</h4>
+                                                <button onClick={() => { setEditingDocIdx(null); setEditingDoc(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={toDateInputValue(editingDoc.date)} onChange={e => setEditingDoc({ ...editingDoc, date: e.target.value })} />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                    <Input placeholder="e.g. ID, Contract" value={editingDoc.type || ''} onChange={e => setEditingDoc({ ...editingDoc, type: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={editingDoc.description || ''} onChange={e => setEditingDoc({ ...editingDoc, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
+                                                    <div className="flex items-center gap-3">
+                                                        {editingDoc.fileUrl && (
+                                                            <button type="button" onClick={() => openFileUrl(editingDoc.fileUrl)} className="text-xs bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer flex items-center gap-1">
+                                                                <FileText className="w-3 h-3" /> View Current
+                                                            </button>
+                                                        )}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            {editingDoc.fileUrl ? 'Replace File' : 'Upload File'}
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const reader = new FileReader();
+                                                                    reader.onloadend = () => setEditingDoc({ ...editingDoc, fileUrl: reader.result as string });
+                                                                    reader.readAsDataURL(file);
+                                                                }
+                                                            }} />
+                                                        </label>
+                                                        {editingDoc.fileUrl && (
+                                                            <button type="button" onClick={() => setEditingDoc({ ...editingDoc, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white" onClick={handleSaveDocEdit} disabled={savingDocument}>
+                                                    {savingDocument ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setEditingDocIdx(null); setEditingDoc(null); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {(employee.documents?.length ?? 0) > 0 ? (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
@@ -631,15 +783,52 @@ export default function EmployeeViewPage() {
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
+                                                    <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {employee.documents?.map((doc: any, i: number) => (
-                                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingDocIdx === i ? 'bg-blue-50/30' : ''}`}>
                                                         <td className="py-2 px-3 text-slate-600">{formatDateDisplay(doc.date)}</td>
                                                         <td className="py-2 px-3 text-slate-800 font-medium">{doc.type || '-'}</td>
                                                         <td className="py-2 px-3 text-slate-600">{doc.description || '-'}</td>
                                                         <td className="py-2 px-3">{doc.fileUrl ? <button onClick={() => openFileUrl(doc.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}</td>
+                                                        <td className="py-2 px-3 text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button
+                                                                    onClick={() => { setEditingDocIdx(i); setEditingDoc({ ...doc }); }}
+                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
+                                                                    title="Edit document"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                {deletingDocIdx === i ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => handleDeleteDocument(i)}
+                                                                            className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
+                                                                            disabled={savingDocument}
+                                                                        >
+                                                                            {savingDocument ? '...' : 'Yes'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setDeletingDocIdx(null)}
+                                                                            className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
+                                                                        >
+                                                                            No
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => setDeletingDocIdx(i)}
+                                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                                        title="Delete document"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -682,33 +871,36 @@ export default function EmployeeViewPage() {
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
                                                     <Input type="date" value={toDateInputValue(newDrugTest.date)} onChange={e => setNewDrugTest({ ...newDrugTest, date: e.target.value })} />
                                                 </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                                                    <Input placeholder="e.g. Random, Pre-Employment" value={newDrugTest.type || ''} onChange={e => setNewDrugTest({ ...newDrugTest, type: e.target.value })} />
-                                                </div>
-                                                <div className="md:col-span-2">
+                                                <div className="md:col-span-3">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
                                                     <Input placeholder="Brief description" value={newDrugTest.description || ''} onChange={e => setNewDrugTest({ ...newDrugTest, description: e.target.value })} />
                                                 </div>
                                                 <div className="md:col-span-4">
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
-                                                    <div className="flex items-center gap-3">
-                                                        {newDrugTest.fileUrl && <span className="text-xs text-emerald-600 font-medium">File attached ✓</span>}
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents (multiple allowed)</label>
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {(newDrugTest.files || []).length > 0 && <span className="text-xs text-emerald-600 font-medium">{(newDrugTest.files || []).length} file(s) attached ✓</span>}
                                                         <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
                                                             <Upload className="w-3.5 h-3.5" />
-                                                            {newDrugTest.fileUrl ? 'Replace File' : 'Upload File'}
-                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" onChange={e => {
-                                                                const file = e.target.files?.[0];
-                                                                if (file) {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => setNewDrugTest({ ...newDrugTest, fileUrl: reader.result as string });
-                                                                    reader.readAsDataURL(file);
+                                                            Add File
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                                                const fileList = e.target.files;
+                                                                if (fileList) {
+                                                                    Array.from(fileList).forEach(file => {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setNewDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    });
                                                                 }
+                                                                e.target.value = '';
                                                             }} />
                                                         </label>
-                                                        {newDrugTest.fileUrl && (
-                                                            <button type="button" onClick={() => setNewDrugTest({ ...newDrugTest, fileUrl: '' })} className="text-xs text-red-500 hover:text-red-700 transition-colors">Remove</button>
-                                                        )}
+                                                        {(newDrugTest.files || []).map((_: any, idx: number) => (
+                                                            <button key={idx} type="button" onClick={() => setNewDrugTest((prev: any) => ({ ...prev, files: prev.files.filter((__: any, j: number) => j !== idx) }))} className="text-xs text-red-500 hover:text-red-700 transition-colors">
+                                                                Remove #{idx + 1}
+                                                            </button>
+                                                        ))}
                                                     </div>
                                                 </div>
                                             </div>
@@ -723,24 +915,125 @@ export default function EmployeeViewPage() {
                                         </div>
                                     )}
 
+                                    {/* Inline Edit Drug Test Form */}
+                                    {editingDrugTestIdx !== null && editingDrugTest && (
+                                        <div className="mb-4 p-4 bg-blue-50/50 rounded-xl border border-blue-100 space-y-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h4 className="text-sm font-semibold text-slate-700">Edit Record #{editingDrugTestIdx + 1}</h4>
+                                                <button onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Date</label>
+                                                    <Input type="date" value={toDateInputValue(editingDrugTest.date)} onChange={e => setEditingDrugTest({ ...editingDrugTest, date: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-3">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                    <Input placeholder="Brief description" value={editingDrugTest.description || ''} onChange={e => setEditingDrugTest({ ...editingDrugTest, description: e.target.value })} />
+                                                </div>
+                                                <div className="md:col-span-4">
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Documents</label>
+                                                    <div className="flex flex-wrap items-center gap-3">
+                                                        {(editingDrugTest.files || []).map((f: string, fi: number) => (
+                                                            <div key={fi} className="flex items-center gap-1">
+                                                                <button type="button" onClick={() => openFileUrl(f)} className="text-xs bg-emerald-50 text-emerald-600 px-2 py-1 rounded-lg font-medium hover:bg-emerald-100 transition-colors cursor-pointer">File {fi + 1}</button>
+                                                                <button type="button" onClick={() => setEditingDrugTest({ ...editingDrugTest, files: editingDrugTest.files.filter((_: any, j: number) => j !== fi) })} className="text-xs text-red-500 hover:text-red-700">×</button>
+                                                            </div>
+                                                        ))}
+                                                        <label className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium border border-dashed border-slate-300 rounded-lg cursor-pointer hover:border-[#0F4C75] hover:bg-blue-50/30 transition-all text-slate-600">
+                                                            <Upload className="w-3.5 h-3.5" />
+                                                            Add File
+                                                            <input type="file" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" className="hidden" multiple onChange={e => {
+                                                                const fileList = e.target.files;
+                                                                if (fileList) {
+                                                                    Array.from(fileList).forEach(file => {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setEditingDrugTest((prev: any) => ({ ...prev, files: [...(prev.files || []), reader.result as string] }));
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    });
+                                                                }
+                                                                e.target.value = '';
+                                                            }} />
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                                <Button size="sm" className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white" onClick={handleSaveDrugTestEdit} disabled={savingDrugTest}>
+                                                    {savingDrugTest ? 'Saving...' : 'Save Changes'}
+                                                </Button>
+                                                <Button size="sm" variant="outline" onClick={() => { setEditingDrugTestIdx(null); setEditingDrugTest(null); }}>
+                                                    Cancel
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {(employee.drugTestingRecords?.length ?? 0) > 0 ? (
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm">
                                             <thead>
                                                 <tr className="border-b border-slate-100">
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Type</th>
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Description</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
+                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Files</th>
+                                                    <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {employee.drugTestingRecords?.map((rec: any, i: number) => (
-                                                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50/50">
+                                                    <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingDrugTestIdx === i ? 'bg-blue-50/30' : ''}`}>
                                                         <td className="py-2 px-3 text-slate-600">{formatDateDisplay(rec.date)}</td>
-                                                        <td className="py-2 px-3 text-slate-800 font-medium">{rec.type || '-'}</td>
                                                         <td className="py-2 px-3 text-slate-600">{rec.description || '-'}</td>
-                                                        <td className="py-2 px-3">{rec.fileUrl ? <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}</td>
+                                                        <td className="py-2 px-3">
+                                                            {(rec.files && rec.files.length > 0) ? (
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {rec.files.map((f: string, fi: number) => (
+                                                                        <button key={fi} onClick={() => openFileUrl(f)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">File {fi + 1}</button>
+                                                                    ))}
+                                                                </div>
+                                                            ) : rec.fileUrl ? <button onClick={() => openFileUrl(rec.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}
+                                                        </td>
+                                                        <td className="py-2 px-3 text-right">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <button
+                                                                    onClick={() => { setEditingDrugTestIdx(i); setEditingDrugTest({ ...rec, files: rec.files || [] }); }}
+                                                                    className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-md transition-colors"
+                                                                    title="Edit record"
+                                                                >
+                                                                    <Pencil className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                {deletingDrugTestIdx === i ? (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <button
+                                                                            onClick={() => handleDeleteDrugTest(i)}
+                                                                            className="p-1 text-xs bg-red-500 text-white rounded px-2 hover:bg-red-600 transition-colors"
+                                                                            disabled={savingDrugTest}
+                                                                        >
+                                                                            {savingDrugTest ? '...' : 'Yes'}
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setDeletingDrugTestIdx(null)}
+                                                                            className="p-1 text-xs bg-slate-200 text-slate-600 rounded px-2 hover:bg-slate-300 transition-colors"
+                                                                        >
+                                                                            No
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => setDeletingDrugTestIdx(i)}
+                                                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                                                                        title="Delete record"
+                                                                    >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

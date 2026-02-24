@@ -124,6 +124,9 @@ const EmployeeSchema: Schema = new Schema({
         type: { type: String },
         description: { type: String },
         fileUrl: { type: String },
+        files: [{ type: String }],
+        createdBy: { type: String },
+        createdAt: { type: String },
     }],
     trainingCertifications: [{
         category: { type: String },
