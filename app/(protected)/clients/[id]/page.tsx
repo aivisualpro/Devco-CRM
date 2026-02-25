@@ -29,6 +29,7 @@ interface ClientDocument {
     name: string;
     url: string;
     thumbnailUrl?: string;
+    r2Key?: string;
     type: string;
     category?: string;
     uploadedAt?: string | Date;
@@ -106,10 +107,10 @@ function ClientViewPageContent() {
     // Document Upload State
     const [isAddDocModalOpen, setIsAddDocModalOpen] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
-    const [newDoc, setNewDoc] = useState<{ name: string, category: string, file: string | null, type: string | null }>({
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [newDoc, setNewDoc] = useState<{ name: string, category: string, type: string | null }>({
         name: '',
         category: 'Service Agreement',
-        file: null,
         type: null
     });
 
@@ -133,7 +134,7 @@ function ClientViewPageContent() {
                 setClient(clientRes.result);
                 // Trigger animation on load
                 setTimeout(() => setAnimate(true), 100);
-                
+
                 // Load Related Estimates
                 setEstimatesLoading(true);
                 try {
@@ -210,14 +211,14 @@ function ClientViewPageContent() {
 
     const processContactWithNewAddress = (contact: ClientContact, currentAddresses: (string | ClientAddress)[]): { contact: ClientContact, updatedAddresses: (string | ClientAddress)[] | null } => {
         if (!contact.address || contact.address.trim() === '') return { contact, updatedAddresses: null };
-        
+
         const address = contact.address.trim();
         // Check if this address is already in any list
         const exists = currentAddresses.some(a => {
             const addrStr = typeof a === 'string' ? a : a.address;
             return addrStr.toLowerCase() === address.toLowerCase();
         }) || (client?.businessAddress?.toLowerCase() === address.toLowerCase());
-        
+
         if (!exists) {
             return {
                 contact,
@@ -231,7 +232,7 @@ function ClientViewPageContent() {
         if (!client || !newContact.name) return;
 
         const { contact, updatedAddresses } = processContactWithNewAddress(newContact, client.addresses || []);
-        
+
         // If this is marked as active, deactivate others
         let updatedContacts = [...(client.contacts || [])];
         if (contact.active) {
@@ -344,7 +345,7 @@ function ClientViewPageContent() {
 
     const handleAddAddress = async () => {
         if (!client || !newAddress) return;
-        
+
         let updatedAddresses = (client.addresses || []).map(a => {
             const addr = typeof a === 'string' ? a : a.address;
             const p = isAddressPrimary ? false : (typeof a === 'string' ? false : a.primary);
@@ -353,7 +354,7 @@ function ClientViewPageContent() {
 
         const isPrimary = isAddressPrimary || updatedAddresses.length === 0;
         updatedAddresses.push({ address: newAddress, primary: isPrimary });
-        
+
         try {
             const payload: any = { addresses: updatedAddresses };
             if (isPrimary) payload.businessAddress = newAddress;
@@ -375,7 +376,7 @@ function ClientViewPageContent() {
         if (!client || !client.addresses) return;
         const wasPrimary = (client.addresses[index] as any).primary;
         const updatedAddresses = client.addresses.filter((_, i) => i !== index);
-        
+
         // If removed primary, set first remaining as primary
         if (wasPrimary && updatedAddresses.length > 0) {
             const first = updatedAddresses[0] as any;
@@ -409,16 +410,16 @@ function ClientViewPageContent() {
 
     const handleUpdateAddress = async () => {
         if (!client || !newAddress || editingAddressIndex === null) return;
-        
+
         let updatedAddresses = (client.addresses || []).map((a, i) => {
             const addr = typeof a === 'string' ? a : a.address;
             const p = isAddressPrimary ? false : (typeof a === 'string' ? (i === 0) : a.primary);
             return { address: addr, primary: p };
         });
 
-        updatedAddresses[editingAddressIndex] = { 
-            address: newAddress, 
-            primary: isAddressPrimary 
+        updatedAddresses[editingAddressIndex] = {
+            address: newAddress,
+            primary: isAddressPrimary
         };
 
         // Ensure at least one primary if none selected
@@ -464,17 +465,12 @@ function ClientViewPageContent() {
     const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            setNewDoc(prev => ({
-                ...prev,
-                file: event.target?.result as string,
-                type: file.type,
-                name: prev.name || file.name
-            }));
-        };
-        reader.readAsDataURL(file);
+        setSelectedFile(file);
+        setNewDoc(prev => ({
+            ...prev,
+            type: file.type,
+            name: prev.name || file.name
+        }));
     };
 
     const handleBulkUpload = async (files: File[]) => {
@@ -485,46 +481,27 @@ function ClientViewPageContent() {
 
         for (const file of files) {
             try {
-                // Read file as base64
-                const base64 = await new Promise<string>((resolve) => {
-                    const reader = new FileReader();
-                    reader.onload = (e) => resolve(e.target?.result as string);
-                    reader.readAsDataURL(file);
+                // Upload to R2 via FormData
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('folder', 'client-docs');
+
+                const uploadRes = await fetch('/api/upload-r2', {
+                    method: 'POST',
+                    body: formData
                 });
+                const uploadData = await uploadRes.json();
 
-                // 1. Upload to R2
-                const uploadRes = await apiCall('uploadDocument', {
-                    file: base64,
-                    fileName: `${client.name?.replace(/\s+/g, '_')}_${file.name.replace(/\s+/g, '_')}_${Date.now()}`,
-                    contentType: file.type
-                });
-
-                if (uploadRes.success) {
-                    const docUrl = uploadRes.result;
-                    let thumbnailUrl = '';
-
-                    // 2. Generate Thumbnail if PDF/Image
-                    const isPDF = file.type?.includes('pdf');
-                    const isImage = file.type?.startsWith('image/');
-
-                    if (isImage || isPDF) {
-                        try {
-                            const thumbRes = await apiCall('uploadThumbnail', {
-                                file: base64,
-                                fileName: `thumb_${Date.now()}`,
-                                contentType: file.type
-                            });
-                            if (thumbRes.success) thumbnailUrl = thumbRes.result;
-                        } catch (e) { console.error('Thumb error:', e); }
-                    }
-
+                if (uploadData.success) {
                     newDocuments.push({
                         name: file.name,
-                        url: docUrl,
-                        thumbnailUrl,
-                        type: file.type || 'application/octet-stream',
+                        url: uploadData.url,
+                        r2Key: uploadData.key,
+                        type: uploadData.type || file.type || 'application/octet-stream',
                         uploadedAt: new Date()
                     });
+                } else {
+                    console.error(`Upload failed for ${file.name}:`, uploadData.error);
                 }
             } catch (err) {
                 console.error(`Error uploading ${file.name}:`, err);
@@ -551,48 +528,32 @@ function ClientViewPageContent() {
     };
 
     const handleSaveDoc = async () => {
-        if (!client || !newDoc.file) return;
+        if (!client || !selectedFile) return;
 
         setIsUploading(true);
         try {
-            // 1. Upload to R2 (Original File)
-            const uploadRes = await apiCall('uploadDocument', {
-                file: newDoc.file,
-                fileName: `${client.name?.replace(/\s+/g, '_')}_${newDoc.name?.replace(/\s+/g, '_')}_${Date.now()}`,
-                contentType: newDoc.type
+            // Upload to R2 via FormData
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            formData.append('folder', 'client-docs');
+
+            const uploadRes = await fetch('/api/upload-r2', {
+                method: 'POST',
+                body: formData
             });
+            const uploadData = await uploadRes.json();
 
-            if (uploadRes.success) {
-                const docUrl = uploadRes.result;
-                let thumbnailUrl = '';
-
-                // 2. Generate and Upload Thumbnail to Cloudinary
-                try {
-                    const isPDF = newDoc.type?.includes('pdf');
-                    const isImage = newDoc.type?.startsWith('image/');
-
-                    if (isImage || isPDF) {
-                        const thumbRes = await apiCall('uploadThumbnail', {
-                            file: newDoc.file,
-                            fileName: `thumb_${Date.now()}`,
-                            contentType: newDoc.type
-                        });
-                        if (thumbRes.success) thumbnailUrl = thumbRes.result;
-                    }
-                } catch (thumbErr) {
-                    console.error('Thumbnail Generation Error:', thumbErr);
-                }
-
+            if (uploadData.success) {
                 const docToSave: ClientDocument = {
-                    name: newDoc.name,
-                    url: docUrl,
-                    thumbnailUrl: thumbnailUrl,
-                    type: newDoc.type || 'application/octet-stream',
+                    name: newDoc.name || selectedFile.name,
+                    url: uploadData.url,
+                    r2Key: uploadData.key,
+                    type: uploadData.type || selectedFile.type || 'application/octet-stream',
                     category: newDoc.category,
                     uploadedAt: new Date()
                 };
 
-                // 3. Add to Client documents array
+                // Add to Client documents array
                 const currentDocs = Array.isArray(client.documents) ? client.documents : [];
                 const updatedDocs = [...currentDocs, docToSave];
 
@@ -604,13 +565,14 @@ function ClientViewPageContent() {
                 if (updateRes.success) {
                     setClient(updateRes.result);
                     setIsAddDocModalOpen(false);
-                    setNewDoc({ name: '', category: 'Service Agreement', file: null, type: null });
-                    success('Document uploaded with thumbnail');
+                    setSelectedFile(null);
+                    setNewDoc({ name: '', category: 'Service Agreement', type: null });
+                    success('Document uploaded successfully');
                 } else {
                     toastError(updateRes.error || 'Failed to link document to client');
                 }
             } else {
-                toastError(uploadRes.error || 'Failed to upload document');
+                toastError(uploadData.error || 'Failed to upload document');
             }
         } catch (err: any) {
             console.error('Doc Upload Error:', err);
@@ -714,36 +676,36 @@ function ClientViewPageContent() {
     return (
         <div className="flex flex-col h-full bg-gray-50/50">
             <div className="flex-none bg-white">
-            <Header
-                leftContent={
-                    <button
-                        onClick={() => router.push(fromPath || '/clients')}
-                        className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
-                        title={fromPath ? "Go Back" : "Back to List"}
-                    >
-                        <ArrowLeft className="w-5 h-5" />
-                    </button>
-                }
-                rightContent={
-                    <div className="flex items-center gap-2">
+                <Header
+                    leftContent={
                         <button
-                            onClick={handleEditClient}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-slate-100 rounded-xl transition-colors"
-                            title="Edit Client"
+                            onClick={() => router.push(fromPath || '/clients')}
+                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-colors"
+                            title={fromPath ? "Go Back" : "Back to List"}
                         >
-                            <Pencil className="w-5 h-5" />
+                            <ArrowLeft className="w-5 h-5" />
                         </button>
+                    }
+                    rightContent={
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleEditClient}
+                                className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-slate-100 rounded-xl transition-colors"
+                                title="Edit Client"
+                            >
+                                <Pencil className="w-5 h-5" />
+                            </button>
 
-                        <button
-                            onClick={() => setConfirmDelete(true)}
-                            className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                            title="Delete Client"
-                        >
-                            <Trash2 className="w-5 h-5" />
-                        </button>
-                    </div>
-                }
-            />
+                            <button
+                                onClick={() => setConfirmDelete(true)}
+                                className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                                title="Delete Client"
+                            >
+                                <Trash2 className="w-5 h-5" />
+                            </button>
+                        </div>
+                    }
+                />
             </div>
 
             <main className="flex-1 overflow-y-auto">
@@ -783,17 +745,17 @@ function ClientViewPageContent() {
                                             <h3 className="text-xl font-black text-slate-800 tracking-tight">Related Estimates</h3>
                                         </div>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={async () => {
-                                            const currentUser = typeof window !== 'undefined' 
-                                                ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email 
+                                            const currentUser = typeof window !== 'undefined'
+                                                ? JSON.parse(localStorage.getItem('devco_user') || '{}')?.email
                                                 : null;
 
-                                            const res = await apiCall('createEstimate', { 
+                                            const res = await apiCall('createEstimate', {
                                                 customerId: id,
                                                 customerName: client.name,
                                                 proposalWriter: currentUser,
-                                                createdBy: currentUser 
+                                                createdBy: currentUser
                                             });
                                             if (res.success && res.result?._id) {
                                                 const slug = res.result.estimate ? `${res.result.estimate}-V${res.result.versionNumber || 1}` : res.result._id;
@@ -855,8 +817,8 @@ function ClientViewPageContent() {
                                                         ].filter(s => est.services?.includes(s.value));
 
                                                         return (
-                                                            <TableRow 
-                                                                key={est._id} 
+                                                            <TableRow
+                                                                key={est._id}
                                                                 className="cursor-pointer hover:bg-slate-50 transition-colors"
                                                                 onClick={() => {
                                                                     const slug = est.estimate ? `${est.estimate}-V${est.versionNumber || 1}` : est._id;
@@ -1131,7 +1093,7 @@ function ClientViewPageContent() {
                 footer={
                     <>
                         <Button variant="ghost" onClick={() => setIsAddDocModalOpen(false)}>Cancel</Button>
-                        <Button onClick={handleSaveDoc} disabled={isUploading || !newDoc.file || !newDoc.name}>
+                        <Button onClick={handleSaveDoc} disabled={isUploading || !selectedFile || !newDoc.name}>
                             {isUploading ? 'Uploading...' : 'Save Document'}
                         </Button>
                     </>
@@ -1170,13 +1132,13 @@ function ClientViewPageContent() {
                                 className="absolute inset-0 opacity-0 cursor-pointer"
                             />
                             <div className="space-y-2 text-center">
-                                <Upload className={`mx-auto h-10 w-10 ${newDoc.file ? 'text-[#0F4C75]' : 'text-slate-400'} group-hover:scale-110 transition-transform`} />
+                                <Upload className={`mx-auto h-10 w-10 ${selectedFile ? 'text-[#0F4C75]' : 'text-slate-400'} group-hover:scale-110 transition-transform`} />
                                 <div className="text-sm text-slate-600">
                                     <span className="font-bold text-[#0F4C75] underline">Click to upload</span>
                                     <span> or drag and drop</span>
                                 </div>
                                 <p className="text-xs text-slate-400">PDF, IMAGE, DOCX up to 10MB</p>
-                                {newDoc.name && newDoc.file && (
+                                {newDoc.name && selectedFile && (
                                     <div className="mt-2 text-xs font-bold text-[#0F4C75] bg-[#3282B8]/10 px-2 py-1 rounded-full animate-pulse">
                                         File Selected: {newDoc.name}
                                     </div>

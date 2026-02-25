@@ -24,6 +24,7 @@ interface ClientDocument {
     name: string;
     url: string;
     thumbnailUrl?: string;
+    r2Key?: string;
     type: string;
     category?: string;
     uploadedAt?: string | Date;
@@ -73,16 +74,16 @@ interface ClientHeaderCardProps {
     animate: boolean;
 }
 
-export function ClientHeaderCard({ 
-    client, 
-    onUpdate, 
-    onAddContact, 
-    onAddAddress, 
+export function ClientHeaderCard({
+    client,
+    onUpdate,
+    onAddContact,
+    onAddAddress,
     onEditContact,
     onRemoveContact,
     onEditAddress,
     onRemoveAddress,
-    animate 
+    animate
 }: ClientHeaderCardProps) {
     const primaryContact = client.contacts?.find(c => c.primary) || client.contacts?.find(c => c.active) || client.contacts?.[0];
 
@@ -98,7 +99,7 @@ export function ClientHeaderCard({
                     <div className="text-xl font-black text-slate-800 tracking-tight mb-2 underline decoration-indigo-500/30 underline-offset-4">
                         {client.name}
                     </div>
-                    
+
                     <div className="space-y-2 mt-auto">
                         <div className="flex items-start gap-2 text-xs font-normal text-slate-600">
                             <MapPin className="w-3.5 h-3.5 text-rose-400 mt-0.5 flex-shrink-0" />
@@ -123,7 +124,7 @@ export function ClientHeaderCard({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                             Contacts
                         </label>
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); onAddContact?.(); }}
                             className="p-1 rounded-full bg-white/50 text-[#0F4C75] hover:bg-[#0F4C75] hover:text-white transition-all shadow-sm"
                             title="Add Contact"
@@ -166,13 +167,13 @@ export function ClientHeaderCard({
 
                                 {/* Hover actions */}
                                 <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-0.5 rounded-lg shadow-sm border border-slate-100">
-                                    <button 
+                                    <button
                                         onClick={(e) => { e.stopPropagation(); onEditContact?.(i); }}
                                         className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
                                     >
                                         <Pencil size={12} />
                                     </button>
-                                    <button 
+                                    <button
                                         onClick={(e) => { e.stopPropagation(); onRemoveContact?.(i); }}
                                         className="p-1 text-slate-400 hover:text-red-500 transition-colors"
                                     >
@@ -192,7 +193,7 @@ export function ClientHeaderCard({
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
                             Job/Billing Addresses
                         </label>
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); onAddAddress?.(); }}
                             className="p-1 rounded-full bg-white/50 text-[#0F4C75] hover:bg-[#0F4C75] hover:text-white transition-all shadow-sm"
                             title="Add Address"
@@ -216,13 +217,13 @@ export function ClientHeaderCard({
 
                                     {/* Hover actions */}
                                     <div className="absolute top-1 right-1 hidden group-hover:flex items-center gap-1 bg-white/90 backdrop-blur-sm p-0.5 rounded-lg shadow-sm border border-slate-100 font-normal">
-                                        <button 
+                                        <button
                                             onClick={(e) => { e.stopPropagation(); onEditAddress?.(i); }}
                                             className="p-1 text-slate-400 hover:text-[#0F4C75] transition-colors"
                                         >
                                             <Pencil size={12} />
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={(e) => { e.stopPropagation(); onRemoveAddress?.(i); }}
                                             className="p-1 text-slate-400 hover:text-red-500 transition-colors"
                                         >
