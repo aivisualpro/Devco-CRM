@@ -150,6 +150,29 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     });
     const [selectedScheduleForPreBore, setSelectedScheduleForPreBore] = useState<string>('');
 
+    // Vendor & Subs State
+    const VENDOR_SUBS_TYPES = [
+        'COI', 'W9', 'Prelim',
+        'Conditional Release on Progress Payment',
+        'Conditional Release on Final Payment',
+        'Unconditional Release on Progress Payment',
+        'Unconditional Release on Final Payment',
+        'CPR', 'Other'
+    ];
+    const [vendorSubsDocs, setVendorSubsDocs] = useState<any[]>([]);
+    const [loadingVendorSubs, setLoadingVendorSubs] = useState(false);
+    const [isVendorSubsModalOpen, setIsVendorSubsModalOpen] = useState(false);
+    const [selectedVendorSubsDoc, setSelectedVendorSubsDoc] = useState<any>(null);
+    const [isVendorSubsUploading, setIsVendorSubsUploading] = useState(false);
+    const [vendorSubsToDelete, setVendorSubsToDelete] = useState<string | null>(null);
+    const [isVendorSubsTypeOpen, setIsVendorSubsTypeOpen] = useState(false);
+    const [newVendorSubs, setNewVendorSubs] = useState({
+        type: '',
+        vendorSubName: '',
+        fileName: '',
+        files: [] as any[]
+    });
+
     useEffect(() => {
         const fetchAllVersions = async () => {
             if (!formData?.estimate) return;
@@ -376,6 +399,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 }
                 setPreBoreLogRecords(pbLogs);
 
+                // 6. Fetch Vendor & Subs docs
+                const vsRes = await fetch('/api/vendor-subs-docs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } })
+                });
+                const vsData = await vsRes.json();
+                if (vsData.success) setVendorSubsDocs(vsData.result || []);
+
             } catch (err) {
                 console.error('Failed to fetch job docs', err);
             } finally {
@@ -425,6 +457,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 }
             }
             setPreBoreLogRecords(pbLogs);
+
+            const vsRes2 = await fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData.estimate } }) });
+            const vsData2 = await vsRes2.json();
+            if (vsData2.success) setVendorSubsDocs(vsData2.result || []);
         } catch (err) { console.error(err); } finally { setLoadingJobDocs(false); }
     }, [formData?.estimate]);
 
@@ -623,6 +659,70 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 refetchJobDocs();
             } else toast.error(data.error || 'Failed to create');
         } catch (e) { console.error(e); toast.error('Error creating pre-bore log'); }
+    };
+
+    // --- Vendor & Subs Handlers ---
+    const handleCreateVendorSubs = async () => {
+        if (!newVendorSubs.type || !newVendorSubs.vendorSubName || !newVendorSubs.fileName) {
+            toast.error('Type, Vendor/Sub Name, and File Name are required');
+            return;
+        }
+        try {
+            const res = await fetch('/api/vendor-subs-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'createVendorSubsDoc',
+                    payload: { ...newVendorSubs, estimate: formData?.estimate, createdBy: currentUser?.email || '' }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Record added');
+                setIsVendorSubsModalOpen(false);
+                setNewVendorSubs({ type: '', vendorSubName: '', fileName: '', files: [] });
+                const vsRes = await fetch('/api/vendor-subs-docs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getVendorSubsDocs', payload: { estimate: formData?.estimate } }) });
+                const vsData = await vsRes.json();
+                if (vsData.success) setVendorSubsDocs(vsData.result || []);
+            } else toast.error(data.error || 'Failed to create');
+        } catch (e) { console.error(e); toast.error('Error creating record'); }
+    };
+
+    const handleDeleteVendorSubs = async (id: string) => {
+        try {
+            await fetch('/api/vendor-subs-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'deleteVendorSubsDoc', payload: { id } })
+            });
+            setVendorSubsDocs(prev => prev.filter(d => d._id !== id));
+            setVendorSubsToDelete(null);
+            setSelectedVendorSubsDoc(null);
+            toast.success('Record deleted');
+        } catch (e) { toast.error('Error deleting'); }
+    };
+
+    const handleVendorSubsFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        setIsVendorSubsUploading(true);
+        const uploaded = [...newVendorSubs.files];
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                fd.append('folder', `estimates/${formData?.estimate || 'general'}/vendor-subs`);
+                const res = await fetch('/api/upload', { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.success && data.url) {
+                    uploaded.push({ url: data.url, thumbnailUrl: data.thumbnailUrl || '', fileName: file.name, fileType: file.type, uploadedBy: currentUser?.email || '', uploadedAt: new Date().toISOString() });
+                }
+            } catch (err) { console.error(err); toast.error(`Error uploading ${file.name}`); }
+        }
+        setNewVendorSubs(prev => ({ ...prev, files: uploaded }));
+        setIsVendorSubsUploading(false);
+        e.target.value = '';
     };
 
     const prelimDocs = [
@@ -4290,6 +4390,71 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
 
+                {/* Column: Vendor & Subs */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shadow-md">
+                            <User className="w-4 h-4" />
+                        </div>
+                        <h4 className="text-sm font-bold text-amber-700">Vendor &amp; Subs</h4>
+                        <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
+                            {vendorSubsDocs.length}
+                        </span>
+                        <button
+                            onClick={() => { setNewVendorSubs({ type: '', vendorSubName: '', fileName: '', files: [] }); setIsVendorSubsModalOpen(true); }}
+                            className="ml-auto w-6 h-6 rounded-lg bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition-colors shadow-sm"
+                            title="Add Vendor/Sub Record"
+                        >
+                            <Plus className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
+                        <div className="grid grid-cols-1 gap-3">
+                            {loadingJobDocs ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-5 h-5 animate-spin text-amber-500" />
+                                </div>
+                            ) : vendorSubsDocs.length > 0 ? vendorSubsDocs.map((doc: any, idx: number) => (
+                                <div
+                                    key={doc._id || idx}
+                                    onClick={() => setSelectedVendorSubsDoc(doc)}
+                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-amber-50/60 hover:shadow-md hover:border-amber-200 transition-all duration-300"
+                                >
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-[8px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+                                                {doc.type}
+                                            </span>
+                                            <p className="text-xs font-black text-slate-800 truncate mt-1">{doc.vendorSubName}</p>
+                                            <p className="text-[10px] text-slate-500 truncate">{doc.fileName}</p>
+                                        </div>
+                                        <Eye className="w-3.5 h-3.5 text-amber-400 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0" />
+                                    </div>
+                                    <div className="flex items-center gap-1.5 mt-1.5">
+                                        {doc.files?.length > 0 && (
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                                {doc.files.length} file{doc.files.length !== 1 ? 's' : ''}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
+                                        <span className="text-[10px] text-slate-400 font-bold truncate">{doc.createdBy || '-'}</span>
+                                        <button
+                                            onClick={e => { e.stopPropagation(); setVendorSubsToDelete(doc._id); }}
+                                            className="opacity-0 group-hover:opacity-100 w-5 h-5 rounded-full bg-red-50 text-red-400 hover:bg-red-100 flex items-center justify-center transition-all"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )) : (
+                                <p className="text-[10px] text-slate-400 font-bold text-center py-4">No vendor/sub records</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             {/* JHA Modal (reused from schedules) */}
@@ -4720,6 +4885,210 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
                 </div>
             </Modal>
+
+            {/* Vendor & Subs Add Modal */}
+            <Modal
+                isOpen={isVendorSubsModalOpen}
+                onClose={() => setIsVendorSubsModalOpen(false)}
+                title="Add Vendor / Sub Record"
+                maxWidth="xl"
+                footer={
+                    <div className="flex gap-3 justify-end w-full">
+                        <Button variant="ghost" onClick={() => setIsVendorSubsModalOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateVendorSubs} disabled={!newVendorSubs.type || !newVendorSubs.vendorSubName || !newVendorSubs.fileName}>
+                            Add Record
+                        </Button>
+                    </div>
+                }
+            >
+                <div className="space-y-4 p-2">
+                    {/* Type */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Type *</label>
+                        <select
+                            value={newVendorSubs.type}
+                            onChange={e => setNewVendorSubs(prev => ({ ...prev, type: e.target.value }))}
+                            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none"
+                        >
+                            <option value="">Select type...</option>
+                            {VENDOR_SUBS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                    </div>
+                    {/* Vendor/Sub Name */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Vendor / Sub Name *</label>
+                        {(() => {
+                            const attachedVS: any[] = (formData?.estimateVendorsSubContractors as any[]) || [];
+                            const isOtherMode = newVendorSubs.vendorSubName === '__other__' || (attachedVS.length === 0);
+                            if (attachedVS.length > 0 && !isOtherMode) {
+                                return (
+                                    <div className="space-y-2">
+                                        <div className="relative">
+                                            <select
+                                                value={attachedVS.some(v => v.name === newVendorSubs.vendorSubName) ? newVendorSubs.vendorSubName : (newVendorSubs.vendorSubName ? '__other__' : '')}
+                                                onChange={e => {
+                                                    if (e.target.value === '__other__') {
+                                                        setNewVendorSubs(prev => ({ ...prev, vendorSubName: '__other__' }));
+                                                    } else {
+                                                        setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }));
+                                                    }
+                                                }}
+                                                className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none appearance-none"
+                                            >
+                                                <option value="">Select vendor / sub...</option>
+                                                {attachedVS.map((v: any) => (
+                                                    <option key={v._id || v.name} value={v.name}>{v.name} — {v.type}</option>
+                                                ))}
+                                                <option value="__other__">Other (type manually)...</option>
+                                            </select>
+                                            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                            </div>
+                                        </div>
+                                        {newVendorSubs.vendorSubName === '__other__' && (
+                                            <Input
+                                                value=""
+                                                onChange={e => setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }))}
+                                                placeholder="Type vendor / sub name..."
+                                                autoFocus
+                                            />
+                                        )}
+                                    </div>
+                                );
+                            }
+                            return (
+                                <Input
+                                    value={newVendorSubs.vendorSubName === '__other__' ? '' : newVendorSubs.vendorSubName}
+                                    onChange={e => setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }))}
+                                    placeholder="e.g. ABC Electrical"
+                                />
+                            );
+                        })()}
+                    </div>
+                    {/* File Name / Description */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">File Name / Description *</label>
+                        <Input
+                            value={newVendorSubs.fileName}
+                            onChange={e => setNewVendorSubs(prev => ({ ...prev, fileName: e.target.value }))}
+                            placeholder="e.g. COI Certificate 2026"
+                        />
+                    </div>
+                    {/* File Upload */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1 block">Upload Files / Images</label>
+                        <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-amber-400 transition-colors">
+                            <input
+                                type="file"
+                                multiple
+                                accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                                onChange={handleVendorSubsFileUpload}
+                                className="hidden"
+                                id="vendor-subs-file-upload"
+                            />
+                            <label htmlFor="vendor-subs-file-upload" className="cursor-pointer">
+                                {isVendorSubsUploading ? (
+                                    <div className="flex items-center justify-center gap-2 text-slate-500">
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        <span className="text-xs">Uploading...</span>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <Upload className="w-6 h-6 mx-auto mb-1 text-slate-400" />
+                                        <p className="text-xs text-slate-500">Click to upload files or images</p>
+                                    </div>
+                                )}
+                            </label>
+                        </div>
+                        {newVendorSubs.files.length > 0 && (
+                            <div className="mt-2 space-y-1">
+                                {newVendorSubs.files.map((f: any, i: number) => (
+                                    <div key={i} className="flex items-center gap-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                                        <Paperclip className="w-3 h-3 text-amber-500 shrink-0" />
+                                        <a href={f.url} target="_blank" rel="noreferrer" className="text-xs text-amber-700 font-medium truncate hover:underline flex-1">{f.fileName}</a>
+                                        <button onClick={() => setNewVendorSubs(prev => ({ ...prev, files: prev.files.filter((_: any, fi: number) => fi !== i) }))} className="text-red-400 hover:text-red-600">
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Vendor & Subs View Modal */}
+            <Modal
+                isOpen={!!selectedVendorSubsDoc}
+                onClose={() => setSelectedVendorSubsDoc(null)}
+                title="Vendor / Sub Record"
+                maxWidth="xl"
+                footer={
+                    <div className="flex gap-3 justify-between w-full">
+                        <Button variant="destructive" onClick={() => setVendorSubsToDelete(selectedVendorSubsDoc?._id)}>
+                            <Trash2 className="w-4 h-4 mr-1" /> Delete
+                        </Button>
+                        <Button variant="ghost" onClick={() => setSelectedVendorSubsDoc(null)}>Close</Button>
+                    </div>
+                }
+            >
+                {selectedVendorSubsDoc && (
+                    <div className="space-y-4 p-2">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Type</p>
+                                <span className="text-xs font-black px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">{selectedVendorSubsDoc.type}</span>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Vendor / Sub Name</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedVendorSubsDoc.vendorSubName}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">File Name</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedVendorSubsDoc.fileName}</p>
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Added By</p>
+                                <p className="text-sm font-bold text-slate-800">{selectedVendorSubsDoc.createdBy || '-'}</p>
+                            </div>
+                        </div>
+                        {selectedVendorSubsDoc.files?.length > 0 && (
+                            <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-2">Attachments ({selectedVendorSubsDoc.files.length})</p>
+                                <div className="space-y-2">
+                                    {selectedVendorSubsDoc.files.map((f: any, i: number) => (
+                                        <div key={i} className="flex items-center gap-2 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                                            {f.fileType?.startsWith('image/') ? (
+                                                <img src={f.url} alt={f.fileName} className="w-10 h-10 rounded-lg object-cover border border-amber-200" />
+                                            ) : (
+                                                <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                                                    <FileText className="w-5 h-5 text-amber-600" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-xs font-bold text-slate-700 truncate">{f.fileName}</p>
+                                            </div>
+                                            <a href={f.url} target="_blank" rel="noreferrer" className="w-7 h-7 rounded-full bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center transition-colors">
+                                                <Download className="w-3.5 h-3.5" />
+                                            </a>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </Modal>
+
+            {/* Vendor & Subs Confirm Delete */}
+            <ConfirmModal
+                isOpen={!!vendorSubsToDelete}
+                onClose={() => setVendorSubsToDelete(null)}
+                onConfirm={() => vendorSubsToDelete && handleDeleteVendorSubs(vendorSubsToDelete)}
+                title="Delete Record"
+                message="Are you sure you want to delete this vendor/sub record? This cannot be undone."
+                confirmText="Delete"
+            />
 
             {/* Add Signed Contract Modal */}
             <Modal
