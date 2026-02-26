@@ -70,6 +70,8 @@ interface PreBoreLog {
     preBoreLogs: PreBoreLogItem[];
     createdBy: string;
     createdAt: string;
+    scheduleCustomerName?: string;
+    scheduleTitle?: string;
 }
 
 interface Estimate {
@@ -80,6 +82,7 @@ interface Estimate {
     customerName?: string;
     contactName?: string;
     customer?: string;
+    versionNumber?: number;
 }
 
 interface Client {
@@ -202,7 +205,7 @@ export default function PreBoreLogsPage() {
                         action: 'getEstimates',
                         payload: {
                             limit: 500,
-                            projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1, customerName: 1, contactName: 1, customer: 1 }
+                            projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1, customerName: 1, contactName: 1, customer: 1, versionNumber: 1 }
                         }
                     })
                 }),
@@ -766,9 +769,18 @@ export default function PreBoreLogsPage() {
                                                             {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
                                                         </TableCell>
                                                         <TableCell className="text-xs text-slate-700 font-semibold max-w-[130px] truncate">
-                                                            {log.customerName || '-'}
+                                                            {log.scheduleCustomerName || log.customerName || '-'}
                                                         </TableCell>
-                                                        <TableCell className="text-xs text-blue-600 font-medium cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); if (log.estimate) router.push(`/estimates/${log.estimate}`); }}>
+                                                        <TableCell className="text-xs text-blue-600 font-medium cursor-pointer hover:underline" onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (!log.estimate) return;
+                                                            // Navigate to the latest version of this estimate
+                                                            const matchingVersions = estimates
+                                                                .filter(e => e.estimate === log.estimate)
+                                                                .sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
+                                                            const latestSlug = matchingVersions[0]?._id || log.estimate;
+                                                            router.push(`/estimates/${latestSlug}`);
+                                                        }}>
                                                             {log.estimate || '-'}
                                                         </TableCell>
                                                         <TableCell className="text-xs text-slate-600 max-w-[130px] truncate">
