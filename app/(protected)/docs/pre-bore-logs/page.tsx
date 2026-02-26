@@ -336,11 +336,50 @@ export default function PreBoreLogsPage() {
 
     const handleEdit = (log: PreBoreLog) => {
         setEditingLog(log);
+
+        // Pre-select cascading dropdowns from the existing log
+        // Customer: resolve via scheduleCustomerId → clients, or fall back
+        const matchedClient = log.scheduleCustomerId
+            ? clients.find(c => c._id === log.scheduleCustomerId)
+            : clients.find(c => c.name?.toLowerCase() === (log.scheduleCustomerName || '').toLowerCase());
+        const custId = matchedClient?._id || '';
+        setSelectedCustomerId(custId);
+
+        // Estimate: use the estimate number stored on the log
+        const estNum = log.estimate || '';
+        setSelectedEstimateId(estNum);
+
+        // Schedule: the _id of the log IS the parentSchedule _id
+        setSelectedScheduleId(log._id);
+
+        // Fetch schedules for this estimate so the dropdown is populated
+        if (estNum) fetchSchedulesByEstimate(estNum);
+
+        setOpenDropdownId(null);
+
+        // Build a datetime-local value from stored date + startTime
+        const buildDateTimeLocal = () => {
+            const dateStr = log.date ? format(new Date(log.date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
+            if (log.startTime && log.startTime.includes('T')) return log.startTime.slice(0, 16);
+            if (log.startTime) {
+                const match = log.startTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+                if (match) {
+                    let hours = parseInt(match[1]);
+                    const mins = match[2].padStart(2, '0');
+                    const ampm = match[3]?.toUpperCase();
+                    if (ampm === 'PM' && hours < 12) hours += 12;
+                    if (ampm === 'AM' && hours === 12) hours = 0;
+                    return `${dateStr}T${hours.toString().padStart(2, '0')}:${mins}`;
+                }
+            }
+            return `${dateStr}T00:00`;
+        };
+
         setFormData({
             date: log.date ? format(new Date(log.date), 'yyyy-MM-dd') : '',
             customerForeman: log.customerForeman || '',
             customerWorkRequestNumber: log.customerWorkRequestNumber || '',
-            startTime: log.startTime || '',
+            startTime: buildDateTimeLocal(),
             addressBoreStart: log.addressBoreStart || '',
             addressBoreEnd: log.addressBoreEnd || '',
             devcoOperator: log.devcoOperator || '',
@@ -436,11 +475,17 @@ export default function PreBoreLogsPage() {
 
     // Schedule options for MyDropDown
     const scheduleOptions = useMemo(() => {
-        return schedules.map(s => ({
-            id: s._id,
-            label: `${s.title || 'Untitled'} — ${s.fromDate ? format(new Date(s.fromDate), 'MMM dd, yyyy') : 'No date'}`,
-            value: s._id
-        }));
+        return [...schedules]
+            .sort((a, b) => {
+                const da = a.fromDate ? new Date(a.fromDate).getTime() : 0;
+                const db = b.fromDate ? new Date(b.fromDate).getTime() : 0;
+                return db - da; // newest first
+            })
+            .map(s => ({
+                id: s._id,
+                label: s.fromDate ? format(new Date(s.fromDate), 'MMM dd, yyyy') : 'No date',
+                value: s._id
+            }));
     }, [schedules]);
 
     const handleAddBoreItem = () => {
@@ -938,154 +983,149 @@ export default function PreBoreLogsPage() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4">
                         {/* Cascading Selection: Customer -> Estimate -> Schedule */}
-                        {!editingLog && (
-                            <>
-                                {/* Step 1: Customer Selection */}
-                                <div className="sm:col-span-1">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">1. Customer *</Label>
-                                    <div className="relative mt-1">
-                                        <div
-                                            className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                            onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}
-                                        >
-                                            <span className={`text-sm truncate ${selectedCustomerId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                                {selectedCustomerId ? (clients.find(c => c._id === selectedCustomerId)?.name || 'Selected') : 'Select Customer...'}
-                                            </span>
-                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'customer' ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        {openDropdownId === 'customer' && (
-                                            <MyDropDown
-                                                isOpen={true}
-                                                onClose={() => setOpenDropdownId(null)}
-                                                options={clientOptions}
-                                                selectedValues={selectedCustomerId ? [selectedCustomerId] : []}
-                                                onSelect={(val) => {
-                                                    const newVal = val === selectedCustomerId ? '' : val;
-                                                    setSelectedCustomerId(newVal);
-                                                    setSelectedEstimateId('');
-                                                    setSelectedScheduleId('');
+                        <>
+                            {/* Step 1: Customer Selection */}
+                            <div className="sm:col-span-1">
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">1. Customer *</Label>
+                                <div className="relative mt-1">
+                                    <div
+                                        className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                        onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}
+                                    >
+                                        <span className={`text-sm truncate ${selectedCustomerId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                            {selectedCustomerId ? (clients.find(c => c._id === selectedCustomerId)?.name || 'Selected') : 'Select Customer...'}
+                                        </span>
+                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'customer' ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    {openDropdownId === 'customer' && (
+                                        <MyDropDown
+                                            isOpen={true}
+                                            onClose={() => setOpenDropdownId(null)}
+                                            options={clientOptions}
+                                            selectedValues={selectedCustomerId ? [selectedCustomerId] : []}
+                                            onSelect={(val) => {
+                                                const newVal = val === selectedCustomerId ? '' : val;
+                                                setSelectedCustomerId(newVal);
+                                                setSelectedEstimateId('');
+                                                setSelectedScheduleId('');
+                                                setSchedules([]);
+                                                const client = clients.find(c => c._id === newVal);
+                                                if (client) setFormData(prev => ({ ...prev, customerName: client.name }));
+                                                setOpenDropdownId(null);
+                                            }}
+                                            placeholder="Search customers..."
+                                            width="w-full"
+                                            modal={false}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Step 2: Estimate Selection */}
+                            <div className="sm:col-span-1">
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">2. Estimate *</Label>
+                                <div className="relative mt-1">
+                                    <div
+                                        className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedCustomerId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
+                                        onClick={() => {
+                                            if (!selectedCustomerId) return;
+                                            setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate');
+                                        }}
+                                    >
+                                        <span className={`text-sm truncate ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                            {selectedEstimateId || 'Select Estimate...'}
+                                        </span>
+                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    {openDropdownId === 'estimate' && selectedCustomerId && (
+                                        <MyDropDown
+                                            isOpen={true}
+                                            onClose={() => setOpenDropdownId(null)}
+                                            options={estimateOptions}
+                                            selectedValues={selectedEstimateId ? [selectedEstimateId] : []}
+                                            onSelect={(val) => {
+                                                const newVal = val === selectedEstimateId ? '' : val;
+                                                setSelectedEstimateId(newVal);
+                                                setSelectedScheduleId('');
+                                                if (newVal) {
+                                                    fetchSchedulesByEstimate(newVal);
+                                                    const est = estimates.find(e => e.estimate === newVal);
+                                                    const custName = est?.customerName || est?.contactName || formData.customerName;
+                                                    const now = new Date();
+                                                    const h12 = now.getHours() % 12 || 12;
+                                                    const timeStr = `${h12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+                                                    setFormData(prev => ({ ...prev, customerName: custName, startTime: timeStr }));
+                                                } else {
                                                     setSchedules([]);
-                                                    const client = clients.find(c => c._id === newVal);
-                                                    if (client) setFormData(prev => ({ ...prev, customerName: client.name }));
-                                                    setOpenDropdownId(null);
-                                                }}
-                                                placeholder="Search customers..."
-                                                width="w-full"
-                                                modal={false}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Step 2: Estimate Selection */}
-                                <div className="sm:col-span-1">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">2. Estimate *</Label>
-                                    <div className="relative mt-1">
-                                        <div
-                                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedCustomerId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
-                                            onClick={() => {
-                                                if (!selectedCustomerId) return;
-                                                setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate');
+                                                }
+                                                setOpenDropdownId(null);
                                             }}
-                                        >
-                                            <span className={`text-sm truncate ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                                {selectedEstimateId || 'Select Estimate...'}
-                                            </span>
-                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        {openDropdownId === 'estimate' && selectedCustomerId && (
-                                            <MyDropDown
-                                                isOpen={true}
-                                                onClose={() => setOpenDropdownId(null)}
-                                                options={estimateOptions}
-                                                selectedValues={selectedEstimateId ? [selectedEstimateId] : []}
-                                                onSelect={(val) => {
-                                                    const newVal = val === selectedEstimateId ? '' : val;
-                                                    setSelectedEstimateId(newVal);
-                                                    setSelectedScheduleId('');
-                                                    if (newVal) {
-                                                        fetchSchedulesByEstimate(newVal);
-                                                        const est = estimates.find(e => e.estimate === newVal);
-                                                        const custName = est?.customerName || est?.contactName || formData.customerName;
-                                                        const now = new Date();
-                                                        const h12 = now.getHours() % 12 || 12;
-                                                        const timeStr = `${h12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
-                                                        setFormData(prev => ({ ...prev, customerName: custName, startTime: timeStr }));
-                                                    } else {
-                                                        setSchedules([]);
+                                            placeholder="Search estimates..."
+                                            width="w-full"
+                                            modal={false}
+                                        />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Step 3: Schedule Selection */}
+                            <div className="sm:col-span-1">
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">3. Schedule *</Label>
+                                <div className="relative mt-1">
+                                    <div
+                                        className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedEstimateId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
+                                        onClick={() => {
+                                            if (!selectedEstimateId) return;
+                                            setOpenDropdownId(openDropdownId === 'schedule' ? null : 'schedule');
+                                        }}
+                                    >
+                                        <span className={`text-sm truncate ${selectedScheduleId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                            {selectedScheduleId
+                                                ? (() => {
+                                                    const s = schedules.find(s => s._id === selectedScheduleId);
+                                                    return s?.fromDate ? format(new Date(s.fromDate), 'MMM dd, yyyy') : 'Selected';
+                                                })()
+                                                : (loadingSchedules ? 'Loading...' : 'Select Schedule...')}
+                                        </span>
+                                        <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'schedule' ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    {openDropdownId === 'schedule' && selectedEstimateId && (
+                                        <MyDropDown
+                                            isOpen={true}
+                                            onClose={() => setOpenDropdownId(null)}
+                                            options={scheduleOptions}
+                                            selectedValues={selectedScheduleId ? [selectedScheduleId] : []}
+                                            onSelect={(val) => {
+                                                const newVal = val === selectedScheduleId ? '' : val;
+                                                setSelectedScheduleId(newVal);
+                                                // Auto-fill date & startTime from selected schedule's fromDate
+                                                if (newVal) {
+                                                    const sched = schedules.find(s => s._id === newVal);
+                                                    if (sched?.fromDate) {
+                                                        const d = new Date(sched.fromDate);
+                                                        const dateStr = format(d, 'yyyy-MM-dd');
+                                                        const timeStr = `${dateStr}T${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+                                                        setFormData(prev => ({ ...prev, date: dateStr, startTime: timeStr }));
                                                     }
-                                                    setOpenDropdownId(null);
-                                                }}
-                                                placeholder="Search estimates..."
-                                                width="w-full"
-                                                modal={false}
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Step 3: Schedule Selection */}
-                                <div className="sm:col-span-1">
-                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">3. Schedule *</Label>
-                                    <div className="relative mt-1">
-                                        <div
-                                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedEstimateId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
-                                            onClick={() => {
-                                                if (!selectedEstimateId) return;
-                                                setOpenDropdownId(openDropdownId === 'schedule' ? null : 'schedule');
+                                                }
+                                                setOpenDropdownId(null);
                                             }}
-                                        >
-                                            <span className={`text-sm truncate ${selectedScheduleId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                                {selectedScheduleId ? (schedules.find(s => s._id === selectedScheduleId)?.title || 'Selected') : (loadingSchedules ? 'Loading...' : 'Select Schedule...')}
-                                            </span>
-                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'schedule' ? 'rotate-180' : ''}`} />
-                                        </div>
-                                        {openDropdownId === 'schedule' && selectedEstimateId && (
-                                            <MyDropDown
-                                                isOpen={true}
-                                                onClose={() => setOpenDropdownId(null)}
-                                                options={scheduleOptions}
-                                                selectedValues={selectedScheduleId ? [selectedScheduleId] : []}
-                                                onSelect={(val) => {
-                                                    setSelectedScheduleId(val === selectedScheduleId ? '' : val);
-                                                    setOpenDropdownId(null);
-                                                }}
-                                                placeholder="Search schedules..."
-                                                emptyMessage={loadingSchedules ? 'Loading schedules...' : 'No schedules found for this estimate'}
-                                                width="w-full"
-                                                modal={false}
-                                            />
-                                        )}
-                                    </div>
+                                            placeholder="Search schedules..."
+                                            emptyMessage={loadingSchedules ? 'Loading schedules...' : 'No schedules found for this estimate'}
+                                            width="w-full"
+                                            modal={false}
+                                        />
+                                    )}
                                 </div>
-                            </>
-                        )}
+                            </div>
+                        </>
 
                         <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</Label>
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Date &amp; Time</Label>
                             <Input
-                                type="date"
-                                value={formData.date}
-                                onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                                className="mt-1"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Time</Label>
-                            <Input
+                                type="datetime-local"
                                 value={formData.startTime}
-                                onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-                                className="mt-1"
-                                placeholder="e.g. 7:00 AM"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Name</Label>
-                            <Input
-                                value={formData.customerName}
-                                onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
+                                onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value, date: e.target.value.split('T')[0] }))}
                                 className="mt-1"
                             />
                         </div>
