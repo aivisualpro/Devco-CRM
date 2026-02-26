@@ -36,14 +36,14 @@ interface TimesheetEntry {
     shopTime?: boolean | string;
     scheduleId: string; // Parent Schedule ID
     estimate?: string; // From parent
-    comments?: string; 
+    comments?: string;
     manualDistance?: string | number;
     manualDuration?: string | number;
     distance?: number;
     hours?: number;
     dumpQty?: number; // New Consolidated
     shopQty?: number; // New Consolidated
-    
+
     // Computed locally
     hoursVal?: number;
     distanceVal?: number;
@@ -73,12 +73,12 @@ const getWeekRange = (date: Date = new Date()): { start: Date; end: Date; label:
     const d = new Date(date);
     const day = d.getUTCDay();
     const diff = day === 0 ? -6 : 1 - day; // Monday start
-    
+
     const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
     const end = new Date(start);
     end.setUTCDate(start.getUTCDate() + 6);
     end.setUTCHours(23, 59, 59, 999);
-    
+
     const fmt = (dt: Date) => `${String(dt.getUTCMonth() + 1).padStart(2, '0')}/${String(dt.getUTCDate()).padStart(2, '0')}`;
     return { start, end, label: `${fmt(start)}-${fmt(end)}` };
 };
@@ -151,11 +151,11 @@ const getWeekRangeString = (dateObj: Date) => {
     const dayOfWeek = dateObj.getUTCDay();
     // Get the day of week where Monday = 0, Sunday = 6
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    
+
     // Calculate Monday (first day of week) in UTC
     const monday = new Date(dateObj);
     monday.setUTCDate(dateObj.getUTCDate() - daysSinceMonday);
-    
+
     // Calculate Sunday (last day of week) in UTC
     const sunday = new Date(monday);
     sunday.setUTCDate(monday.getUTCDate() + 6);
@@ -168,14 +168,14 @@ const getWeekRangeString = (dateObj: Date) => {
 const generateWeeksForPicker = (): { id: string; label: string; value: string; weekNum: number; startDate: Date; isCurrentWeek: boolean }[] => {
     const weeks: { id: string; label: string; value: string; weekNum: number; startDate: Date; isCurrentWeek: boolean }[] = [];
     const now = new Date();
-    
+
     // Generate 20 weeks in past, current week, and 10 weeks in future
     for (let i = -20; i <= 10; i++) {
         const weekDate = new Date(now);
         weekDate.setUTCDate(weekDate.getUTCDate() + (i * 7));
         const range = getWeekRange(weekDate);
         const weekNum = getWeekNumber(range.start);
-        
+
         weeks.push({
             id: `week-${i}`,
             label: `${range.label} (${range.start.getUTCFullYear()})`,
@@ -275,11 +275,11 @@ const generateWeeksForPicker = (): { id: string; label: string; value: string; w
 //         } else {
 //             const calcTimeHours = () => {
 //                 if (!ts.clockIn || !ts.clockOut) return 0;
-                
+
 //                 // Use robust normalization to anchor to UTC Nominal
 //                 const startStr = robustNormalizeISO(ts.clockIn);
 //                 const endStr = robustNormalizeISO(ts.clockOut);
-                
+
 //                 const start = new Date(startStr).getTime();
 //                 const end = new Date(endStr).getTime();
 //                 let durationMs = end - start;
@@ -292,7 +292,7 @@ const generateWeeksForPicker = (): { id: string; label: string; value: string; w
 //                     if (lEnd > lStart) durationMs -= (lEnd - lStart);
 //                 }
 //                 if (durationMs <= 0) return 0;
-                
+
 //                 const totalHoursRaw = durationMs / (1000 * 60 * 60);
 
 //                 // Cutoff rounding logic - Ensure UTC comparison
@@ -336,7 +336,7 @@ function TimeCardContent() {
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [estimatesOptions, setEstimatesOptions] = useState<any[]>([]);
     const [employeesOptions, setEmployeesOptions] = useState<any[]>([]);
-    
+
     // Filters
     const [filEmployee, setFilEmployee] = useState('');
     const [filEstimate, setFilEstimate] = useState('');
@@ -356,7 +356,7 @@ function TimeCardContent() {
     const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
     const [isMobile, setIsMobile] = useState(false);
     const [currentUser, setCurrentUser] = useState<any>(null);
-    
+
     // Week Selection (Dashboard Style)
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -375,7 +375,7 @@ function TimeCardContent() {
                     date.setMonth(m - 1);
                     date.setDate(d);
                     if (!isNaN(date.getTime())) return date;
-                } catch (e) {}
+                } catch (e) { }
             }
         }
         return new Date();
@@ -394,7 +394,7 @@ function TimeCardContent() {
         const checkMobile = () => setIsMobile(window.innerWidth < 1024);
         checkMobile();
         window.addEventListener('resize', checkMobile);
-        
+
         const userStr = localStorage.getItem('devco_user');
         if (userStr) {
             try {
@@ -403,7 +403,7 @@ function TimeCardContent() {
                 console.error("Failed to parse user", e);
             }
         }
-        
+
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
@@ -463,7 +463,7 @@ function TimeCardContent() {
                     const { hours, distance, calculatedDistance } = calculateTimesheetData(ts as any, sched.fromDate);
                     const scheduleBase = normalizeEst(sched.estimate);
                     const pName = (sched as any).projectName || (sched as any).project || estMap.get(scheduleBase) || '';
-                    
+
                     flat.push({
                         ...ts,
                         scheduleId: sched._id,
@@ -511,7 +511,7 @@ function TimeCardContent() {
         setLoading(true);
         try {
             const { start, end } = weekRange;
-            
+
             // Extend date range by 1 week in each direction to capture timesheets
             // whose schedule fromDate might be in adjacent weeks but clockIn is in selected week
             // This matches the payroll report behavior for consistency
@@ -519,26 +519,26 @@ function TimeCardContent() {
             extendedStart.setUTCDate(extendedStart.getUTCDate() - 7);
             const extendedEnd = new Date(end);
             extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 7);
-            
+
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     action: 'getSchedulesPage',
-                    payload: { 
+                    payload: {
                         limit: 10000,
                         includeTimesheets: true,
                         startDate: extendedStart.toISOString(),
                         endDate: extendedEnd.toISOString()
-                    } 
-                }) 
+                    }
+                })
             });
             const data = await res.json();
-            
+
             if (data.success) {
                 setRawSchedules(data.result.schedules || []);
                 const emps = data.result.initialData?.employees || [];
-                
+
                 // Create map and save options
                 const eMap: Record<string, any> = {};
                 emps.forEach((e: any) => eMap[e.value] = e);
@@ -567,7 +567,7 @@ function TimeCardContent() {
                 // Only restrict to own records if data scope is 'self'
                 // Super Admins and users with 'all' scope can see everyone's records
                 if (!canViewAll && currentUser && r.employee !== currentUser.email) return false;
-                
+
                 if (r.clockIn) {
                     const recordDate = new Date(r.clockIn);
                     return recordDate >= weekRange.start && recordDate <= weekRange.end;
@@ -577,16 +577,16 @@ function TimeCardContent() {
                 // Desktop filters
                 // Ignore header employee filter if sidebar selection is specific to an employee or date
                 const isSidebarEmployeeSelection = selectedNode.type === 'EMPLOYEE' || selectedNode.type === 'DATE';
-                
+
                 if (!isSidebarEmployeeSelection && filEmployee && r.employee !== filEmployee) return false;
                 if (filType && r.type?.trim().toLowerCase() !== filType.trim().toLowerCase()) return false;
-                
+
                 // Drive Time toggle filter
                 if (!includeDriveTime && r.type?.toLowerCase().includes('drive')) return false;
-                
+
                 // Site Time toggle filter
                 if (!includeSiteTime && r.type?.toLowerCase().includes('site')) return false;
-                
+
                 // Sidebar employee filter
                 if (sidebarEmployeeFilter && r.employee !== sidebarEmployeeFilter) return false;
             }
@@ -596,7 +596,7 @@ function TimeCardContent() {
                 const baseFilter = normalizeEst(filEstimate);
                 if (baseRecord !== baseFilter) return false;
             }
-            
+
             return true;
         });
     }, [allRecords, filEmployee, filEstimate, filType, isMobile, currentUser, weekRange, selectedNode, includeDriveTime, includeSiteTime, sidebarEmployeeFilter, canViewAll]);
@@ -618,7 +618,11 @@ function TimeCardContent() {
     // Then override employee totals for the selected week with frontend-calculated hours from allRecords
     const treeData = useMemo(() => {
         const root: any = { years: {} };
-        
+
+        // Helper to round to 2 decimal places to prevent floating-point drift
+        // e.g. 1.57+8+1.57+3.5+1.76+8.25+1.55+8.5 should be 34.70, not 34.69
+        const r2 = (n: number) => Math.round(n * 100) / 100;
+
         // First, build the tree structure from groupingStats (backend aggregation)
         groupingStats.forEach(stat => {
             const { year, week, employee } = stat._id;
@@ -628,36 +632,37 @@ function TimeCardContent() {
             let hours = stat.totalHours || 0;
             if (!includeDriveTime) hours -= driveHrs;
             if (!includeSiteTime) hours -= siteHrs;
-            
+            hours = r2(hours);
+
             // If filtering by sidebar employee, skip stats for other employees
             if (sidebarEmployeeFilter && employee !== sidebarEmployeeFilter) return;
-            
+
             const refDate = new Date(stat.refDate);
             const weekRangeStr = getWeekRangeString(refDate);
 
             // Year Node
-            if (!root.years[year]) root.years[year] = { 
-                id: `Y-${year}`, label: `${year}`, totalHours: 0, weeks: {} 
+            if (!root.years[year]) root.years[year] = {
+                id: `Y-${year}`, label: `${year}`, totalHours: 0, weeks: {}
             };
-            root.years[year].totalHours += hours;
+            root.years[year].totalHours = r2(root.years[year].totalHours + hours);
 
             // Week Node
             const weekKey = `${year}-${week}`;
             if (!root.years[year].weeks[weekKey]) root.years[year].weeks[weekKey] = {
-                id: `W-${weekKey}`, label: `(${week}) ${weekRangeStr}`, totalHours: 0, employees: {}, weekNo: week 
+                id: `W-${weekKey}`, label: `(${week}) ${weekRangeStr}`, totalHours: 0, employees: {}, weekNo: week
             };
-            root.years[year].weeks[weekKey].totalHours += hours;
+            root.years[year].weeks[weekKey].totalHours = r2(root.years[year].weeks[weekKey].totalHours + hours);
 
             // Employee Node
             const empKey = employee;
-            const empLabel = employeesMap[empKey]?.label || empKey; 
-            
+            const empLabel = employeesMap[empKey]?.label || empKey;
+
             if (!root.years[year].weeks[weekKey].employees[empKey]) {
                 root.years[year].weeks[weekKey].employees[empKey] = {
                     id: `E-${weekKey}-${empKey}`, label: empLabel, email: empKey, totalHours: 0, dates: {}, records: []
                 };
             }
-            root.years[year].weeks[weekKey].employees[empKey].totalHours += hours;
+            root.years[year].weeks[weekKey].employees[empKey].totalHours = r2(root.years[year].weeks[weekKey].employees[empKey].totalHours + hours);
 
             // Date Node under Employee
             const dateStrRaw = stat._id.date || '';
@@ -669,13 +674,13 @@ function TimeCardContent() {
                 }
 
                 const dateKey = `${empKey}-${dateStrRaw}`;
-                    if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
-                        root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
-                            id: `DATE|${year}|${week}|${empKey}|${dateStrRaw}`, label: dateLabel, totalHours: 0, 
-                            records: []
+                if (!root.years[year].weeks[weekKey].employees[empKey].dates[dateKey]) {
+                    root.years[year].weeks[weekKey].employees[empKey].dates[dateKey] = {
+                        id: `DATE|${year}|${week}|${empKey}|${dateStrRaw}`, label: dateLabel, totalHours: 0,
+                        records: []
                     };
                 }
-                root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours += hours;
+                root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours = r2(root.years[year].weeks[weekKey].employees[empKey].dates[dateKey].totalHours + hours);
             }
         });
 
@@ -694,32 +699,32 @@ function TimeCardContent() {
             const dStr = robustNormalizeISO(r.clockIn);
             const d = new Date(dStr);
             if (isNaN(d.getTime())) return false;
-            
+
             const year = d.getUTCFullYear();
-            
+
             if (selectedNode.type === 'YEAR') return `Y-${year}` === selectedNode.value;
             // Since we lazy-load data for the specific week, we can assume all records belong to the selected week
-            if (selectedNode.type === 'WEEK') return true; 
+            if (selectedNode.type === 'WEEK') return true;
             // Filter by employee email
             if (selectedNode.type === 'EMPLOYEE') return selectedEmployeeEmail ? r.employee === selectedEmployeeEmail : true;
-            
+
             if (selectedNode.type === 'DATE') {
                 const parts = selectedNode.value.split('|');
                 if (parts.length >= 5) {
                     // Extract date from the END
-                    const rawTargetDate = parts[parts.length - 1].trim(); 
-                    
+                    const rawTargetDate = parts[parts.length - 1].trim();
+
                     // Normalize Target Date to YYYY-MM-DD to match rDate
                     // robustNormalizeISO handles M/D/YYYY, YYYY-MM-DD, etc.
                     const targetISO = robustNormalizeISO(rawTargetDate);
                     const targetDate = targetISO.split('T')[0];
-                    
+
                     // Standardize record date
                     const rDate = dStr.split('T')[0];
-                    
+
                     // Strict Email Match (Case Insensitive)
                     if (selectedEmployeeEmail && r.employee?.toLowerCase().trim() !== selectedEmployeeEmail.toLowerCase().trim()) return false;
-                    
+
                     return rDate === targetDate;
                 }
             }
@@ -745,17 +750,17 @@ function TimeCardContent() {
         // Try to pre-fill qty if it exists
         let qty = "1";
         if (field === 'dumpWashout') {
-             if (typeof ts.dumpQty === 'number' && ts.dumpQty > 0) qty = String(ts.dumpQty);
-             else {
-                 const match = String(ts.dumpWashout || '').match(/\((\d+)\s+qty\)/);
-                 if (match) qty = match[1];
-             }
+            if (typeof ts.dumpQty === 'number' && ts.dumpQty > 0) qty = String(ts.dumpQty);
+            else {
+                const match = String(ts.dumpWashout || '').match(/\((\d+)\s+qty\)/);
+                if (match) qty = match[1];
+            }
         } else {
-             if (typeof ts.shopQty === 'number' && ts.shopQty > 0) qty = String(ts.shopQty);
-             else {
-                 const match = String(ts.shopTime || '').match(/\((\d+)\s+qty\)/);
-                 if (match) qty = match[1];
-             }
+            if (typeof ts.shopQty === 'number' && ts.shopQty > 0) qty = String(ts.shopQty);
+            else {
+                const match = String(ts.shopTime || '').match(/\((\d+)\s+qty\)/);
+                if (match) qty = match[1];
+            }
         }
         setSpecialQty(qty);
     };
@@ -818,12 +823,12 @@ function TimeCardContent() {
         try {
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === recordId) {
@@ -832,16 +837,16 @@ function TimeCardContent() {
                 }
                 return t;
             });
-            
+
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: ts.scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success(`${field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'} updated`);
@@ -884,12 +889,12 @@ function TimeCardContent() {
         try {
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === recordId) {
@@ -897,16 +902,16 @@ function TimeCardContent() {
                 }
                 return t;
             });
-            
+
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: ts.scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success(`${field === 'dumpWashout' ? 'Dump Washout' : 'Shop Time'} removed`);
@@ -925,7 +930,7 @@ function TimeCardContent() {
     };
 
     // --- Actions ---
-    
+
     const handleDeleteClick = (ts: TimesheetEntry) => {
         setDeleteTs(ts);
         setIsDeleteModalOpen(true);
@@ -934,7 +939,7 @@ function TimeCardContent() {
     const handleDelete = async () => {
         if (!deleteTs) return;
         const ts = deleteTs;
-        
+
         // Optimistic UI Update: Remove the record immediately from the frontend
         const originalSchedules = [...rawSchedules];
         setRawSchedules(prev => prev.map(s => {
@@ -949,24 +954,24 @@ function TimeCardContent() {
             // Proceed with backend deletion in the background
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: ts.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
             const newTimesheets = (schedule.timesheet || []).filter((t: any) => (t._id || t.recordId) !== (ts._id || ts.recordId));
-            
+
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: ts.scheduleId, timesheet: newTimesheets }
                 })
             });
-            
+
             const saveRes = await resSave.json();
             if (saveRes.success) {
                 success("Timesheet deleted");
@@ -975,7 +980,7 @@ function TimeCardContent() {
             } else {
                 throw new Error("Failed to save");
             }
-            
+
         } catch (e) {
             console.error(e);
             toastError("Error deleting timesheet");
@@ -1005,7 +1010,7 @@ function TimeCardContent() {
     // Live update for Full Edit in background
     useEffect(() => {
         if (!editingRecord) return;
-        
+
         setRawSchedules(prev => prev.map(s => {
             if (s._id !== editForm.scheduleId) return s;
             return {
@@ -1023,9 +1028,9 @@ function TimeCardContent() {
 
     const handleSaveEdit = async () => {
         if (!editingRecord || !editForm.scheduleId) return;
-        
+
         const originalSchedules = [...rawSchedules];
-        
+
         try {
             // Close modal immediately
             setEditingRecord(null);
@@ -1034,12 +1039,12 @@ function TimeCardContent() {
             // Background update
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: editForm.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result as ScheduleDoc;
             const stats = calculateTimesheetData(editForm as any, schedule.fromDate);
 
@@ -1060,16 +1065,16 @@ function TimeCardContent() {
                 }
                 return t as TimesheetEntry;
             });
-            
+
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: editForm.scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet updated");
@@ -1077,7 +1082,7 @@ function TimeCardContent() {
             } else {
                 throw new Error("Failed to save");
             }
-            
+
         } catch (e) {
             console.error(e);
             toastError("Failed to update timesheet");
@@ -1095,7 +1100,7 @@ function TimeCardContent() {
 
     const handleSaveAdd = async () => {
         const isDriveTime = addForm.type === 'Drive Time';
-        
+
         // For Site Time, clockIn is required. For Drive Time, we get date from schedule.
         if (!addForm.employee || !addForm.scheduleId) {
             return toastError("Employee and Schedule are required");
@@ -1103,17 +1108,17 @@ function TimeCardContent() {
         if (!isDriveTime && !addForm.clockIn) {
             return toastError("Clock In is required for Site Time");
         }
-        
+
         // Find the selected schedule to get its fromDate
         const selectedSchedule = rawSchedules.find(s => s._id === addForm.scheduleId);
         const scheduleFromDate = selectedSchedule?.fromDate;
-        
+
         // For Drive Time, use schedule's fromDate; for Site Time, use provided clockIn
         const recordClockIn = isDriveTime ? (scheduleFromDate || new Date().toISOString()) : (addForm.clockIn as string);
-        
+
         const originalSchedules = [...rawSchedules];
-        const newRecord: TimesheetEntry = { 
-            ...addForm, 
+        const newRecord: TimesheetEntry = {
+            ...addForm,
             _id: 'ts_' + Math.random().toString(36).substr(2, 9),
             employee: addForm.employee as string,
             scheduleId: addForm.scheduleId as string,
@@ -1136,12 +1141,12 @@ function TimeCardContent() {
 
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: addForm.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
             const stats = calculateTimesheetData(newRecord, schedule.fromDate);
 
@@ -1156,18 +1161,18 @@ function TimeCardContent() {
             }
 
             const recordWithStats = { ...newRecord, ...rateFields, hours: stats.hours, distance: stats.distance };
-            
+
             const updatedTimesheets = [...(schedule.timesheet || []), recordWithStats];
-            
+
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: addForm.scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet created");
@@ -1181,7 +1186,7 @@ function TimeCardContent() {
             setRawSchedules(originalSchedules);
         }
     };
-    
+
     const handleQuickEditClick = (ts: TimesheetEntry) => {
         const id = ts._id || ts.recordId || '';
         setQuickEditingId(id);
@@ -1190,10 +1195,10 @@ function TimeCardContent() {
 
     const handleQuickSave = async () => {
         if (!quickEditForm.scheduleId || !quickEditingId) return;
-        
+
         const originalSchedules = [...rawSchedules];
         const recordId = quickEditingId;
-        
+
         // Optimistic UI Update
         setRawSchedules(prev => prev.map(s => {
             if (s._id !== quickEditForm.scheduleId) return s;
@@ -1214,12 +1219,12 @@ function TimeCardContent() {
 
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: quickEditForm.scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
             const stats = calculateTimesheetData(quickEditForm as any);
 
@@ -1241,16 +1246,16 @@ function TimeCardContent() {
                 }
                 return t;
             });
-            
+
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: quickEditForm.scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet updated");
@@ -1313,13 +1318,13 @@ function TimeCardContent() {
         if (year && week) {
             // ISO Week calculation logic using UTC
             const d = new Date(Date.UTC(year, 0, 4));
-            const day = d.getUTCDay() || 7; 
+            const day = d.getUTCDay() || 7;
             const mondayOfWeek1 = new Date(d);
             mondayOfWeek1.setUTCDate(d.getUTCDate() - day + 1);
-            
+
             const targetMonday = new Date(mondayOfWeek1);
             targetMonday.setUTCDate(mondayOfWeek1.getUTCDate() + (week - 1) * 7);
-            
+
             // Only switch week if it's actually different to avoid unnecessary re-fetch
             if (targetMonday.getTime() !== weekRange.start.getTime()) {
                 setCurrentWeekDate(targetMonday);
@@ -1329,7 +1334,7 @@ function TimeCardContent() {
 
     // Lists for Filters
     const uniqueEmployees = useMemo(() => Array.from(new Set(allRecords.map(r => r.employee))).sort(), [allRecords]);
-    
+
     const uniqueEstimates = useMemo(() => estimatesOptions, [estimatesOptions]);
 
     const uniqueTypes = ["Drive Time", "Site Time"];
@@ -1337,78 +1342,78 @@ function TimeCardContent() {
     if (isMobile) {
         return (
             <div className="flex flex-col h-full bg-slate-50">
-                    <Header 
-                        hideLogo={false}
-                        centerContent={
-                            <div className="flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200 relative">
-                                <button 
-                                    onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
-                                    className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
-                                >
-                                    <ChevronLeft className="w-4 h-4" />
-                                </button>
-                                <button 
-                                    id="week-picker-trigger-mobile"
-                                    onClick={() => {
-                                        setWeekPickerAnchor('mobile');
-                                        setIsWeekPickerOpen(!isWeekPickerOpen);
-                                    }}
-                                    className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
-                                    title="Click to select week"
-                                >
-                                    <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
-                                    <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isWeekPickerOpen ? 'rotate-180' : ''}`} />
-                                </button>
-                                <button 
-                                    onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
-                                    className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
-                                >
-                                    <ChevronRight className="w-4 h-4" />
-                                </button>
-                            </div>
-                        }
-                    />
-                    <div className="flex-1 overflow-auto p-4 space-y-4">
-                        {/* Summary Header */}
-                        <div className="flex items-center justify-between px-2">
-                             <h2 className="text-sm font-black uppercase tracking-widest text-slate-700">Time Cards</h2>
-                             <div className="flex items-center gap-4">
-                                 <div className="flex flex-col items-end">
-                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
-                                     <span className="text-sm font-black text-blue-600">{timeCardTotals.drive.toFixed(2)} hrs</span>
-                                 </div>
-                                 <div className="w-px h-6 bg-slate-200" />
-                                 <div className="flex flex-col items-end">
-                                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
-                                     <span className="text-sm font-black text-emerald-600">{timeCardTotals.site.toFixed(2)} hrs</span>
-                                 </div>
-                             </div>
+                <Header
+                    hideLogo={false}
+                    centerContent={
+                        <div className="flex items-center gap-1 bg-white rounded-xl px-2 py-1.5 shadow-sm border border-slate-200 relative">
+                            <button
+                                onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, -1))}
+                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <button
+                                id="week-picker-trigger-mobile"
+                                onClick={() => {
+                                    setWeekPickerAnchor('mobile');
+                                    setIsWeekPickerOpen(!isWeekPickerOpen);
+                                }}
+                                className="px-2 py-0.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1"
+                                title="Click to select week"
+                            >
+                                <span className="font-bold text-sm text-slate-800 tabular-nums">{weekRange.label}</span>
+                                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isWeekPickerOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            <button
+                                onClick={() => setCurrentWeekDate(shiftWeek(currentWeekDate, 1))}
+                                className="p-1 hover:bg-slate-100 rounded-lg transition-colors text-slate-400"
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </button>
                         </div>
-
-                        {/* Drive Time Group */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                                    <Truck size={14} className="text-blue-500" />
-                                    Drive Time
-                                </h3>
+                    }
+                />
+                <div className="flex-1 overflow-auto p-4 space-y-4">
+                    {/* Summary Header */}
+                    <div className="flex items-center justify-between px-2">
+                        <h2 className="text-sm font-black uppercase tracking-widest text-slate-700">Time Cards</h2>
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Drive Time</span>
+                                <span className="text-sm font-black text-blue-600">{timeCardTotals.drive.toFixed(2)} hrs</span>
                             </div>
-                            <div className="overflow-x-auto">
-                                <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
-                                    <TableHead>
-                                        <TableRow className="hover:bg-transparent border-slate-100">
-                                            {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Washout</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Shop</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[80px]">Dist</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {filteredRecords.filter(r => r.type?.toLowerCase().includes('drive')).length > 0 ? 
-                                            filteredRecords.filter(r => r.type?.toLowerCase().includes('drive')).map((ts, idx) => (
+                            <div className="w-px h-6 bg-slate-200" />
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 leading-none mb-1">Site Time</span>
+                                <span className="text-sm font-black text-emerald-600">{timeCardTotals.site.toFixed(2)} hrs</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Drive Time Group */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                <Truck size={14} className="text-blue-500" />
+                                Drive Time
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                <TableHead>
+                                    <TableRow className="hover:bg-transparent border-slate-100">
+                                        {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Washout</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Shop</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[80px]">Dist</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filteredRecords.filter(r => r.type?.toLowerCase().includes('drive')).length > 0 ?
+                                        filteredRecords.filter(r => r.type?.toLowerCase().includes('drive')).map((ts, idx) => (
                                             <TableRow key={`${ts.scheduleId}-${ts._id || ts.recordId || idx}-${idx}`} className="hover:bg-slate-50">
                                                 {canViewAll && (
                                                     <TableCell className="text-left text-[10px] font-medium text-slate-600 max-w-[90px] truncate">
@@ -1453,34 +1458,34 @@ function TimeCardContent() {
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                                </TableBody>
+                            </Table>
                         </div>
+                    </div>
 
-                        {/* Site Time Group */}
-                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                            <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-                                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
-                                    <MapPin size={14} className="text-emerald-500" />
-                                    Site Time
-                                </h3>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
-                                    <TableHead>
-                                        <TableRow className="hover:bg-transparent border-slate-100">
-                                            {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">In</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Out</TableHeader>
-                                            <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {filteredRecords.filter(r => !r.type?.toLowerCase().includes('drive')).length > 0 ? 
-                                            filteredRecords.filter(r => !r.type?.toLowerCase().includes('drive')).map((ts, idx) => (
+                    {/* Site Time Group */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                            <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-2">
+                                <MapPin size={14} className="text-emerald-500" />
+                                Site Time
+                            </h3>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <Table containerClassName="h-auto min-h-0 !border-none !shadow-none !bg-transparent">
+                                <TableHead>
+                                    <TableRow className="hover:bg-transparent border-slate-100">
+                                        {canViewAll && <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-left w-[90px]">Employee</TableHeader>}
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Date</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[110px]">Estimate</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">In</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-center w-[100px]">Out</TableHeader>
+                                        <TableHeader className="text-[10px] uppercase font-bold text-slate-400 text-right w-[70px]">Hrs</TableHeader>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {filteredRecords.filter(r => !r.type?.toLowerCase().includes('drive')).length > 0 ?
+                                        filteredRecords.filter(r => !r.type?.toLowerCase().includes('drive')).map((ts, idx) => (
                                             <TableRow key={`${ts.scheduleId}-${ts._id || ts.recordId || idx}-${idx}`} className="hover:bg-slate-50">
                                                 {canViewAll && (
                                                     <TableCell className="text-left text-[10px] font-medium text-slate-600 max-w-[90px] truncate">
@@ -1512,10 +1517,10 @@ function TimeCardContent() {
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                                </TableBody>
+                            </Table>
                         </div>
+                    </div>
                 </div>
 
                 {/* Week Picker Dropdown */}
@@ -1551,49 +1556,49 @@ function TimeCardContent() {
     return (
         <div className="flex flex-col h-full bg-slate-50">
             {/* Desktop View */}
-            <Header 
+            <Header
                 hideLogo={false}
                 rightContent={
-                <div className="flex items-center gap-4">
-                                {canCreate && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <button 
-                                            onClick={openAddModal}
-                                            className="w-10 h-10 flex items-center justify-center bg-[#0F4C75] text-white rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all active:scale-95"
-                                        >
-                                            <Plus size={20} />
-                                        </button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>Add Timecard Record</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                                )}
-                                <Link 
-                                    href="/reports/payroll"
-                                    className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
-                                >
-                                    <FileText size={16} />
-                                    Payroll Report
-                                </Link>
-                            </div>
-                        }
-                    />
+                    <div className="flex items-center gap-4">
+                        {canCreate && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={openAddModal}
+                                        className="w-10 h-10 flex items-center justify-center bg-[#0F4C75] text-white rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all active:scale-95"
+                                    >
+                                        <Plus size={20} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Add Timecard Record</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+                        <Link
+                            href="/reports/payroll"
+                            className="hidden md:flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
+                        >
+                            <FileText size={16} />
+                            Payroll Report
+                        </Link>
+                    </div>
+                }
+            />
 
 
             <main className="flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto overflow-hidden p-4">
-                    <div className="flex-1 flex gap-4 min-h-0">
-                    
+                <div className="flex-1 flex gap-4 min-h-0">
+
                     {/* Left Sidebar - Tree View */}
                     <div className="w-[230px] bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-100 bg-slate-50/50">
                             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Grouping</h3>
-                            
+
                             {/* Inline Filters Row */}
                             <div className="flex items-center gap-1.5">
                                 {/* All Button */}
-                                <button 
+                                <button
                                     onClick={() => selectNode('ROOT', 'All')}
                                     className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide transition-colors
                                         ${selectedNode.value === 'All' ? 'bg-[#0F4C75] text-white shadow-sm' : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'}
@@ -1601,14 +1606,14 @@ function TimeCardContent() {
                                 >
                                     All
                                 </button>
-                                
+
                                 {/* Drive Time Toggle */}
                                 <button
                                     onClick={() => setIncludeDriveTime(!includeDriveTime)}
                                     title={`Drive Time: ${includeDriveTime ? 'On' : 'Off'}`}
                                     className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
-                                        ${includeDriveTime 
-                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                        ${includeDriveTime
+                                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
                                             : 'bg-slate-50 text-slate-400 border border-slate-200'}
                                     `}
                                 >
@@ -1617,14 +1622,14 @@ function TimeCardContent() {
                                         <span className={`absolute top-0.5 left-0.5 w-1.5 h-1.5 bg-white rounded-full transition-transform ${includeDriveTime ? 'translate-x-2.5' : 'translate-x-0'}`} />
                                     </span>
                                 </button>
-                                
+
                                 {/* Site Time Toggle */}
                                 <button
                                     onClick={() => setIncludeSiteTime(!includeSiteTime)}
                                     title={`Site Time: ${includeSiteTime ? 'On' : 'Off'}`}
                                     className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
-                                        ${includeSiteTime 
-                                            ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                                        ${includeSiteTime
+                                            ? 'bg-blue-50 text-blue-600 border border-blue-200'
                                             : 'bg-slate-50 text-slate-400 border border-slate-200'}
                                     `}
                                 >
@@ -1633,7 +1638,7 @@ function TimeCardContent() {
                                         <span className={`absolute top-0.5 left-0.5 w-1.5 h-1.5 bg-white rounded-full transition-transform ${includeSiteTime ? 'translate-x-2.5' : 'translate-x-0'}`} />
                                     </span>
                                 </button>
-                                
+
                                 {/* Employee Filter Button */}
                                 <div className="relative">
                                     <button
@@ -1641,8 +1646,8 @@ function TimeCardContent() {
                                         onClick={() => setEmployeeDropdownOpen(!employeeDropdownOpen)}
                                         title={sidebarEmployeeFilter ? (employeesMap[sidebarEmployeeFilter]?.label || sidebarEmployeeFilter) : 'Filter by Employee'}
                                         className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all
-                                            ${sidebarEmployeeFilter 
-                                                ? 'bg-amber-50 text-amber-600 border border-amber-200' 
+                                            ${sidebarEmployeeFilter
+                                                ? 'bg-amber-50 text-amber-600 border border-amber-200'
                                                 : 'bg-white text-slate-400 border border-slate-200 hover:bg-slate-50'}
                                         `}
                                     >
@@ -1687,7 +1692,7 @@ function TimeCardContent() {
                             {/* Years */}
                             {isStatsLoading ? (
                                 <div className="space-y-3 pt-2">
-                                    {[1,2,3].map(i => (
+                                    {[1, 2, 3].map(i => (
                                         <div key={i} className="mb-2">
                                             <div className="flex items-center gap-2 p-2">
                                                 <Skeleton className="w-5 h-5 rounded-md" />
@@ -1705,14 +1710,14 @@ function TimeCardContent() {
                                 const isExpanded = expandedNodes.has(year.id);
                                 return (
                                     <div key={year.id} className="mb-1">
-                                        <div 
+                                        <div
                                             className={`flex items-center justify-between p-2 rounded-xl cursor-pointer transition-colors group
                                                 ${selectedNode.value === year.id ? 'bg-blue-50 text-[#0F4C75]' : 'text-slate-600 hover:bg-slate-50'}
                                             `}
                                             onClick={() => selectNode('YEAR', year.id)}
                                         >
                                             <div className="flex items-center gap-2">
-                                                <button 
+                                                <button
                                                     onClick={(e) => toggleNode(year.id, e)}
                                                     className="p-1 hover:bg-black/5 rounded text-slate-400"
                                                 >
@@ -1732,20 +1737,20 @@ function TimeCardContent() {
                                                     const isWeekExpanded = expandedNodes.has(week.id);
 
                                                     const isWeekSelected = selectedNode.value === week.id;
-                                                    
+
                                                     return (
                                                         <div key={week.id}>
-                                                            <div 
+                                                            <div
                                                                 className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors
                                                                     ${isWeekSelected ? 'bg-green-50 text-green-700' : 'text-slate-600 hover:bg-slate-50'}
                                                                 `}
                                                                 onClick={() => selectNode('WEEK', week.id)}
                                                             >
                                                                 <div className="flex items-center gap-1.5 min-w-0">
-                                                                     <button 
+                                                                    <button
                                                                         onClick={(e) => toggleNode(week.id, e)}
                                                                         className="p-1 hover:bg-black/5 rounded text-slate-400 shrink-0"
-                                                                     >
+                                                                    >
                                                                         {isWeekExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                                                                     </button>
                                                                     <span className="text-[10px] font-bold whitespace-nowrap truncate">{week.label}</span>
@@ -1761,17 +1766,17 @@ function TimeCardContent() {
                                                                     {Object.values(week.employees).sort((a: any, b: any) => a.label.localeCompare(b.label)).map((emp: any) => {
                                                                         const isEmpExpanded = expandedNodes.has(emp.id);
                                                                         const isEmpSelected = selectedNode.value === emp.id;
-                                                                        
+
                                                                         return (
                                                                             <div key={emp.id}>
-                                                                                <div 
+                                                                                <div
                                                                                     onClick={() => selectNode('EMPLOYEE', emp.id, emp.email)}
                                                                                     className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors
                                                                                         ${isEmpSelected ? 'bg-[#0F4C75] text-white shadow-sm' : 'text-slate-500 hover:bg-slate-50'}
                                                                                     `}
                                                                                 >
                                                                                     <div className="flex items-center gap-1.5 min-w-0">
-                                                                                        <button 
+                                                                                        <button
                                                                                             onClick={(e) => toggleNode(emp.id, e)}
                                                                                             className={`p-0.5 hover:bg-black/5 rounded shrink-0 ${isEmpSelected ? 'text-white/70' : 'text-slate-400'}`}
                                                                                         >
@@ -1784,7 +1789,7 @@ function TimeCardContent() {
                                                                                         {emp.totalHours.toFixed(2)}
                                                                                     </span>
                                                                                 </div>
-                                                                                
+
                                                                                 {/* Dates under Employee */}
                                                                                 {isEmpExpanded && (
                                                                                     <div className="pl-6 mt-1 space-y-0.5 border-l border-slate-100 ml-2">
@@ -1800,7 +1805,7 @@ function TimeCardContent() {
                                                                                         }).map((dateNode: any) => {
                                                                                             const isDateSelected = selectedNode.value === dateNode.id;
                                                                                             return (
-                                                                                                <div 
+                                                                                                <div
                                                                                                     key={dateNode.id}
                                                                                                     onClick={() => selectNode('DATE', dateNode.id, emp.email)}
                                                                                                     className={`flex items-center justify-between p-1.5 rounded-lg cursor-pointer transition-colors
@@ -1846,7 +1851,7 @@ function TimeCardContent() {
                                     {tableData.length} entries
                                 </p>
                             </div>
-                            
+
                             {/* Filters Removed as per request */}
 
                         </div>
@@ -1867,23 +1872,23 @@ function TimeCardContent() {
                                         <TableHeader className="text-[9px] uppercase font-bold text-slate-400 text-right w-[110px]">Actions</TableHeader>
                                     </TableRow>
                                 </TableHead>
-                                    <TableBody>
-                                        {loading ? (
-                                            Array.from({ length: 8 }).map((_, i) => (
-                                                <TableRow key={`skeleton-${i}`}>
-                                                    <TableCell><div className="flex items-center gap-2"><Skeleton className="w-6 h-6 rounded-full" /><Skeleton className="h-3 w-24" /></div></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
-                                                    <TableCell><Skeleton className="h-5 w-6 mx-auto rounded-lg" /></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-24" /></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-10 mx-auto" /></TableCell>
-                                                    <TableCell><Skeleton className="h-3 w-10 ml-auto" /></TableCell>
-                                                    <TableCell><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : paginatedData.length > 0 ? paginatedData.map((ts, idx) => {
+                                <TableBody>
+                                    {loading ? (
+                                        Array.from({ length: 8 }).map((_, i) => (
+                                            <TableRow key={`skeleton-${i}`}>
+                                                <TableCell><div className="flex items-center gap-2"><Skeleton className="w-6 h-6 rounded-full" /><Skeleton className="h-3 w-24" /></div></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-5 w-6 mx-auto rounded-lg" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-16 mx-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-24" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-12 mx-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-10 mx-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-3 w-10 ml-auto" /></TableCell>
+                                                <TableCell><Skeleton className="h-6 w-16 ml-auto" /></TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : paginatedData.length > 0 ? paginatedData.map((ts, idx) => {
                                         const recordId = ts._id || ts.recordId;
                                         const isQuickEditing = quickEditingId === recordId;
 
@@ -1940,11 +1945,10 @@ function TimeCardContent() {
                                                 <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
                                                         <div className="flex flex-col items-center">
-                                                            <button 
+                                                            <button
                                                                 onClick={() => triggerSpecialFieldModal(ts, 'dumpWashout')}
-                                                                className={`px-2 py-1 rounded text-[9px] font-black uppercase transition-all shadow-sm flex flex-col items-center min-w-[70px] ${
-                                                                    ts.dumpWashout ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                                                }`}
+                                                                className={`px-2 py-1 rounded text-[9px] font-black uppercase transition-all shadow-sm flex flex-col items-center min-w-[70px] ${ts.dumpWashout ? 'bg-orange-500 text-white hover:bg-orange-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                                    }`}
                                                             >
                                                                 <span>{ts.dumpWashout ? 'Washout ✓' : 'Washout'}</span>
                                                                 {ts.dumpWashout && (
@@ -1956,7 +1960,7 @@ function TimeCardContent() {
                                                         </div>
                                                     ) : isQuickEditing ? (
                                                         <div className="px-1">
-                                                            <input 
+                                                            <input
                                                                 type="time"
                                                                 className="w-full px-2 py-1.5 bg-white border-2 border-[#0F4C75]/20 focus:border-[#0F4C75] focus:ring-4 focus:ring-[#0F4C75]/5 rounded-xl text-[10px] font-medium text-[#0F4C75] transition-all outline-none shadow-inner"
                                                                 value={quickEditForm.clockIn ? toLocalISO(quickEditForm.clockIn).split('T')[1] : ''}
@@ -1964,7 +1968,7 @@ function TimeCardContent() {
                                                                     const timeVal = e.target.value;
                                                                     const currentIso = toLocalISO(quickEditForm.clockIn || '');
                                                                     const datePart = currentIso.split('T')[0];
-                                                                    setQuickEditForm(prev => ({...prev, clockIn: `${datePart}T${timeVal}:00.000Z`}));
+                                                                    setQuickEditForm(prev => ({ ...prev, clockIn: `${datePart}T${timeVal}:00.000Z` }));
                                                                 }}
                                                             />
                                                         </div>
@@ -1975,11 +1979,10 @@ function TimeCardContent() {
                                                 <TableCell className="text-center text-xs text-slate-500">
                                                     {ts.type?.toLowerCase().includes('drive') ? (
                                                         <div className="flex flex-col items-center">
-                                                            <button 
+                                                            <button
                                                                 onClick={() => triggerSpecialFieldModal(ts, 'shopTime')}
-                                                                className={`px-2 py-1 rounded text-[9px] font-black uppercase transition-all shadow-sm flex flex-col items-center min-w-[70px] ${
-                                                                    ts.shopTime ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                                                                }`}
+                                                                className={`px-2 py-1 rounded text-[9px] font-black uppercase transition-all shadow-sm flex flex-col items-center min-w-[70px] ${ts.shopTime ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                                                    }`}
                                                             >
                                                                 <span>{ts.shopTime ? 'Shop ✓' : 'Shop'}</span>
                                                                 {ts.shopTime && (
@@ -1991,7 +1994,7 @@ function TimeCardContent() {
                                                         </div>
                                                     ) : isQuickEditing ? (
                                                         <div className="px-1">
-                                                            <input 
+                                                            <input
                                                                 type="time"
                                                                 className="w-full px-2 py-1.5 bg-white border-2 border-[#0F4C75]/20 focus:border-[#0F4C75] focus:ring-4 focus:ring-[#0F4C75]/5 rounded-xl text-[10px] font-medium text-[#0F4C75] transition-all outline-none shadow-inner"
                                                                 value={quickEditForm.clockOut ? toLocalISO(quickEditForm.clockOut).split('T')[1] : ''}
@@ -1999,7 +2002,7 @@ function TimeCardContent() {
                                                                     const timeVal = e.target.value;
                                                                     const currentIso = toLocalISO(quickEditForm.clockOut || quickEditForm.clockIn || '');
                                                                     const datePart = currentIso.split('T')[0];
-                                                                    setQuickEditForm(prev => ({...prev, clockOut: `${datePart}T${timeVal}:00.000Z`}));
+                                                                    setQuickEditForm(prev => ({ ...prev, clockOut: `${datePart}T${timeVal}:00.000Z` }));
                                                                 }}
                                                             />
                                                         </div>
@@ -2009,11 +2012,11 @@ function TimeCardContent() {
                                                 </TableCell>
                                                 <TableCell className="text-left text-xs font-medium text-slate-500">
                                                     {isQuickEditing && ts.type?.toLowerCase().includes('drive') ? (
-                                                        <input 
+                                                        <input
                                                             type="number"
                                                             className="px-2 py-1 bg-white border border-slate-200 rounded text-[10px] font-bold w-16 text-left"
                                                             value={quickEditForm.manualDistance || ''}
-                                                            onChange={e => setQuickEditForm(prev => ({...prev, manualDistance: e.target.value}))}
+                                                            onChange={e => setQuickEditForm(prev => ({ ...prev, manualDistance: e.target.value }))}
                                                         />
                                                     ) : (
                                                         <div className="flex flex-col items-start">
@@ -2034,13 +2037,13 @@ function TimeCardContent() {
                                                 <TableCell className="text-right">
                                                     {isQuickEditing ? (
                                                         <div className="flex justify-end gap-1">
-                                                            <button 
+                                                            <button
                                                                 onClick={handleQuickSave}
                                                                 className="px-2 py-1 bg-green-500 text-white rounded text-[10px] font-bold hover:bg-green-600 shadow-sm transition-all"
                                                             >
                                                                 Save
                                                             </button>
-                                                            <button 
+                                                            <button
                                                                 onClick={() => setQuickEditingId(null)}
                                                                 className="px-2 py-1 bg-slate-200 text-slate-600 rounded text-[10px] font-bold hover:bg-slate-300 transition-all font-black"
                                                             >
@@ -2050,50 +2053,50 @@ function TimeCardContent() {
                                                     ) : (
                                                         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex justify-end gap-1">
                                                             {canEdit && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button 
-                                                                        onClick={() => handleQuickEditClick(ts)}
-                                                                        className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg shadow-sm transition-all flex items-center gap-1"
-                                                                    >
-                                                                        <Edit size={12} />
-                                                                        <span className="text-[10px] font-black uppercase">Quick</span>
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Quick Adjust Times & Miles</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={() => handleQuickEditClick(ts)}
+                                                                            className="p-1.5 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-lg shadow-sm transition-all flex items-center gap-1"
+                                                                        >
+                                                                            <Edit size={12} />
+                                                                            <span className="text-[10px] font-black uppercase">Quick</span>
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Quick Adjust Times & Miles</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             )}
                                                             {canEdit && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button 
-                                                                        onClick={() => handleEditClick(ts)}
-                                                                        className="p-1.5 hover:bg-white text-slate-400 hover:text-[#0F4C75] rounded-lg shadow-sm hover:shadow transition-all"
-                                                                    >
-                                                                        <FileText size={12} />
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Full Edit</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={() => handleEditClick(ts)}
+                                                                            className="p-1.5 hover:bg-white text-slate-400 hover:text-[#0F4C75] rounded-lg shadow-sm hover:shadow transition-all"
+                                                                        >
+                                                                            <FileText size={12} />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Full Edit</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             )}
                                                             {canDelete && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button 
-                                                                        onClick={() => handleDeleteClick(ts)}
-                                                                        className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
-                                                                    >
-                                                                        <Trash2 size={12} />
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Delete</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={() => handleDeleteClick(ts)}
+                                                                            className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg transition-all"
+                                                                        >
+                                                                            <Trash2 size={12} />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Delete</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
                                                             )}
                                                         </div>
                                                     )}
@@ -2117,15 +2120,15 @@ function TimeCardContent() {
                         </div>
 
                         <div className="p-1">
-                            <Pagination 
-                                currentPage={currentPage} 
-                                totalPages={totalPages || 1} 
-                                onPageChange={setCurrentPage} 
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages || 1}
+                                onPageChange={setCurrentPage}
                             />
                         </div>
                     </div>
                 </div>
-        </main>
+            </main>
 
             <Modal
                 isOpen={!!editingRecord}
@@ -2135,13 +2138,13 @@ function TimeCardContent() {
                 noBlur={true}
                 footer={
                     <>
-                        <button 
+                        <button
                             onClick={() => setEditingRecord(null)}
                             className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={handleSaveEdit}
                             className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all"
                         >
@@ -2153,24 +2156,24 @@ function TimeCardContent() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
                     <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Select Employee</label>
-                        <SearchableSelect 
+                        <SearchableSelect
                             options={employeesOptions}
                             value={editForm.employee || ''}
-                            onChange={(val) => setEditForm(prev => ({...prev, employee: val}))}
+                            onChange={(val) => setEditForm(prev => ({ ...prev, employee: val }))}
                             placeholder="Search & Select Employee"
                         />
                     </div>
 
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
-                        <SearchableSelect 
+                        <SearchableSelect
                             options={estimatesOptions}
                             value={editForm.estimate || ''}
                             onChange={(val) => {
                                 setEditForm(prev => ({
-                                    ...prev, 
+                                    ...prev,
                                     estimate: val,
-                                    scheduleId: '' 
+                                    scheduleId: ''
                                 }));
                             }}
                             placeholder="Select Estimate"
@@ -2179,7 +2182,7 @@ function TimeCardContent() {
 
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
-                        <SearchableSelect 
+                        <SearchableSelect
                             options={(() => {
                                 if (!editForm.estimate) return [];
                                 const estNorm = normalizeEst(editForm.estimate);
@@ -2193,7 +2196,7 @@ function TimeCardContent() {
                                     }));
                             })()}
                             value={editForm.scheduleId || ''}
-                            onChange={(val) => setEditForm(prev => ({...prev, scheduleId: val}))}
+                            onChange={(val) => setEditForm(prev => ({ ...prev, scheduleId: val }))}
                             placeholder={editForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
                         />
                     </div>
@@ -2205,12 +2208,11 @@ function TimeCardContent() {
                                 <button
                                     key={t}
                                     type="button"
-                                    onClick={() => setEditForm(prev => ({...prev, type: t}))}
-                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
-                                        editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
-                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                                    }`}
+                                    onClick={() => setEditForm(prev => ({ ...prev, type: t }))}
+                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${editForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
+                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
                                 >
                                     {t}
                                 </button>
@@ -2230,7 +2232,7 @@ function TimeCardContent() {
                                         const val = e.target.value;
                                         if (val) {
                                             // Convert YYYY-MM-DDTHH:mm to YYYY-MM-DDTHH:mm:00.000Z
-                                            setEditForm(prev => ({...prev, clockIn: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({ ...prev, clockIn: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2245,7 +2247,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, lunchStart: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({ ...prev, lunchStart: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2260,7 +2262,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, lunchEnd: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({ ...prev, lunchEnd: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2275,7 +2277,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditForm(prev => ({...prev, clockOut: `${val}:00.000Z`}));
+                                            setEditForm(prev => ({ ...prev, clockOut: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2288,38 +2290,36 @@ function TimeCardContent() {
                             <div className="col-span-2 grid grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         placeholder="Manual"
                                         className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                                         value={editForm.manualDistance || ''}
-                                        onChange={e => setEditForm(prev => ({...prev, manualDistance: e.target.value}))}
+                                        onChange={e => setEditForm(prev => ({ ...prev, manualDistance: e.target.value }))}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="Start loc"
                                         disabled={!!editForm.manualDistance}
-                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                            editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                        }`}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
                                         value={editForm.locationIn || ''}
-                                        onChange={e => setEditForm(prev => ({...prev, locationIn: e.target.value}))}
+                                        onChange={e => setEditForm(prev => ({ ...prev, locationIn: e.target.value }))}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="End loc"
                                         disabled={!!editForm.manualDistance}
-                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                            editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                        }`}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${editForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
                                         value={editForm.locationOut || ''}
-                                        onChange={e => setEditForm(prev => ({...prev, locationOut: e.target.value}))}
+                                        onChange={e => setEditForm(prev => ({ ...prev, locationOut: e.target.value }))}
                                     />
                                 </div>
                             </div>
@@ -2327,7 +2327,7 @@ function TimeCardContent() {
                             <div className="col-span-2 grid grid-cols-2 gap-3">
                                 <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                     <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
                                         placeholder="0"
@@ -2339,17 +2339,17 @@ function TimeCardContent() {
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
                                             if (isNaN(qty) || qty <= 0) {
-                                                setEditForm(prev => ({...prev, dumpWashout: "", dumpQty: 0}));
+                                                setEditForm(prev => ({ ...prev, dumpWashout: "", dumpQty: 0 }));
                                             } else {
                                                 const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
-                                                setEditForm(prev => ({...prev, dumpWashout: val, dumpQty: qty}));
+                                                setEditForm(prev => ({ ...prev, dumpWashout: val, dumpQty: qty }));
                                             }
                                         }}
                                     />
                                 </div>
                                 <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
                                     <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
                                         placeholder="0"
@@ -2361,10 +2361,10 @@ function TimeCardContent() {
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
                                             if (isNaN(qty) || qty <= 0) {
-                                                setEditForm(prev => ({...prev, shopTime: "", shopQty: 0}));
+                                                setEditForm(prev => ({ ...prev, shopTime: "", shopQty: 0 }));
                                             } else {
                                                 const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
-                                                setEditForm(prev => ({...prev, shopTime: val, shopQty: qty}));
+                                                setEditForm(prev => ({ ...prev, shopTime: val, shopQty: qty }));
                                             }
                                         }}
                                     />
@@ -2394,12 +2394,12 @@ function TimeCardContent() {
 
                     <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Comments</label>
-                        <textarea 
+                        <textarea
                             rows={2}
                             placeholder="Add any notes here..."
                             className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none transition-all"
                             value={editForm.comments || ''}
-                            onChange={e => setEditForm(prev => ({...prev, comments: e.target.value}))}
+                            onChange={e => setEditForm(prev => ({ ...prev, comments: e.target.value }))}
                         />
                     </div>
                 </div>
@@ -2413,13 +2413,13 @@ function TimeCardContent() {
                 noBlur={true}
                 footer={
                     <>
-                        <button 
+                        <button
                             onClick={() => setIsAddModalOpen(false)}
                             className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={handleSaveAdd}
                             className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all"
                         >
@@ -2431,23 +2431,23 @@ function TimeCardContent() {
                 <div className="grid grid-cols-2 gap-x-4 gap-y-3 py-2">
                     <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Select Employee</label>
-                        <SearchableSelect 
+                        <SearchableSelect
                             options={employeesOptions}
                             value={addForm.employee || ''}
-                            onChange={(val) => setAddForm(prev => ({...prev, employee: val}))}
+                            onChange={(val) => setAddForm(prev => ({ ...prev, employee: val }))}
                             placeholder="Search & Select Employee"
                         />
                     </div>
 
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Estimate #</label>
-                        <SearchableSelect 
+                        <SearchableSelect
                             options={estimatesOptions}
                             value={addForm.estimate || ''}
                             onChange={(val) => {
                                 const opt = estimatesOptions.find(o => o.value === val);
                                 setAddForm(prev => ({
-                                    ...prev, 
+                                    ...prev,
                                     estimate: val,
                                     scheduleId: '' // Reset schedule when estimate changes
                                 }));
@@ -2458,7 +2458,7 @@ function TimeCardContent() {
 
                     <div>
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Schedule Date</label>
-                        <SearchableSelect 
+                        <SearchableSelect
                             options={(() => {
                                 if (!addForm.estimate) return [];
                                 const estNorm = normalizeEst(addForm.estimate);
@@ -2487,7 +2487,7 @@ function TimeCardContent() {
                                         lunchEnd: `${datePart}T12:30:00.000Z`
                                     }));
                                 } else {
-                                    setAddForm(prev => ({...prev, scheduleId: val}));
+                                    setAddForm(prev => ({ ...prev, scheduleId: val }));
                                 }
                             }}
                             placeholder={addForm.estimate ? "Select Schedule Date" : "Select Estimate First"}
@@ -2520,13 +2520,12 @@ function TimeCardContent() {
                                                 return;
                                             }
                                         }
-                                        setAddForm(prev => ({...prev, type: t}));
+                                        setAddForm(prev => ({ ...prev, type: t }));
                                     }}
-                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${
-                                        addForm.type?.trim().toLowerCase() === t.trim().toLowerCase() 
-                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg' 
-                                        : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
-                                    }`}
+                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all border-2 ${addForm.type?.trim().toLowerCase() === t.trim().toLowerCase()
+                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white shadow-lg'
+                                            : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
+                                        }`}
                                 >
                                     {t}
                                 </button>
@@ -2553,15 +2552,15 @@ function TimeCardContent() {
                                                 const datePart = parts[0];
                                                 const timePart = parts[1];
                                                 const [hour] = timePart.split(':').map(Number);
-                                                
+
                                                 // Auto-fill: Clock Out = Clock In + 7 hours (manual string manipulation)
                                                 const clockOutHour = String((hour + 7) % 24).padStart(2, '0');
                                                 const clockOutVal = `${datePart}T${clockOutHour}:${timePart.split(':')[1]}:00.000Z`;
-                                                
+
                                                 // Default lunch: 12:00 PM to 12:30 PM on same day
                                                 const lunchStartVal = `${datePart}T12:00:00.000Z`;
                                                 const lunchEndVal = `${datePart}T12:30:00.000Z`;
-                                                
+
                                                 setAddForm(prev => ({
                                                     ...prev,
                                                     clockIn: `${val}:00.000Z`,
@@ -2584,7 +2583,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, lunchStart: `${val}:00.000Z`}));
+                                            setAddForm(prev => ({ ...prev, lunchStart: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2600,7 +2599,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, lunchEnd: `${val}:00.000Z`}));
+                                            setAddForm(prev => ({ ...prev, lunchEnd: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2615,7 +2614,7 @@ function TimeCardContent() {
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setAddForm(prev => ({...prev, clockOut: `${val}:00.000Z`}));
+                                            setAddForm(prev => ({ ...prev, clockOut: `${val}:00.000Z` }));
                                         }
                                     }}
                                 />
@@ -2628,38 +2627,36 @@ function TimeCardContent() {
                             <div className="col-span-2 grid grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         placeholder="Manual"
                                         className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                                         value={addForm.manualDistance || ''}
-                                        onChange={e => setAddForm(prev => ({...prev, manualDistance: e.target.value}))}
+                                        onChange={e => setAddForm(prev => ({ ...prev, manualDistance: e.target.value }))}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="Start loc"
                                         disabled={!!addForm.manualDistance}
-                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                            addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                        }`}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
                                         value={addForm.locationIn || ''}
-                                        onChange={e => setAddForm(prev => ({...prev, locationIn: e.target.value}))}
+                                        onChange={e => setAddForm(prev => ({ ...prev, locationIn: e.target.value }))}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="End loc"
                                         disabled={!!addForm.manualDistance}
-                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                            addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                        }`}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${addForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
                                         value={addForm.locationOut || ''}
-                                        onChange={e => setAddForm(prev => ({...prev, locationOut: e.target.value}))}
+                                        onChange={e => setAddForm(prev => ({ ...prev, locationOut: e.target.value }))}
                                     />
                                 </div>
                             </div>
@@ -2670,34 +2667,34 @@ function TimeCardContent() {
                         <div className="col-span-2 grid grid-cols-2 gap-3">
                             <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                 <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
-                                <input 
+                                <input
                                     type="number"
                                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
                                     placeholder="0"
                                     onChange={e => {
                                         const qty = parseFloat(e.target.value);
                                         if (isNaN(qty) || qty <= 0) {
-                                            setAddForm(prev => ({...prev, dumpWashout: ""}));
+                                            setAddForm(prev => ({ ...prev, dumpWashout: "" }));
                                         } else {
                                             const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
-                                            setAddForm(prev => ({...prev, dumpWashout: val}));
+                                            setAddForm(prev => ({ ...prev, dumpWashout: val }));
                                         }
                                     }}
                                 />
                             </div>
                             <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
                                 <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
-                                <input 
+                                <input
                                     type="number"
                                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
                                     placeholder="0"
                                     onChange={e => {
                                         const qty = parseFloat(e.target.value);
                                         if (isNaN(qty) || qty <= 0) {
-                                            setAddForm(prev => ({...prev, shopTime: ""}));
+                                            setAddForm(prev => ({ ...prev, shopTime: "" }));
                                         } else {
                                             const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
-                                            setAddForm(prev => ({...prev, shopTime: val}));
+                                            setAddForm(prev => ({ ...prev, shopTime: val }));
                                         }
                                     }}
                                 />
@@ -2735,7 +2732,7 @@ function TimeCardContent() {
                 noBlur={true}
                 footer={
                     <div className="flex items-center justify-between w-full">
-                        <button 
+                        <button
                             onClick={removeSpecialField}
                             disabled={isSpecialLoading}
                             className="px-4 py-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 font-bold text-sm transition-all disabled:opacity-50"
@@ -2743,13 +2740,13 @@ function TimeCardContent() {
                             {isSpecialLoading ? 'Removing...' : 'Remove'}
                         </button>
                         <div className="flex gap-2">
-                            <button 
+                            <button
                                 onClick={() => setSpecialFieldModal({ ts: null, field: null })}
                                 className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
                             >
                                 Cancel
                             </button>
-                            <button 
+                            <button
                                 onClick={confirmSpecialField}
                                 disabled={isSpecialLoading}
                                 className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all disabled:opacity-50"
@@ -2763,16 +2760,16 @@ function TimeCardContent() {
                 <div className="space-y-3 py-2">
                     <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
                         <p className="text-[10px] text-slate-600 leading-tight font-bold">
-                            {specialFieldModal.field === 'dumpWashout' 
+                            {specialFieldModal.field === 'dumpWashout'
                                 ? "Washout adds 0.50 hrs."
                                 : "Shop adds 0.25 hrs."
                             }
                         </p>
                     </div>
-                    
+
                     <div>
                         <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 tracking-widest px-1">Quantity</label>
-                        <input 
+                        <input
                             type="number"
                             autoFocus
                             className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-4 focus:ring-[#0F4C75]/10 focus:border-[#0F4C75] text-lg font-black text-slate-800 transition-all shadow-inner"
@@ -2785,7 +2782,7 @@ function TimeCardContent() {
                 </div>
             </Modal>
 
-            <ConfirmModal 
+            <ConfirmModal
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
                 onConfirm={handleDelete}
