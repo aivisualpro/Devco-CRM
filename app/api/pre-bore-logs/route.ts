@@ -5,14 +5,14 @@ import Schedule from '@/lib/models/Schedule';
 export async function POST(request: NextRequest) {
     try {
         await connectToDatabase();
-        
+
         // Migration: convert any preBore stored as object to array
         // Uses native driver since Mongoose doesn't support pipeline updates by default
         await Schedule.collection.updateMany(
             { preBore: { $exists: true, $not: { $type: 'array' } } },
             [{ $set: { preBore: { $cond: { if: { $eq: [{ $type: '$preBore' }, 'object'] }, then: ['$preBore'], else: [] } } } }]
         );
-        
+
         const body = await request.json();
         const { action, payload } = body;
 
@@ -20,15 +20,15 @@ export async function POST(request: NextRequest) {
             case 'getPreBoreLogs': {
                 // Find all schedules that have preBore data
                 const { limit = 500 } = payload || {};
-                
+
                 const schedules = await Schedule.find(
                     { 'preBore.0': { $exists: true } },
-                    { _id: 1, title: 1, estimate: 1, customerName: 1, foremanName: 1, preBore: 1 }
+                    { _id: 1, title: 1, estimate: 1, customerId: 1, customerName: 1, foremanName: 1, preBore: 1 }
                 )
                     .sort({ updatedAt: -1 })
                     .limit(limit)
                     .lean();
-                
+
                 // Flatten: one result per preBore entry
                 const result: any[] = [];
                 for (const s of schedules as any[]) {
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
                                 _id: s._id,
                                 scheduleTitle: s.title,
                                 estimate: s.estimate,
+                                scheduleCustomerId: s.customerId,
                                 scheduleForemanName: s.foremanName,
                                 scheduleCustomerName: s.customerName,
                                 preBoreId: pb._id,
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
                         }
                     }
                 }
-                
+
                 return NextResponse.json({ success: true, result });
             }
 
@@ -69,18 +70,18 @@ export async function POST(request: NextRequest) {
                 if (!scheduleId) {
                     return NextResponse.json({ success: false, error: 'Schedule ID is required' }, { status: 400 });
                 }
-                
+
                 // Push a new preBore entry into the schedule's preBore array
                 const updated = await Schedule.findByIdAndUpdate(
                     scheduleId,
                     { $push: { preBore: item } },
                     { new: true }
                 ).lean();
-                
+
                 if (!updated) {
                     return NextResponse.json({ success: false, error: 'Schedule not found' }, { status: 404 });
                 }
-                
+
                 return NextResponse.json({ success: true, result: updated });
             }
 
@@ -89,47 +90,47 @@ export async function POST(request: NextRequest) {
                 if (!id) {
                     return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
                 }
-                
+
                 // Update a specific preBore entry by matching legacyId
                 const legacyId = item.legacyId || item.legacyid;
-                
+
                 if (legacyId) {
                     // Update by legacyId match within the array
                     const setObj: any = {};
                     for (const [key, val] of Object.entries(item)) {
                         setObj[`preBore.$.${key}`] = val;
                     }
-                    
+
                     const updated = await Schedule.findOneAndUpdate(
                         { _id: id, 'preBore.legacyId': legacyId },
                         { $set: setObj },
                         { new: true }
                     ).lean();
-                    
+
                     if (updated) {
                         return NextResponse.json({ success: true, result: updated });
                     }
                 }
-                
+
                 // Fallback: update by index
                 if (preBoreIndex !== undefined) {
                     const setObj: any = {};
                     for (const [key, val] of Object.entries(item)) {
                         setObj[`preBore.${preBoreIndex}.${key}`] = val;
                     }
-                    
+
                     const updated = await Schedule.findByIdAndUpdate(
                         id,
                         { $set: setObj },
                         { new: true }
                     ).lean();
-                    
+
                     if (!updated) {
                         return NextResponse.json({ success: false, error: 'Schedule not found' }, { status: 404 });
                     }
                     return NextResponse.json({ success: true, result: updated });
                 }
-                
+
                 return NextResponse.json({ success: false, error: 'legacyId or preBoreIndex required' }, { status: 400 });
             }
 
@@ -138,18 +139,18 @@ export async function POST(request: NextRequest) {
                 if (!id) {
                     return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
                 }
-                
+
                 // Pull the specific preBore entry from the array
                 const updated = await Schedule.findByIdAndUpdate(
                     id,
                     { $pull: { preBore: { legacyId: legacyId } } },
                     { new: true }
                 );
-                
+
                 if (!updated) {
                     return NextResponse.json({ success: false, error: 'Schedule not found' }, { status: 404 });
                 }
-                
+
                 return NextResponse.json({ success: true, message: 'Pre-Bore entry removed' });
             }
 

@@ -71,6 +71,7 @@ interface PreBoreLog {
     createdBy: string;
     createdAt: string;
     scheduleCustomerName?: string;
+    scheduleCustomerId?: string;
     scheduleTitle?: string;
 }
 
@@ -769,7 +770,14 @@ export default function PreBoreLogsPage() {
                                                             {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
                                                         </TableCell>
                                                         <TableCell className="text-xs text-slate-700 font-semibold max-w-[130px] truncate">
-                                                            {log.scheduleCustomerName || log.customerName || '-'}
+                                                            {(() => {
+                                                                // Resolve customer name: customerId reference on the schedule → clients list
+                                                                if (log.scheduleCustomerId) {
+                                                                    const client = clients.find(c => c._id === log.scheduleCustomerId);
+                                                                    if (client) return client.name;
+                                                                }
+                                                                return log.scheduleCustomerName || log.customerName || '-';
+                                                            })()}
                                                         </TableCell>
                                                         <TableCell className="text-xs text-blue-600 font-medium cursor-pointer hover:underline" onClick={(e) => {
                                                             e.stopPropagation();
