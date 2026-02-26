@@ -220,7 +220,7 @@ export default function EstimateViewPage() {
     const proposalRef = useRef<HTMLDivElement>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const quillRefs = useRef<any[]>([]);
-    
+
     // Template Editing State
     const [editorPages, setEditorPages] = useState<{ content: string }[]>([{ content: '' }]);
 
@@ -229,7 +229,7 @@ export default function EstimateViewPage() {
         // Try to find a focused editor
         for (const ref of quillRefs.current) {
             if (ref) {
-                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const editor = (ref as any).getEditor();
                 const range = editor.getSelection();
                 if (range) {
@@ -241,7 +241,7 @@ export default function EstimateViewPage() {
         }
         // Fallback: insert into first page
         if (quillRefs.current[0]) {
-             // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const editor = (quillRefs.current[0] as any).getEditor();
             const length = editor.getLength();
             editor.insertText(length - 1, `{{${variableName}}} `);
@@ -259,12 +259,13 @@ export default function EstimateViewPage() {
     const [sectionOrder, setSectionOrder] = useState<string[]>([]);
     const [initialLoadComplete, setInitialLoadComplete] = useState(false);
     const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-    
+    const [vendorsModalTrigger, setVendorsModalTrigger] = useState(0);
+
     // Confirmation States
     const [cloneConfirmOpen, setCloneConfirmOpen] = useState<{ id?: string } | null>(null);
     const [copyConfirmOpen, setCopyConfirmOpen] = useState(false);
     const [changeOrderConfirmOpen, setChangeOrderConfirmOpen] = useState<{ id: string } | null>(null);
-    
+
     // Visibility State
     const [visibleSections, setVisibleSections] = useState({
         aerialLayout: true,
@@ -274,7 +275,7 @@ export default function EstimateViewPage() {
         schedules: true
     });
     const [showSectionMenu, setShowSectionMenu] = useState(false);
-    
+
     // Schedules State
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     const [schedulesLoaded, setSchedulesLoaded] = useState(false);
@@ -296,9 +297,9 @@ export default function EstimateViewPage() {
         // 1. Exact Match (Exact same set of services)
         const exactMatch = allTemplates.find(t => {
             const ts = t.services || [];
-            return ts.length === selectedServices.length && 
-                   ts.every(s => selectedServices.includes(s)) &&
-                   selectedServices.every(s => ts.includes(s));
+            return ts.length === selectedServices.length &&
+                ts.every(s => selectedServices.includes(s)) &&
+                selectedServices.every(s => ts.includes(s));
         });
         if (exactMatch) return exactMatch;
 
@@ -328,7 +329,7 @@ export default function EstimateViewPage() {
         try {
             // First ensure we have the latest preview HTML generated from current state
             const generatedHtml = await handlePreview(false);
-            
+
             // Get the HTML content for PDF
             const content = (generatedHtml || previewHtml || '');
 
@@ -373,7 +374,7 @@ export default function EstimateViewPage() {
             a.click();
             document.body.removeChild(a);
             window.URL.revokeObjectURL(url);
-            
+
             success('PDF downloaded successfully!');
         } catch (err) {
             console.error('PDF Generation failed:', err);
@@ -415,17 +416,17 @@ export default function EstimateViewPage() {
                 if (user) setCurrentUser(user);
 
                 if (userEmail) {
-                     const emp = employeesData.find((e: any) => e._id === userEmail || e.email === userEmail);
-                     // If settings exist, apply them. If not, we stick with defaults.
-                     if (emp && Array.isArray(emp.estimateSettings)) {
-                             setVisibleSections({
-                                 estimateDocs: emp.estimateSettings.includes('Job Docs'),
-                                 lineItems: emp.estimateSettings.includes('Line Items'),
-                                 proposal: emp.estimateSettings.includes('Proposal'),
-                                 schedules: emp.estimateSettings.includes('Schedules'),
-                                 aerialLayout: emp.estimateSettings.includes('Aerial Layout')
-                             });
-                     }
+                    const emp = employeesData.find((e: any) => e._id === userEmail || e.email === userEmail);
+                    // If settings exist, apply them. If not, we stick with defaults.
+                    if (emp && Array.isArray(emp.estimateSettings)) {
+                        setVisibleSections({
+                            estimateDocs: emp.estimateSettings.includes('Job Docs'),
+                            lineItems: emp.estimateSettings.includes('Line Items'),
+                            proposal: emp.estimateSettings.includes('Proposal'),
+                            schedules: emp.estimateSettings.includes('Schedules'),
+                            aerialLayout: emp.estimateSettings.includes('Aerial Layout')
+                        });
+                    }
                 }
             } catch (e) {
                 console.error('Error loading settings', e);
@@ -440,19 +441,19 @@ export default function EstimateViewPage() {
         if (!settingsLoaded) return;
 
         const timeoutId = setTimeout(async () => {
-             const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
-             const userEmail = user.email;
-             if (!userEmail) return;
+            const user = JSON.parse(localStorage.getItem('devco_user') || '{}');
+            const userEmail = user.email;
+            if (!userEmail) return;
 
-             const settings = [];
-             if (visibleSections.estimateDocs) settings.push('Job Docs');
-             if (visibleSections.lineItems) settings.push('Line Items');
-             if (visibleSections.proposal) settings.push('Proposal');
-             if (visibleSections.schedules) settings.push('Schedules');
-             if (visibleSections.aerialLayout) settings.push('Aerial Layout');
+            const settings = [];
+            if (visibleSections.estimateDocs) settings.push('Job Docs');
+            if (visibleSections.lineItems) settings.push('Line Items');
+            if (visibleSections.proposal) settings.push('Proposal');
+            if (visibleSections.schedules) settings.push('Schedules');
+            if (visibleSections.aerialLayout) settings.push('Aerial Layout');
 
-             try {
-                 await fetch('/api/webhook/devcoBackend', {
+            try {
+                await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -462,10 +463,10 @@ export default function EstimateViewPage() {
                             item: { estimateSettings: settings }
                         }
                     })
-                 });
-             } catch (err) {
-                 console.error('Failed to save settings', err);
-             }
+                });
+            } catch (err) {
+                console.error('Failed to save settings', err);
+            }
         }, 1000); // 1s debounce
 
         return () => clearTimeout(timeoutId);
@@ -480,7 +481,7 @@ export default function EstimateViewPage() {
     const [breakdownData, setBreakdownData] = useState<LaborBreakdown | null>(null);
 
     const [itemToDelete, setItemToDelete] = useState<{ section: SectionConfig; item: LineItem } | null>(null);
-    
+
     // Template Editing State
     const [editorContent, setEditorContent] = useState('');
     const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
@@ -494,7 +495,7 @@ export default function EstimateViewPage() {
     const [proposalServicesOpen, setProposalServicesOpen] = useState(false);
     const [isAddingProposalService, setIsAddingProposalService] = useState(false);
     const [hasCustomProposal, setHasCustomProposal] = useState(false); // Track if proposal has custom edits
-    
+
     // Client Modal State
     const [isClientModalOpen, setIsClientModalOpen] = useState(false);
     const [newClientName, setNewClientName] = useState('');
@@ -568,12 +569,12 @@ export default function EstimateViewPage() {
                 // Try fetching by estimate number first (handles links without version from dashboard)
                 const propResult = await apiCall('getEstimatesByProposal', { estimateNumber: slug });
                 if (propResult.success && Array.isArray(propResult.result) && propResult.result.length > 0) {
-                     // Pick latest version
-                     const sorted = propResult.result.sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0));
-                     result = { success: true, result: sorted[0] };
+                    // Pick latest version
+                    const sorted = propResult.result.sort((a: any, b: any) => (b.versionNumber || 0) - (a.versionNumber || 0));
+                    result = { success: true, result: sorted[0] };
                 } else {
-                     // Fallback to ID lookup
-                     result = await apiCall('getEstimateById', { id: slug });
+                    // Fallback to ID lookup
+                    result = await apiCall('getEstimateById', { id: slug });
                 }
             }
 
@@ -592,8 +593,8 @@ export default function EstimateViewPage() {
 
                 // Default to the latest proposal version if available
                 if (data.proposals && data.proposals.length > 0) {
-                    const sorted = [...data.proposals].sort((a: any, b: any) => 
-                        new Date(b.generatedAt || b.createdAt || 0).getTime() - 
+                    const sorted = [...data.proposals].sort((a: any, b: any) =>
+                        new Date(b.generatedAt || b.createdAt || 0).getTime() -
                         new Date(a.generatedAt || a.createdAt || 0).getTime()
                     );
                     const latest = sorted[0];
@@ -739,7 +740,7 @@ export default function EstimateViewPage() {
                 if (employeeRes.success && employeeRes.result) {
                     // Store full employee data for signature lookup
                     setEmployeesData(employeeRes.result);
-                    
+
                     const employees = employeeRes.result
                         .filter((emp: any) => {
                             if (emp.status === 'inactive') return false;
@@ -826,7 +827,7 @@ export default function EstimateViewPage() {
             }
         });
     }, [slug, loadEstimate, loadCatalogs]);
-    
+
     // Synchronize client options (contacts/addresses) when customer changes
     useEffect(() => {
         const syncClientOptions = async () => {
@@ -841,7 +842,7 @@ export default function EstimateViewPage() {
                 if (res.success && res.result) {
                     const client = res.result;
                     setActiveClient(client);
-                    
+
                     // Update Contacts
                     const contacts = (client.contacts || []).map((c: any) => ({
                         id: c.name,
@@ -875,7 +876,7 @@ export default function EstimateViewPage() {
                             };
                         })
                         .filter(a => a.value !== client.businessAddress); // Also filter out business address string match
-                    
+
                     setAddressOptions(addresses.sort((a: any, b: any) => a.label.localeCompare(b.label)));
                 } else {
                     setActiveClient(null);
@@ -904,7 +905,7 @@ export default function EstimateViewPage() {
         // Use the estimate number (e.g. 26-0027) to find related schedules
         const estimateNumber = estimate?.estimate || estimate?.proposalNo;
         if (!estimateNumber) return;
-        
+
         async function fetchSchedules() {
             try {
                 const res = await fetch('/api/schedules', {
@@ -912,9 +913,9 @@ export default function EstimateViewPage() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         action: 'getSchedulesPage',
-                        payload: { 
+                        payload: {
                             filters: { estimate: estimateNumber },
-                            limit: 100 
+                            limit: 100
                         }
                     })
                 });
@@ -928,7 +929,7 @@ export default function EstimateViewPage() {
                 setSchedulesLoaded(true);
             }
         }
-        
+
         // Only fetch once or if estimate number changes
         if (!schedulesLoaded) fetchSchedules();
     }, [estimate?.estimate, estimate?.proposalNo, schedulesLoaded]);
@@ -1009,12 +1010,12 @@ export default function EstimateViewPage() {
         const timer = setTimeout(() => {
             // Skip auto-save if user is currently editing an input
             if (document.body.dataset.inputFocused === 'true') return;
-            
+
             handleGlobalSave({ silent: true });
         }, 800);
 
         return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [unsavedChanges, estimate, formData, chartData]);
 
     // Live update current version total in history
@@ -1027,7 +1028,7 @@ export default function EstimateViewPage() {
 
             // Only update if changed to avoid loops
             // Use a small epsilon for float comparison or exact match if preferred
-            if (Math.abs((prev[index].totalAmount || 0) - chartData.grandTotal) < 0.01 && 
+            if (Math.abs((prev[index].totalAmount || 0) - chartData.grandTotal) < 0.01 &&
                 prev[index].status === formData?.status) return prev;
 
             const newHistory = [...prev];
@@ -1048,7 +1049,7 @@ export default function EstimateViewPage() {
         if (!selectedTemplateId || isEditingTemplate || generatingProposal || saving || isSavingTemplate || !estimate) {
             return;
         }
-        
+
         // Debounce the preview generation to handle rapid typing
         const timer = setTimeout(() => {
             handlePreview(true); // silent refresh
@@ -1063,15 +1064,15 @@ export default function EstimateViewPage() {
     // Triggers when services change (debounced to simulate "blur/focus change")
     useEffect(() => {
         if (!initialLoadComplete || !templates.length || isEditingTemplate || generatingProposal || saving || isSavingTemplate) return;
-        
+
         const services = formData?.services || [];
-        
+
         const timer = setTimeout(() => {
             handleAutoTemplateMatch(services);
         }, 1500);
 
         return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData?.services, templates, initialLoadComplete]);
 
     const handleAutoTemplateMatch = async (services: string[]) => {
@@ -1085,15 +1086,15 @@ export default function EstimateViewPage() {
         if (newTid === selectedTemplateId) return;
 
         console.log(`Matching template ${newTid} for services: ${services.join(', ')}`);
-        
+
         // Before changing, check if we already have versions for the NEW template
         const existingVersions = (estimate?.proposals || []).filter((p: any) => p.templateId === newTid);
-        
+
         setSelectedTemplateId(newTid);
 
         if (existingVersions.length > 0) {
             // Pick the latest version
-            const sorted = [...existingVersions].sort((a: any, b: any) => 
+            const sorted = [...existingVersions].sort((a: any, b: any) =>
                 new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime()
             );
             const latest = sorted[0];
@@ -1125,7 +1126,7 @@ export default function EstimateViewPage() {
             // Generate the HTML with current editor pages content
             const pagesToSave = editorPages;
             const contentToSave = editorPages[0]?.content || '';
-            
+
             const currentEstimate = {
                 ...estimate,
                 ...formData,
@@ -1153,7 +1154,7 @@ export default function EstimateViewPage() {
                 setPreviewHtml(newProposal.html);
                 setHasCustomProposal(true);
                 setIsEditingTemplate(false);
-                
+
                 const newId = newProposal._id || (newProposal.generatedAt ? String(newProposal.generatedAt) : null);
                 if (newId) {
                     setViewingProposalId(newId);
@@ -1165,14 +1166,14 @@ export default function EstimateViewPage() {
                     if (!prev) return prev;
                     // Safely handle existing proposals array
                     const existingProposals = Array.isArray(prev.proposals) ? prev.proposals : [];
-                    
+
                     // Filter out any temp/duplicate ID if it exists (unlikely with new ID, but safe)
                     const filtered = existingProposals.filter((p: any) => p._id !== newProposal._id);
-                    
+
                     // Return new state with our new proposal AT THE TOP (index 0)
                     return { ...prev, proposals: [newProposal, ...filtered] };
                 });
-                
+
                 // ALSO update the charts/form data to sync everything
                 setFormData(currentEstimate);
 
@@ -1196,7 +1197,7 @@ export default function EstimateViewPage() {
 
         const action = saveType === 'create' ? 'addTemplate' : 'updateTemplate';
         const payload: any = {};
-        
+
         const pagesToSave = editorPages;
         const contentToSave = editorPages[0]?.content || '';
 
@@ -1221,7 +1222,7 @@ export default function EstimateViewPage() {
                 success(saveType === 'create' ? 'Template created' : 'Main template updated');
                 setShowSaveTemplateModal(false);
                 setIsEditingTemplate(false);
-                
+
                 // Refresh templates
                 const tRes = await apiCall('getTemplates');
                 if (tRes.success) setTemplates(tRes.result);
@@ -1303,7 +1304,7 @@ export default function EstimateViewPage() {
             const newProposal = result.result;
             setPreviewHtml(newProposal.html);
             setIsEditingTemplate(false);
-            
+
             const newId = newProposal._id || (newProposal.generatedAt ? String(newProposal.generatedAt) : null);
             if (newId) {
                 setViewingProposalId(newId);
@@ -1331,7 +1332,7 @@ export default function EstimateViewPage() {
         if (!templates.length || isEditingTemplate || !formData || !estimate || viewingProposalId) return;
 
         const selectedServices = formData.services || [];
-        
+
         // If no services selected, clear template and preview
         if (selectedServices.length === 0) {
             if (selectedTemplateId !== '' || previewHtml !== '') {
@@ -1340,7 +1341,7 @@ export default function EstimateViewPage() {
             }
             return;
         }
-        
+
         // Match logic:
         // Find templates that have the highest number of matching services
         const matches = templates.map(t => {
@@ -1353,13 +1354,13 @@ export default function EstimateViewPage() {
             // Sort by count descending
             matches.sort((a, b) => b.count - a.count);
             const bestMatchId = matches[0].id;
-            
+
             if (bestMatchId !== selectedTemplateId) {
                 setSelectedTemplateId(bestMatchId);
-                
+
                 // Check if we have a saved proposal for this template
                 const savedProposal = estimate.proposals?.find(p => p.templateId === bestMatchId);
-                
+
                 if (savedProposal && savedProposal.htmlContent) {
                     // Use the saved proposal content
                     setPreviewHtml(savedProposal.htmlContent);
@@ -1375,7 +1376,7 @@ export default function EstimateViewPage() {
                 handleGenerateProposal('empty');
             }
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData?.services, templates, isEditingTemplate, viewingProposalId]);
 
     const handleHeaderUpdate = async (field: string, value: string | number | boolean | string[]) => {
@@ -1393,7 +1394,7 @@ export default function EstimateViewPage() {
 
                     const primaryAddrObj = (client.addresses || []).find((a: any) => a.primary) || client.addresses?.[0];
                     const primaryAddress = primaryAddrObj ? (typeof primaryAddrObj === 'string' ? primaryAddrObj : primaryAddrObj.address) : (client.businessAddress || '');
-                    
+
                     const primaryContact = (client.contacts || []).find((c: any) => c.primary) || client.contacts?.[0] || { name: client.contactFullName, email: client.email, phone: client.phone };
 
                     // Find the first non-primary address to use as default Job Address
@@ -1404,8 +1405,8 @@ export default function EstimateViewPage() {
                         const isBusiness = addrStr === client.businessAddress;
                         return !isPrimary && !isBusiness && !!addrStr;
                     });
-                    
-                    const defaultJobAddress = firstJobSite 
+
+                    const defaultJobAddress = firstJobSite
                         ? (typeof firstJobSite === 'string' ? firstJobSite : (firstJobSite.fullAddress || firstJobSite.address || firstJobSite.street))
                         : '';
 
@@ -1435,10 +1436,10 @@ export default function EstimateViewPage() {
 
     const handleFringeChange = (newFringe: string) => {
         if (!formData || !estimate) return;
-        
+
         // 1. Update form data
         setFormData(prev => prev ? { ...prev, fringe: newFringe } : null);
-        
+
         // 2. Update all labor items with new fringe (and update estimate state to trigger recalc)
         setEstimate(prev => {
             if (!prev) return null;
@@ -1525,7 +1526,7 @@ export default function EstimateViewPage() {
             _id: `new_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             estimateId: estimate?._id
         };
-        
+
         const items = (estimate[section.key] as LineItem[]) || [];
         const index = items.findIndex(i => i._id === item._id);
         const newItems = [...items];
@@ -1534,10 +1535,10 @@ export default function EstimateViewPage() {
         } else {
             newItems.push(newItem);
         }
-        
+
         const updatedEstimate = { ...estimate, [section.key]: newItems };
         setEstimate(updatedEstimate);
-        
+
         // Recalculate chartData locally for immediate save
         const calculatedSections = calculateSections(updatedEstimate, fringeConstants);
         const slices = calculatedSections.map(s => ({
@@ -1552,12 +1553,12 @@ export default function EstimateViewPage() {
         const updatedChartData = { slices, subTotal, grandTotal, markupPct };
 
         // Save immediately
-        await handleGlobalSave({ 
-            silent: true, 
-            overrideEstimate: updatedEstimate, 
-            overrideChartData: updatedChartData 
+        await handleGlobalSave({
+            silent: true,
+            overrideEstimate: updatedEstimate,
+            overrideChartData: updatedChartData
         });
-        
+
         success('Item duplicated');
     };
 
@@ -1623,7 +1624,7 @@ export default function EstimateViewPage() {
             if (!options.silent) {
                 success('Estimate saved successfully');
             }
-            
+
             setUnsavedChanges(false);
 
             // We no longer re-sort on save to maintain original order
@@ -1643,7 +1644,7 @@ export default function EstimateViewPage() {
     const handlePreview = async (forceEditMode?: boolean, explicitTemplateId?: string) => {
         const tid = explicitTemplateId || selectedTemplateId;
         if (!tid || !estimate) return;
-        
+
         // Force save if unsaved changes exist to ensure DB consistency for preview generation
         // This fixes issues where backend might ignore overrides or rely on DB state
         if (unsavedChanges) {
@@ -1661,15 +1662,15 @@ export default function EstimateViewPage() {
         };
 
         const editMode = forceEditMode !== undefined ? forceEditMode : isEditingTemplate;
-        
+
         // Find current proposal to preserve its custom edits during preview
         // Sort by date descending to always pick the latest version if multiple exist for the template
-        const sortedProposals = [...(estimate.proposals || [])].sort((a: any, b: any) => 
-            new Date(b.generatedAt || b.createdAt || 0).getTime() - 
+        const sortedProposals = [...(estimate.proposals || [])].sort((a: any, b: any) =>
+            new Date(b.generatedAt || b.createdAt || 0).getTime() -
             new Date(a.generatedAt || a.createdAt || 0).getTime()
         );
 
-        const currentProposal = viewingProposalId 
+        const currentProposal = viewingProposalId
             ? sortedProposals.find((p: any) => (p._id && String(p._id) === viewingProposalId) || (p.generatedAt && String(p.generatedAt) === viewingProposalId))
             : sortedProposals.find((p: any) => p.templateId === selectedTemplateId);
 
@@ -1817,7 +1818,7 @@ export default function EstimateViewPage() {
                     return;
                 }
             }
-            
+
             // Fallback
             router.push('/estimates');
 
@@ -1858,7 +1859,7 @@ export default function EstimateViewPage() {
             default: return [];
         }
     };
-    
+
     const handleSaveClient = async (clientData: any) => {
         try {
             const res = await apiCall('addClient', { item: clientData });
@@ -1870,29 +1871,29 @@ export default function EstimateViewPage() {
                     value: newClient._id || newClient.recordId
                 };
                 setClientOptions(prev => [...prev, opt].sort((a, b) => a.label.localeCompare(b.label)));
-                
+
                 // Update header directly
                 handleHeaderUpdate('customerName', newClient.name);
                 handleHeaderUpdate('customerId', newClient._id || newClient.recordId);
-                
+
                 // Auto-select primary contact/address if available
                 const primaryContact = newClient.contacts?.find((c: any) => c.primary || c.active);
                 if (primaryContact) {
                     handleHeaderUpdate('contactName', primaryContact.name);
                     // Use name as ID if backend doesn't provide specific contact ID
-                    handleHeaderUpdate('contactId', primaryContact.name); 
+                    handleHeaderUpdate('contactId', primaryContact.name);
                     handleHeaderUpdate('contactEmail', primaryContact.email || '');
                     handleHeaderUpdate('contactPhone', primaryContact.phone || '');
                 } else {
-                     handleHeaderUpdate('contactName', '');
-                     handleHeaderUpdate('contactId', '');
-                     handleHeaderUpdate('contactEmail', '');
-                     handleHeaderUpdate('contactPhone', '');
+                    handleHeaderUpdate('contactName', '');
+                    handleHeaderUpdate('contactId', '');
+                    handleHeaderUpdate('contactEmail', '');
+                    handleHeaderUpdate('contactPhone', '');
                 }
 
-                const primaryAddress = newClient.addresses?.find((a: any) => (typeof a !== 'string' && a.primary)) || 
-                                       (newClient.businessAddress ? { address: newClient.businessAddress } : null);
-                
+                const primaryAddress = newClient.addresses?.find((a: any) => (typeof a !== 'string' && a.primary)) ||
+                    (newClient.businessAddress ? { address: newClient.businessAddress } : null);
+
                 if (primaryAddress) {
                     // Fix: Ensure we extract a string, handling cases where address might be falsy within object
                     let addrStr = '';
@@ -1906,7 +1907,7 @@ export default function EstimateViewPage() {
                 } else {
                     handleHeaderUpdate('jobAddress', '');
                 }
-                
+
                 success('Client added successfully');
                 setIsClientModalOpen(false);
                 setNewClientName('');
@@ -1954,13 +1955,13 @@ export default function EstimateViewPage() {
             // Fetch current client to preserve primary address
             const detailRes = await apiCall('getClientById', { id: formData.customerId });
             if (!detailRes.success || !detailRes.result) return;
-            
+
             const client = detailRes.result;
             const existingAddresses = client.addresses || [];
-            
+
             // Re-integrate the primary address object if it was filtered out in the UI
             const primaryAddr = existingAddresses.find((a: any) => typeof a === 'object' && a.primary);
-            
+
             let finalAddresses = [...updatedAddresses];
             if (primaryAddr) {
                 const primaryStr = primaryAddr.fullAddress || primaryAddr.address || primaryAddr.street || '';
@@ -1969,7 +1970,7 @@ export default function EstimateViewPage() {
                     const s = typeof a === 'string' ? a : (a.fullAddress || a.address || a.street);
                     return s === primaryStr;
                 });
-                
+
                 if (!alreadyIncluded && primaryStr) {
                     finalAddresses = [primaryAddr, ...finalAddresses];
                 }
@@ -2032,129 +2033,129 @@ export default function EstimateViewPage() {
     return (
         <div className="flex flex-col h-screen bg-[#f8fafc] overflow-hidden">
             <div className="flex-none">
-            <Header
-                rightContent={
-                    <div className="flex items-center gap-1 lg:gap-2">
-                        {/* Save Button */}
-                        {unsavedChanges && (
-                            <button
-                                onClick={() => handleGlobalSave()}
-                                disabled={saving}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-xs shadow-md disabled:opacity-50"
-                            >
-                                {saving ? (
-                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                ) : (
-                                    <Save className="w-3.5 h-3.5" />
-                                )}
-                                SAVE
-                            </button>
-                        )}
+                <Header
+                    rightContent={
+                        <div className="flex items-center gap-1 lg:gap-2">
+                            {/* Save Button */}
+                            {unsavedChanges && (
+                                <button
+                                    onClick={() => handleGlobalSave()}
+                                    disabled={saving}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-all font-bold text-xs shadow-md disabled:opacity-50"
+                                >
+                                    {saving ? (
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                    ) : (
+                                        <Save className="w-3.5 h-3.5" />
+                                    )}
+                                    SAVE
+                                </button>
+                            )}
 
-                        {/* Toggle All */}
-                        {/* Section Visibility Dropdown */}
-                        <div className="relative">
+                            {/* Toggle All */}
+                            {/* Section Visibility Dropdown */}
+                            <div className="relative">
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <button
+                                            id="section-visibility-btn"
+                                            onClick={() => setShowSectionMenu(!showSectionMenu)}
+                                            className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                        >
+                                            <LayoutTemplate className="w-5 h-5" />
+                                        </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>View Options</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                                <MyDropDown
+                                    isOpen={showSectionMenu}
+                                    onClose={() => setShowSectionMenu(false)}
+                                    anchorId="section-visibility-btn"
+                                    multiSelect={true}
+                                    positionMode="bottom"
+                                    options={[
+                                        { id: 'aerialLayout', label: 'Aerial Layout', value: 'aerialLayout' },
+                                        { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
+                                        { id: 'schedules', label: 'Schedules', value: 'schedules' },
+                                        { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
+                                        { id: 'proposal', label: 'Proposal', value: 'proposal' }
+                                    ]}
+                                    selectedValues={Object.keys(visibleSections).filter(k => visibleSections[k as keyof typeof visibleSections])}
+                                    onSelect={(val) => {
+                                        setVisibleSections(prev => ({
+                                            ...prev,
+                                            [val]: !prev[val as keyof typeof visibleSections]
+                                        }));
+                                    }}
+                                    width="w-48"
+                                    hideSelectionIndicator={false}
+                                />
+                            </div>
+
+                            <div className="h-6 w-px bg-gray-200 mx-0.5 lg:mx-2 hidden sm:block" />
+
+                            {/* Refresh */}
+                            {/* Back */}
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
-                                        id="section-visibility-btn"
-                                        onClick={() => setShowSectionMenu(!showSectionMenu)}
+                                        onClick={() => router.push('/estimates')}
                                         className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                     >
-                                        <LayoutTemplate className="w-5 h-5" />
+                                        <ArrowLeft className="w-5 h-5" />
                                     </button>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                    <p>View Options</p>
+                                    <p>Back to Estimates</p>
                                 </TooltipContent>
                             </Tooltip>
-                            <MyDropDown
-                                isOpen={showSectionMenu}
-                                onClose={() => setShowSectionMenu(false)}
-                                anchorId="section-visibility-btn"
-                                multiSelect={true}
-                                positionMode="bottom"
-                                options={[
-                                    { id: 'aerialLayout', label: 'Aerial Layout', value: 'aerialLayout' },
-                                    { id: 'estimateDocs', label: 'Job Docs', value: 'estimateDocs' },
-                                    { id: 'schedules', label: 'Schedules', value: 'schedules' },
-                                    { id: 'lineItems', label: 'Line Items', value: 'lineItems' },
-                                    { id: 'proposal', label: 'Proposal', value: 'proposal' }
-                                ]}
-                                selectedValues={Object.keys(visibleSections).filter(k => visibleSections[k as keyof typeof visibleSections])}
-                                onSelect={(val) => {
-                                    setVisibleSections(prev => ({
-                                        ...prev,
-                                        [val]: !prev[val as keyof typeof visibleSections]
-                                    }));
-                                }}
-                                width="w-48"
-                                hideSelectionIndicator={false}
-                            />
+
+
+
+                            {/* Copy */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={handleCopy}
+                                        className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
+                                    >
+                                        <Copy className="w-5 h-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Copy to New Estimate</p>
+                                </TooltipContent>
+                            </Tooltip>
+
+
+                            {/* More Details */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setIsDetailsModalOpen(true)}
+                                        className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-xl transition-colors"
+                                    >
+                                        <FileSpreadsheet className="w-5 h-5" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>More Details</p>
+                                </TooltipContent>
+                            </Tooltip>
+
+                            {/* Delete */}
+
                         </div>
-
-                        <div className="h-6 w-px bg-gray-200 mx-0.5 lg:mx-2 hidden sm:block" />
-
-                        {/* Refresh */}
-                        {/* Back */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => router.push('/estimates')}
-                                    className="flex items-center justify-center w-8 h-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                >
-                                    <ArrowLeft className="w-5 h-5" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Back to Estimates</p>
-                            </TooltipContent>
-                        </Tooltip>
-
-
-
-                        {/* Copy */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={handleCopy}
-                                    className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-colors"
-                                >
-                                    <Copy className="w-5 h-5" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Copy to New Estimate</p>
-                            </TooltipContent>
-                        </Tooltip>
-
-
-                        {/* More Details */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => setIsDetailsModalOpen(true)}
-                                    className="flex items-center justify-center w-10 h-10 text-gray-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-xl transition-colors"
-                                >
-                                    <FileSpreadsheet className="w-5 h-5" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>More Details</p>
-                            </TooltipContent>
-                        </Tooltip>
-
-                        {/* Delete */}
-
-                    </div>
-                }
-            />
-        </div>
+                    }
+                />
+            </div>
             <div className="flex-1 overflow-y-auto min-h-0 w-full bg-[#F4F7FA]">
                 {/* Section 1: Header Card */}
                 <div className="w-full p-2 lg:p-4">
-                        
-                        <EstimateHeaderCard
+
+                    <EstimateHeaderCard
                         formData={formData}
                         chartData={chartData}
                         versionHistory={versionHistory}
@@ -2182,13 +2183,14 @@ export default function EstimateViewPage() {
                         onDeleteVersion={handleDeleteVersion}
 
                         onVersionClick={handleVersionClick}
+                        externalVendorsModalTrigger={vendorsModalTrigger}
                     />
-                    
-                    
+
+
                     {/* Aerial Layout Section */}
                     {visibleSections.aerialLayout && (
                         <div className="mt-4 lg:mt-6 mb-2 animation-fade-in relative z-10">
-                            <EstimateAerialLayoutCard 
+                            <EstimateAerialLayoutCard
                                 formData={formData}
                                 onUpdate={(field, value) => {
                                     setFormData(prev => prev ? { ...prev, [field]: value } : null);
@@ -2202,13 +2204,14 @@ export default function EstimateViewPage() {
                     {/* Estimate Docs Section */}
                     {visibleSections.estimateDocs && (
                         <div className="mt-4 lg:mt-6 mb-2 animation-fade-in">
-                            <EstimateDocsCard 
-                                formData={formData || {}} 
-                                employees={employeesData} 
+                            <EstimateDocsCard
+                                formData={formData || {}}
+                                employees={employeesData}
                                 onUpdate={handleHeaderUpdate}
                                 planningOptions={planningOptions}
                                 activeClient={activeClient}
                                 chartData={chartData}
+                                onOpenVendorsModal={() => setVendorsModalTrigger(t => t + 1)}
                             />
                         </div>
                     )}
@@ -2225,44 +2228,44 @@ export default function EstimateViewPage() {
                                 allConstants={allConstants}
                                 equipmentCatalog={equipmentCatalog}
                                 overheadCatalog={overheadCatalog}
-                             />
+                            />
                         </div>
                     )}
                 </div>
 
                 {/* Section 2: All Line Items (Full Screen Height with Scroll) */}
                 {visibleSections.lineItems && (
-                <div className="w-full px-2 lg:px-4 pb-4 min-h-[50vh] lg:h-[calc(100vh-64px)] flex flex-col">
-                    <EstimateLineItemsCard
-                        sections={sections}
-                        openSections={openSections}
-                        setOpenSections={setOpenSections}
-                        chartData={chartData}
-                        setActiveSection={setActiveSection}
-                        fringeRate={getFringeRate(formData?.fringe, fringeConstants)}
-                        fringeConstants={fringeConstants}
+                    <div className="w-full px-2 lg:px-4 pb-4 min-h-[50vh] lg:h-[calc(100vh-64px)] flex flex-col">
+                        <EstimateLineItemsCard
+                            sections={sections}
+                            openSections={openSections}
+                            setOpenSections={setOpenSections}
+                            chartData={chartData}
+                            setActiveSection={setActiveSection}
+                            fringeRate={getFringeRate(formData?.fringe, fringeConstants)}
+                            fringeConstants={fringeConstants}
 
-                        onAddItem={(sectionId) => {
-                            const section = sections.find(s => s.id === sectionId);
-                            if (section) setActiveSection(section);
-                        }}
-                        onEditItem={(sectionId, item, field, value) => {
-                            const section = sections.find(s => s.id === sectionId);
-                            if (section && field && value !== undefined) {
-                                handleItemUpdate(section, item, field, value);
-                            }
-                        }}
-                        onDeleteItem={(sectionId, item) => {
-                            const section = sections.find(s => s.id === sectionId);
-                            if (section) handleDeleteItem(section, item);
-                        }}
-                        onDuplicateItem={(sectionId, item) => {
-                            const section = sections.find(s => s.id === sectionId);
-                            if (section) handleDuplicateItem(section, item);
-                        }}
-                        onExplain={handleExplain}
-                    />
-                </div>
+                            onAddItem={(sectionId) => {
+                                const section = sections.find(s => s.id === sectionId);
+                                if (section) setActiveSection(section);
+                            }}
+                            onEditItem={(sectionId, item, field, value) => {
+                                const section = sections.find(s => s.id === sectionId);
+                                if (section && field && value !== undefined) {
+                                    handleItemUpdate(section, item, field, value);
+                                }
+                            }}
+                            onDeleteItem={(sectionId, item) => {
+                                const section = sections.find(s => s.id === sectionId);
+                                if (section) handleDeleteItem(section, item);
+                            }}
+                            onDuplicateItem={(sectionId, item) => {
+                                const section = sections.find(s => s.id === sectionId);
+                                if (section) handleDuplicateItem(section, item);
+                            }}
+                            onExplain={handleExplain}
+                        />
+                    </div>
                 )}
 
                 {/* Section 3: Proposal (Full Screen Height with Scroll) */}
@@ -2282,23 +2285,23 @@ export default function EstimateViewPage() {
                                 onPagesChange={setEditorPages}
                                 onServicesChange={handleServicesChange}
                                 onEditStart={() => {
-                                    const sorted = [...(estimate?.proposals || [])].sort((a: any, b: any) => 
+                                    const sorted = [...(estimate?.proposals || [])].sort((a: any, b: any) =>
                                         new Date(b.generatedAt || 0).getTime() - new Date(a.generatedAt || 0).getTime()
                                     );
-                                    const proposalToEdit = viewingProposalId 
+                                    const proposalToEdit = viewingProposalId
                                         ? sorted.find((p: any) => String(p._id) === viewingProposalId || String(p.generatedAt) === viewingProposalId)
                                         : sorted.find((p: any) => p.templateId === selectedTemplateId);
 
                                     const tmpl = templates.find(t => t._id === selectedTemplateId);
-                                    
+
                                     if (proposalToEdit?.customPages && proposalToEdit.customPages.length > 0) {
                                         setEditorPages(proposalToEdit.customPages);
                                     } else if (tmpl?.pages && tmpl.pages.length > 0) {
                                         setEditorPages(tmpl.pages);
                                     } else if (selectedTemplateId === 'empty') {
                                         // Fallback for empty template if not yet generated/saved
-                                        setEditorPages([{ 
-                                            content: `<p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"> </strong></p><table><tbody><tr><td data-row="1"><strong style="color: rgb(0, 0, 0);">Proposal / Contract Number:</strong><span style="color: rgb(0, 0, 0);"> {{proposalNo}} </span></td><td data-row="1"><strong style="color: rgb(0, 0, 0);">Date: </strong><span style="color: rgb(0, 0, 0);">{{date}} </span></td></tr><tr><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Name:</strong><span style="color: rgb(0, 0, 0);"> {{projectTitle}} </span></td><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Address: </strong><span style="color: rgb(0, 0, 0);">{{jobAddress}} </span></td></tr></tbody></table><h2><br></h2><p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"><u>Customer Contact:</u></strong></p><p class="ql-align-justify">{{customerName}}</p><p class="ql-align-justify"><span style="color: rgb(0, 0, 0);">{{contactPerson}} </span></p><p class="ql-align-justify">{{contactEmail}}</p><p class="ql-align-justify">{{contactPhone}}</p><h2><br></h2><p class="ql-align-center"><strong style="color: rgb(0, 0, 0);"><u>PROJECT SCOPE OF WORK</u></strong></p><p><br></p><p>Insert scope of work here...</p>` 
+                                        setEditorPages([{
+                                            content: `<p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"> </strong></p><table><tbody><tr><td data-row="1"><strong style="color: rgb(0, 0, 0);">Proposal / Contract Number:</strong><span style="color: rgb(0, 0, 0);"> {{proposalNo}} </span></td><td data-row="1"><strong style="color: rgb(0, 0, 0);">Date: </strong><span style="color: rgb(0, 0, 0);">{{date}} </span></td></tr><tr><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Name:</strong><span style="color: rgb(0, 0, 0);"> {{projectTitle}} </span></td><td data-row="2"><strong style="color: rgb(0, 0, 0);">Job Address: </strong><span style="color: rgb(0, 0, 0);">{{jobAddress}} </span></td></tr></tbody></table><h2><br></h2><p class="ql-align-justify"><strong style="color: rgb(0, 0, 0);"><u>Customer Contact:</u></strong></p><p class="ql-align-justify">{{customerName}}</p><p class="ql-align-justify"><span style="color: rgb(0, 0, 0);">{{contactPerson}} </span></p><p class="ql-align-justify">{{contactEmail}}</p><p class="ql-align-justify">{{contactPhone}}</p><h2><br></h2><p class="ql-align-center"><strong style="color: rgb(0, 0, 0);"><u>PROJECT SCOPE OF WORK</u></strong></p><p><br></p><p>Insert scope of work here...</p>`
                                         }]);
                                     } else {
                                         setEditorPages([{ content: tmpl?.content || '' }]);
@@ -2316,8 +2319,8 @@ export default function EstimateViewPage() {
                                 }}
                                 onCreateTemplate={handleCreateTemplate}
                                 onDownloadPdf={handleDownloadPdf}
-                                proposals={[...(estimate?.proposals || [])].sort((a: any, b: any) => 
-                                    new Date(b.generatedAt || b.createdAt || 0).getTime() - 
+                                proposals={[...(estimate?.proposals || [])].sort((a: any, b: any) =>
+                                    new Date(b.generatedAt || b.createdAt || 0).getTime() -
                                     new Date(a.generatedAt || a.createdAt || 0).getTime()
                                 )}
                                 selectedProposalId={viewingProposalId}
@@ -2343,15 +2346,15 @@ export default function EstimateViewPage() {
                                         handlePreview();
                                         return;
                                     }
-                                    const proposal = estimate?.proposals?.find((p: any) => 
-                                        (p._id && String(p._id) === proposalId) || 
+                                    const proposal = estimate?.proposals?.find((p: any) =>
+                                        (p._id && String(p._id) === proposalId) ||
                                         (p.generatedAt && String(p.generatedAt) === proposalId)
                                     );
                                     if (proposal?.htmlContent) {
                                         setViewingProposalId(proposalId);
                                         setPreviewHtml(proposal.htmlContent);
                                         setSelectedTemplateId(proposal.templateId);
-                                        
+
                                         // Restore the services active at the time of this version
                                         if (proposal.services && Array.isArray(proposal.services)) {
                                             setFormData(prev => prev ? { ...prev, services: proposal.services } : null);
@@ -2492,7 +2495,7 @@ export default function EstimateViewPage() {
                                             a.click();
                                             document.body.removeChild(a);
                                             window.URL.revokeObjectURL(url);
-                                            
+
                                             success('PDF saved successfully!');
                                         } catch (err) {
                                             console.error('PDF Generation failed:', err);
@@ -2565,8 +2568,8 @@ export default function EstimateViewPage() {
                 footer={
                     <>
                         <Button variant="secondary" onClick={() => setShowSaveTemplateModal(false)}>Cancel</Button>
-                        <Button 
-                            variant="primary" 
+                        <Button
+                            variant="primary"
                             onClick={handleUpdateMainTemplate}
                             disabled={!newTemplateTitle.trim() || isSavingTemplate}
                         >
@@ -2577,8 +2580,8 @@ export default function EstimateViewPage() {
             >
                 <div className="space-y-4">
                     <p className="text-sm text-gray-500">Enter a name for your new template. This will create a copy of the current content.</p>
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         value={newTemplateTitle}
                         onChange={(e) => setNewTemplateTitle(e.target.value)}
                         placeholder="Template Name e.g., Residential Proposal V2"
@@ -2613,7 +2616,7 @@ export default function EstimateViewPage() {
                 customerId={formData.customerId}
                 onUpdate={(field, value) => handleHeaderUpdate(field as string, value)}
             />
-            
+
             <ClientModal
                 isOpen={isClientModalOpen}
                 onClose={() => setIsClientModalOpen(false)}

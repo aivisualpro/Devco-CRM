@@ -90,6 +90,7 @@ interface EstimateHeaderCardProps {
     onCloneVersion?: (id: string, versionNumber: number) => void;
     onAddChangeOrder?: (id: string) => void;
     onDeleteVersion?: (id: string, versionNumber: number) => void;
+    externalVendorsModalTrigger?: number;
 }
 
 
@@ -121,7 +122,8 @@ export function EstimateHeaderCard({
     onUpdateClientAddresses,
     onCloneVersion,
     onAddChangeOrder,
-    onDeleteVersion
+    onDeleteVersion,
+    externalVendorsModalTrigger
 }: EstimateHeaderCardProps) {
     const router = useRouter();
 
@@ -143,6 +145,16 @@ export function EstimateHeaderCard({
     const [newVS, setNewVS] = useState({ type: 'Vendor' as 'Vendor' | 'Sub Contractor', name: '', address: '', contacts: [{ name: '', email: '', phone: '' }] });
     const [savingVS, setSavingVS] = useState(false);
 
+    // Open modal when externally triggered (e.g. from EstimateDocsCard)
+    useEffect(() => {
+        if (!externalVendorsModalTrigger) return;
+        setIsVendorsSubsModalOpen(true);
+        setLoadingVS(true);
+        fetch('/api/vendors-sub-contractors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'getAll' }) })
+            .then(r => r.json())
+            .then(d => { if (d.success) setAllVendorsSubs(d.result || []); })
+            .finally(() => setLoadingVS(false));
+    }, [externalVendorsModalTrigger]);
 
     const dropdownRef = useRef<HTMLDivElement>(null);
 

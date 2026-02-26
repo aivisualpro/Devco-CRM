@@ -70,9 +70,10 @@ interface EstimateDocsCardProps {
     planningOptions?: { id: string; label: string; value: string; color?: string }[];
     activeClient?: any;
     chartData?: { slices: any[]; subTotal: number; grandTotal: number; markupPct: number };
+    onOpenVendorsModal?: () => void;
 }
 
-export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient, chartData }) => {
+export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, formData, employees = [], onUpdate, planningOptions = [], activeClient, chartData, onOpenVendorsModal }) => {
     const { user: currentUser, getDataScope } = usePermissions();
     const [generatingDoc, setGeneratingDoc] = useState<string | null>(null);
     const [generatingIndex, setGeneratingIndex] = useState<number | null>(null);
@@ -166,6 +167,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [isVendorSubsUploading, setIsVendorSubsUploading] = useState(false);
     const [vendorSubsToDelete, setVendorSubsToDelete] = useState<string | null>(null);
     const [isVendorSubsTypeOpen, setIsVendorSubsTypeOpen] = useState(false);
+    const [isVendorSubsNameOpen, setIsVendorSubsNameOpen] = useState(false);
     const [newVendorSubs, setNewVendorSubs] = useState({
         type: '',
         vendorSubName: '',
@@ -4915,36 +4917,53 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </select>
                     </div>
                     {/* Vendor/Sub Name */}
-                    <div>
+                    <div className="relative">
                         <label className="text-xs font-bold text-slate-600 mb-1 block">Vendor / Sub Name *</label>
                         {(() => {
                             const attachedVS: any[] = (formData?.estimateVendorsSubContractors as any[]) || [];
-                            const isOtherMode = newVendorSubs.vendorSubName === '__other__' || (attachedVS.length === 0);
-                            if (attachedVS.length > 0 && !isOtherMode) {
+                            if (attachedVS.length > 0) {
+                                const vsOptions = [
+                                    ...attachedVS.map((v: any) => ({ id: v._id || v.name, label: `${v.name} — ${v.type}`, value: v.name })),
+                                    { id: '__other__', label: 'Other (type manually)...', value: '__other__' }
+                                ];
+                                const selectedLabel = (() => {
+                                    if (!newVendorSubs.vendorSubName || newVendorSubs.vendorSubName === '__other__') return null;
+                                    const opt = vsOptions.find(o => o.value === newVendorSubs.vendorSubName);
+                                    return opt ? opt.label : newVendorSubs.vendorSubName;
+                                })();
                                 return (
                                     <div className="space-y-2">
-                                        <div className="relative">
-                                            <select
-                                                value={attachedVS.some(v => v.name === newVendorSubs.vendorSubName) ? newVendorSubs.vendorSubName : (newVendorSubs.vendorSubName ? '__other__' : '')}
-                                                onChange={e => {
-                                                    if (e.target.value === '__other__') {
-                                                        setNewVendorSubs(prev => ({ ...prev, vendorSubName: '__other__' }));
-                                                    } else {
-                                                        setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }));
-                                                    }
-                                                }}
-                                                className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none appearance-none"
-                                            >
-                                                <option value="">Select vendor / sub...</option>
-                                                {attachedVS.map((v: any) => (
-                                                    <option key={v._id || v.name} value={v.name}>{v.name} — {v.type}</option>
-                                                ))}
-                                                <option value="__other__">Other (type manually)...</option>
-                                            </select>
-                                            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
-                                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                                            </div>
-                                        </div>
+                                        <button
+                                            id="vendor-sub-name-dropdown-trigger"
+                                            type="button"
+                                            onClick={() => setIsVendorSubsNameOpen(o => !o)}
+                                            className="w-full h-10 rounded-lg border border-slate-200 px-3 text-sm bg-white outline-none text-left flex items-center justify-between gap-2 hover:border-slate-300 transition-colors"
+                                        >
+                                            <span className={selectedLabel ? 'text-slate-800 font-medium' : 'text-slate-400'}>
+                                                {selectedLabel || 'Select vendor / sub...'}
+                                            </span>
+                                            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                        </button>
+                                        <MyDropDown
+                                            isOpen={isVendorSubsNameOpen}
+                                            onClose={() => setIsVendorSubsNameOpen(false)}
+                                            options={vsOptions}
+                                            selectedValues={newVendorSubs.vendorSubName ? [newVendorSubs.vendorSubName] : []}
+                                            onSelect={(val) => {
+                                                setNewVendorSubs(prev => ({ ...prev, vendorSubName: val }));
+                                                setIsVendorSubsNameOpen(false);
+                                            }}
+                                            onAdd={async () => {
+                                                setIsVendorSubsNameOpen(false);
+                                                setIsVendorSubsModalOpen(false);
+                                                onOpenVendorsModal?.();
+                                            }}
+                                            anchorId="vendor-sub-name-dropdown-trigger"
+                                            showSearch
+                                            placeholder="Search vendor / sub..."
+                                            emptyMessage="No vendors attached to this estimate"
+                                            modal
+                                        />
                                         {newVendorSubs.vendorSubName === '__other__' && (
                                             <Input
                                                 value=""
@@ -4957,11 +4976,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 );
                             }
                             return (
-                                <Input
-                                    value={newVendorSubs.vendorSubName === '__other__' ? '' : newVendorSubs.vendorSubName}
-                                    onChange={e => setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }))}
-                                    placeholder="e.g. ABC Electrical"
-                                />
+                                <div className="space-y-2">
+                                    <Input
+                                        value={newVendorSubs.vendorSubName === '__other__' ? '' : newVendorSubs.vendorSubName}
+                                        onChange={e => setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }))}
+                                        placeholder="e.g. ABC Electrical"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => { setIsVendorSubsModalOpen(false); onOpenVendorsModal?.(); }}
+                                        className="text-[11px] font-bold text-[#0F4C75] hover:text-[#0a3a5a] flex items-center gap-1 transition-colors"
+                                    >
+                                        <span className="w-4 h-4 rounded bg-[#0F4C75]/10 flex items-center justify-center text-[#0F4C75]">+</span>
+                                        Attach vendors / subs to this estimate first
+                                    </button>
+                                </div>
                             );
                         })()}
                     </div>
