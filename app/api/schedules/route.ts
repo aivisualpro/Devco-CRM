@@ -50,7 +50,7 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
         // Fetch employee emails for assignees (AppSheet expects "email , email" format)
         let assigneesList = "";
         if (item.assignees && Array.isArray(item.assignees) && item.assignees.length > 0) {
-             assigneesList = item.assignees.join(' , ');
+            assigneesList = item.assignees.join(' , ');
         } else if (typeof item.assignees === 'string') {
             assigneesList = item.assignees;
         }
@@ -64,7 +64,7 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
             "Proposal Number": String(item.estimate || ""),
             "Project Manager Name": String(item.projectManager || ""),
             "Foreman Name": String(item.foremanName || ""),
-            "Assignees": assigneesList, 
+            "Assignees": assigneesList,
             "Description": String(item.description || ""),
             "Service Item": String(item.service || ""),
             "Color": String(item.item || ""), // Mapped 'item' to 'Color'
@@ -75,9 +75,9 @@ async function updateAppSheetSchedule(data: any | any[], action: "Add" | "Edit" 
             "Aerial Image": String(item.aerialImage || ""),
             "Site Layout": String(item.siteLayout || ""),
             "Job Location": String(item.jobLocation || ""),
-            "todayObjectives": Array.isArray(item.todayObjectives) 
-                ? item.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ') 
-                : String(item.todayObjectives || "") 
+            "todayObjectives": Array.isArray(item.todayObjectives)
+                ? item.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ')
+                : String(item.todayObjectives || "")
         };
     });
 
@@ -120,7 +120,7 @@ async function updateAppSheetTimesheet(data: any | any[], action: "Add" | "Edit"
             // but usually works. However, AppSheet needs "YYYY-MM-DD HH:MM:SS"
             const date = new Date(d);
             if (isNaN(date.getTime())) return String(d); // Fallback to original string if invalid
-            
+
             // Format to YYYY-MM-DD HH:MM:SS
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -128,7 +128,7 @@ async function updateAppSheetTimesheet(data: any | any[], action: "Add" | "Edit"
             const hours = String(date.getHours()).padStart(2, '0');
             const mins = String(date.getMinutes()).padStart(2, '0');
             const secs = String(date.getSeconds()).padStart(2, '0');
-            
+
             return `${year}-${month}-${day} ${hours}:${mins}:${secs}`;
         } catch { return String(d || ""); }
     };
@@ -189,7 +189,7 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { action, payload } = body;
-        
+
         await connectToDatabase();
 
         // ── Data Scope Enforcement ──
@@ -213,6 +213,16 @@ export async function POST(request: NextRequest) {
         switch (action) {
             case 'getSchedules': {
                 const results = await Schedule.find().sort({ fromDate: -1, _id: 1 }).lean();
+                return NextResponse.json({ success: true, result: results });
+            }
+
+            case 'getSchedulesByEstimate': {
+                const { estimateNumber } = payload || {};
+                if (!estimateNumber) return NextResponse.json({ success: true, result: [] });
+                const results = await Schedule.find({ estimate: estimateNumber })
+                    .sort({ fromDate: -1 })
+                    .select('_id title estimate fromDate toDate customerName jobLocation')
+                    .lean();
                 return NextResponse.json({ success: true, result: results });
             }
 
@@ -241,7 +251,7 @@ export async function POST(request: NextRequest) {
                     if (Array.isArray(docAny.assignees) && docAny.assignees.length > 0) {
                         const fmtDate = docAny.fromDate ? new Date(docAny.fromDate).toLocaleDateString() : 'N/A';
                         const messageBody = `You have been assigned to a new devco schedule: ${docAny.title || docAny.jobLocation || 'Job Schedule'}. Date: ${fmtDate}`;
-                        
+
                         try {
                             const assigneesDocs = await Employee.find({ email: { $in: docAny.assignees } }).lean();
                             const smsPromises = assigneesDocs
@@ -261,7 +271,7 @@ export async function POST(request: NextRequest) {
                     const estimateUpdate: any = {};
                     if (payload.aerialImage !== undefined) estimateUpdate.aerialImage = payload.aerialImage;
                     if (payload.siteLayout !== undefined) estimateUpdate.siteLayout = payload.siteLayout;
-                    
+
                     if (Object.keys(estimateUpdate).length > 0) {
                         try {
                             await Estimate.updateMany({ estimate: payload.estimate }, { $set: estimateUpdate });
@@ -290,7 +300,7 @@ export async function POST(request: NextRequest) {
                     const estimateUpdate: any = {};
                     if (data.aerialImage !== undefined) estimateUpdate.aerialImage = data.aerialImage;
                     if (data.siteLayout !== undefined) estimateUpdate.siteLayout = data.siteLayout;
-                    
+
                     if (Object.keys(estimateUpdate).length > 0) {
                         try {
                             await Estimate.updateMany({ estimate: data.estimate }, { $set: estimateUpdate });
@@ -306,18 +316,18 @@ export async function POST(request: NextRequest) {
                     if (data.timesheet && Array.isArray(data.timesheet)) {
                         const oldTs = oldDoc?.timesheet || [];
                         const newTs = result.timesheet || [];
-                        
+
                         const oldIds = oldTs.map((t: any) => String(t._id || t.recordId));
                         const newIds = newTs.map((t: any) => String(t._id || t.recordId));
-                        
+
                         // Deletions: In old but not in new
                         const deleted = oldTs.filter((t: any) => !newIds.includes(String(t._id || t.recordId)));
                         if (deleted.length > 0) updateAppSheetTimesheet(deleted, "Delete");
-                        
+
                         // Additions: In new but not in old
                         const added = newTs.filter((t: any) => !oldIds.includes(String(t._id || t.recordId)));
                         if (added.length > 0) updateAppSheetTimesheet(added, "Add");
-                        
+
                         // Updates: In both (we'll just send all as Edit for simplicity, or we could diff)
                         const updated = newTs.filter((t: any) => oldIds.includes(String(t._id || t.recordId)));
                         if (updated.length > 0) updateAppSheetTimesheet(updated, "Edit");
@@ -356,7 +366,7 @@ export async function POST(request: NextRequest) {
                 });
 
                 const result = await Schedule.bulkWrite(ops);
-                
+
                 // Sync imported schedules to AppSheet asynchronously
                 const syncItems = schedules.map((item: any) => ({
                     ...item,
@@ -378,12 +388,12 @@ export async function POST(request: NextRequest) {
 
                 if (estimatesToUpdate.size > 0) {
                     try {
-                        const updatePromises = Array.from(estimatesToUpdate.entries()).map(([estNum, updateData]) => 
+                        const updatePromises = Array.from(estimatesToUpdate.entries()).map(([estNum, updateData]) =>
                             Estimate.updateMany({ estimate: estNum }, { $set: updateData })
                         );
                         await Promise.all(updatePromises);
                     } catch (e) {
-                         console.error('[Schedule API] Bulk image propagation failed:', e);
+                        console.error('[Schedule API] Bulk image propagation failed:', e);
                     }
                 }
 
@@ -396,11 +406,11 @@ export async function POST(request: NextRequest) {
 
                 // Group timesheets by scheduleId for efficient processing
                 const bySchedule: Record<string, any[]> = {};
-                
+
                 timesheets.forEach((ts: any) => {
                     const schedId = ts.scheduleId || ts.schedule_id;
                     if (!schedId) return;
-                    
+
                     const normalizedSchedId = String(schedId).trim();
 
                     // Ensure _id exists for the timesheet subdocument
@@ -408,7 +418,7 @@ export async function POST(request: NextRequest) {
                         if (ts.recordId) ts._id = ts.recordId;
                         else ts._id = new mongoose.Types.ObjectId().toString();
                     }
-                    
+
                     if (!bySchedule[normalizedSchedId]) bySchedule[normalizedSchedId] = [];
                     bySchedule[normalizedSchedId].push(ts);
                 });
@@ -425,7 +435,7 @@ export async function POST(request: NextRequest) {
 
                 for (const [schedId, tsList] of Object.entries(bySchedule)) {
                     const tsIds = tsList.map(ts => ts._id).filter(Boolean);
-                    
+
                     if (tsIds.length > 0) {
                         // Pull existing timesheets with these _ids
                         pullOps.push({
@@ -437,7 +447,7 @@ export async function POST(request: NextRequest) {
                             }
                         });
                     }
-                    
+
                     // Push all timesheets for this schedule
                     pushOps.push({
                         updateOne: {
@@ -454,17 +464,17 @@ export async function POST(request: NextRequest) {
                     if (pullOps.length > 0) {
                         await Schedule.bulkWrite(pullOps);
                     }
-                    
+
                     // Then push all the imported timesheets
                     const result = await Schedule.bulkWrite(pushOps);
-                    
+
                     // Sync imported timesheets to AppSheet
                     await updateAppSheetTimesheet(timesheets, "Add");
-                    
-                    return NextResponse.json({ 
-                        success: true, 
+
+                    return NextResponse.json({
+                        success: true,
                         result,
-                        matched: result.matchedCount, 
+                        matched: result.matchedCount,
                         modified: result.modifiedCount,
                         message: `Imported ${timesheets.length} timesheets (duplicates replaced)`
                     });
@@ -498,10 +508,10 @@ export async function POST(request: NextRequest) {
                 // For Drive Time, we need to find an ACTIVE one (no clockOut) to update
                 // OR create a new entry if none exists
                 let existingIndex = -1;
-                
+
                 if (timesheet._id) {
                     // If we have an _id, find that specific timesheet
-                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
+                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) =>
                         String(ts._id) === String(timesheet._id)
                     );
                 } else if (timesheet.type === 'Drive Time' && timesheet.clockIn && !timesheet.clockOut) {
@@ -510,19 +520,19 @@ export async function POST(request: NextRequest) {
                 } else if (timesheet.type === 'Drive Time' && timesheet.clockOut) {
                     // Stopping Drive Time: find the active one for this employee
                     const empEmail = String(timesheet.employee).toLowerCase();
-                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
-                        String(ts.employee).toLowerCase() === empEmail && 
-                        ts.type === 'Drive Time' && 
+                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) =>
+                        String(ts.employee).toLowerCase() === empEmail &&
+                        ts.type === 'Drive Time' &&
                         (!ts.clockOut || ts.clockOut === '' || ts.clockOut === null)
                     );
                 } else {
                     // For other types, find by employee and type
                     const empEmail = String(timesheet.employee).toLowerCase();
-                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) => 
+                    existingIndex = (schedule.timesheet || []).findIndex((ts: any) =>
                         String(ts.employee).toLowerCase() === empEmail && ts.type === timesheet.type
                     );
                 }
-                
+
                 if (existingIndex > -1) {
                     // Update existing
                     const updateObj: any = {};
@@ -530,7 +540,7 @@ export async function POST(request: NextRequest) {
                         updateObj[`timesheet.${existingIndex}.${key}`] = timesheet[key];
                     });
                     updateObj.updatedAt = new Date();
-                    
+
                     await Schedule.updateOne(
                         { _id: timesheet.scheduleId },
                         { $set: updateObj }
@@ -545,7 +555,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 const updatedSchedule = await Schedule.findById(timesheet.scheduleId).lean();
-                
+
                 // Sync the specific timesheet to AppSheet (Background)
                 updateAppSheetTimesheet(timesheet, existingIndex > -1 ? "Edit" : "Add");
 
@@ -562,27 +572,27 @@ export async function POST(request: NextRequest) {
                 // Look up employee's hourly rate for drive time (dump/shop are Drive Time entries)
                 const empDocQt = await Employee.findOne({ email: employee }).lean();
                 const driveRate = empDocQt?.hourlyRateDrive || null;
-                
+
                 // Find existing record for this employee acting as Dump/Shop container
-                const existingIndexQt = (scheduleQt.timesheet || []).findIndex((ts: any) => 
-                    String(ts.employee).toLowerCase() === empEmailQt && 
+                const existingIndexQt = (scheduleQt.timesheet || []).findIndex((ts: any) =>
+                    String(ts.employee).toLowerCase() === empEmailQt &&
                     ((String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true) ||
-                     (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
+                        (String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true))
                 );
 
                 const clockOut = new Date(date || new Date()).toISOString();
                 let finalDumpQty = (dumpQty !== undefined) ? dumpQty : 0;
                 let finalShopQty = (shopQty !== undefined) ? shopQty : 0;
-                
+
                 // If specific quantities not provided in payload (legacy call?), fallback to increment logic (simplified)
                 if (dumpQty === undefined && shopQty === undefined) {
-                     // Fallback for safety, though frontend sends them now
-                     if (type === 'Dump Washout') finalDumpQty = 1; 
+                    // Fallback for safety, though frontend sends them now
+                    if (type === 'Dump Washout') finalDumpQty = 1;
                 }
 
                 if (existingIndexQt > -1 && scheduleQt.timesheet) {
                     const ts = scheduleQt.timesheet[existingIndexQt];
-                    
+
                     const newDumpQty = (dumpQty !== undefined) ? dumpQty : (ts.dumpQty || (ts.dumpWashout ? 1 : 0));
                     const newShopQty = (shopQty !== undefined) ? shopQty : (ts.shopQty || (ts.shopTime ? 1 : 0));
 
@@ -604,14 +614,14 @@ export async function POST(request: NextRequest) {
                     // Embed hourly rate for payroll integrity
                     if (driveRate) updateObj[`timesheet.${existingIndexQt}.hourlyRateDrive`] = driveRate;
                     updateObj.updatedAt = new Date();
-                    
+
                     await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj, $unset: { [`timesheet.${existingIndexQt}.dumpWashout`]: newDumpQty <= 0 ? "" : undefined, [`timesheet.${existingIndexQt}.shopTime`]: newShopQty <= 0 ? "" : undefined } });
-                    
-                    const updatedTs = { 
-                        ...ts, 
-                        qty: newQty, 
-                        hours: parseFloat(totalHours.toFixed(2)), 
-                        dumpQty: newDumpQty, 
+
+                    const updatedTs = {
+                        ...ts,
+                        qty: newQty,
+                        hours: parseFloat(totalHours.toFixed(2)),
+                        dumpQty: newDumpQty,
                         shopQty: newShopQty,
                         clockIn,
                         clockOut,
@@ -624,7 +634,7 @@ export async function POST(request: NextRequest) {
                 } else {
                     const newDumpQty = (dumpQty !== undefined) ? dumpQty : (type === 'Dump Washout' ? 1 : 0);
                     const newShopQty = (shopQty !== undefined) ? shopQty : (type === 'Shop Time' ? 1 : 0);
-                    
+
                     const totalHours = (newDumpQty * 0.50) + (newShopQty * 0.25);
                     const clockIn = new Date(new Date(clockOut).getTime() - (totalHours * 60 * 60 * 1000)).toISOString();
 
@@ -667,7 +677,7 @@ export async function POST(request: NextRequest) {
                         if (location) updateObj[`timesheet.${tsIndex}.locationOut`] = location;
                         updateObj.updatedAt = new Date();
                         await Schedule.updateOne({ _id: scheduleId }, { $set: updateObj });
-                        
+
                         const updated = await Schedule.findById(scheduleId).lean();
                         const ts = updated?.timesheet?.[tsIndex];
                         if (ts) updateAppSheetTimesheet(ts, "Edit");
@@ -698,13 +708,13 @@ export async function POST(request: NextRequest) {
                 const schedules = await Schedule.find({ "timesheet.0": { $exists: true } }).lean();
                 let count = 0;
                 const bulkOps = [];
-                
+
                 for (const doc of (schedules as any[])) {
                     let modified = false;
                     const newTimesheets = (doc.timesheet || []).map((ts: any) => {
                         // Pass doc.fromDate as string/date for calculation context
                         const stats = calculateTimesheetData(ts, doc.fromDate);
-                        
+
                         // Overwrite with fresh calculation
                         // We use inequality check to avoid writing if nothing changed
                         if (ts.hours !== stats.hours || ts.distance !== stats.distance) {
@@ -713,7 +723,7 @@ export async function POST(request: NextRequest) {
                         }
                         return ts;
                     });
-                    
+
                     if (modified) {
                         bulkOps.push({
                             updateOne: {
@@ -724,22 +734,22 @@ export async function POST(request: NextRequest) {
                         count++;
                     }
                 }
-                
+
                 if (bulkOps.length > 0) {
                     await Schedule.bulkWrite(bulkOps);
                 }
-                
+
                 return NextResponse.json({ success: true, message: `Updated ${count} schedules` });
             }
 
             case 'getScheduleActivity': {
                 const { start, end, userEmail } = payload || {};
                 const filters: any = {};
-                
+
                 if (start && end) {
-                    filters.fromDate = { 
-                        $gte: new Date(start), 
-                        $lte: new Date(end) 
+                    filters.fromDate = {
+                        $gte: new Date(start),
+                        $lte: new Date(end)
                     };
                 }
 
@@ -760,13 +770,13 @@ export async function POST(request: NextRequest) {
             }
 
             case 'getSchedulesPage': {
-                const { 
-                    page = 1, 
-                    limit = 20, 
-                    search = '', 
-                    filters = {}, 
-                    selectedDates = [], 
-                    userEmail, 
+                const {
+                    page = 1,
+                    limit = 20,
+                    search = '',
+                    filters = {},
+                    selectedDates = [],
+                    userEmail,
                     skipInitialData,
                     startDate,
                     endDate,
@@ -779,24 +789,24 @@ export async function POST(request: NextRequest) {
                 if (startDate && endDate) {
                     const startD = new Date(startDate);
                     const endD = new Date(endDate);
-                    console.log('[API] Schedule date filter:', { 
-                        startDate, 
-                        endDate, 
-                        parsedStart: startD.toISOString(), 
-                        parsedEnd: endD.toISOString() 
+                    console.log('[API] Schedule date filter:', {
+                        startDate,
+                        endDate,
+                        parsedStart: startD.toISOString(),
+                        parsedEnd: endD.toISOString()
                     });
                     matchStage.fromDate = {
                         $gte: startD,
                         $lte: endD
                     };
                 } else if (selectedDates && selectedDates.length > 0) {
-                     // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
-                     matchStage.$expr = {
+                    // Match fromDate stringified to YYYY-MM-DD in the selectedDates array
+                    matchStage.$expr = {
                         $in: [
                             { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "UTC" } },
                             selectedDates
                         ]
-                     };
+                    };
                 }
 
                 // 2. Search Filter (Multi-field)
@@ -823,7 +833,7 @@ export async function POST(request: NextRequest) {
                         { foremanName: effectiveUserEmail },
                         { assignees: effectiveUserEmail }
                     ];
-                     if (matchStage.$or) {
+                    if (matchStage.$or) {
                         matchStage.$and = [
                             { $or: matchStage.$or },
                             { $or: userFilter }
@@ -844,39 +854,39 @@ export async function POST(request: NextRequest) {
                 if (filters.service) matchStage.service = filters.service;
                 if (filters.tag) matchStage.item = filters.tag;
                 // Note: certifiedPayroll filter is handled via $lookup on Estimate collection (see pipeline below)
-                
+
                 if (filters.employee) {
-                     const empQuery = [
+                    const empQuery = [
                         { projectManager: filters.employee },
                         { foremanName: filters.employee },
                         { assignees: filters.employee }
                     ];
                     // Merge with existing AND/OR structure if necessary, but usually this is standalone AND
                     // Simplest way for adding to TOP level AND:
-                    if (matchStage.$or && !userEmail && !search) { 
+                    if (matchStage.$or && !userEmail && !search) {
                         // If only other $or exists (unlikely given logic above), rigorous merge needed.
                         // But here, filters.employee implies an AND requirement on top of others.
                         // So we use $and explicitly if there's potential conflict, or just implied AND key
                         // But we can't have duplicate keys in object.
                         // Let's use $and for safety if we already have complex logic
-                         matchStage.$and = [
+                        matchStage.$and = [
                             ...(matchStage.$and || []),
                             { $or: empQuery }
-                         ];
+                        ];
                     } else {
-                         // If we already have $and
-                         if (matchStage.$and) {
-                             matchStage.$and.push({ $or: empQuery });
-                         } else {
-                             // Create $and to combine with potential existing $or (from search/user) OR just standalone
-                             // Wait, if matchStage.$or exists from search/user, we shouldn't overwrite it.
-                             if (matchStage.$or) {
-                                  matchStage.$and = [ { $or: matchStage.$or }, { $or: empQuery } ];
-                                  delete matchStage.$or;
-                             } else {
-                                 matchStage.$or = empQuery;
-                             }
-                         }
+                        // If we already have $and
+                        if (matchStage.$and) {
+                            matchStage.$and.push({ $or: empQuery });
+                        } else {
+                            // Create $and to combine with potential existing $or (from search/user) OR just standalone
+                            // Wait, if matchStage.$or exists from search/user, we shouldn't overwrite it.
+                            if (matchStage.$or) {
+                                matchStage.$and = [{ $or: matchStage.$or }, { $or: empQuery }];
+                                delete matchStage.$or;
+                            } else {
+                                matchStage.$or = empQuery;
+                            }
+                        }
                     }
                 }
 
@@ -932,44 +942,46 @@ export async function POST(request: NextRequest) {
                                 // CRITICAL: Conditionally include timesheet array based on includeTimesheets parameter
                                 // For schedule list view: exclude massive timesheet arrays
                                 // For time-cards view: include ONLY timesheets, exclude other heavy data
-                                { $project: includeTimesheets ? {
-                                    // REPORTS/TIME-CARDS MODE: Include timesheet + fields needed for reports
-                                    estimate: 1, fromDate: 1, toDate: 1,  
-                                    timesheet: 1,
-                                    // Additional fields needed for payroll/fringe/workers-comp reports
-                                    title: 1, projectTitle: 1, jobTitle: 1,
-                                    item: 1, fringe: 1, certifiedPayroll: 1,
-                                    customerName: 1, customerId: 1,
-                                    createdAt: 1, updatedAt: 1
-                                } : {
-                                    // SCHEDULE LIST MODE: Exclude timesheet array and heavy signature data
-                                    title: 1, estimate: 1, customerId: 1, customerName: 1, 
-                                    fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1, 
-                                    assignees: 1, service: 1, item: 1, perDiem: 1, fringe: 1, 
-                                    certifiedPayroll: 1, notifyAssignees: 1, description: 1, 
-                                    jobLocation: 1, aerialImage: 1, siteLayout: 1, 
-                                    // Project heavy objects partially
-                                    jha: { 
-                                        _id: 1, 
-                                        status: 1, 
-                                        // Exclude signatures and images 
-                                    }, 
-                                    djt: { 
-                                        _id: 1, 
-                                        dailyJobDescription: 1,
-                                        equipmentUsed: 1,
-                                        // Exclude signatures and images
-                                    }, 
-                                    timesheet: 1, // Included for status icons & assignee colors
-                                    // Exclude top-level signature arrays
-                                    // JHASignatures: 0, 
-                                    // DJTSignatures: 0,
-                                    todayObjectives: 1, syncedToAppSheet: 1, isDayOffApproved: 1,
-                                    createdAt: 1, updatedAt: 1,
-                                    hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] },
-                                    hasJHA: { $and: [{ $ifNull: ['$jha', false] }, { $ne: ['$jha', {}] }] },
-                                    hasDJT: { $and: [{ $ifNull: ['$djt', false] }, { $ne: ['$djt', {}] }] }
-                                }}
+                                {
+                                    $project: includeTimesheets ? {
+                                        // REPORTS/TIME-CARDS MODE: Include timesheet + fields needed for reports
+                                        estimate: 1, fromDate: 1, toDate: 1,
+                                        timesheet: 1,
+                                        // Additional fields needed for payroll/fringe/workers-comp reports
+                                        title: 1, projectTitle: 1, jobTitle: 1,
+                                        item: 1, fringe: 1, certifiedPayroll: 1,
+                                        customerName: 1, customerId: 1,
+                                        createdAt: 1, updatedAt: 1
+                                    } : {
+                                        // SCHEDULE LIST MODE: Exclude timesheet array and heavy signature data
+                                        title: 1, estimate: 1, customerId: 1, customerName: 1,
+                                        fromDate: 1, toDate: 1, foremanName: 1, projectManager: 1,
+                                        assignees: 1, service: 1, item: 1, perDiem: 1, fringe: 1,
+                                        certifiedPayroll: 1, notifyAssignees: 1, description: 1,
+                                        jobLocation: 1, aerialImage: 1, siteLayout: 1,
+                                        // Project heavy objects partially
+                                        jha: {
+                                            _id: 1,
+                                            status: 1,
+                                            // Exclude signatures and images 
+                                        },
+                                        djt: {
+                                            _id: 1,
+                                            dailyJobDescription: 1,
+                                            equipmentUsed: 1,
+                                            // Exclude signatures and images
+                                        },
+                                        timesheet: 1, // Included for status icons & assignee colors
+                                        // Exclude top-level signature arrays
+                                        // JHASignatures: 0, 
+                                        // DJTSignatures: 0,
+                                        todayObjectives: 1, syncedToAppSheet: 1, isDayOffApproved: 1,
+                                        createdAt: 1, updatedAt: 1,
+                                        hasTimesheet: { $gt: [{ $size: { $ifNull: ['$timesheet', []] } }, 0] },
+                                        hasJHA: { $and: [{ $ifNull: ['$jha', false] }, { $ne: ['$jha', {}] }] },
+                                        hasDJT: { $and: [{ $ifNull: ['$djt', false] }, { $ne: ['$djt', {}] }] }
+                                    }
+                                }
                             ],
                             counts: [
                                 { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$fromDate", timezone: "UTC" } }, count: { $sum: 1 } } }
@@ -985,7 +997,7 @@ export async function POST(request: NextRequest) {
                 const [aggResult, ...metadata] = await Promise.all([
                     Schedule.aggregate(pipeline),
                     !skipInitialData ? Client.find().select('name _id').sort({ name: 1 }).lean() : Promise.resolve([]),
-                    !skipInitialData ? Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive address ssNumber').lean() : Promise.resolve([]), 
+                    !skipInitialData ? Employee.find({ status: { $ne: 'Inactive' } }).select('firstName lastName email profilePicture hourlyRateSITE hourlyRateDrive classification companyPosition designation isScheduleActive address ssNumber').lean() : Promise.resolve([]),
                     !skipInitialData ? Constant.find().select('type description color value image').lean() : Promise.resolve([]),
                     !skipInitialData ? Estimate.find({ status: { $ne: 'deleted' } })
                         .select('estimate _id updatedAt createdAt customer customerName customerId projectTitle projectName projectId jobAddress contactName contactPhone contactEmail contact phone fringe certifiedPayroll')
@@ -1000,17 +1012,17 @@ export async function POST(request: NextRequest) {
                 const totalCount = aggResult[0].metadata[0]?.total || 0;
                 const dailyCounts = aggResult[0].counts || [];
                 const totalAssignees = aggResult[0].assigneeStats[0]?.total || 0;
-                
+
                 const totalActiveEmployees = await Employee.countDocuments({ isScheduleActive: true });
-                
+
                 let days = 7;
                 if (selectedDates && selectedDates.length > 0) days = selectedDates.length;
                 else if (startDate && endDate) {
-                     const start = new Date(startDate);
-                     const end = new Date(endDate);
-                     days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+                    const start = new Date(startDate);
+                    const end = new Date(endDate);
+                    days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
                 }
-                
+
                 const capacity = (totalActiveEmployees > 0 && days > 0) ? Math.round((totalAssignees / (totalActiveEmployees * days)) * 100) : 0;
 
                 // Process initial data... (Same as before)
@@ -1032,7 +1044,7 @@ export async function POST(request: NextRequest) {
                     };
                 });
 
-                const finalResult: any = { 
+                const finalResult: any = {
                     schedules: schedulesWithMetaData,
                     total: totalCount,
                     counts: dailyCounts,
@@ -1041,7 +1053,7 @@ export async function POST(request: NextRequest) {
                     totalPages: Math.ceil(totalCount / limit)
                 };
 
-                 if (!skipInitialData) {
+                if (!skipInitialData) {
                     // Process estimates to keep unique estimate numbers (Latest first)
                     const uniqueEstimates = new Map();
                     estimates
@@ -1049,9 +1061,9 @@ export async function POST(request: NextRequest) {
                         .forEach((e: any) => {
                             if (e.estimate && !uniqueEstimates.has(e.estimate)) {
                                 const pName = e.projectTitle || e.projectName || '';
-                                uniqueEstimates.set(e.estimate, { 
-                                    value: e.estimate, 
-                                    label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
+                                uniqueEstimates.set(e.estimate, {
+                                    value: e.estimate,
+                                    label: pName ? `${e.estimate} - ${pName}` : e.estimate,
                                     customerId: e.customerId,
                                     customerName: (() => {
                                         const client = clients?.find((c: any) => String(c._id) === String(e.customerId));
@@ -1088,10 +1100,10 @@ export async function POST(request: NextRequest) {
                                                 // 2. Convert <p> and <br> to newlines to preserve spacing
                                                 // Replace block tags with double newlines for paragraph separation
                                                 html = html.replace(/<\/p>/gi, '\n\n')
-                                                           .replace(/<br\s*\/?>/gi, '\n')
-                                                           .replace(/<\/div>/gi, '\n')
-                                                           .replace(/<\/tr>/gi, '\n');
-                                                
+                                                    .replace(/<br\s*\/?>/gi, '\n')
+                                                    .replace(/<\/div>/gi, '\n')
+                                                    .replace(/<\/tr>/gi, '\n');
+
                                                 // 3. Strip remaining HTML tags
                                                 let text = html.replace(/<[^>]*>/g, '');
 
@@ -1103,9 +1115,9 @@ export async function POST(request: NextRequest) {
 
                                                 // 5. Decode HTML entities (basic ones)
                                                 text = text.replace(/&nbsp;/g, ' ')
-                                                           .replace(/&amp;/g, '&')
-                                                           .replace(/&lt;/g, '<')
-                                                           .replace(/&gt;/g, '>');
+                                                    .replace(/&amp;/g, '&')
+                                                    .replace(/&lt;/g, '<')
+                                                    .replace(/&gt;/g, '>');
 
                                                 // 6. Clean up excessive whitespace
                                                 // We want to keep newlines but merge multiple spaces
@@ -1115,18 +1127,18 @@ export async function POST(request: NextRequest) {
                                                 // 6. Format as bullet points based on periods
                                                 // Split by period. If a period exists, it creates a new line.
                                                 // We will replace every period that has text after it with a newline and bullet.
-                                                
+
                                                 // First, split by period.
                                                 const segments = text.split('.');
-                                                
+
                                                 // Filter out empty segments and trim
                                                 const cleanSegments = segments.map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-                                                
+
                                                 if (cleanSegments.length > 0) {
                                                     // Join with period + newline + bullet
                                                     return '• ' + cleanSegments.join('.\n\n• ') + '.';
                                                 }
-                                                
+
                                                 return text;
                                             }
                                         }
@@ -1143,9 +1155,9 @@ export async function POST(request: NextRequest) {
 
                     finalResult.initialData = {
                         clients: Array.from(new Map(clients?.filter((c: any) => c?._id).map((c: any) => [c._id.toString(), c]) || []).values()),
-                        employees: Array.from(new Map(employees?.filter((e: any) => e?.email).map((e: any) => [e.email, { 
-                            value: e.email, 
-                            label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
+                        employees: Array.from(new Map(employees?.filter((e: any) => e?.email).map((e: any) => [e.email, {
+                            value: e.email,
+                            label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email,
                             image: e.profilePicture,
                             hourlyRateSITE: (e as any).hourlyRateSITE,
                             hourlyRateDrive: (e as any).hourlyRateDrive,
@@ -1192,9 +1204,9 @@ export async function POST(request: NextRequest) {
                     .forEach((e: any) => {
                         if (e.estimate && !uniqueEstimates.has(e.estimate)) {
                             const pName = e.projectTitle || e.projectName || '';
-                            uniqueEstimates.set(e.estimate, { 
-                                value: e.estimate, 
-                                label: pName ? `${e.estimate} - ${pName}` : e.estimate, 
+                            uniqueEstimates.set(e.estimate, {
+                                value: e.estimate,
+                                label: pName ? `${e.estimate} - ${pName}` : e.estimate,
                                 customerId: e.customerId,
                                 customerName: (() => {
                                     const client = clients?.find((c: any) => String(c._id) === String(e.customerId));
@@ -1217,9 +1229,9 @@ export async function POST(request: NextRequest) {
                     success: true,
                     result: {
                         clients: Array.from(new Map(clients.filter(c => c?._id).map(c => [c._id.toString(), c])).values()),
-                        employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, { 
-                            value: e.email, 
-                            label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email, 
+                        employees: Array.from(new Map(employees.filter(e => e?.email).map(e => [e.email, {
+                            value: e.email,
+                            label: `${e.firstName || ''} ${e.lastName || ''}`.trim() || e.email,
                             image: e.profilePicture,
                             classification: (e as any).classification,
                             companyPosition: (e as any).companyPosition,
@@ -1249,7 +1261,7 @@ export async function POST(request: NextRequest) {
 
                 const { id } = payload || {};
                 if (!id) return NextResponse.json({ success: false, error: 'Schedule ID is required' });
-                
+
                 const schedule = await Schedule.findById(id).lean();
                 if (!schedule) return NextResponse.json({ success: false, error: 'Schedule not found' });
 
@@ -1264,7 +1276,7 @@ export async function POST(request: NextRequest) {
                     try {
                         const date = new Date(d);
                         if (isNaN(date.getTime())) return "";
-                        return date.toISOString().split('T')[0]; 
+                        return date.toISOString().split('T')[0];
                     } catch { return ""; }
                 };
 
@@ -1284,7 +1296,7 @@ export async function POST(request: NextRequest) {
                     "Proposal Number": String(schedule.estimate || ""),
                     "Project Manager Name": String(schedule.projectManager || ""),
                     "Foreman Name": String(schedule.foremanName || ""),
-                    "Assignees": assigneesList, 
+                    "Assignees": assigneesList,
                     "Description": String(schedule.description || ""),
                     "Service Item": String(schedule.service || ""),
                     "Color": String(schedule.item || ""),
@@ -1294,16 +1306,16 @@ export async function POST(request: NextRequest) {
                     "Per Diem": String(schedule.perDiem || ""),
                     "Aerial Image": String(schedule.aerialImage || ""),
                     "Site Layout": String(schedule.siteLayout || ""),
-                    "todayObjectives": Array.isArray(schedule.todayObjectives) 
-                        ? schedule.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ') 
-                        : String(schedule.todayObjectives || "") 
+                    "todayObjectives": Array.isArray(schedule.todayObjectives)
+                        ? schedule.todayObjectives.map((obj: any) => typeof obj === 'string' ? obj : obj.text).join(' , ')
+                        : String(schedule.todayObjectives || "")
                 };
 
                 const APPSHEET_URL = `https://api.appsheet.com/api/v2/apps/${encodeURIComponent(appId)}/tables/${encodeURIComponent(tableName)}/Action`;
 
                 try {
                     console.log("[AppSheet Sync] Attempting to Add record:", id);
-                    
+
                     // First try to Add the record (for new records)
                     let response = await fetch(APPSHEET_URL, {
                         method: "POST",
@@ -1320,10 +1332,10 @@ export async function POST(request: NextRequest) {
 
                     let responseText = await response.text();
                     console.log("[AppSheet Sync] Add response:", response.status, responseText);
-                    
+
                     // Check if Add was successful
                     let success = response.ok;
-                    
+
                     // Parse response to check for errors in body
                     try {
                         const jsonResponse = JSON.parse(responseText);
@@ -1334,13 +1346,13 @@ export async function POST(request: NextRequest) {
                     } catch (e) {
                         // Not JSON, check if response is OK
                     }
-                    
+
 
                     // If Add failed, try Edit (record might already exist in AppSheet)
                     if (!success) {
                         const addErrorText = responseText; // Save the Add error
                         console.log("[AppSheet Sync] Add failed, trying Edit...", addErrorText);
-                        
+
                         response = await fetch(APPSHEET_URL, {
                             method: "POST",
                             headers: {
@@ -1353,10 +1365,10 @@ export async function POST(request: NextRequest) {
                                 Rows: [row]
                             })
                         });
-                        
+
                         responseText = await response.text();
                         console.log("[AppSheet Sync] Edit response:", response.status, responseText);
-                        
+
                         // Check Edit result
                         let editSuccess = response.ok;
                         try {
@@ -1364,14 +1376,14 @@ export async function POST(request: NextRequest) {
                             if (jsonResponse.Errors) {
                                 editSuccess = false;
                             }
-                        } catch (e) {}
-                        
+                        } catch (e) { }
+
                         if (!editSuccess) {
                             console.error("[AppSheet Sync] Both Add and Edit failed.");
                             // Return BOTH errors to help debug
-                            return NextResponse.json({ 
-                                success: false, 
-                                error: `Sync Failed. ADD Error: ${addErrorText}. EDIT Error: ${responseText}` 
+                            return NextResponse.json({
+                                success: false,
+                                error: `Sync Failed. ADD Error: ${addErrorText}. EDIT Error: ${responseText}`
                             });
                         }
                     }
@@ -1400,236 +1412,292 @@ export async function POST(request: NextRequest) {
                         { $match: { "timesheet.employee": { $regex: new RegExp(`^${currentUserEmail.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}$`, 'i') } } }
                     ] : []),
                     // First, extract the clockIn as a Date object and determine type/location info
-                    { $addFields: {
-                        // Convert clockIn string to Date object for date operations
-                        clockInDate: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
-                        // Determine if this is drive time
-                        isDriveTime: { $regexMatch: { input: { $toLower: { $ifNull: ["$timesheet.type", ""] } }, regex: /drive/ } },
-                        // Check if locationIn contains valid coordinates (has a comma with numbers)
-                        hasLocationIn: { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.locationIn", ""] } }, regex: /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/ } },
-                        // Check if locationOut contains valid coordinates
-                        hasLocationOut: { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.locationOut", ""] } }, regex: /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/ } },
-                        // Check for manual distance
-                        hasManualDistance: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDistance", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
-                        // Calculate dump washout hours: qty * 0.5
-                        // Uses dumpQty numeric field (saved by frontend), falls back to checking dumpWashout truthy value
-                        dumpHrs: { $multiply: [
-                            { $cond: {
-                                if: { $and: [{ $ne: [{ $ifNull: ["$timesheet.dumpQty", null] }, null] }, { $gt: ["$timesheet.dumpQty", 0] }] },
-                                then: "$timesheet.dumpQty",
-                                else: { $cond: {
-                                    // Fallback: if dumpWashout is truthy (true, "true", "yes", or any non-empty string containing "qty"), count as 1
-                                    if: { $or: [
-                                        { $eq: ["$timesheet.dumpWashout", true] },
-                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } } }, "true"] },
-                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } } }, "yes"] },
-                                        { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } }, regex: /qty/ } }
-                                    ]},
-                                    then: 1,
-                                    else: 0
-                                }}
-                            }},
-                            0.5
-                        ]},
-                        // Calculate shop hours: qty * 0.25
-                        shopHrs: { $multiply: [
-                            { $cond: {
-                                if: { $and: [{ $ne: [{ $ifNull: ["$timesheet.shopQty", null] }, null] }, { $gt: ["$timesheet.shopQty", 0] }] },
-                                then: "$timesheet.shopQty",
-                                else: { $cond: {
-                                    if: { $or: [
-                                        { $eq: ["$timesheet.shopTime", true] },
-                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } } }, "true"] },
-                                        { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } } }, "yes"] },
-                                        { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } }, regex: /qty/ } }
-                                    ]},
-                                    then: 1,
-                                    else: 0
-                                }}
-                            }},
-                            0.25
-                        ]}
-                    }},
-                    // For drive time with coordinates, calculate haversine distance
-                    // Split locationIn/Out strings into lat/lon components
-                    { $addFields: {
-                        _locInParts: { $cond: { if: "$hasLocationIn", then: { $split: ["$timesheet.locationIn", ","] }, else: ["0", "0"] } },
-                        _locOutParts: { $cond: { if: "$hasLocationOut", then: { $split: ["$timesheet.locationOut", ","] }, else: ["0", "0"] } }
-                    }},
-                    { $addFields: {
-                        _lat1Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locInParts", 0] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
-                        _lon1Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locInParts", 1] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
-                        _lat2Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locOutParts", 0] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
-                        _lon2Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locOutParts", 1] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] }
-                    }},
-                    { $addFields: {
-                        _dLat: { $subtract: ["$_lat2Rad", "$_lat1Rad"] },
-                        _dLon: { $subtract: ["$_lon2Rad", "$_lon1Rad"] }
-                    }},
-                    { $addFields: {
-                        // Haversine 'a' = sin²(dLat/2) + cos(lat1) * cos(lat2) * sin²(dLon/2)
-                        _haversineA: { $add: [
-                            { $multiply: [{ $sin: { $divide: ["$_dLat", 2] } }, { $sin: { $divide: ["$_dLat", 2] } }] },
-                            { $multiply: [
-                                { $cos: "$_lat1Rad" },
-                                { $cos: "$_lat2Rad" },
-                                { $sin: { $divide: ["$_dLon", 2] } },
-                                { $sin: { $divide: ["$_dLon", 2] } }
-                            ]}
-                        ]}
-                    }},
-                    { $addFields: {
-                        // Distance in miles = R * 2 * atan2(sqrt(a), sqrt(1 - a)) * DRIVING_FACTOR
-                        // R = 3958.8 miles, DRIVING_FACTOR = 1.5
-                        _haversineDist: { $multiply: [
-                            3958.8,
-                            { $multiply: [2, { $atan2: [{ $sqrt: "$_haversineA" }, { $sqrt: { $subtract: [1, "$_haversineA"] } }] }] },
-                            1.5  // Driving factor (same as frontend)
-                        ]},
-                        // Manual distance (if set)
-                        _manualDist: { $convert: { input: { $ifNull: ["$timesheet.manualDistance", 0] }, to: "double", onError: 0, onNull: 0 } }
-                    }},
-                    { $addFields: {
-                        // Final drive distance: manual distance takes priority, then haversine
-                        _driveDistance: { $cond: {
-                            if: { $gt: ["$_manualDist", 0] },
-                            then: "$_manualDist",
-                            else: { $cond: {
-                                if: { $and: ["$hasLocationIn", "$hasLocationOut"] },
-                                then: "$_haversineDist",
-                                else: 0
-                            }}
-                        }}
-                    }},
-                    // Calculate raw hoursNum based on type and location availability
-                    { $addFields: {
-                        _rawHoursNum: {
-                            $cond: {
-                                // ALL Drive Time: calculate from distance + dump/shop, or manual hours override
-                                if: "$isDriveTime",
-                                then: {
-                                    $cond: {
-                                        // Manual duration override (manualDuration field) — always takes priority
-                                        if: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
-                                        then: { $convert: { input: "$timesheet.manualDuration", to: "double", onError: 0, onNull: 0 } },
-                                        else: {
-                                            $cond: {
-                                                // Has distance (locations or manual) → distance/55 + dump + shop
-                                                if: { $gt: ["$_driveDistance", 0] },
-                                                then: { $add: [
-                                                    { $divide: ["$_driveDistance", 55] },
-                                                    { $ifNull: ["$dumpHrs", 0] },
-                                                    { $ifNull: ["$shopHrs", 0] }
-                                                ]},
-                                                // No distance, no locations → dump + shop only
-                                                else: { $add: [{ $ifNull: ["$dumpHrs", 0] }, { $ifNull: ["$shopHrs", 0] }] }
+                    {
+                        $addFields: {
+                            // Convert clockIn string to Date object for date operations
+                            clockInDate: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
+                            // Determine if this is drive time
+                            isDriveTime: { $regexMatch: { input: { $toLower: { $ifNull: ["$timesheet.type", ""] } }, regex: /drive/ } },
+                            // Check if locationIn contains valid coordinates (has a comma with numbers)
+                            hasLocationIn: { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.locationIn", ""] } }, regex: /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/ } },
+                            // Check if locationOut contains valid coordinates
+                            hasLocationOut: { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.locationOut", ""] } }, regex: /^-?\d+\.?\d*\s*,\s*-?\d+\.?\d*$/ } },
+                            // Check for manual distance
+                            hasManualDistance: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDistance", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
+                            // Calculate dump washout hours: qty * 0.5
+                            // Uses dumpQty numeric field (saved by frontend), falls back to checking dumpWashout truthy value
+                            dumpHrs: {
+                                $multiply: [
+                                    {
+                                        $cond: {
+                                            if: { $and: [{ $ne: [{ $ifNull: ["$timesheet.dumpQty", null] }, null] }, { $gt: ["$timesheet.dumpQty", 0] }] },
+                                            then: "$timesheet.dumpQty",
+                                            else: {
+                                                $cond: {
+                                                    // Fallback: if dumpWashout is truthy (true, "true", "yes", or any non-empty string containing "qty"), count as 1
+                                                    if: {
+                                                        $or: [
+                                                            { $eq: ["$timesheet.dumpWashout", true] },
+                                                            { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } } }, "true"] },
+                                                            { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } } }, "yes"] },
+                                                            { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.dumpWashout", ""] } }, regex: /qty/ } }
+                                                        ]
+                                                    },
+                                                    then: 1,
+                                                    else: 0
+                                                }
                                             }
                                         }
+                                    },
+                                    0.5
+                                ]
+                            },
+                            // Calculate shop hours: qty * 0.25
+                            shopHrs: {
+                                $multiply: [
+                                    {
+                                        $cond: {
+                                            if: { $and: [{ $ne: [{ $ifNull: ["$timesheet.shopQty", null] }, null] }, { $gt: ["$timesheet.shopQty", 0] }] },
+                                            then: "$timesheet.shopQty",
+                                            else: {
+                                                $cond: {
+                                                    if: {
+                                                        $or: [
+                                                            { $eq: ["$timesheet.shopTime", true] },
+                                                            { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } } }, "true"] },
+                                                            { $eq: [{ $toLower: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } } }, "yes"] },
+                                                            { $regexMatch: { input: { $toString: { $ifNull: ["$timesheet.shopTime", ""] } }, regex: /qty/ } }
+                                                        ]
+                                                    },
+                                                    then: 1,
+                                                    else: 0
+                                                }
+                                            }
+                                        }
+                                    },
+                                    0.25
+                                ]
+                            }
+                        }
+                    },
+                    // For drive time with coordinates, calculate haversine distance
+                    // Split locationIn/Out strings into lat/lon components
+                    {
+                        $addFields: {
+                            _locInParts: { $cond: { if: "$hasLocationIn", then: { $split: ["$timesheet.locationIn", ","] }, else: ["0", "0"] } },
+                            _locOutParts: { $cond: { if: "$hasLocationOut", then: { $split: ["$timesheet.locationOut", ","] }, else: ["0", "0"] } }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            _lat1Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locInParts", 0] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
+                            _lon1Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locInParts", 1] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
+                            _lat2Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locOutParts", 0] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] },
+                            _lon2Rad: { $multiply: [{ $convert: { input: { $trim: { input: { $arrayElemAt: ["$_locOutParts", 1] } } }, to: "double", onError: 0, onNull: 0 } }, { $divide: [Math.PI, 180] }] }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            _dLat: { $subtract: ["$_lat2Rad", "$_lat1Rad"] },
+                            _dLon: { $subtract: ["$_lon2Rad", "$_lon1Rad"] }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            // Haversine 'a' = sin²(dLat/2) + cos(lat1) * cos(lat2) * sin²(dLon/2)
+                            _haversineA: {
+                                $add: [
+                                    { $multiply: [{ $sin: { $divide: ["$_dLat", 2] } }, { $sin: { $divide: ["$_dLat", 2] } }] },
+                                    {
+                                        $multiply: [
+                                            { $cos: "$_lat1Rad" },
+                                            { $cos: "$_lat2Rad" },
+                                            { $sin: { $divide: ["$_dLon", 2] } },
+                                            { $sin: { $divide: ["$_dLon", 2] } }
+                                        ]
                                     }
-                                },
-                                // Site Time: manualDuration → stored hours → calculate from clockIn/clockOut
-                                else: {
-                                    $cond: {
-                                        // Priority 1: Manual duration override
-                                        if: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
-                                        then: { $convert: { input: "$timesheet.manualDuration", to: "double", onError: 0, onNull: 0 } },
-                                        else: {
-                                            // Priority 2: Calculate from clockIn/clockOut (will be rounded in next stage)
-                                            $let: {
-                                                vars: {
-                                                    dStart: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
-                                                    dEnd: { $convert: { input: "$timesheet.clockOut", to: "date", onError: null, onNull: null } },
-                                                    lStart: { $convert: { input: "$timesheet.lunchStart", to: "date", onError: null, onNull: null } },
-                                                    lEnd: { $convert: { input: "$timesheet.lunchEnd", to: "date", onError: null, onNull: null } }
-                                                },
-                                                in: {
-                                                    $cond: {
-                                                        if: { $and: ["$$dStart", "$$dEnd"] },
-                                                        then: {
-                                                            $divide: [
-                                                                { $subtract: [
-                                                                    { $subtract: ["$$dEnd", "$$dStart"] },
-                                                                    { $cond: { 
-                                                                        if: { $and: ["$$lStart", "$$lEnd"] }, 
-                                                                        then: { $subtract: ["$$lEnd", "$$lStart"] },
-                                                                        else: 0 
-                                                                    }}
-                                                                ]},
-                                                                3600000
-                                                            ]
-                                                        },
-                                                        else: 0
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            // Distance in miles = R * 2 * atan2(sqrt(a), sqrt(1 - a)) * DRIVING_FACTOR
+                            // R = 3958.8 miles, DRIVING_FACTOR = 1.5
+                            _haversineDist: {
+                                $multiply: [
+                                    3958.8,
+                                    { $multiply: [2, { $atan2: [{ $sqrt: "$_haversineA" }, { $sqrt: { $subtract: [1, "$_haversineA"] } }] }] },
+                                    1.5  // Driving factor (same as frontend)
+                                ]
+                            },
+                            // Manual distance (if set)
+                            _manualDist: { $convert: { input: { $ifNull: ["$timesheet.manualDistance", 0] }, to: "double", onError: 0, onNull: 0 } }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            // Final drive distance: manual distance takes priority, then haversine
+                            _driveDistance: {
+                                $cond: {
+                                    if: { $gt: ["$_manualDist", 0] },
+                                    then: "$_manualDist",
+                                    else: {
+                                        $cond: {
+                                            if: { $and: ["$hasLocationIn", "$hasLocationOut"] },
+                                            then: "$_haversineDist",
+                                            else: 0
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    // Calculate raw hoursNum based on type and location availability
+                    {
+                        $addFields: {
+                            _rawHoursNum: {
+                                $cond: {
+                                    // ALL Drive Time: calculate from distance + dump/shop, or manual hours override
+                                    if: "$isDriveTime",
+                                    then: {
+                                        $cond: {
+                                            // Manual duration override (manualDuration field) — always takes priority
+                                            if: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
+                                            then: { $convert: { input: "$timesheet.manualDuration", to: "double", onError: 0, onNull: 0 } },
+                                            else: {
+                                                $cond: {
+                                                    // Has distance (locations or manual) → distance/55 + dump + shop
+                                                    if: { $gt: ["$_driveDistance", 0] },
+                                                    then: {
+                                                        $add: [
+                                                            { $divide: ["$_driveDistance", 55] },
+                                                            { $ifNull: ["$dumpHrs", 0] },
+                                                            { $ifNull: ["$shopHrs", 0] }
+                                                        ]
+                                                    },
+                                                    // No distance, no locations → dump + shop only
+                                                    else: { $add: [{ $ifNull: ["$dumpHrs", 0] }, { $ifNull: ["$shopHrs", 0] }] }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    // Site Time: manualDuration → stored hours → calculate from clockIn/clockOut
+                                    else: {
+                                        $cond: {
+                                            // Priority 1: Manual duration override
+                                            if: { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] },
+                                            then: { $convert: { input: "$timesheet.manualDuration", to: "double", onError: 0, onNull: 0 } },
+                                            else: {
+                                                // Priority 2: Calculate from clockIn/clockOut (will be rounded in next stage)
+                                                $let: {
+                                                    vars: {
+                                                        dStart: { $convert: { input: "$timesheet.clockIn", to: "date", onError: null, onNull: null } },
+                                                        dEnd: { $convert: { input: "$timesheet.clockOut", to: "date", onError: null, onNull: null } },
+                                                        lStart: { $convert: { input: "$timesheet.lunchStart", to: "date", onError: null, onNull: null } },
+                                                        lEnd: { $convert: { input: "$timesheet.lunchEnd", to: "date", onError: null, onNull: null } }
+                                                    },
+                                                    in: {
+                                                        $cond: {
+                                                            if: { $and: ["$$dStart", "$$dEnd"] },
+                                                            then: {
+                                                                $divide: [
+                                                                    {
+                                                                        $subtract: [
+                                                                            { $subtract: ["$$dEnd", "$$dStart"] },
+                                                                            {
+                                                                                $cond: {
+                                                                                    if: { $and: ["$$lStart", "$$lEnd"] },
+                                                                                    then: { $subtract: ["$$lEnd", "$$lStart"] },
+                                                                                    else: 0
+                                                                                }
+                                                                            }
+                                                                        ]
+                                                                    },
+                                                                    3600000
+                                                                ]
+                                                            },
+                                                            else: 0
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
                                     }
                                 }
+                            },
+                            // Flag: is this a manual duration override for site time? (skip rounding)
+                            _isSiteManualDuration: {
+                                $and: [
+                                    { $not: "$isDriveTime" },
+                                    { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] }
+                                ]
                             }
-                        },
-                        // Flag: is this a manual duration override for site time? (skip rounding)
-                        _isSiteManualDuration: {
-                            $and: [
-                                { $not: "$isDriveTime" },
-                                { $gt: [{ $convert: { input: { $ifNull: ["$timesheet.manualDuration", 0] }, to: "double", onError: 0, onNull: 0 } }, 0] }
-                            ]
                         }
-                    }},
+                    },
                     // Apply quarter-hour rounding for site time (same logic as frontend calculateTimesheetData)
                     // Rounding only applies to site time calculated from clockIn/clockOut (not drive time, not manual duration)
-                    { $addFields: {
-                        hoursNum: {
-                            $cond: {
-                                // Drive time or manual duration site time: no rounding needed
-                                if: { $or: ["$isDriveTime", "$_isSiteManualDuration"] },
-                                then: "$_rawHoursNum",
-                                else: {
-                                    $cond: {
-                                        // If raw hours is 0 or negative, return 0
-                                        if: { $lte: ["$_rawHoursNum", 0] },
-                                        then: 0,
-                                        else: {
-                                            $cond: {
-                                                // Cutoff: entries before 2025-10-26 don't get rounding
-                                                if: { $lt: ["$clockInDate", new Date('2025-10-26T00:00:00.000Z')] },
-                                                then: "$_rawHoursNum",
-                                                else: {
-                                                    $cond: {
-                                                        // 7.75–8.0 snap to 8.0
-                                                        if: { $and: [
-                                                            { $gte: ["$_rawHoursNum", 7.75] },
-                                                            { $lt: ["$_rawHoursNum", 8.0] }
-                                                        ]},
-                                                        then: 8.0,
-                                                        else: {
-                                                            // Quarter-hour rounding: extract whole hours + round minutes to 0/15/30/45
-                                                            $let: {
-                                                                vars: {
-                                                                    wholeHours: { $floor: "$_rawHoursNum" },
-                                                                    rawMinutes: { $round: [{ $multiply: [{ $subtract: ["$_rawHoursNum", { $floor: "$_rawHoursNum" }] }, 60] }, 0] }
-                                                                },
-                                                                in: {
-                                                                    $add: [
-                                                                        "$$wholeHours",
-                                                                        { $divide: [
-                                                                            { $switch: {
-                                                                                branches: [
-                                                                                    // m <= 1 → 0 (essentially 0 or 1 minute → round down)
-                                                                                    { case: { $lte: ["$$rawMinutes", 1] }, then: 0 },
-                                                                                    // m > 1 && m <= 14 → 0
-                                                                                    { case: { $lte: ["$$rawMinutes", 14] }, then: 0 },
-                                                                                    // m > 14 && m <= 29 → 15
-                                                                                    { case: { $lte: ["$$rawMinutes", 29] }, then: 15 },
-                                                                                    // m > 29 && m <= 44 → 30
-                                                                                    { case: { $lte: ["$$rawMinutes", 44] }, then: 30 },
-                                                                                    // m > 44 && m <= 59 → 45
-                                                                                    { case: { $lte: ["$$rawMinutes", 59] }, then: 45 }
-                                                                                ],
-                                                                                default: 0
-                                                                            }},
-                                                                            60
-                                                                        ]}
-                                                                    ]
+                    {
+                        $addFields: {
+                            hoursNum: {
+                                $cond: {
+                                    // Drive time or manual duration site time: no rounding needed
+                                    if: { $or: ["$isDriveTime", "$_isSiteManualDuration"] },
+                                    then: "$_rawHoursNum",
+                                    else: {
+                                        $cond: {
+                                            // If raw hours is 0 or negative, return 0
+                                            if: { $lte: ["$_rawHoursNum", 0] },
+                                            then: 0,
+                                            else: {
+                                                $cond: {
+                                                    // Cutoff: entries before 2025-10-26 don't get rounding
+                                                    if: { $lt: ["$clockInDate", new Date('2025-10-26T00:00:00.000Z')] },
+                                                    then: "$_rawHoursNum",
+                                                    else: {
+                                                        $cond: {
+                                                            // 7.75–8.0 snap to 8.0
+                                                            if: {
+                                                                $and: [
+                                                                    { $gte: ["$_rawHoursNum", 7.75] },
+                                                                    { $lt: ["$_rawHoursNum", 8.0] }
+                                                                ]
+                                                            },
+                                                            then: 8.0,
+                                                            else: {
+                                                                // Quarter-hour rounding: extract whole hours + round minutes to 0/15/30/45
+                                                                $let: {
+                                                                    vars: {
+                                                                        wholeHours: { $floor: "$_rawHoursNum" },
+                                                                        rawMinutes: { $round: [{ $multiply: [{ $subtract: ["$_rawHoursNum", { $floor: "$_rawHoursNum" }] }, 60] }, 0] }
+                                                                    },
+                                                                    in: {
+                                                                        $add: [
+                                                                            "$$wholeHours",
+                                                                            {
+                                                                                $divide: [
+                                                                                    {
+                                                                                        $switch: {
+                                                                                            branches: [
+                                                                                                // m <= 1 → 0 (essentially 0 or 1 minute → round down)
+                                                                                                { case: { $lte: ["$$rawMinutes", 1] }, then: 0 },
+                                                                                                // m > 1 && m <= 14 → 0
+                                                                                                { case: { $lte: ["$$rawMinutes", 14] }, then: 0 },
+                                                                                                // m > 14 && m <= 29 → 15
+                                                                                                { case: { $lte: ["$$rawMinutes", 29] }, then: 15 },
+                                                                                                // m > 29 && m <= 44 → 30
+                                                                                                { case: { $lte: ["$$rawMinutes", 44] }, then: 30 },
+                                                                                                // m > 44 && m <= 59 → 45
+                                                                                                { case: { $lte: ["$$rawMinutes", 59] }, then: 45 }
+                                                                                            ],
+                                                                                            default: 0
+                                                                                        }
+                                                                                    },
+                                                                                    60
+                                                                                ]
+                                                                            }
+                                                                        ]
+                                                                    }
                                                                 }
                                                             }
                                                         }
@@ -1641,40 +1709,48 @@ export async function POST(request: NextRequest) {
                                 }
                             }
                         }
-                    }},
+                    },
                     // Use clockIn for year/week/date grouping instead of fromDate
-                    { $addFields: {
-                        // Use clockIn date for year/week calculations (fallback to fromDate if clockIn is null)
-                        dateForGrouping: { $ifNull: ["$clockInDate", { $convert: { input: "$fromDate", to: "date", onError: new Date(), onNull: new Date() } }] }
-                    }},
-                    { $addFields: {
-                        // Extract ISO week year and isoWeek from the clockIn date
-                        // Use $isoWeekYear instead of $year to properly handle year boundaries
-                        // (e.g., 12/29/2025 is week 1 of 2026, so isoWeekYear should be 2026)
-                        year: { $isoWeekYear: "$dateForGrouping" },
-                        week: { $isoWeek: "$dateForGrouping" },
-                        // Use $dateToString on the converted Date object to get YYYY-MM-DD
-                        // This handles ALL clockIn formats (M/D/YYYY, ISO, etc.) correctly
-                        // Previously used $substrCP on raw string which broke for non-ISO formats
-                        dateStr: { $dateToString: { format: "%Y-%m-%d", date: "$dateForGrouping", timezone: "UTC" } }
-                    }},
-                    { $group: {
-                        _id: {
-                            year: "$year",
-                            week: "$week",
-                            employee: "$timesheet.employee",
-                            date: "$dateStr"
-                        },
-                        totalHours: { $sum: "$hoursNum" },
-                        driveHours: { $sum: { $cond: { if: "$isDriveTime", then: "$hoursNum", else: 0 } } },
-                        refDate: { $min: "$dateForGrouping" }
-                    }},
-                    { $sort: { 
-                        "_id.year": -1, 
-                        "_id.week": -1, 
-                        "_id.employee": 1,
-                        "_id.date": 1
-                    }}
+                    {
+                        $addFields: {
+                            // Use clockIn date for year/week calculations (fallback to fromDate if clockIn is null)
+                            dateForGrouping: { $ifNull: ["$clockInDate", { $convert: { input: "$fromDate", to: "date", onError: new Date(), onNull: new Date() } }] }
+                        }
+                    },
+                    {
+                        $addFields: {
+                            // Extract ISO week year and isoWeek from the clockIn date
+                            // Use $isoWeekYear instead of $year to properly handle year boundaries
+                            // (e.g., 12/29/2025 is week 1 of 2026, so isoWeekYear should be 2026)
+                            year: { $isoWeekYear: "$dateForGrouping" },
+                            week: { $isoWeek: "$dateForGrouping" },
+                            // Use $dateToString on the converted Date object to get YYYY-MM-DD
+                            // This handles ALL clockIn formats (M/D/YYYY, ISO, etc.) correctly
+                            // Previously used $substrCP on raw string which broke for non-ISO formats
+                            dateStr: { $dateToString: { format: "%Y-%m-%d", date: "$dateForGrouping", timezone: "UTC" } }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: {
+                                year: "$year",
+                                week: "$week",
+                                employee: "$timesheet.employee",
+                                date: "$dateStr"
+                            },
+                            totalHours: { $sum: "$hoursNum" },
+                            driveHours: { $sum: { $cond: { if: "$isDriveTime", then: "$hoursNum", else: 0 } } },
+                            refDate: { $min: "$dateForGrouping" }
+                        }
+                    },
+                    {
+                        $sort: {
+                            "_id.year": -1,
+                            "_id.week": -1,
+                            "_id.employee": 1,
+                            "_id.date": 1
+                        }
+                    }
                 ]);
                 return NextResponse.json({ success: true, result: results });
             }
@@ -1705,7 +1781,7 @@ export async function POST(request: NextRequest) {
                 // Batch sync in chunks
                 const CHUNK_SIZE = 100;
                 let processedCount = 0;
-                
+
                 for (let i = 0; i < allTimesheets.length; i += CHUNK_SIZE) {
                     const chunk = allTimesheets.slice(i, i + CHUNK_SIZE);
                     // Try "Add" first
@@ -1713,9 +1789,9 @@ export async function POST(request: NextRequest) {
                     processedCount += chunk.length;
                 }
 
-                return NextResponse.json({ 
-                    success: true, 
-                    message: `Sync initiated for ${processedCount} records. Check AppSheet for results.` 
+                return NextResponse.json({
+                    success: true,
+                    message: `Sync initiated for ${processedCount} records. Check AppSheet for results.`
                 });
             }
 
@@ -1732,14 +1808,14 @@ export async function DELETE(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
-        
+
         if (!id) {
             return NextResponse.json({ success: false, error: 'Missing ID' }, { status: 400 });
         }
 
         await connectToDatabase();
         await Schedule.findByIdAndDelete(id);
-        
+
         // Sync to AppSheet
         await updateAppSheetSchedule({ _id: id }, "Delete");
 

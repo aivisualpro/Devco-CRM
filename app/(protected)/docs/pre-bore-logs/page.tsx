@@ -18,6 +18,7 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
+import { MyDropDown } from '@/components/ui/MyDropDown';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -78,6 +79,22 @@ interface Estimate {
     jobAddress?: string;
     customerName?: string;
     contactName?: string;
+    customer?: string;
+}
+
+interface Client {
+    _id: string;
+    name: string;
+}
+
+interface ScheduleOption {
+    _id: string;
+    title: string;
+    estimate: string;
+    fromDate?: string;
+    toDate?: string;
+    customerName?: string;
+    jobLocation?: string;
 }
 
 interface Employee {
@@ -100,13 +117,17 @@ export default function PreBoreLogsPage() {
     const [loading, setLoading] = useState(true);
     const [logs, setLogs] = useState<PreBoreLog[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
+    const [clients, setClients] = useState<Client[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [search, setSearch] = useState('');
 
-    // Estimate Selection
+    // Cascading Selection: Customer -> Estimate -> Schedule
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
-    const [estimateSearch, setEstimateSearch] = useState('');
-    const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
+    const [selectedScheduleId, setSelectedScheduleId] = useState<string>('');
+    const [schedules, setSchedules] = useState<ScheduleOption[]>([]);
+    const [loadingSchedules, setLoadingSchedules] = useState(false);
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
 
     // Modal States
@@ -165,7 +186,7 @@ export default function PreBoreLogsPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [logsRes, estimatesRes, employeesRes] = await Promise.all([
+            const [logsRes, estimatesRes, employeesRes, clientsRes] = await Promise.all([
                 fetch('/api/pre-bore-logs', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -181,7 +202,7 @@ export default function PreBoreLogsPage() {
                         action: 'getEstimates',
                         payload: {
                             limit: 500,
-                            projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1, customerName: 1, contactName: 1 }
+                            projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1, customerName: 1, contactName: 1, customer: 1 }
                         }
                     })
                 }),
@@ -195,19 +216,58 @@ export default function PreBoreLogsPage() {
                             projection: { _id: 1, email: 1, firstName: 1, lastName: 1, profilePicture: 1 }
                         }
                     })
+                }),
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getClients',
+                        payload: {
+                            limit: 500,
+                            projection: { _id: 1, name: 1 }
+                        }
+                    })
                 })
             ]);
 
-            const [logsData, estimatesData, employeesData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json()]);
+            const [logsData, estimatesData, employeesData, clientsData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json(), clientsRes.json()]);
 
             if (logsData.success) setLogs(logsData.result || []);
             if (estimatesData.success) setEstimates(estimatesData.result || []);
             if (employeesData.success) setEmployees(employeesData.result || []);
+            if (clientsData.success) setClients(clientsData.result || []);
         } catch (err) {
             console.error(err);
             toast.error('Failed to fetch data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Fetch schedules when estimate is selected
+    const fetchSchedulesByEstimate = async (estimateNumber: string) => {
+        if (!estimateNumber) {
+            setSchedules([]);
+            return;
+        }
+        setLoadingSchedules(true);
+        try {
+            const res = await fetch('/api/schedules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'getSchedulesByEstimate',
+                    payload: { estimateNumber }
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setSchedules(data.result || []);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingSchedules(false);
         }
     };
 
@@ -321,34 +381,63 @@ export default function PreBoreLogsPage() {
             customerSignature: '',
             preBoreLogs: []
         });
+        setSelectedCustomerId('');
         setSelectedEstimateId('');
-        setEstimateSearch('');
+        setSelectedScheduleId('');
+        setSchedules([]);
+        setOpenDropdownId(null);
         setIsModalOpen(true);
     };
 
-    // Filter estimates for dropdown
-    const filteredEstimates = useMemo(() => {
+    // Client options for MyDropDown
+    const clientOptions = useMemo(() => {
+        return clients
+            .filter(c => c.name)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            .map(c => ({
+                id: c._id,
+                label: c.name,
+                value: c._id
+            }));
+    }, [clients]);
+
+    // Estimate options filtered by selected customer
+    const estimateOptions = useMemo(() => {
+        // Look up the selected customer's name to match against estimate's customerName/customer fields
+        const selectedClientName = clients.find(c => c._id === selectedCustomerId)?.name?.toLowerCase().trim() || '';
+
         const uniqueMap: Record<string, Estimate> = {};
         estimates.forEach(est => {
             const num = est.estimate;
             if (!num) return;
+            // Filter by customer name when one is selected
+            if (selectedCustomerId && selectedClientName) {
+                const estCust = (est.customerName || est.customer || '').toLowerCase().trim();
+                // Skip estimates with no customer info at all
+                if (!estCust) return;
+                // Match: either the estimate's customer contains the client name, or client name contains the estimate's customer
+                const matches = estCust.includes(selectedClientName) || selectedClientName.includes(estCust);
+                if (!matches) return;
+            }
             if (!uniqueMap[num]) uniqueMap[num] = est;
         });
+        return Object.values(uniqueMap)
+            .sort((a, b) => (b.estimate || '').localeCompare(a.estimate || ''))
+            .map(est => ({
+                id: est._id,
+                label: `${est.estimate || 'No #'} - ${est.projectName || 'Untitled'}`,
+                value: est.estimate || est._id
+            }));
+    }, [estimates, selectedCustomerId, clients]);
 
-        let res = Object.values(uniqueMap);
-        if (estimateSearch) {
-            res = res.filter(e =>
-                (e.estimate || '').toLowerCase().includes(estimateSearch.toLowerCase()) ||
-                (e.projectName || '').toLowerCase().includes(estimateSearch.toLowerCase())
-            );
-        }
-        return res.sort((a, b) => (b.estimate || '').localeCompare(a.estimate || '')).slice(0, 50);
-    }, [estimates, estimateSearch]);
-
-    const getSelectedEstimateLabel = () => {
-        const est = estimates.find(e => e._id === selectedEstimateId || e.estimate === selectedEstimateId);
-        return est ? `${est.estimate || 'No #'} - ${est.projectName || 'Untitled'}` : 'Select Estimate...';
-    };
+    // Schedule options for MyDropDown
+    const scheduleOptions = useMemo(() => {
+        return schedules.map(s => ({
+            id: s._id,
+            label: `${s.title || 'Untitled'} — ${s.fromDate ? format(new Date(s.fromDate), 'MMM dd, yyyy') : 'No date'}`,
+            value: s._id
+        }));
+    }, [schedules]);
 
     const handleAddBoreItem = () => {
         setFormData(prev => ({
@@ -432,8 +521,8 @@ export default function PreBoreLogsPage() {
     }, [isGalleryOpen, galleryImages.length]);
 
     const handleSave = async () => {
-        if (!editingLog && !selectedEstimateId) {
-            toast.error('Please select an estimate');
+        if (!editingLog && !selectedScheduleId) {
+            toast.error('Please select a schedule');
             return;
         }
 
@@ -471,7 +560,7 @@ export default function PreBoreLogsPage() {
                     action,
                     payload: editingLog
                         ? { id: editingLog._id, item: preBoreData }
-                        : { scheduleId: selectedEstimateId, item: preBoreData }
+                        : { scheduleId: selectedScheduleId, item: preBoreData }
                 })
             });
 
@@ -822,80 +911,134 @@ export default function PreBoreLogsPage() {
 
             {/* Add/Edit Modal */}
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="!max-w-5xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingLog ? 'Edit Pre-Bore Log' : 'New Pre-Bore Log'}</DialogTitle>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-4">
-                        {/* Estimate Selection */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 py-4">
+                        {/* Cascading Selection: Customer -> Estimate -> Schedule */}
                         {!editingLog && (
-                            <div className="col-span-2 sm:col-span-3">
-                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Linked Estimate *</Label>
-                                <div className="relative mt-1">
-                                    <div
-                                        className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                        onClick={() => setIsEstimateDropdownOpen(!isEstimateDropdownOpen)}
-                                    >
-                                        <span className={`text-sm ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                            {getSelectedEstimateLabel()}
-                                        </span>
-                                        <ChevronDown size={16} className="text-slate-400" />
-                                    </div>
-
-                                    {isEstimateDropdownOpen && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-xl shadow-xl z-50 max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-                                            <div className="p-2 border-b bg-slate-50">
-                                                <Input
-                                                    placeholder="Search estimates..."
-                                                    autoFocus
-                                                    value={estimateSearch}
-                                                    onChange={(e) => setEstimateSearch(e.target.value)}
-                                                    className="h-8 text-sm"
-                                                />
-                                            </div>
-                                            <div className="overflow-y-auto flex-1 p-1">
-                                                {filteredEstimates.map(est => (
-                                                    <div
-                                                        key={est._id}
-                                                        className={cn(
-                                                            "px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between",
-                                                            selectedEstimateId === est._id ? "bg-blue-50 text-blue-700 font-medium" : "text-slate-700"
-                                                        )}
-                                                        onClick={() => {
-                                                            setSelectedEstimateId(est._id);
-                                                            // Auto-fill customer name from estimate
-                                                            const custName = est.customerName || est.contactName || '';
-                                                            // Auto-fill start time with current time
-                                                            const now = new Date();
-                                                            const hours = now.getHours();
-                                                            const minutes = now.getMinutes();
-                                                            const ampm = hours >= 12 ? 'PM' : 'AM';
-                                                            const h12 = hours % 12 || 12;
-                                                            const timeStr = `${h12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-                                                            setFormData(prev => ({
-                                                                ...prev,
-                                                                customerName: custName,
-                                                                startTime: timeStr
-                                                            }));
-                                                            setIsEstimateDropdownOpen(false);
-                                                        }}
-                                                    >
-                                                        <div className="flex flex-col">
-                                                            <span className="font-bold">{est.estimate || 'No #'}</span>
-                                                            <span className="text-xs opacity-70">{est.customerName || est.projectName}</span>
-                                                        </div>
-                                                        {selectedEstimateId === est._id && <Check size={14} />}
-                                                    </div>
-                                                ))}
-                                            </div>
+                            <>
+                                {/* Step 1: Customer Selection */}
+                                <div className="sm:col-span-1">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">1. Customer *</Label>
+                                    <div className="relative mt-1">
+                                        <div
+                                            className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                            onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}
+                                        >
+                                            <span className={`text-sm truncate ${selectedCustomerId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                                {selectedCustomerId ? (clients.find(c => c._id === selectedCustomerId)?.name || 'Selected') : 'Select Customer...'}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'customer' ? 'rotate-180' : ''}`} />
                                         </div>
-                                    )}
+                                        {openDropdownId === 'customer' && (
+                                            <MyDropDown
+                                                isOpen={true}
+                                                onClose={() => setOpenDropdownId(null)}
+                                                options={clientOptions}
+                                                selectedValues={selectedCustomerId ? [selectedCustomerId] : []}
+                                                onSelect={(val) => {
+                                                    const newVal = val === selectedCustomerId ? '' : val;
+                                                    setSelectedCustomerId(newVal);
+                                                    setSelectedEstimateId('');
+                                                    setSelectedScheduleId('');
+                                                    setSchedules([]);
+                                                    const client = clients.find(c => c._id === newVal);
+                                                    if (client) setFormData(prev => ({ ...prev, customerName: client.name }));
+                                                    setOpenDropdownId(null);
+                                                }}
+                                                placeholder="Search customers..."
+                                                width="w-full"
+                                                modal={false}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
-                                {isEstimateDropdownOpen && (
-                                    <div className="fixed inset-0 z-40" onClick={() => setIsEstimateDropdownOpen(false)} />
-                                )}
-                            </div>
+
+                                {/* Step 2: Estimate Selection */}
+                                <div className="sm:col-span-1">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">2. Estimate *</Label>
+                                    <div className="relative mt-1">
+                                        <div
+                                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedCustomerId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
+                                            onClick={() => {
+                                                if (!selectedCustomerId) return;
+                                                setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate');
+                                            }}
+                                        >
+                                            <span className={`text-sm truncate ${selectedEstimateId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                                {selectedEstimateId || 'Select Estimate...'}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'estimate' && selectedCustomerId && (
+                                            <MyDropDown
+                                                isOpen={true}
+                                                onClose={() => setOpenDropdownId(null)}
+                                                options={estimateOptions}
+                                                selectedValues={selectedEstimateId ? [selectedEstimateId] : []}
+                                                onSelect={(val) => {
+                                                    const newVal = val === selectedEstimateId ? '' : val;
+                                                    setSelectedEstimateId(newVal);
+                                                    setSelectedScheduleId('');
+                                                    if (newVal) {
+                                                        fetchSchedulesByEstimate(newVal);
+                                                        const est = estimates.find(e => e.estimate === newVal);
+                                                        const custName = est?.customerName || est?.contactName || formData.customerName;
+                                                        const now = new Date();
+                                                        const h12 = now.getHours() % 12 || 12;
+                                                        const timeStr = `${h12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+                                                        setFormData(prev => ({ ...prev, customerName: custName, startTime: timeStr }));
+                                                    } else {
+                                                        setSchedules([]);
+                                                    }
+                                                    setOpenDropdownId(null);
+                                                }}
+                                                placeholder="Search estimates..."
+                                                width="w-full"
+                                                modal={false}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Step 3: Schedule Selection */}
+                                <div className="sm:col-span-1">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">3. Schedule *</Label>
+                                    <div className="relative mt-1">
+                                        <div
+                                            className={`w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer transition-colors ${!selectedEstimateId ? 'bg-slate-50 cursor-not-allowed' : 'bg-white hover:border-slate-400'}`}
+                                            onClick={() => {
+                                                if (!selectedEstimateId) return;
+                                                setOpenDropdownId(openDropdownId === 'schedule' ? null : 'schedule');
+                                            }}
+                                        >
+                                            <span className={`text-sm truncate ${selectedScheduleId ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                                {selectedScheduleId ? (schedules.find(s => s._id === selectedScheduleId)?.title || 'Selected') : (loadingSchedules ? 'Loading...' : 'Select Schedule...')}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'schedule' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'schedule' && selectedEstimateId && (
+                                            <MyDropDown
+                                                isOpen={true}
+                                                onClose={() => setOpenDropdownId(null)}
+                                                options={scheduleOptions}
+                                                selectedValues={selectedScheduleId ? [selectedScheduleId] : []}
+                                                onSelect={(val) => {
+                                                    setSelectedScheduleId(val === selectedScheduleId ? '' : val);
+                                                    setOpenDropdownId(null);
+                                                }}
+                                                placeholder="Search schedules..."
+                                                emptyMessage={loadingSchedules ? 'Loading schedules...' : 'No schedules found for this estimate'}
+                                                width="w-full"
+                                                modal={false}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            </>
                         )}
 
                         <div>
