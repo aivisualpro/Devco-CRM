@@ -36,17 +36,17 @@ function LiveInput({
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Tab' || e.key === 'Enter') {
             e.preventDefault();
-            
+
             // Trigger blur to save
             e.currentTarget.blur();
-            
+
             const currentInput = e.currentTarget;
             const allInputs = Array.from(
                 document.querySelectorAll('input[data-input-id], select')
             ).filter(el => !el.hasAttribute('disabled')) as HTMLElement[];
-            
+
             const currentIndex = allInputs.indexOf(currentInput);
-            
+
             if (e.shiftKey) {
                 if (currentIndex > 0) {
                     setTimeout(() => allInputs[currentIndex - 1].focus(), 0);
@@ -306,7 +306,7 @@ export function MiscellaneousLineItemsTable({
                 <tbody className="divide-y divide-gray-50">
                     {items.map((item, i) => (
                         <MiscellaneousRow
-                            key={item._id || `item-${i}`}
+                            key={`${item._id || 'item'}-${i}`}
                             item={item}
                             index={i}
                             onUpdateItem={onUpdateItem}

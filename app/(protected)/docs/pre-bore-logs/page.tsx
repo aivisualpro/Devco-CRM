@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { 
+import {
     Plus, Search, ArrowUpDown, Pencil, Trash2, Eye,
     Loader2, ChevronDown, Check, Calendar,
     Image as ImageIcon, X, ChevronRight, Upload, ChevronLeft, Drill
@@ -10,11 +10,11 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-import { 
-    Header, Button, Table, TableHeader, TableRow, TableHead, 
+import {
+    Header, Button, Table, TableHeader, TableRow, TableHead,
     TableBody, TableCell, Badge, Input
 } from '@/components/ui';
-import { 
+import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
@@ -46,6 +46,7 @@ interface PreBoreLog {
     _id: string;
     legacyId?: string;
     scheduleId?: string;
+    estimate?: string;
     date: string;
     customerForeman: string;
     customerWorkRequestNumber: string;
@@ -91,7 +92,7 @@ export default function PreBoreLogsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user, can } = usePermissions();
-    
+
     const canCreate = can(MODULES.JHA, ACTIONS.CREATE);
     const canEdit = can(MODULES.JHA, ACTIONS.EDIT);
     const canDelete = can(MODULES.JHA, ACTIONS.DELETE);
@@ -101,20 +102,20 @@ export default function PreBoreLogsPage() {
     const [estimates, setEstimates] = useState<Estimate[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [search, setSearch] = useState('');
-    
+
     // Estimate Selection
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
     const [estimateSearch, setEstimateSearch] = useState('');
     const [isEstimateDropdownOpen, setIsEstimateDropdownOpen] = useState(false);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
-    
+
     // Modal States
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [editingLog, setEditingLog] = useState<PreBoreLog | null>(null);
     const [logToDelete, setLogToDelete] = useState<PreBoreLog | null>(null);
     const [saving, setSaving] = useState(false);
-    
+
     // Form State
     const [formData, setFormData] = useState({
         date: '',
@@ -138,7 +139,7 @@ export default function PreBoreLogsPage() {
         customerSignature: '',
         preBoreLogs: [] as PreBoreLogItem[]
     });
-    
+
     // Expanded rows for viewing bore log items
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -165,40 +166,40 @@ export default function PreBoreLogsPage() {
         setLoading(true);
         try {
             const [logsRes, estimatesRes, employeesRes] = await Promise.all([
-                fetch('/api/pre-bore-logs', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ 
-                        action: 'getPreBoreLogs', 
-                        payload: { limit: 500 } 
-                    }) 
+                fetch('/api/pre-bore-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getPreBoreLogs',
+                        payload: { limit: 500 }
+                    })
                 }),
-                fetch('/api/webhook/devcoBackend', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ 
-                        action: 'getEstimates', 
-                        payload: { 
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getEstimates',
+                        payload: {
                             limit: 500,
                             projection: { _id: 1, estimate: 1, projectName: 1, jobAddress: 1, customerName: 1, contactName: 1 }
-                        } 
-                    }) 
+                        }
+                    })
                 }),
-                fetch('/api/webhook/devcoBackend', { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ 
-                        action: 'getEmployees', 
-                        payload: { 
+                fetch('/api/webhook/devcoBackend', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getEmployees',
+                        payload: {
                             limit: 200,
                             projection: { _id: 1, email: 1, firstName: 1, lastName: 1, profilePicture: 1 }
-                        } 
-                    }) 
+                        }
+                    })
                 })
             ]);
-            
+
             const [logsData, estimatesData, employeesData] = await Promise.all([logsRes.json(), estimatesRes.json(), employeesRes.json()]);
-            
+
             if (logsData.success) setLogs(logsData.result || []);
             if (estimatesData.success) setEstimates(estimatesData.result || []);
             if (employeesData.success) setEmployees(employeesData.result || []);
@@ -220,7 +221,7 @@ export default function PreBoreLogsPage() {
 
         if (search) {
             const s = search.toLowerCase();
-            result = result.filter(log => 
+            result = result.filter(log =>
                 String(log.customerName || '').toLowerCase().includes(s) ||
                 String(log.customerForeman || '').toLowerCase().includes(s) ||
                 String(log.devcoOperator || '').toLowerCase().includes(s) ||
@@ -229,7 +230,7 @@ export default function PreBoreLogsPage() {
                 String(log.customerWorkRequestNumber || '').toLowerCase().includes(s) ||
                 String(log.soilType || '').toLowerCase().includes(s) ||
                 String(log.legacyId || '').toLowerCase().includes(s) ||
-                log.preBoreLogs?.some(item => 
+                log.preBoreLogs?.some(item =>
                     item.rodNumber?.toLowerCase().includes(s) ||
                     item.existingUtilities?.toLowerCase().includes(s)
                 )
@@ -336,7 +337,7 @@ export default function PreBoreLogsPage() {
 
         let res = Object.values(uniqueMap);
         if (estimateSearch) {
-            res = res.filter(e => 
+            res = res.filter(e =>
                 (e.estimate || '').toLowerCase().includes(estimateSearch.toLowerCase()) ||
                 (e.projectName || '').toLowerCase().includes(estimateSearch.toLowerCase())
             );
@@ -375,7 +376,7 @@ export default function PreBoreLogsPage() {
     const handleBoreItemChange = (index: number, field: keyof PreBoreLogItem, value: string) => {
         setFormData(prev => ({
             ...prev,
-            preBoreLogs: prev.preBoreLogs.map((item, i) => 
+            preBoreLogs: prev.preBoreLogs.map((item, i) =>
                 i === index ? { ...item, [field]: value } : item
             )
         }));
@@ -383,11 +384,11 @@ export default function PreBoreLogsPage() {
 
     const handlePhotoUpload = async (index: number, files: FileList | null) => {
         if (!files || files.length === 0) return;
-        
+
         const file = files[0];
         const formDataUpload = new FormData();
         formDataUpload.append('file', file);
-        
+
         try {
             const res = await fetch('/api/upload', {
                 method: 'POST',
@@ -466,10 +467,10 @@ export default function PreBoreLogsPage() {
             const res = await fetch('/api/pre-bore-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action, 
-                    payload: editingLog 
-                        ? { id: editingLog._id, item: preBoreData } 
+                body: JSON.stringify({
+                    action,
+                    payload: editingLog
+                        ? { id: editingLog._id, item: preBoreData }
                         : { scheduleId: selectedEstimateId, item: preBoreData }
                 })
             });
@@ -517,13 +518,13 @@ export default function PreBoreLogsPage() {
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
-            <Header 
+            <Header
                 rightContent={
                     <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
                         <div className="relative flex-1 max-w-[200px] sm:max-w-[264px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input 
-                                placeholder="Search logs..." 
+                            <input
+                                placeholder="Search logs..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -531,7 +532,7 @@ export default function PreBoreLogsPage() {
                         </div>
                         {canCreate && (
                             <div className="hidden lg:block">
-                                <Button 
+                                <Button
                                     onClick={handleAddNew}
                                     className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
                                 >
@@ -620,147 +621,143 @@ export default function PreBoreLogsPage() {
 
                         {/* Desktop Table View */}
                         <div className="hidden lg:flex flex-col flex-1 min-h-0">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
-                    <Table containerClassName="flex-1 overflow-auto">
-                        <TableHead>
-                            <TableRow>
-                                <TableHeader className="w-[40px]"> </TableHeader>
-                                <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
-                                    <div className="flex items-center gap-1">Date <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="w-[130px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('customerName')}>
-                                    <div className="flex items-center gap-1">Customer <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="w-[120px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('devcoOperator')}>
-                                    <div className="flex items-center gap-1">Operator <ArrowUpDown size={12} className="opacity-50" /></div>
-                                </TableHeader>
-                                <TableHeader className="min-w-[140px]">Bore Start</TableHeader>
-                                <TableHeader className="min-w-[140px]">Bore End</TableHeader>
-                                <TableHeader className="w-[80px]">Soil</TableHeader>
-                                <TableHeader className="w-[80px]">Bore Len</TableHeader>
-                                <TableHeader className="w-[80px] text-center">Rods</TableHeader>
-                                <TableHeader className="w-[100px]">Created By</TableHeader>
-                                <TableHeader className="w-[80px] text-right">Actions</TableHeader>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {filteredLogs.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={11} className="h-48 text-center text-slate-500">
-                                        No pre-bore logs found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : filteredLogs.map((log) => {
-                                const isExpanded = expandedRows.has(log._id);
-                                return (
-                                    <React.Fragment key={log._id}>
-                                        <TableRow 
-                                            className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                            onClick={() => handleEdit(log)}
-                                        >
-                                            <TableCell onClick={(e) => e.stopPropagation()}>
-                                                {log.preBoreLogs?.length > 0 && (
-                                                    <button 
-                                                        onClick={() => toggleRow(log._id)}
-                                                        className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100"
-                                                    >
-                                                        <ChevronRight size={14} className={cn("transition-transform", isExpanded && "rotate-90")} />
-                                                    </button>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-700 font-semibold max-w-[130px] truncate">
-                                                {log.customerName || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-600 max-w-[120px] truncate">
-                                                {log.devcoOperator || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-600 max-w-[140px] truncate">
-                                                {log.addressBoreStart || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-600 max-w-[140px] truncate">
-                                                {log.addressBoreEnd || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-600">
-                                                {log.soilType || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-600">
-                                                {log.boreLength || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                <Badge variant="default" className="text-[10px]">
-                                                    {log.preBoreLogs?.length || 0}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {(() => {
-                                                    const emp = getEmployeeByEmail(log.createdBy);
-                                                    if (emp) {
-                                                        return (
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="w-6 h-6 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
-                                                                    {emp.profilePicture ? (
-                                                                        <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                                    ) : (
-                                                                        `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
-                                                                    )}
-                                                                </div>
-                                                                <span className="text-xs text-slate-700 truncate max-w-[80px]">
-                                                                    {emp.firstName} {emp.lastName?.[0]}.
-                                                                </span>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return <span className="text-xs text-slate-500 truncate">{log.createdBy || '-'}</span>;
-                                                })()}
-                                            </TableCell>
-                                            <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {canEdit && (
-                                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(log)}>
-                                                            <Pencil size={14} />
-                                                        </Button>
-                                                    )}
-                                                    {canDelete && (
-                                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setLogToDelete(log); setIsDeleteOpen(true); }}>
-                                                            <Trash2 size={14} />
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </TableCell>
+                            <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex-1 flex flex-col min-h-0 overflow-hidden">
+                                <Table containerClassName="flex-1 overflow-auto">
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeader className="w-[40px]"> </TableHeader>
+                                            <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('date')}>
+                                                <div className="flex items-center gap-1">Date <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="w-[130px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('customerName')}>
+                                                <div className="flex items-center gap-1">Customer <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="w-[100px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('estimate')}>
+                                                <div className="flex items-center gap-1">Estimate # <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="min-w-[130px]">Project Name</TableHeader>
+                                            <TableHeader className="w-[120px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('devcoOperator')}>
+                                                <div className="flex items-center gap-1">Operator <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
+                                            <TableHeader className="min-w-[140px]">Bore Start</TableHeader>
+                                            <TableHeader className="min-w-[140px]">Bore End</TableHeader>
+                                            <TableHeader className="w-[80px]">Soil</TableHeader>
+                                            <TableHeader className="w-[80px]">Bore Len</TableHeader>
+                                            <TableHeader className="w-[80px] text-center">Rods</TableHeader>
+                                            <TableHeader className="w-[100px]">Created By</TableHeader>
                                         </TableRow>
-                                        {isExpanded && log.preBoreLogs?.map((item, idx) => (
-                                            <TableRow key={`${log._id}-item-${idx}`} className="bg-slate-50/50">
-                                                <TableCell> </TableCell>
-                                                <TableCell colSpan={10}>
-                                                    <div className="flex items-center gap-4 py-2 px-4 text-xs">
-                                                        <span className="font-bold text-slate-700">Rod #{item.rodNumber || idx + 1}</span>
-                                                        <span><strong>Distance:</strong> {item.distance || '-'}</span>
-                                                        <span><strong>Top:</strong> {item.topDepth || '-'}</span>
-                                                        <span><strong>Bottom:</strong> {item.bottomDepth || '-'}</span>
-                                                        <span><strong>Over/Under:</strong> {item.overOrUnder || '-'}</span>
-                                                        <span><strong>Utilities:</strong> {item.existingUtilities || '-'}</span>
-                                                        {item.picture && (
-                                                            <div 
-                                                                className="relative group cursor-pointer"
-                                                                onClick={() => openGallery([item.picture!], 0)}
-                                                            >
-                                                                <div className="w-8 h-8 rounded overflow-hidden border hover:border-[#0F4C75] transition-all">
-                                                                    <img src={item.picture} alt={`Rod ${idx + 1}`} className="w-full h-full object-cover" />
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
+                                    </TableHead>
+                                    <TableBody>
+                                        {filteredLogs.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={12} className="h-48 text-center text-slate-500">
+                                                    No pre-bore logs found.
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
-                                    </React.Fragment>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
+                                        ) : filteredLogs.map((log) => {
+                                            const isExpanded = expandedRows.has(log._id);
+                                            const estInfo = estimates.find(e => e._id === log.estimate || e.estimate === log.estimate);
+                                            return (
+                                                <React.Fragment key={log._id}>
+                                                    <TableRow
+                                                        className="group hover:bg-slate-50 transition-colors cursor-pointer"
+                                                        onClick={() => handleEdit(log)}
+                                                    >
+                                                        <TableCell onClick={(e) => e.stopPropagation()}>
+                                                            {log.preBoreLogs?.length > 0 && (
+                                                                <button
+                                                                    onClick={() => toggleRow(log._id)}
+                                                                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-slate-100"
+                                                                >
+                                                                    <ChevronRight size={14} className={cn("transition-transform", isExpanded && "rotate-90")} />
+                                                                </button>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
+                                                            {log.date && !isNaN(new Date(log.date).getTime()) ? format(new Date(log.date), 'MMM dd, yyyy') : '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-700 font-semibold max-w-[130px] truncate">
+                                                            {log.customerName || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-blue-600 font-medium cursor-pointer hover:underline" onClick={(e) => { e.stopPropagation(); if (log.estimate) router.push(`/estimates/${log.estimate}`); }}>
+                                                            {log.estimate || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-600 max-w-[130px] truncate">
+                                                            {estInfo?.projectName || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-600 max-w-[120px] truncate">
+                                                            {log.devcoOperator || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-600 max-w-[140px] truncate">
+                                                            {log.addressBoreStart || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-600 max-w-[140px] truncate">
+                                                            {log.addressBoreEnd || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-600">
+                                                            {log.soilType || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-xs text-slate-600">
+                                                            {log.boreLength || '-'}
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            <Badge variant="default" className="text-[10px]">
+                                                                {log.preBoreLogs?.length || 0}
+                                                            </Badge>
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {(() => {
+                                                                const emp = getEmployeeByEmail(log.createdBy);
+                                                                if (emp) {
+                                                                    return (
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="w-6 h-6 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
+                                                                                {emp.profilePicture ? (
+                                                                                    <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                                ) : (
+                                                                                    `${emp.firstName?.[0] || ''}${emp.lastName?.[0] || ''}`
+                                                                                )}
+                                                                            </div>
+                                                                            <span className="text-xs text-slate-700 truncate max-w-[80px]">
+                                                                                {emp.firstName} {emp.lastName?.[0]}.
+                                                                            </span>
+                                                                        </div>
+                                                                    );
+                                                                }
+                                                                return <span className="text-xs text-slate-500 truncate">{log.createdBy || '-'}</span>;
+                                                            })()}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                    {isExpanded && log.preBoreLogs?.map((item, idx) => (
+                                                        <TableRow key={`${log._id}-item-${idx}`} className="bg-slate-50/50">
+                                                            <TableCell> </TableCell>
+                                                            <TableCell colSpan={11}>
+                                                                <div className="flex items-center gap-4 py-2 px-4 text-xs">
+                                                                    <span className="font-bold text-slate-700">Rod #{item.rodNumber || idx + 1}</span>
+                                                                    <span><strong>Distance:</strong> {item.distance || '-'}</span>
+                                                                    <span><strong>Top:</strong> {item.topDepth || '-'}</span>
+                                                                    <span><strong>Bottom:</strong> {item.bottomDepth || '-'}</span>
+                                                                    <span><strong>Over/Under:</strong> {item.overOrUnder || '-'}</span>
+                                                                    <span><strong>Utilities:</strong> {item.existingUtilities || '-'}</span>
+                                                                    {item.picture && (
+                                                                        <div
+                                                                            className="relative group cursor-pointer"
+                                                                            onClick={() => openGallery([item.picture!], 0)}
+                                                                        >
+                                                                            <div className="w-8 h-8 rounded overflow-hidden border hover:border-[#0F4C75] transition-all">
+                                                                                <img src={item.picture} alt={`Rod ${idx + 1}`} className="w-full h-full object-cover" />
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </div>
                     </>
@@ -829,14 +826,14 @@ export default function PreBoreLogsPage() {
                     <DialogHeader>
                         <DialogTitle>{editingLog ? 'Edit Pre-Bore Log' : 'New Pre-Bore Log'}</DialogTitle>
                     </DialogHeader>
-                    
+
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-4">
                         {/* Estimate Selection */}
                         {!editingLog && (
                             <div className="col-span-2 sm:col-span-3">
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Linked Estimate *</Label>
                                 <div className="relative mt-1">
-                                    <div 
+                                    <div
                                         className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
                                         onClick={() => setIsEstimateDropdownOpen(!isEstimateDropdownOpen)}
                                     >
@@ -845,12 +842,12 @@ export default function PreBoreLogsPage() {
                                         </span>
                                         <ChevronDown size={16} className="text-slate-400" />
                                     </div>
-                                    
+
                                     {isEstimateDropdownOpen && (
                                         <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-xl shadow-xl z-50 max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
                                             <div className="p-2 border-b bg-slate-50">
-                                                <Input 
-                                                    placeholder="Search estimates..." 
+                                                <Input
+                                                    placeholder="Search estimates..."
                                                     autoFocus
                                                     value={estimateSearch}
                                                     onChange={(e) => setEstimateSearch(e.target.value)}
@@ -859,7 +856,7 @@ export default function PreBoreLogsPage() {
                                             </div>
                                             <div className="overflow-y-auto flex-1 p-1">
                                                 {filteredEstimates.map(est => (
-                                                    <div 
+                                                    <div
                                                         key={est._id}
                                                         className={cn(
                                                             "px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between",
@@ -903,9 +900,9 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</Label>
-                            <Input 
-                                type="date" 
-                                value={formData.date} 
+                            <Input
+                                type="date"
+                                value={formData.date}
                                 onChange={e => setFormData(prev => ({ ...prev, date: e.target.value }))}
                                 className="mt-1"
                             />
@@ -913,8 +910,8 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Start Time</Label>
-                            <Input 
-                                value={formData.startTime} 
+                            <Input
+                                value={formData.startTime}
                                 onChange={e => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
                                 className="mt-1"
                                 placeholder="e.g. 7:00 AM"
@@ -923,8 +920,8 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Name</Label>
-                            <Input 
-                                value={formData.customerName} 
+                            <Input
+                                value={formData.customerName}
                                 onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
                                 className="mt-1"
                             />
@@ -932,8 +929,8 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Foreman</Label>
-                            <Input 
-                                value={formData.customerForeman} 
+                            <Input
+                                value={formData.customerForeman}
                                 onChange={e => setFormData(prev => ({ ...prev, customerForeman: e.target.value }))}
                                 className="mt-1"
                             />
@@ -941,8 +938,8 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Work Request #</Label>
-                            <Input 
-                                value={formData.customerWorkRequestNumber} 
+                            <Input
+                                value={formData.customerWorkRequestNumber}
                                 onChange={e => setFormData(prev => ({ ...prev, customerWorkRequestNumber: e.target.value }))}
                                 className="mt-1"
                             />
@@ -950,8 +947,8 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Devco Operator</Label>
-                            <Input 
-                                value={formData.devcoOperator} 
+                            <Input
+                                value={formData.devcoOperator}
                                 onChange={e => setFormData(prev => ({ ...prev, devcoOperator: e.target.value }))}
                                 className="mt-1"
                             />
@@ -960,16 +957,16 @@ export default function PreBoreLogsPage() {
                         <div className="col-span-2 sm:col-span-3 grid grid-cols-2 gap-4">
                             <div>
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore Start</Label>
-                                <Input 
-                                    value={formData.addressBoreStart} 
+                                <Input
+                                    value={formData.addressBoreStart}
                                     onChange={e => setFormData(prev => ({ ...prev, addressBoreStart: e.target.value }))}
                                     className="mt-1"
                                 />
                             </div>
                             <div>
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore End</Label>
-                                <Input 
-                                    value={formData.addressBoreEnd} 
+                                <Input
+                                    value={formData.addressBoreEnd}
                                     onChange={e => setFormData(prev => ({ ...prev, addressBoreEnd: e.target.value }))}
                                     className="mt-1"
                                 />
@@ -982,32 +979,32 @@ export default function PreBoreLogsPage() {
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <div>
                                     <Label className="text-[9px] text-slate-400">Drill Size</Label>
-                                    <Input 
-                                        value={formData.drillSize} 
+                                    <Input
+                                        value={formData.drillSize}
                                         onChange={e => setFormData(prev => ({ ...prev, drillSize: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">Pilot Bore Size</Label>
-                                    <Input 
-                                        value={formData.pilotBoreSize} 
+                                    <Input
+                                        value={formData.pilotBoreSize}
                                         onChange={e => setFormData(prev => ({ ...prev, pilotBoreSize: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">Bore Length</Label>
-                                    <Input 
-                                        value={formData.boreLength} 
+                                    <Input
+                                        value={formData.boreLength}
                                         onChange={e => setFormData(prev => ({ ...prev, boreLength: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">Pipe Size</Label>
-                                    <Input 
-                                        value={formData.pipeSize} 
+                                    <Input
+                                        value={formData.pipeSize}
                                         onChange={e => setFormData(prev => ({ ...prev, pipeSize: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
@@ -1021,32 +1018,32 @@ export default function PreBoreLogsPage() {
                             <div className="grid grid-cols-4 gap-3">
                                 <div>
                                     <Label className="text-[9px] text-slate-400">6&quot;</Label>
-                                    <Input 
-                                        value={formData.reamerSize6} 
+                                    <Input
+                                        value={formData.reamerSize6}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize6: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">8&quot;</Label>
-                                    <Input 
-                                        value={formData.reamerSize8} 
+                                    <Input
+                                        value={formData.reamerSize8}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize8: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">10&quot;</Label>
-                                    <Input 
-                                        value={formData.reamerSize10} 
+                                    <Input
+                                        value={formData.reamerSize10}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize10: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">12&quot;</Label>
-                                    <Input 
-                                        value={formData.reamerSize12} 
+                                    <Input
+                                        value={formData.reamerSize12}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize12: e.target.value }))}
                                         className="h-8 text-xs"
                                     />
@@ -1056,8 +1053,8 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Soil Type</Label>
-                            <select 
-                                value={formData.soilType} 
+                            <select
+                                value={formData.soilType}
                                 onChange={e => setFormData(prev => ({ ...prev, soilType: e.target.value }))}
                                 className="w-full mt-1 h-9 text-sm border rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
                             >
@@ -1076,7 +1073,7 @@ export default function PreBoreLogsPage() {
                                     <Plus size={14} className="mr-1" /> Add Rod
                                 </Button>
                             </div>
-                            
+
                             {formData.preBoreLogs.length === 0 ? (
                                 <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-xl">
                                     No rod log items yet. Click &quot;Add Rod&quot; to add one.
@@ -1085,7 +1082,7 @@ export default function PreBoreLogsPage() {
                                 <div className="space-y-3">
                                     {formData.preBoreLogs.map((item, idx) => (
                                         <div key={idx} className="border rounded-xl p-4 bg-slate-50 relative">
-                                            <button 
+                                            <button
                                                 onClick={() => handleRemoveBoreItem(idx)}
                                                 className="absolute top-2 right-2 text-slate-400 hover:text-red-500"
                                             >
@@ -1094,48 +1091,48 @@ export default function PreBoreLogsPage() {
                                             <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Rod #</Label>
-                                                    <Input 
-                                                        value={item.rodNumber} 
+                                                    <Input
+                                                        value={item.rodNumber}
                                                         onChange={e => handleBoreItemChange(idx, 'rodNumber', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Distance</Label>
-                                                    <Input 
-                                                        value={item.distance} 
+                                                    <Input
+                                                        value={item.distance}
                                                         onChange={e => handleBoreItemChange(idx, 'distance', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Top Depth</Label>
-                                                    <Input 
-                                                        value={item.topDepth} 
+                                                    <Input
+                                                        value={item.topDepth}
                                                         onChange={e => handleBoreItemChange(idx, 'topDepth', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Bottom Depth</Label>
-                                                    <Input 
-                                                        value={item.bottomDepth} 
+                                                    <Input
+                                                        value={item.bottomDepth}
                                                         onChange={e => handleBoreItemChange(idx, 'bottomDepth', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Over / Under</Label>
-                                                    <Input 
-                                                        value={item.overOrUnder} 
+                                                    <Input
+                                                        value={item.overOrUnder}
                                                         onChange={e => handleBoreItemChange(idx, 'overOrUnder', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Existing Utilities</Label>
-                                                    <Input 
-                                                        value={item.existingUtilities} 
+                                                    <Input
+                                                        value={item.existingUtilities}
                                                         onChange={e => handleBoreItemChange(idx, 'existingUtilities', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
@@ -1192,8 +1189,8 @@ export default function PreBoreLogsPage() {
                         <DialogTitle>Delete Pre-Bore Log</DialogTitle>
                         <DialogDescription>
                             Are you sure you want to delete this pre-bore log for <strong>{logToDelete?.customerName || logToDelete?.devcoOperator}</strong>?
-                            <br/>This will also delete all {logToDelete?.preBoreLogs?.length || 0} rod items.
-                            <br/>This action cannot be undone.
+                            <br />This will also delete all {logToDelete?.preBoreLogs?.length || 0} rod items.
+                            <br />This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -1208,7 +1205,7 @@ export default function PreBoreLogsPage() {
             {/* Image Gallery Modal */}
             <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
                 <DialogContent className="max-w-4xl w-full p-0 bg-black/95 border-none overflow-hidden h-[80vh] flex flex-col items-center justify-center">
-                    <button 
+                    <button
                         onClick={() => setIsGalleryOpen(false)}
                         className="absolute top-4 right-4 text-white/50 hover:text-white z-50 p-2 bg-white/10 rounded-full transition-colors"
                     >
@@ -1217,13 +1214,13 @@ export default function PreBoreLogsPage() {
 
                     {galleryImages.length > 1 && (
                         <>
-                            <button 
+                            <button
                                 onClick={prevImage}
                                 className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white z-50 p-4 bg-white/5 hover:bg-white/10 rounded-full transition-all group"
                             >
                                 <ChevronLeft size={32} className="group-hover:-translate-x-1 transition-transform" />
                             </button>
-                            <button 
+                            <button
                                 onClick={nextImage}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white z-50 p-4 bg-white/5 hover:bg-white/10 rounded-full transition-all group"
                             >
@@ -1233,8 +1230,8 @@ export default function PreBoreLogsPage() {
                     )}
 
                     <div className="relative w-full h-full flex items-center justify-center p-8">
-                        <img 
-                            src={galleryImages[currentImageIndex]} 
+                        <img
+                            src={galleryImages[currentImageIndex]}
                             alt={`Gallery image ${currentImageIndex + 1}`}
                             className="max-w-full max-h-full object-contain animate-in fade-in zoom-in duration-300"
                         />

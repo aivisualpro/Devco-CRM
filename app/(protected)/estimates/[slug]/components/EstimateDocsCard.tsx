@@ -159,18 +159,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 const res = await fetch('/api/webhook/devcoBackend', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
+                    body: JSON.stringify({
                         action: 'getEstimates',
                         payload: { limit: 1000, includeBilling: true, includeReceipts: true }
                     })
                 });
                 const data = await res.json();
-                
+
                 if (data.success && Array.isArray(data.result)) {
                     // Filter for all versions of this estimate number
                     const relevantEstimates = data.result.filter((e: any) => String(e.estimate || '').trim() === String(formData.estimate || '').trim());
                     console.log('[EstimateDocsCard] Aggregating from estimates:', relevantEstimates.length, 'for', formData.estimate);
-                    
+
                     // --- Aggregating Receipts ---
                     let allR: any[] = [];
                     const addedIds = new Set<string>();
@@ -481,7 +481,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
             const schedule = estimateSchedules.find(s => s._id === selectedJHA.schedule_id);
             const variables: any = { ...selectedJHA, customerName: schedule?.customerName, date: selectedJHA.date || new Date().toLocaleDateString() };
-            const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ templateId, variables }) });
+            const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, variables }) });
             if (response.ok) {
                 const blob = await response.blob();
                 const url = window.URL.createObjectURL(blob);
@@ -504,7 +504,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (!selectedDJT) return;
         try {
             const payload = { ...selectedDJT, schedule_id: selectedDJT.schedule_id || selectedDJT._id };
-            const res = await fetch('/api/djt', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ action: 'saveDJT', payload }) });
+            const res = await fetch('/api/djt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'saveDJT', payload }) });
             const data = await res.json();
             if (data.success) {
                 toast.success('DJT Saved');
@@ -945,15 +945,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         // Create intent to lien item (only the specific fields)
         const intentItem = {
-            _id: editingIntentToLienIndex !== null 
-                ? intentToLienItems[editingIntentToLienIndex]._id 
+            _id: editingIntentToLienIndex !== null
+                ? intentToLienItems[editingIntentToLienIndex]._id
                 : `itl_${Date.now()}`,
             arBalance: newIntentToLien.arBalance,
             fromDate: newIntentToLien.fromDate,
             toDate: newIntentToLien.toDate,
             dueDate: newIntentToLien.dueDate,
-            createdAt: editingIntentToLienIndex !== null 
-                ? intentToLienItems[editingIntentToLienIndex].createdAt 
+            createdAt: editingIntentToLienIndex !== null
+                ? intentToLienItems[editingIntentToLienIndex].createdAt
                 : new Date().toISOString()
         };
 
@@ -1038,18 +1038,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         let updated;
         if (editingReleaseIndex !== null) {
-            updated = releases.map((item: any, idx: number) => 
+            updated = releases.map((item: any, idx: number) =>
                 idx === editingReleaseIndex ? { ...item, ...newRelease } : item
             );
         } else {
-            updated = [...releases, { 
-                ...newRelease, 
+            updated = [...releases, {
+                ...newRelease,
                 _id: Math.random().toString(36).substr(2, 9),
                 createdBy: currentUser?.userId,
                 createdAt: new Date().toISOString()
             }];
         }
-        
+
         onUpdate('releases', updated);
         setIsReleaseModalOpen(false);
         setEditingReleaseIndex(null);
@@ -1110,7 +1110,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const handleEditBillingTicket = (index: number, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
         const item = billingTickets[index];
-        
+
         // 1. Sanitize Lump Sum (strip $ and commas)
         let safeLumpSum = '';
         if (item.lumpSum || item.amount) {
@@ -1122,7 +1122,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         const standardOptions = ['COD', 'Net 30', 'Net 45', 'Net 60'];
         let safeBillingTerms = '';
         let safeOtherBillingTerms = item.otherBillingTerms || '';
-        
+
         const rawTerm = (item.billingTerms || item.term || '').trim();
 
         if (rawTerm) {
@@ -1203,17 +1203,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const confirmRemoveBillingTicket = () => {
         if (!onUpdate || billingTicketToDelete === null) return;
         const updated = billingTickets.filter((_: any, i: number) => i !== billingTicketToDelete);
-        
+
         // Immediately update the aggregated state so UI reflects the deletion right away
         // (prevents the stale useEffect refetch from re-adding the deleted ticket)
         setAggregatedBillingTickets(updated);
-        
+
         // Sanitize createdBy to prevent CastError
         const sanitized = updated.map((t: any) => ({
             ...t,
             createdBy: Array.isArray(t.createdBy) ? t.createdBy.join(', ') : (t.createdBy || '')
         }));
-        
+
         onUpdate('billingTickets', sanitized);
         setBillingTicketToDelete(null);
         toast.success('Billing ticket removed');
@@ -1319,7 +1319,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [mentionQuery, setMentionQuery] = useState('');
     const [showMentions, setShowMentions] = useState(false);
     const [chatAssignees, setChatAssignees] = useState<string[]>([]);
-    const [cursorPosition, setCursorPosition] = useState(0); 
+    const [cursorPosition, setCursorPosition] = useState(0);
     const chatInputRef = React.useRef<HTMLInputElement>(null);
     const chatScrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -1363,10 +1363,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const handleChatInput = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         setNewChatMessage(val);
-        
+
         const cursor = e.target.selectionStart || 0;
         setCursorPosition(cursor);
-        
+
         // Check for trigger at cursor
         const textBefore = val.slice(0, cursor);
         const words = textBefore.split(/\s+/);
@@ -1388,7 +1388,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
         // Build assignees with name lookup (chatAssignees is string[] of emails here)
         const safeAssignees = chatAssignees.map(email => {
-            const emp = employees.find((e: any) => 
+            const emp = employees.find((e: any) =>
                 (e.value || e.email || '')?.toLowerCase() === email.toLowerCase()
             );
             return {
@@ -1409,7 +1409,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         setChatMessages(prev => [...prev, optimisticMsg]);
         setNewChatMessage('');
         setChatAssignees([]);
-        
+
         // Reset height
         if (chatInputRef.current) {
             // chatInputRef.current.style.height = 'auto'; // if using textarea
@@ -1515,8 +1515,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const getEmployeeData = (idOrEmail: string) => {
         if (!idOrEmail) return null;
         const lower = idOrEmail.toLowerCase();
-        const found = employees.find(e => 
-            String(e._id || '').toLowerCase() === lower || 
+        const found = employees.find(e =>
+            String(e._id || '').toLowerCase() === lower ||
             String(e.email || '').toLowerCase() === lower ||
             String(e.value || '').toLowerCase() === lower
         );
@@ -1579,8 +1579,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (editingPlanningIndex !== null) {
             updatedDocs[editingPlanningIndex] = { ...newPlanningItem };
         } else {
-            updatedDocs.push({ 
-                ...newPlanningItem, 
+            updatedDocs.push({
+                ...newPlanningItem,
                 _id: `plan-${Date.now()}`,
                 createdAt: new Date().toISOString()
             });
@@ -1645,7 +1645,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         if (!templateId) {
             templateId = DOC_TEMPLATES[docName];
         }
-        
+
         if (!templateId) {
             toast.error(`Template not configured for "${docName}"`);
             return;
@@ -1676,46 +1676,46 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 prelimAmount: formData.prelimAmount || '',
                 date: formData.date || new Date().toLocaleDateString(),
                 today: new Date().toLocaleDateString(),
-                
+
                 // Property Owner / Public Agency
                 poName: formData.poName || '',
                 PoAddress: formData.PoAddress || '',
                 PoPhone: formData.PoPhone || '',
-                
+
                 // Original Contractor
                 ocName: formData.ocName || '',
                 ocAddress: formData.ocAddress || '',
                 ocPhone: formData.ocPhone || '',
-                
+
                 // Sub-Contractor
                 subCName: formData.subCName || '',
                 subCAddress: formData.subCAddress || '',
                 subCPhone: formData.subCPhone || '',
-                
+
                 // Lending Institution
                 liName: formData.liName || '',
                 liAddress: formData.liAddress || '',
                 liPhone: formData.liPhone || '',
-                
+
                 // Surety Company
                 scName: formData.scName || '',
                 scAddress: formData.scAddress || '',
                 scPhone: formData.scPhone || '',
                 bondNumber: formData.bondNumber || '',
-                
+
                 // Fringe Benefits Trust
                 fbName: formData.fbName || '',
                 fbAddress: formData.fbAddress || '',
-                
+
                 // Certified Payroll
                 certifiedPayroll: formData.certifiedPayroll || '',
-                
+
                 // Customer Info
                 customerName: formData.customerName || '',
                 contactName: formData.contactName || '',
                 contactEmail: formData.contactEmail || '',
                 contactPhone: formData.contactPhone || '',
-                
+
                 // Project
                 projectName: formData.projectName || '',
                 estimate: formData.estimate || '',
@@ -1727,7 +1727,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 customerJobNo: formData.customerJobNo || '',
                 customerJobNumber: formData.customerJobNo || '',
                 DIRProjectNo: formData.DIRProjectNo || '',
-                
+
                 // Grand Total - prefer live chartData (calculated from line items) over saved DB value
                 grandTotal: (() => {
                     // 1. Try chartData.grandTotal first (live calculated value)
@@ -1743,10 +1743,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     }
                     return '';
                 })(),
-                
+
                 // Customer ID should be the client name
                 customerId: formData.customerName || formData.customer || '',
-                
+
                 // Robust Customer Info - Prioritize official record from CRM over estimate's job-site contact info
                 customerAddress: (() => {
                     if (activeClient) {
@@ -1756,7 +1756,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     }
                     return formData.contactAddress || '';
                 })(),
-                
+
                 customerPhone: (() => {
                     if (activeClient) {
                         const primary = (activeClient.contacts || []).find((c: any) => c.primary);
@@ -1765,7 +1765,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     }
                     return formData.contactPhone || '';
                 })(),
-                
+
                 // Get proposalWriter employee details
                 createdBy: (() => {
                     const proposalWriterEmail = formData.proposalWriter;
@@ -1803,7 +1803,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 })(),
                 cfoSignature: (() => {
                     if (employees.length > 0) {
-                        const cfo = employees.find(e => 
+                        const cfo = employees.find(e =>
                             (e.email || e._id || '').toLowerCase() === 'dt@devco-inc.com'
                         );
                         return cfo?.signature || '';
@@ -1820,7 +1820,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     if (intentItem.createdAt) {
                         variables.today = new Date(intentItem.createdAt).toLocaleDateString();
                     }
-                    
+
                     // Intent to Lien specific fields
                     variables.arBalance = intentItem.arBalance || '';
                     variables.fromDate = intentItem.fromDate ? new Date(intentItem.fromDate).toLocaleDateString() : '';
@@ -1839,12 +1839,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 if (releaseItem.createdAt) {
                     variables.today = new Date(releaseItem.createdAt).toLocaleDateString();
                 }
-                
+
                 // Ensure date formatting consistency
                 if (releaseItem.date) {
-                   variables.date = new Date(releaseItem.date).toLocaleDateString(); 
+                    variables.date = new Date(releaseItem.date).toLocaleDateString();
                 }
-                
+
                 if (releaseItem.amountOfCheck) {
                     const rawVal = String(releaseItem.amountOfCheck).replace(/[^0-9.-]+/g, '');
                     const num = parseFloat(rawVal);
@@ -1853,7 +1853,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     // Also set receivedProgressPayments for CP template compatibility
                     variables.receivedProgressPayments = formatted;
                 }
-                
+
                 if (releaseItem.disputedClaims) {
                     const rawVal = String(releaseItem.disputedClaims).replace(/[^0-9.-]+/g, '');
                     const num = parseFloat(rawVal);
@@ -1875,7 +1875,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.companyPosition = creatorEmployee.companyPosition || '';
                     variables.signature = creatorEmployee.signature || '';
                 }
-                
+
                 // For array fields like un-paid amounts, format them if they are numbers
                 if (releaseItem.amountsOfUnpaidProgressPayment && Array.isArray(releaseItem.amountsOfUnpaidProgressPayment)) {
                     variables.amountsOfUnpaidProgressPayment = releaseItem.amountsOfUnpaidProgressPayment.map((val: any) => {
@@ -1884,15 +1884,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         return !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : val;
                     }).join(', ');
                 }
-                
+
                 if (releaseItem.DatesOfWaiverRelease && Array.isArray(releaseItem.DatesOfWaiverRelease)) {
                     // Format dates?
                     variables.DatesOfWaiverRelease = releaseItem.DatesOfWaiverRelease.map((d: string) => new Date(d).toLocaleDateString()).join(', ');
                 }
-                
+
                 // Received Progress Payments array (for UP)
                 if (releaseItem.receivedProgressPayments && Array.isArray(releaseItem.receivedProgressPayments)) {
-                     variables.receivedProgressPayments = releaseItem.receivedProgressPayments.join(', ');
+                    variables.receivedProgressPayments = releaseItem.receivedProgressPayments.join(', ');
                 }
             }
 
@@ -1906,7 +1906,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.otherBillingTerms = billingItem.otherBillingTerms || '';
                     const rawLumpSum = String(billingItem.lumpSum || '').replace(/[^0-9.-]+/g, '');
                     variables.lumpSum = rawLumpSum ? `$${parseFloat(rawLumpSum).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '$0.00';
-                    
+
                     // Support for repeating section
                     if (billingItem.titleDescriptions && billingItem.titleDescriptions.length > 0) {
                         // Pass as array - the backend needs to handle this specifically
@@ -1922,7 +1922,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 // Only add title bullet and styling if title exists
                                 itemStr = `● [B][S+]${td.title.trim()}[/S+][/B]`;
                             }
-                            
+
                             if (td.description && td.description.trim()) {
                                 const indentedDesc = (td.description as string).split('\n').map((line: string) => `   ○ ${line}`).join('\n');
                                 if (itemStr) {
@@ -1968,7 +1968,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }, 600);
         }
     };
-    
+
     const handleFileDownload = (url: string, fileName: string) => {
         if (!url) {
             toast.error('File URL is not available');
@@ -2052,7 +2052,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const confirmRemoveContract = async () => {
         if (!onUpdate || contractIndexToDelete === null) return;
-        
+
         const contractToDelete = signedContracts[contractIndexToDelete];
         const urlsToDelete = contractToDelete.attachments?.map((a: any) => a.url).filter(Boolean) || [];
 
@@ -2133,12 +2133,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const handleSaveReceipt = () => {
         if (!onUpdate) return;
-        
+
         let updated;
         if (editingReceiptIndex !== null) {
             // Update mode
-            updated = receiptsAndCosts.map((item: any, idx: number) => 
-                idx === editingReceiptIndex 
+            updated = receiptsAndCosts.map((item: any, idx: number) =>
+                idx === editingReceiptIndex
                     ? { ...item, ...newReceipt, amount: parseFloat(newReceipt.amount) || 0 }
                     : item
             );
@@ -2207,7 +2207,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
     const handleUpdateReceiptStatus = (index: number, field: string, value: string) => {
         if (!onUpdate) return;
-        
+
         if (field === 'status' && value === 'Devco Paid') {
             setPaymentContext({ index, data: receiptsAndCosts[index] });
             setPaymentDetails({
@@ -2218,7 +2218,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             return;
         }
 
-        const updated = receiptsAndCosts.map((r: any, i: number) => 
+        const updated = receiptsAndCosts.map((r: any, i: number) =>
             i === index ? { ...r, [field]: value } : r
         );
         onUpdate('receiptsAndCosts', updated);
@@ -2239,9 +2239,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }));
         } else {
             const index = paymentContext.index;
-            const updated = receiptsAndCosts.map((r: any, i: number) => 
-                i === index ? { 
-                    ...r, 
+            const updated = receiptsAndCosts.map((r: any, i: number) =>
+                i === index ? {
+                    ...r,
                     status: 'Devco Paid',
                     paidBy: paymentDetails.paidBy,
                     paymentDate: paymentDetails.paymentDate
@@ -2249,8 +2249,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             );
             onUpdate('receiptsAndCosts', updated);
             if (selectedReceipt && receiptsAndCosts[index]._id === selectedReceipt._id) {
-                setSelectedReceipt({ 
-                    ...selectedReceipt, 
+                setSelectedReceipt({
+                    ...selectedReceipt,
                     status: 'Devco Paid',
                     paidBy: paymentDetails.paidBy,
                     paymentDate: paymentDetails.paymentDate
@@ -2284,14 +2284,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </span>
                         )}
                     </div>
-                    
-                    
+
+
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] flex flex-col h-[400px] md:h-[500px] relative">
 
-                         <div 
+                        <div
                             className="flex-1 overflow-y-auto space-y-3 pr-1 scrollbar-thin scrollbar-thumb-slate-200"
                             ref={chatScrollRef}
-                         >
+                        >
                             {chatMessages.length === 0 ? (
                                 <div className="text-center py-12">
                                     <p className="text-[10px] text-slate-400 font-bold">No messages for this estimate yet.</p>
@@ -2300,13 +2300,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 chatMessages.map((msg, idx) => {
                                     // Determine if I am the sender
                                     // Use currentUser from usePermissions or fallback to basic check
-                                    const isMe = (currentUser?.email && msg.sender?.toLowerCase() === currentUser.email?.toLowerCase()) || 
-                                                 msg.senderName === 'Me' || 
-                                                 msg.sender === formData?.proposalWriter;
-                                    
+                                    const isMe = (currentUser?.email && msg.sender?.toLowerCase() === currentUser.email?.toLowerCase()) ||
+                                        msg.senderName === 'Me' ||
+                                        msg.sender === formData?.proposalWriter;
+
                                     // Find sender employee for avatar
-                                    const senderEmp = employees.find(e => 
-                                        e.email?.toLowerCase() === msg.sender?.toLowerCase() || 
+                                    const senderEmp = employees.find(e =>
+                                        e.email?.toLowerCase() === msg.sender?.toLowerCase() ||
                                         e._id === msg.sender ||
                                         e.value?.toLowerCase() === msg.sender?.toLowerCase()
                                     );
@@ -2320,14 +2320,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 const label = part.slice(1);
                                                 // Check if this person is already an assignee (hide them from text if they are)
                                                 const isAssignee = msg.assignees?.some((email: string) => {
-                                                    const emp = employees.find(e => 
+                                                    const emp = employees.find(e =>
                                                         e.email?.toLowerCase() === email?.toLowerCase() ||
                                                         e._id === email ||
                                                         e.value?.toLowerCase() === email?.toLowerCase()
                                                     );
                                                     return (emp?.label === label || emp?.firstName === label) || email === label;
                                                 });
-                                                
+
                                                 if (isAssignee) return null;
                                                 return <span key={i} className={`font-bold ${isMe ? 'text-blue-200' : 'text-blue-600'}`}>{part}</span>;
                                             }
@@ -2342,8 +2342,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     msg.assignees.map((assignee: any, aIdx: number) => {
                                                         // Handle both string (email) and object ({email, name}) formats
                                                         const email = typeof assignee === 'string' ? assignee : assignee?.email || '';
-                                                        const assEmp = employees.find(e => 
-                                                            e.email?.toLowerCase() === email?.toLowerCase() || 
+                                                        const assEmp = employees.find(e =>
+                                                            e.email?.toLowerCase() === email?.toLowerCase() ||
                                                             e._id === email ||
                                                             e.value?.toLowerCase() === email?.toLowerCase()
                                                         );
@@ -2400,40 +2400,40 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             );
                                         }
                                     };
-                                    
+
                                     return (
-                                         <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1 items-end gap-2`}>
+                                        <div key={idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group mb-1 items-end gap-2`}>
                                             {isMe && !editingMsgId && (
                                                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             setReplyingTo(msg);
                                                             chatInputRef.current?.focus();
-                                                        }} 
+                                                        }}
                                                         className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
                                                         title="Reply"
                                                     >
                                                         <Reply size={12} />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
                                                             setNewChatMessage(prev => `Fwd: ${cleanText}\n` + prev);
                                                             chatInputRef.current?.focus();
-                                                        }} 
+                                                        }}
                                                         className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
                                                         title="Forward"
                                                     >
                                                         <Forward size={12} />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => { setEditingMsgId(msg._id); setEditingMsgText(msg.message); }}
                                                         className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
                                                         title="Edit"
                                                     >
                                                         <Pencil size={12} />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => handleDeleteMessage(msg._id)}
                                                         className="p-1 hover:bg-red-50 rounded-full text-slate-400 hover:text-red-500 transition-colors"
                                                         title="Delete"
@@ -2442,23 +2442,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     </button>
                                                 </div>
                                             )}
-                                            
-                                            <div id={msg._id} className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${
-                                                isMe 
-                                                    ? 'bg-[#526D82] text-white rounded-br-none' 
-                                                    : 'bg-white text-slate-700 rounded-bl-none border border-slate-200'
-                                            }`}>
+
+                                            <div id={msg._id} className={`rounded-2xl p-1 min-w-[160px] max-w-[85%] shadow-sm relative ${isMe
+                                                ? 'bg-[#526D82] text-white rounded-br-none'
+                                                : 'bg-white text-slate-700 rounded-bl-none border border-slate-200'
+                                                }`}>
                                                 <HeaderContent />
 
                                                 {/* Reply Citation */}
                                                 {msg.replyTo && (
-                                                    <div 
+                                                    <div
                                                         onClick={() => document.getElementById(msg.replyTo._id)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                                                        className={`mb-2 mx-1 p-1.5 rounded-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity ${
-                                                            isMe 
-                                                                ? 'bg-white/10 border-l-2 border-white/40 text-white/80' 
-                                                                : 'bg-slate-50 border-l-2 border-slate-300 text-slate-500'
-                                                        }`}
+                                                        className={`mb-2 mx-1 p-1.5 rounded-lg text-[10px] cursor-pointer hover:opacity-80 transition-opacity ${isMe
+                                                            ? 'bg-white/10 border-l-2 border-white/40 text-white/80'
+                                                            : 'bg-slate-50 border-l-2 border-slate-300 text-slate-500'
+                                                            }`}
                                                     >
                                                         <p className="font-bold opacity-75 mb-0.5">{msg.replyTo.sender?.split('@')[0]}</p>
                                                         <p className="truncate line-clamp-1 italic opacity-90">{msg.replyTo.message}</p>
@@ -2467,7 +2465,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                                                 {editingMsgId === msg._id ? (
                                                     <div className="px-1 py-1 space-y-2">
-                                                        <textarea 
+                                                        <textarea
                                                             autoFocus
                                                             className="w-full bg-white/10 border border-white/20 rounded-lg p-2 text-[11px] text-white focus:outline-none focus:ring-1 focus:ring-white/50 min-h-[60px] resize-none"
                                                             value={editingMsgText}
@@ -2493,16 +2491,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 )}
 
                                                 <div className={`flex items-center justify-between mt-1 pt-1 px-1 gap-2 ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
-                                                    <div /> 
+                                                    <div />
                                                     <div className="flex items-center gap-2">
                                                         <span className={`text-[8px] uppercase tracking-widest font-black opacity-60 shrink-0 ${isMe ? 'text-white' : 'text-slate-400'}`}>
-                                                            {new Date(msg.createdAt).toLocaleString([], { 
-                                                                month: 'short', 
-                                                                day: 'numeric', 
-                                                                year: 'numeric', 
-                                                                hour: '2-digit', 
-                                                                minute: '2-digit', 
-                                                                hour12: true 
+                                                            {new Date(msg.createdAt).toLocaleString([], {
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                                year: 'numeric',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit',
+                                                                hour12: true
                                                             })}
                                                         </span>
                                                     </div>
@@ -2511,22 +2509,22 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                                             {!isMe && !editingMsgId && (
                                                 <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity pb-1">
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             setReplyingTo(msg);
                                                             chatInputRef.current?.focus();
-                                                        }} 
+                                                        }}
                                                         className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-green-600 transition-colors"
                                                         title="Reply"
                                                     >
                                                         <Reply size={12} />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={() => {
                                                             const cleanText = msg.message.replace(/(@[\w.@]+)/g, '').trim();
                                                             setNewChatMessage(prev => `Fwd: ${cleanText}\n` + prev);
                                                             chatInputRef.current?.focus();
-                                                        }} 
+                                                        }}
                                                         className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600 transition-colors"
                                                         title="Forward"
                                                     >
@@ -2538,128 +2536,128 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     );
                                 })
                             )}
-                         </div>
-                             {replyingTo && (
-                                 <div className="mb-2 mx-1 p-2 bg-slate-50 border-l-4 border-blue-500 rounded flex items-center justify-between animate-in slide-in-from-bottom-2">
-                                     <div className="flex-1 min-w-0">
-                                         <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight mb-0.5">Replying to {replyingTo.sender?.split('@')[0]}</p>
-                                         <p className="text-[10px] text-slate-500 truncate italic">{replyingTo.message}</p>
-                                     </div>
-                                     <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-slate-200 rounded-full transition-colors ml-2">
-                                         <X className="w-3 h-3 text-slate-400" />
-                                     </button>
-                                 </div>
-                             )}
-                         {/* Chat Input Area */}
-                         {/* Chat Input Area */}
-                         <div className="mt-3 pt-3 border-t border-slate-200/50 relative" id="estimate-chat-input-container">
-                             <MyDropDown
-                                  isOpen={showMentions}
-                                  onClose={() => setShowMentions(false)}
-                                  options={filteredChatOptions}
-                                  selectedValues={chatAssignees}
-                                  onSelect={(val) => {
-                                      if (!chatAssignees.includes(val)) {
-                                          setChatAssignees(prev => [...prev, val]);
-                                      } else {
-                                          setChatAssignees(prev => prev.filter(v => v !== val));
-                                      }
-                                      
-                                      // Remove trigger text
-                                      const text = newChatMessage;
-                                      const before = text.slice(0, cursorPosition);
-                                      const lastAt = before.lastIndexOf('@');
-                                      if (lastAt >= 0) {
-                                          const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
-                                          setNewChatMessage(newText);
-                                          
-                                          setTimeout(() => {
-                                              if (chatInputRef.current) {
-                                                  chatInputRef.current.focus();
-                                                  const newPos = lastAt;
-                                                  chatInputRef.current.setSelectionRange(newPos, newPos);
-                                                  setCursorPosition(newPos);
-                                              }
-                                          }, 0);
-                                      }
-                                  }}
-                                  multiSelect={true}
-                                  anchorId="estimate-chat-input-container"
-                                  width="w-64"
-                                  showSearch={false}
-                             />
-                             
-                             <form 
-                                  onSubmit={handleSendChatMessage} 
-                                  className="flex flex-col gap-2"
-                             >
-                                  {chatAssignees.length > 0 && (
-                                      <div className="flex items-center gap-2 mb-1 px-1">
-                                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Assigning:</span>
-                                          <div className="flex -space-x-1.5 overflow-hidden">
-                                              {chatAssignees.map((val: string, i: number) => {
-                                                  // Find employee by val (id or value)
-                                                  // employeeOptions has { id, label, value, profilePicture }
-                                                  const emp = employeeOptions.find(e => e.value === val || e.id === val);
-                                                  return (
-                                                      <div 
-                                                          key={i} 
-                                                          className="cursor-pointer hover:scale-110 transition-transform"
-                                                          onClick={() => setChatAssignees(prev => prev.filter(v => v !== val))}
-                                                          title={emp?.label || val}
-                                                      >
-                                                          <Avatar className="w-5 h-5 border border-white shrink-0 shadow-sm">
-                                                              <AvatarImage src={emp?.profilePicture} />
-                                                              <AvatarFallback className="text-[8px] bg-slate-200">
-                                                                  {(emp?.label || val)[0].toUpperCase()}
-                                                              </AvatarFallback>
-                                                          </Avatar>
-                                                      </div>
-                                                  );
-                                              })}
-                                          </div>
-                                          <button 
-                                              type="button"
-                                              onClick={() => setChatAssignees([])}
-                                              className="text-[9px] text-red-500 font-bold hover:underline ml-1"
-                                          >
-                                              Clear
-                                          </button>
-                                      </div>
-                                  )}
-                             
-                                  <div className="flex items-end gap-2">
-                                      <div className="relative flex-1">
-                                          <textarea 
-                                              ref={chatInputRef as any}
-                                              placeholder="Message team... (@ to mention)"
-                                              className="w-full px-4 py-2.5 bg-white/50 border border-slate-200 focus:bg-white rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 resize-none min-h-[42px] max-h-32 overflow-y-auto"
-                                              rows={1}
-                                              value={newChatMessage}
-                                              onInput={(e: any) => {
-                                                  const target = e.target;
-                                                  target.style.height = 'auto';
-                                                  target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
-                                              }}
-                                              onChange={(e: any) => handleChatInput(e)}
-                                              onKeyDown={(e) => {
-                                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                                      e.preventDefault();
-                                                      handleSendChatMessage();
-                                                  }
-                                              }}
-                                          />
-                                      </div>
-                                      <button 
-                                          type="submit"
-                                          disabled={!newChatMessage.trim()}
-                                          className="w-10 h-10 bg-[#526D82] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md shrink-0 mb-0.5"
-                                      >
-                                          <Send className="w-4 h-4" />
-                                      </button>
-                                  </div>
+                        </div>
+                        {replyingTo && (
+                            <div className="mb-2 mx-1 p-2 bg-slate-50 border-l-4 border-blue-500 rounded flex items-center justify-between animate-in slide-in-from-bottom-2">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-tight mb-0.5">Replying to {replyingTo.sender?.split('@')[0]}</p>
+                                    <p className="text-[10px] text-slate-500 truncate italic">{replyingTo.message}</p>
+                                </div>
+                                <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-slate-200 rounded-full transition-colors ml-2">
+                                    <X className="w-3 h-3 text-slate-400" />
+                                </button>
+                            </div>
+                        )}
+                        {/* Chat Input Area */}
+                        {/* Chat Input Area */}
+                        <div className="mt-3 pt-3 border-t border-slate-200/50 relative" id="estimate-chat-input-container">
+                            <MyDropDown
+                                isOpen={showMentions}
+                                onClose={() => setShowMentions(false)}
+                                options={filteredChatOptions}
+                                selectedValues={chatAssignees}
+                                onSelect={(val) => {
+                                    if (!chatAssignees.includes(val)) {
+                                        setChatAssignees(prev => [...prev, val]);
+                                    } else {
+                                        setChatAssignees(prev => prev.filter(v => v !== val));
+                                    }
+
+                                    // Remove trigger text
+                                    const text = newChatMessage;
+                                    const before = text.slice(0, cursorPosition);
+                                    const lastAt = before.lastIndexOf('@');
+                                    if (lastAt >= 0) {
+                                        const newText = before.slice(0, lastAt) + text.slice(cursorPosition);
+                                        setNewChatMessage(newText);
+
+                                        setTimeout(() => {
+                                            if (chatInputRef.current) {
+                                                chatInputRef.current.focus();
+                                                const newPos = lastAt;
+                                                chatInputRef.current.setSelectionRange(newPos, newPos);
+                                                setCursorPosition(newPos);
+                                            }
+                                        }, 0);
+                                    }
+                                }}
+                                multiSelect={true}
+                                anchorId="estimate-chat-input-container"
+                                width="w-64"
+                                showSearch={false}
+                            />
+
+                            <form
+                                onSubmit={handleSendChatMessage}
+                                className="flex flex-col gap-2"
+                            >
+                                {chatAssignees.length > 0 && (
+                                    <div className="flex items-center gap-2 mb-1 px-1">
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Assigning:</span>
+                                        <div className="flex -space-x-1.5 overflow-hidden">
+                                            {chatAssignees.map((val: string, i: number) => {
+                                                // Find employee by val (id or value)
+                                                // employeeOptions has { id, label, value, profilePicture }
+                                                const emp = employeeOptions.find(e => e.value === val || e.id === val);
+                                                return (
+                                                    <div
+                                                        key={i}
+                                                        className="cursor-pointer hover:scale-110 transition-transform"
+                                                        onClick={() => setChatAssignees(prev => prev.filter(v => v !== val))}
+                                                        title={emp?.label || val}
+                                                    >
+                                                        <Avatar className="w-5 h-5 border border-white shrink-0 shadow-sm">
+                                                            <AvatarImage src={emp?.profilePicture} />
+                                                            <AvatarFallback className="text-[8px] bg-slate-200">
+                                                                {(emp?.label || val)[0].toUpperCase()}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setChatAssignees([])}
+                                            className="text-[9px] text-red-500 font-bold hover:underline ml-1"
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
+                                )}
+
+                                <div className="flex items-end gap-2">
+                                    <div className="relative flex-1">
+                                        <textarea
+                                            ref={chatInputRef as any}
+                                            placeholder="Message team... (@ to mention)"
+                                            className="w-full px-4 py-2.5 bg-white/50 border border-slate-200 focus:bg-white rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400 resize-none min-h-[42px] max-h-32 overflow-y-auto"
+                                            rows={1}
+                                            value={newChatMessage}
+                                            onInput={(e: any) => {
+                                                const target = e.target;
+                                                target.style.height = 'auto';
+                                                target.style.height = `${Math.min(target.scrollHeight, 128)}px`;
+                                            }}
+                                            onChange={(e: any) => handleChatInput(e)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    handleSendChatMessage();
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    <button
+                                        type="submit"
+                                        disabled={!newChatMessage.trim()}
+                                        className="w-10 h-10 bg-[#526D82] text-white rounded-xl flex items-center justify-center hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md shrink-0 mb-0.5"
+                                    >
+                                        <Send className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </form>
-                         </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2674,24 +2672,24 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             {prelimDocs.length}
                         </span>
                     </div>
-                    
-                    
+
+
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
                         {/* Hidden file inputs for COI and Legal Docs */}
-                        <input 
-                            type="file" 
-                            ref={coiInputRef} 
-                            onChange={handleCoiUpload} 
+                        <input
+                            type="file"
+                            ref={coiInputRef}
+                            onChange={handleCoiUpload}
                             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            className="hidden" 
+                            className="hidden"
                         />
-                        <input 
-                            type="file" 
-                            ref={legalDocsInputRef} 
-                            onChange={handleLegalDocsUpload} 
+                        <input
+                            type="file"
+                            ref={legalDocsInputRef}
+                            onChange={handleLegalDocsUpload}
                             accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
                             multiple
-                            className="hidden" 
+                            className="hidden"
                         />
 
                         <div className="grid grid-cols-1 gap-3">
@@ -2700,11 +2698,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 if (docName === 'COI - Certificate of Insurance') {
                                     return (
                                         <div key={idx} className="group">
-                                            <div 
+                                            <div
                                                 className={`
                                                     flex items-center justify-between p-3 rounded-xl cursor-pointer
-                                                    ${coiDocument 
-                                                        ? 'bg-emerald-50 border border-emerald-200' 
+                                                    ${coiDocument
+                                                        ? 'bg-emerald-50 border border-emerald-200'
                                                         : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
                                                     shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
                                                 `}
@@ -2732,7 +2730,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 </div>
                                                 {coiDocument && (
                                                     <div className="flex items-center gap-1">
-                                                        <button 
+                                                        <button
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 handleFileDownload(coiDocument.url, 'COI_Document');
@@ -2742,7 +2740,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         >
                                                             <Download className="w-4 h-4" />
                                                         </button>
-                                                        <button 
+                                                        <button
                                                             className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
@@ -2763,12 +2761,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 if (docName === 'Legal Docs') {
                                     return (
                                         <div key={idx} className="group">
-                                            <div 
+                                            <div
                                                 onClick={() => legalDocsInputRef.current?.click()}
                                                 className={`
                                                     flex items-center justify-between p-3 rounded-xl cursor-pointer
-                                                    ${legalDocs.length > 0 
-                                                        ? 'bg-violet-50 border border-violet-200' 
+                                                    ${legalDocs.length > 0
+                                                        ? 'bg-violet-50 border border-violet-200'
                                                         : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
                                                     shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
                                                 `}
@@ -2789,7 +2787,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 </div>
                                                 <Plus className="w-4 h-4 text-violet-500" />
                                             </div>
-                                            
+
                                             {/* List of uploaded legal docs */}
                                             {legalDocs.length > 0 && (
                                                 <div className="mt-2 ml-4 space-y-1">
@@ -2803,7 +2801,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center gap-1 flex-shrink-0">
-                                                                <button 
+                                                                <button
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
                                                                         handleFileDownload(doc.url, doc.name);
@@ -2813,7 +2811,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 >
                                                                     <Download className="w-3 h-3" />
                                                                 </button>
-                                                                <button 
+                                                                <button
                                                                     className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
@@ -2835,11 +2833,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 if (docName === 'Intent to Lien') {
                                     return (
                                         <div key={idx} className="group">
-                                            <div 
+                                            <div
                                                 className={`
                                                     flex items-center justify-between p-3 rounded-xl
-                                                    ${intentToLienItems.length > 0 
-                                                        ? 'bg-amber-50 border border-amber-200' 
+                                                    ${intentToLienItems.length > 0
+                                                        ? 'bg-amber-50 border border-amber-200'
                                                         : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
                                                     shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff] transition-all duration-200
                                                 `}
@@ -2856,25 +2854,25 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         {docName}
                                                     </span>
                                                 </div>
-                                                <button 
+                                                <button
                                                     onClick={handleAddIntentToLien}
                                                     className="p-1.5 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors"
                                                 >
                                                     <Plus className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                            
+
                                             {/* List of Intent to Lien items */}
                                             {intentToLienItems.length > 0 && (
                                                 <div className="mt-2 ml-4 space-y-2">
                                                     {intentToLienItems.map((item: any, itemIdx: number) => (
-                                                        <div 
-                                                            key={item._id || itemIdx} 
+                                                        <div
+                                                            key={`${item._id || 'item'}-${itemIdx}`}
                                                             className="group/item flex items-center justify-between p-2.5 bg-amber-50/50 rounded-lg border border-amber-100 hover:bg-amber-100/50 transition-colors relative overflow-hidden"
                                                         >
                                                             {generatingDoc === 'Intent to Lien' && generatingIndex === itemIdx && (
                                                                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-200/50">
-                                                                    <div 
+                                                                    <div
                                                                         className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-300 relative"
                                                                         style={{ width: `${generatingProgress}%` }}
                                                                     >
@@ -2891,7 +2889,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                     </span>
                                                                 </div>
                                                                 <span className="text-[9px] text-amber-600">
-                                                                    {item.fromDate && item.toDate 
+                                                                    {item.fromDate && item.toDate
                                                                         ? `${new Date(item.fromDate).toLocaleDateString()} - ${new Date(item.toDate).toLocaleDateString()}`
                                                                         : 'No date range'
                                                                     }
@@ -2936,17 +2934,17 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     );
                                 }
 
-                                    // Normal DocCard for other documents
-                                    return (
-                                        <DocCard 
-                                            key={idx} 
-                                            label={docName}
-                                            isLoading={generatingDoc === docName}
-                                            progress={generatingProgress}
-                                            hasTemplate={!!DOC_TEMPLATES[docName]}
-                                            onClick={() => handleDocClick(docName)}
-                                        />
-                                    );
+                                // Normal DocCard for other documents
+                                return (
+                                    <DocCard
+                                        key={idx}
+                                        label={docName}
+                                        isLoading={generatingDoc === docName}
+                                        progress={generatingProgress}
+                                        hasTemplate={!!DOC_TEMPLATES[docName]}
+                                        onClick={() => handleDocClick(docName)}
+                                    />
+                                );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No documents</p>
                             )}
@@ -2964,7 +2962,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <span className="text-[10px] bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
                             {billingTickets.length}
                         </span>
-                        <button 
+                        <button
                             onClick={handleAddBillingTicket}
                             className="ml-auto p-1.5 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 transition-colors"
                         >
@@ -2975,14 +2973,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
                         <div className="grid grid-cols-1 gap-3">
                             {billingTickets.length > 0 ? billingTickets.map((item: any, idx: number) => (
-                                <div 
+                                <div
                                     key={idx}
                                     onClick={(e) => handleEditBillingTicket(idx, e)}
                                     className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 overflow-hidden"
                                 >
                                     {generatingDoc === 'Billing Ticket' && generatingIndex === idx && (
                                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
-                                            <div 
+                                            <div
                                                 className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600 transition-all duration-300 relative"
                                                 style={{ width: `${generatingProgress}%` }}
                                             >
@@ -2994,54 +2992,54 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     )}
                                     <div className="flex justify-between items-start mb-2">
                                         <div className="flex-1 min-w-0 pr-6">
-                                    {(item.billingTerms || item.otherBillingTerms) && (
-                                        <p className="text-[10px] font-bold text-indigo-500">
-                                            {(!item.billingTerms || item.billingTerms === 'Other') ? (item.otherBillingTerms || item.billingTerms) : item.billingTerms}
-                                        </p>
+                                            {(item.billingTerms || item.otherBillingTerms) && (
+                                                <p className="text-[10px] font-bold text-indigo-500">
+                                                    {(!item.billingTerms || item.billingTerms === 'Other') ? (item.otherBillingTerms || item.billingTerms) : item.billingTerms}
+                                                </p>
+                                            )}
+                                            {item.date && (
+                                                <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
+                                            )}
+                                        </div>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setBillingTicketToDelete(idx);
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDocClick('Billing Ticket', idx);
+                                            }}
+                                            className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-12"
+                                            title="Download PDF"
+                                        >
+                                            {generatingDoc === 'Billing Ticket' ? (
+                                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
+                                            ) : (
+                                                <Download className="w-3.5 h-3.5" />
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={(e) => handleEditBillingTicket(idx, e)}
+                                            className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
+                                        >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {(item.lumpSum || item.amount) && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
+                                            <span className="text-xs font-black text-green-600">
+                                                ${parseFloat(String(item.lumpSum || item.amount).replace(/[^0-9.-]+/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                            </span>
+                                        </div>
                                     )}
-                                    {item.date && (
-                                        <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
-                                    )}
-                                </div>
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setBillingTicketToDelete(idx);
-                                    }}
-                                    className="p-1 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-2"
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDocClick('Billing Ticket', idx);
-                                    }}
-                                    className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-12"
-                                    title="Download PDF"
-                                >
-                                    {generatingDoc === 'Billing Ticket' ? (
-                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500" />
-                                    ) : (
-                                        <Download className="w-3.5 h-3.5" />
-                                    )}
-                                </button>
-                                <button 
-                                    onClick={(e) => handleEditBillingTicket(idx, e)}
-                                    className="p-1 text-slate-300 hover:text-indigo-500 transition-colors opacity-0 group-hover:opacity-100 absolute top-2 right-7"
-                                >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                            </div>
-                            
-                            {(item.lumpSum || item.amount) && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    <span className="text-[9px] font-black text-slate-400 uppercase">Lump Sum</span>
-                                    <span className="text-xs font-black text-green-600">
-                                        ${parseFloat(String(item.lumpSum || item.amount).replace(/[^0-9.-]+/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                    </span>
-                                </div>
-                            )}
 
                                     {item.titleDescriptions?.length > 0 && (
                                         <div className="mt-2 space-y-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
@@ -3055,7 +3053,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             )}
                                         </div>
                                     )}
-                                    
+
                                     {item.uploads?.length > 0 && (
                                         <div className="mt-2 space-y-1">
                                             {item.uploads.map((upload: any, uIdx: number) => (
@@ -3094,7 +3092,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <span className="text-[10px] bg-cyan-100 text-cyan-600 px-2 py-0.5 rounded-full font-bold">
                             {releases.length}
                         </span>
-                        <button 
+                        <button
                             onClick={handleAddRelease}
                             className="ml-auto p-1.5 bg-cyan-100 text-cyan-600 rounded-lg hover:bg-cyan-200 transition-colors"
                         >
@@ -3103,16 +3101,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     </div>
 
                     <div className="p-4 rounded-2xl bg-white/30 shadow-[inset_2px_2px_6px_#d1d9e6,inset_-2px_-2px_6px_#ffffff] h-[350px] md:h-[500px] overflow-y-auto">
-                         <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             {releases.length > 0 ? releases.map((item: any, idx: number) => (
-                                <div 
+                                <div
                                     key={idx}
                                     onClick={(e) => handleEditRelease(idx, e)}
                                     className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300 overflow-hidden"
                                 >
                                     {generatingDoc === item.documentType && generatingIndex === idx && (
                                         <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-100/50">
-                                            <div 
+                                            <div
                                                 className="h-full bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-600 transition-all duration-300 relative"
                                                 style={{ width: `${generatingProgress}%` }}
                                             >
@@ -3131,7 +3129,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 <p className="text-[10px] font-bold text-slate-500">Date: {safeFormatDate(item.date)}</p>
                                             )}
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setReleaseToDelete(idx);
@@ -3160,7 +3158,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             </div>
                                         )}
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDocClick(item.documentType, idx);
@@ -3178,7 +3176,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             )) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No release docs</p>
                             )}
-                         </div>
+                        </div>
                     </div>
                 </div>
 
@@ -3223,18 +3221,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 const isUploadingThis = payrollUploadingDoc === docName;
                                 return (
                                     <div key={idx} className="group">
-                                        <div 
+                                        <div
                                             className={`
                                                 flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all duration-200
-                                                ${hasUploads 
-                                                    ? 'bg-emerald-50 border border-emerald-200' 
+                                                ${hasUploads
+                                                    ? 'bg-emerald-50 border border-emerald-200'
                                                     : isUploadingThis
                                                         ? 'bg-blue-50 border border-blue-200'
                                                         : 'bg-white/50 hover:bg-white border border-transparent hover:border-slate-200'}
                                                 shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff]
                                             `}
                                         >
-                                            <div 
+                                            <div
                                                 className="flex items-center gap-3 flex-1"
                                                 onClick={() => {
                                                     if (!hasUploads && !isUploadingThis) {
@@ -3259,9 +3257,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     {hasUploads && (
                                                         <div className="flex items-center gap-1.5">
                                                             {uploads[uploads.length - 1].uploaderImage ? (
-                                                                <img 
-                                                                    src={uploads[uploads.length - 1].uploaderImage} 
-                                                                    alt="" 
+                                                                <img
+                                                                    src={uploads[uploads.length - 1].uploaderImage}
+                                                                    alt=""
                                                                     className="w-4 h-4 rounded-full object-cover flex-shrink-0"
                                                                 />
                                                             ) : (
@@ -3273,7 +3271,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 Uploaded {new Date(uploads[uploads.length - 1].uploadedAt).toLocaleDateString()}
                                                                 {uploads[uploads.length - 1].uploadedBy && (
                                                                     <> by {(() => {
-                                                                        const emp = employees.find(e => e._id === uploads[uploads.length - 1].uploadedBy || 
+                                                                        const emp = employees.find(e => e._id === uploads[uploads.length - 1].uploadedBy ||
                                                                             `${e.firstName} ${e.lastName}`.toLowerCase().includes(uploads[uploads.length - 1].uploadedBy?.toLowerCase?.() || ''));
                                                                         if (emp?.firstName) return `${emp.firstName} ${emp.lastName || ''}`;
                                                                         const email = uploads[uploads.length - 1].uploadedBy;
@@ -3288,7 +3286,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     )}
                                                 </div>
                                             </div>
-                                            
+
                                             {/* Action buttons */}
                                             <div className="flex items-center gap-0.5">
                                                 {/* Upload more button (always available, more visible when has uploads) */}
@@ -3361,15 +3359,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         {hasUploads && (
                                             <div className="ml-6 mt-1.5 space-y-1.5">
                                                 {uploads.map((upload: any, uIdx: number) => (
-                                                    <div 
+                                                    <div
                                                         key={uIdx}
                                                         className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-100 shadow-sm transition-all duration-200 hover:shadow-md group/file"
                                                     >
                                                         <div className="flex items-center gap-2.5 flex-1 min-w-0">
                                                             {upload.uploaderImage ? (
-                                                                <img 
-                                                                    src={upload.uploaderImage} 
-                                                                    alt="" 
+                                                                <img
+                                                                    src={upload.uploaderImage}
+                                                                    alt=""
                                                                     className="w-5 h-5 rounded-full object-cover flex-shrink-0"
                                                                 />
                                                             ) : (
@@ -3396,7 +3394,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
-                                                            <button 
+                                                            <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
                                                                     handleFileDownload(upload.url, upload.name || `payroll_doc_${uIdx}`);
@@ -3519,8 +3517,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </p>
                             </div>
                             <div className="flex justify-end gap-2 mt-4">
-                                <Button 
-                                    variant="secondary" 
+                                <Button
+                                    variant="secondary"
                                     onClick={() => {
                                         setPendingPayrollUpload(null);
                                         setPayrollDescription('');
@@ -3558,7 +3556,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <span className="text-[10px] bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-bold">
                             {jobPlanningDocs.length}
                         </span>
-                        <button 
+                        <button
                             onClick={handleAddPlanning}
                             className="ml-auto p-1.5 bg-violet-100 text-violet-600 rounded-lg hover:bg-violet-200 transition-colors"
                         >
@@ -3570,7 +3568,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                         <div className="grid grid-cols-1 gap-3">
                             {jobPlanningDocs.length > 0 ? jobPlanningDocs.map((item: any, idx: number) => (
-                                <div 
+                                <div
                                     key={idx}
                                     onClick={() => {
                                         setSelectedPlanningItem(item);
@@ -3591,13 +3589,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             )}
                                         </div>
                                         <div className="flex items-center gap-0.5 absolute top-2 right-2">
-                                            <button 
+                                            <button
                                                 onClick={(e) => handleEditPlanning(idx, e)}
                                                 className="p-1 text-slate-300 hover:text-violet-600 transition-colors opacity-0 group-hover:opacity-100"
                                             >
                                                 <Pencil className="w-3.5 h-3.5" />
                                             </button>
-                                            <button 
+                                            <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     setPlanningItemToDelete(idx);
@@ -3608,7 +3606,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             </button>
                                         </div>
                                     </div>
-                                    
+
                                     <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50">
                                         <div>
                                             <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Active</p>
@@ -3618,15 +3616,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         </div>
                                         <div className="text-right">
                                             <p className="text-[7px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Expires</p>
-                                            <p className={`text-[9px] font-black leading-none ${
-                                                (() => {
-                                                    if (!item.expirationDate) return 'text-slate-700';
-                                                    try {
-                                                        const d = new Date(item.expirationDate);
-                                                        return !isNaN(d.getTime()) && d < new Date() ? 'text-red-500' : 'text-slate-700';
-                                                    } catch (e) { return 'text-slate-700'; }
-                                                })()
-                                            }`}>
+                                            <p className={`text-[9px] font-black leading-none ${(() => {
+                                                if (!item.expirationDate) return 'text-slate-700';
+                                                try {
+                                                    const d = new Date(item.expirationDate);
+                                                    return !isNaN(d.getTime()) && d < new Date() ? 'text-red-500' : 'text-slate-700';
+                                                } catch (e) { return 'text-slate-700'; }
+                                            })()
+                                                }`}>
                                                 {safeFormatDate(item.expirationDate, 'MM/dd/yy')}
                                             </p>
                                         </div>
@@ -3680,7 +3677,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">
                             {signedContracts.length}
                         </span>
-                        <button 
+                        <button
                             onClick={() => setIsSignedContractModalOpen(true)}
                             className="ml-auto p-1.5 bg-amber-100 text-amber-600 rounded-lg hover:bg-amber-200 transition-colors"
                         >
@@ -3692,7 +3689,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                         <div className="grid grid-cols-1 gap-3">
                             {signedContracts.length > 0 ? signedContracts.map((contract: any, idx: number) => (
-                                <div 
+                                <div
                                     key={idx}
                                     onClick={() => setSelectedViewContract(contract)}
                                     className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
@@ -3706,7 +3703,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 ${(contract.amount || 0).toLocaleString()}
                                             </p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleRemoveContract(idx);
@@ -3716,11 +3713,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </button>
                                     </div>
-                                    
+
                                     {contract.attachments && contract.attachments.length > 0 && (
                                         <div className="space-y-1">
                                             {contract.attachments.map((file: any, fIdx: number) => (
-                                                <button 
+                                                <button
                                                     key={fIdx}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
@@ -3759,7 +3756,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <span className="text-[10px] bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full font-bold">
                             {receiptsAndCosts.length}
                         </span>
-                        <button 
+                        <button
                             onClick={handleAddReceipt}
                             className="ml-auto p-1.5 bg-pink-100 text-pink-600 rounded-lg hover:bg-pink-200 transition-colors"
                         >
@@ -3795,11 +3792,11 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="grid grid-cols-1 gap-3">
                             {receiptsAndCosts.length > 0 ? [...receiptsAndCosts]
                                 .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                                .map((item: any) => {
+                                .map((item: any, mapIdx: number) => {
                                     const originalIdx = receiptsAndCosts.findIndex((r: any) => r._id === item._id);
                                     return (
-                                        <div 
-                                            key={item._id || originalIdx}
+                                        <div
+                                            key={`receipt-${mapIdx}`}
                                             onClick={() => setSelectedReceipt(item)}
                                             className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-white/80 hover:shadow-md transition-all duration-300"
                                         >
@@ -3826,13 +3823,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-1">
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => handleEditReceipt(originalIdx, e)}
                                                         className="p-1 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100"
                                                     >
                                                         <Pencil className="w-3.5 h-3.5" />
                                                     </button>
-                                                    <button 
+                                                    <button
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             setReceiptToDelete(originalIdx);
@@ -3843,64 +3840,65 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     </button>
                                                 </div>
                                             </div>
-                                    
-                                    <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                        <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full border ${item.approvalStatus === 'Approved' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                                            {item.approvalStatus || 'Not Approved'}
-                                        </span>
-                                        {item.status === 'Devco Paid' && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
-                                                Devco Paid
-                                            </span>
-                                        )}
-                                    </div>
 
-                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
-                                        <span className="text-[10px] text-slate-400 font-bold">{item.date}</span>
-                                        <div className="flex items-center gap-2">
-                                            {/* Creator & Tags */}
-                                            <div className="flex -space-x-1.5">
-                                                <TooltipProvider>
-                                                    {/* Creator */}
-                                                    {(() => {
-                                                        const creator = getEmployeeData(item.createdBy);
-                                                        return (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <div className="w-5 h-5 rounded-full border border-white bg-slate-100 flex items-center justify-center text-[7px] font-bold text-slate-500 shadow-sm overflow-hidden">
-                                                                        {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent><p>Created By: {creator?.label || item.createdBy}</p></TooltipContent>
-                                                            </Tooltip>
-                                                        );
-                                                    })()}
+                                            <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                                <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full border ${item.approvalStatus === 'Approved' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                                                    {item.approvalStatus || 'Not Approved'}
+                                                </span>
+                                                {item.status === 'Devco Paid' && (
+                                                    <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100">
+                                                        Devco Paid
+                                                    </span>
+                                                )}
+                                            </div>
 
-                                                    {/* Tags */}
-                                                    {(item.tag || []).slice(0, 2).map((tagMail: string, i: number) => {
-                                                        const tagEmp = getEmployeeData(tagMail);
-                                                        return (
-                                                            <Tooltip key={i}>
-                                                                <TooltipTrigger asChild>
-                                                                    <div className="w-5 h-5 rounded-full border border-white bg-[#0F4C75] flex items-center justify-center text-[7px] font-bold text-white shadow-sm overflow-hidden">
-                                                                        {tagEmp?.image ? <img src={tagEmp.image} className="w-full h-full object-cover" /> : (tagMail?.[0]?.toUpperCase() || 'T')}
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent><p>Tagged: {tagEmp?.label || tagMail}</p></TooltipContent>
-                                                            </Tooltip>
-                                                        );
-                                                    })}
-                                                    {(item.tag || []).length > 2 && (
-                                                        <div className="w-5 h-5 rounded-full border border-white bg-slate-50 flex items-center justify-center text-[7px] font-bold text-slate-400 shadow-sm">
-                                                            +{(item.tag || []).length - 2}
-                                                        </div>
-                                                    )}
-                                                </TooltipProvider>
+                                            <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-100/50">
+                                                <span className="text-[10px] text-slate-400 font-bold">{item.date}</span>
+                                                <div className="flex items-center gap-2">
+                                                    {/* Creator & Tags */}
+                                                    <div className="flex -space-x-1.5">
+                                                        <TooltipProvider>
+                                                            {/* Creator */}
+                                                            {(() => {
+                                                                const creator = getEmployeeData(item.createdBy);
+                                                                return (
+                                                                    <Tooltip>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div className="w-5 h-5 rounded-full border border-white bg-slate-100 flex items-center justify-center text-[7px] font-bold text-slate-500 shadow-sm overflow-hidden">
+                                                                                {creator?.image ? <img src={creator.image} className="w-full h-full object-cover" /> : (item.createdBy?.[0]?.toUpperCase() || 'U')}
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Created By: {creator?.label || item.createdBy}</p></TooltipContent>
+                                                                    </Tooltip>
+                                                                );
+                                                            })()}
+
+                                                            {/* Tags */}
+                                                            {(item.tag || []).slice(0, 2).map((tagMail: string, i: number) => {
+                                                                const tagEmp = getEmployeeData(tagMail);
+                                                                return (
+                                                                    <Tooltip key={i}>
+                                                                        <TooltipTrigger asChild>
+                                                                            <div className="w-5 h-5 rounded-full border border-white bg-[#0F4C75] flex items-center justify-center text-[7px] font-bold text-white shadow-sm overflow-hidden">
+                                                                                {tagEmp?.image ? <img src={tagEmp.image} className="w-full h-full object-cover" /> : (tagMail?.[0]?.toUpperCase() || 'T')}
+                                                                            </div>
+                                                                        </TooltipTrigger>
+                                                                        <TooltipContent><p>Tagged: {tagEmp?.label || tagMail}</p></TooltipContent>
+                                                                    </Tooltip>
+                                                                );
+                                                            })}
+                                                            {(item.tag || []).length > 2 && (
+                                                                <div className="w-5 h-5 rounded-full border border-white bg-slate-50 flex items-center justify-center text-[7px] font-bold text-slate-400 shadow-sm">
+                                                                    +{(item.tag || []).length - 2}
+                                                                </div>
+                                                            )}
+                                                        </TooltipProvider>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                            )}) : (
+                                    )
+                                }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No records</p>
                             )}
                         </div>
@@ -3934,76 +3932,76 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 const creator = normalizedEmployees.find(e => e.value === jha.createdBy);
                                 const sigs = (jha.signatures || []).filter((s: any) => s.employee && s.signature);
                                 return (
-                                <div
-                                    key={jha._id || idx}
-                                    onClick={() => handleViewJHA(jha)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-orange-50/60 hover:shadow-md hover:border-orange-200 transition-all duration-300"
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {safeFormatDate(jha.date, 'MM/dd/yyyy')}
-                                            </p>
-                                            <p className="text-xs font-black text-slate-800 truncate">
-                                                {jha.scheduleRef?.title || jha.computedTitle || 'JHA Record'}
-                                            </p>
-                                        </div>
-                                        <Eye className="w-3.5 h-3.5 text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                        {jha.usaNo && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
-                                                USA #{jha.usaNo}
-                                            </span>
-                                        )}
-                                        <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
-                                            {jha.jhaTime || '-'}
-                                        </span>
-                                    </div>
-                                    {/* Creator */}
-                                    <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
-                                        <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                                            {creator?.image ? (
-                                                <img src={creator.image} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
-                                                    {(creator?.label || jha.createdBy || '?')[0]?.toUpperCase()}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || jha.createdBy || '-'}</span>
-                                    </div>
-                                    {/* Signature Avatars */}
-                                    {sigs.length > 0 && (
-                                        <div className="flex items-center gap-1 mt-2">
-                                            <div className="flex -space-x-1.5">
-                                                {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
-                                                    const emp = normalizedEmployees.find(e => e.value === sig.employee);
-                                                    return (
-                                                        <div
-                                                            key={sIdx}
-                                                            className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
-                                                            title={emp?.label || sig.employee}
-                                                        >
-                                                            {emp?.image ? (
-                                                                <img src={emp.image} className="w-full h-full object-cover" alt="" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
-                                                                    {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
-                                                        </div>
-                                                    );
-                                                })}
+                                    <div
+                                        key={`${jha._id || 'jha'}-${idx}`}
+                                        onClick={() => handleViewJHA(jha)}
+                                        className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-orange-50/60 hover:shadow-md hover:border-orange-200 transition-all duration-300"
+                                    >
+                                        <div className="flex justify-between items-start mb-1">
+                                            <div>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {safeFormatDate(jha.date, 'MM/dd/yyyy')}
+                                                </p>
+                                                <p className="text-xs font-black text-slate-800 truncate">
+                                                    {jha.scheduleRef?.title || jha.computedTitle || 'JHA Record'}
+                                                </p>
                                             </div>
-                                            {sigs.length > 6 && (
-                                                <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
-                                            )}
-                                            <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
+                                            <Eye className="w-3.5 h-3.5 text-orange-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
-                                    )}
-                                </div>
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                            {jha.usaNo && (
+                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-600 border border-orange-100">
+                                                    USA #{jha.usaNo}
+                                                </span>
+                                            )}
+                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100">
+                                                {jha.jhaTime || '-'}
+                                            </span>
+                                        </div>
+                                        {/* Creator */}
+                                        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
+                                            <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                                {creator?.image ? (
+                                                    <img src={creator.image} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
+                                                        {(creator?.label || jha.createdBy || '?')[0]?.toUpperCase()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || jha.createdBy || '-'}</span>
+                                        </div>
+                                        {/* Signature Avatars */}
+                                        {sigs.length > 0 && (
+                                            <div className="flex items-center gap-1 mt-2">
+                                                <div className="flex -space-x-1.5">
+                                                    {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
+                                                        const emp = normalizedEmployees.find(e => e.value === sig.employee);
+                                                        return (
+                                                            <div
+                                                                key={sIdx}
+                                                                className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
+                                                                title={emp?.label || sig.employee}
+                                                            >
+                                                                {emp?.image ? (
+                                                                    <img src={emp.image} className="w-full h-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
+                                                                        {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {sigs.length > 6 && (
+                                                    <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
+                                                )}
+                                                <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No JHA records</p>
@@ -4043,116 +4041,116 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 const ownedCount = (djt.equipmentUsed || []).filter((eq: any) => eq.type?.toLowerCase() === 'owned').length;
                                 const rentalCount = (djt.equipmentUsed || []).filter((eq: any) => eq.type?.toLowerCase() === 'rental').length;
                                 return (
-                                <div
-                                    key={djt._id || idx}
-                                    onClick={() => handleViewDJT(djt)}
-                                    className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-cyan-50/60 hover:shadow-md hover:border-cyan-200 transition-all duration-300"
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                                {(djt.date || djt.scheduleRef?.fromDate) 
-                                                    ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' })
-                                                    : safeFormatDate(djt.createdAt, 'MM/dd/yyyy')
-                                                }
-                                                {djt.schedule_id && (
-                                                    <span className="text-slate-300 ml-1.5">· {djt.schedule_id}</span>
-                                                )}
-                                            </p>
-                                            <p className="text-xs font-black text-slate-800 truncate">
-                                                {djt.scheduleRef?.title || 'Job Ticket'}
-                                            </p>
+                                    <div
+                                        key={`${djt._id || 'djt'}-${idx}`}
+                                        onClick={() => handleViewDJT(djt)}
+                                        className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-cyan-50/60 hover:shadow-md hover:border-cyan-200 transition-all duration-300"
+                                    >
+                                        <div className="flex justify-between items-start mb-1">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                    {(djt.date || djt.scheduleRef?.fromDate)
+                                                        ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' })
+                                                        : safeFormatDate(djt.createdAt, 'MM/dd/yyyy')
+                                                    }
+                                                    {djt.schedule_id && (
+                                                        <span className="text-slate-300 ml-1.5">· {djt.schedule_id}</span>
+                                                    )}
+                                                </p>
+                                                <p className="text-xs font-black text-slate-800 truncate">
+                                                    {djt.scheduleRef?.title || 'Job Ticket'}
+                                                </p>
+                                            </div>
+                                            <Eye className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </div>
-                                        <Eye className="w-3.5 h-3.5 text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    </div>
-                                    {djt.dailyJobDescription && (
-                                        <p className="text-[10px] text-slate-500 font-medium truncate mt-1">
-                                            {djt.dailyJobDescription}
-                                        </p>
-                                    )}
-                                    {/* Cost Badges */}
-                                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                                        {eqCost > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title="Equipment (Owned)">
-                                                🔧 ${eqCost.toLocaleString()}
-                                            </span>
+                                        {djt.dailyJobDescription && (
+                                            <p className="text-[10px] text-slate-500 font-medium truncate mt-1">
+                                                {djt.dailyJobDescription}
+                                            </p>
                                         )}
-                                        {djt.djtCost > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100" title="Total Cost">
-                                                💰 ${(djt.djtCost || 0).toLocaleString()}
-                                            </span>
-                                        )}
-                                        {ownedCount > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
-                                                {ownedCount} Owned
-                                            </span>
-                                        )}
-                                        {rentalCount > 0 && (
-                                            <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
-                                                {rentalCount} Rental
-                                            </span>
-                                        )}
-                                    </div>
-                                    {/* Equipment Names */}
-                                    {(djt.equipmentUsed || []).length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1.5">
-                                            {(djt.equipmentUsed || []).slice(0, 3).map((eq: any, eIdx: number) => {
-                                                const eqName = equipmentItems.find(e => String(e.value) === String(eq.equipment))?.label || eq.equipment;
-                                                return (
-                                                    <span key={eIdx} className="text-[7px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100 truncate max-w-[120px]" title={eqName}>
-                                                        {eqName}
-                                                    </span>
-                                                );
-                                            })}
-                                            {(djt.equipmentUsed || []).length > 3 && (
-                                                <span className="text-[7px] font-bold text-slate-400">+{(djt.equipmentUsed || []).length - 3}</span>
+                                        {/* Cost Badges */}
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                                            {eqCost > 0 && (
+                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100" title="Equipment (Owned)">
+                                                    🔧 ${eqCost.toLocaleString()}
+                                                </span>
+                                            )}
+                                            {djt.djtCost > 0 && (
+                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-100" title="Total Cost">
+                                                    💰 ${(djt.djtCost || 0).toLocaleString()}
+                                                </span>
+                                            )}
+                                            {ownedCount > 0 && (
+                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-100">
+                                                    {ownedCount} Owned
+                                                </span>
+                                            )}
+                                            {rentalCount > 0 && (
+                                                <span className="text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-100">
+                                                    {rentalCount} Rental
+                                                </span>
                                             )}
                                         </div>
-                                    )}
-                                    {/* Creator */}
-                                    <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
-                                        <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                                            {creator?.image ? (
-                                                <img src={creator.image} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
-                                                    {(creator?.label || djt.createdBy || '?')[0]?.toUpperCase()}
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || djt.createdBy || '-'}</span>
-                                    </div>
-                                    {/* Signature Avatars */}
-                                    {sigs.length > 0 && (
-                                        <div className="flex items-center gap-1 mt-2">
-                                            <div className="flex -space-x-1.5">
-                                                {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
-                                                    const emp = normalizedEmployees.find(e => e.value === sig.employee);
+                                        {/* Equipment Names */}
+                                        {(djt.equipmentUsed || []).length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                {(djt.equipmentUsed || []).slice(0, 3).map((eq: any, eIdx: number) => {
+                                                    const eqName = equipmentItems.find(e => String(e.value) === String(eq.equipment))?.label || eq.equipment;
                                                     return (
-                                                        <div
-                                                            key={sIdx}
-                                                            className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
-                                                            title={emp?.label || sig.employee}
-                                                        >
-                                                            {emp?.image ? (
-                                                                <img src={emp.image} className="w-full h-full object-cover" alt="" />
-                                                            ) : (
-                                                                <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
-                                                                    {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
-                                                                </div>
-                                                            )}
-                                                            <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
-                                                        </div>
+                                                        <span key={eIdx} className="text-[7px] font-bold text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100 truncate max-w-[120px]" title={eqName}>
+                                                            {eqName}
+                                                        </span>
                                                     );
                                                 })}
+                                                {(djt.equipmentUsed || []).length > 3 && (
+                                                    <span className="text-[7px] font-bold text-slate-400">+{(djt.equipmentUsed || []).length - 3}</span>
+                                                )}
                                             </div>
-                                            {sigs.length > 6 && (
-                                                <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
-                                            )}
-                                            <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
+                                        )}
+                                        {/* Creator */}
+                                        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-slate-100/50">
+                                            <div className="w-5 h-5 rounded-full bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                                                {creator?.image ? (
+                                                    <img src={creator.image} className="w-full h-full object-cover" alt="" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-[8px] font-black text-slate-500">
+                                                        {(creator?.label || djt.createdBy || '?')[0]?.toUpperCase()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-500 truncate">{creator?.label || djt.createdBy || '-'}</span>
                                         </div>
-                                    )}
-                                </div>
+                                        {/* Signature Avatars */}
+                                        {sigs.length > 0 && (
+                                            <div className="flex items-center gap-1 mt-2">
+                                                <div className="flex -space-x-1.5">
+                                                    {sigs.slice(0, 6).map((sig: any, sIdx: number) => {
+                                                        const emp = normalizedEmployees.find(e => e.value === sig.employee);
+                                                        return (
+                                                            <div
+                                                                key={sIdx}
+                                                                className="w-5 h-5 rounded-full border-2 border-white bg-green-50 overflow-hidden shrink-0 relative"
+                                                                title={emp?.label || sig.employee}
+                                                            >
+                                                                {emp?.image ? (
+                                                                    <img src={emp.image} className="w-full h-full object-cover" alt="" />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-[7px] font-black text-green-700">
+                                                                        {(emp?.label || sig.employee || '?')[0]?.toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-green-500 rounded-full border border-white" />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {sigs.length > 6 && (
+                                                    <span className="text-[8px] font-bold text-slate-400 ml-0.5">+{sigs.length - 6}</span>
+                                                )}
+                                                <span className="text-[8px] font-bold text-green-600 ml-auto">{sigs.length} signed</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 );
                             }) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No job tickets</p>
@@ -4188,7 +4186,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                             ) : potholeLogRecords.length > 0 ? potholeLogRecords.map((log: any, idx: number) => (
                                 <div
-                                    key={log._id || idx}
+                                    key={`${log._id || 'log'}-${idx}`}
                                     onClick={() => handleViewPotholeLog(log)}
                                     className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-rose-50/60 hover:shadow-md hover:border-rose-200 transition-all duration-300"
                                 >
@@ -4251,7 +4249,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                             ) : preBoreLogRecords.length > 0 ? preBoreLogRecords.map((pb: any, idx: number) => (
                                 <div
-                                    key={pb.legacyId || pb._id || idx}
+                                    key={`${pb.legacyId || pb._id || 'pb'}-${idx}`}
                                     onClick={() => handleViewPreBoreLog(pb)}
                                     className="bg-white/60 p-3 rounded-xl border border-white/40 shadow-sm relative group cursor-pointer hover:bg-indigo-50/60 hover:shadow-md hover:border-indigo-200 transition-all duration-300"
                                 >
@@ -4739,7 +4737,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
-                            <Input 
+                            <Input
                                 type="date"
                                 value={newContract.date}
                                 onChange={e => setNewContract(prev => ({ ...prev, date: e.target.value }))}
@@ -4747,7 +4745,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount ($)</label>
-                            <Input 
+                            <Input
                                 type="number"
                                 placeholder="0.00"
                                 value={newContract.amount}
@@ -4759,9 +4757,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="space-y-2">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Attachments</label>
                         <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/50 flex flex-col items-center justify-center gap-3 transition-colors hover:bg-slate-50 hover:border-slate-300 relative">
-                            <input 
-                                type="file" 
-                                multiple 
+                            <input
+                                type="file"
+                                multiple
                                 onChange={handleFileUpload}
                                 className="absolute inset-0 opacity-0 cursor-pointer"
                                 disabled={isUploading}
@@ -4785,7 +4783,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             {file.type.startsWith('image/') ? <ImageIcon className="w-4 h-4 text-blue-500" /> : <FileText className="w-4 h-4 text-blue-500" />}
                                             <span className="text-xs font-bold text-slate-600 truncate max-w-[200px]">{file.name}</span>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={() => setNewContract(prev => ({ ...prev, attachments: prev.attachments.filter((_, i) => i !== idx) }))}
                                             className="p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
                                         >
@@ -4826,7 +4824,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-2 block">Project Files & Images</label>
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                 {selectedViewContract.attachments?.map((file: any, idx: number) => (
-                                    <div 
+                                    <div
                                         key={idx}
                                         onClick={() => handleFileDownload(file.url, file.name)}
                                         className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-amber-200 transition-all duration-300 overflow-hidden cursor-pointer"
@@ -4834,8 +4832,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.thumbnailUrl ? (
                                                 <div className="relative w-full h-full flex items-center justify-center p-2">
-                                                    <img 
-                                                        src={file.thumbnailUrl} 
+                                                    <img
+                                                        src={file.thumbnailUrl}
                                                         alt={file.name}
                                                         className="w-full h-full object-contain transition-all duration-500 group-hover:scale-105"
                                                         onError={(e) => {
@@ -4874,7 +4872,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="text-center w-full">
                                             <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleFileDownload(file.url, file.name);
@@ -4909,33 +4907,33 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Document Type</label>
                         <div className="relative">
-                             <button
-                                 id="release-type-trigger"
-                                 onClick={() => setIsReleaseTypeOpen(!isReleaseTypeOpen)}
-                                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between"
-                             >
-                                 <span className={newRelease.documentType ? "text-slate-700 font-medium" : "text-slate-400"}>
-                                     {newRelease.documentType || "Select Document Type"}
-                                 </span>
-                                 <ChevronDown className="w-4 h-4 text-slate-400" />
-                             </button>
-                             <MyDropDown 
-                                  isOpen={isReleaseTypeOpen}
-                                  onClose={() => setIsReleaseTypeOpen(false)}
-                                  anchorId="release-type-trigger"
-                                  options={releasesConstants.map((c: any) => ({
-                                      id: c._id,
-                                      label: c.value,
-                                      value: c.value
-                                  }))}
-                                  selectedValues={newRelease.documentType ? [newRelease.documentType] : []}
-                                  onSelect={(val) => {
-                                      setNewRelease(prev => ({ ...prev, documentType: val }));
-                                      setIsReleaseTypeOpen(false);
-                                  }}
-                                  placeholder="Search Document Type"
-                                  width="w-full"
-                             />
+                            <button
+                                id="release-type-trigger"
+                                onClick={() => setIsReleaseTypeOpen(!isReleaseTypeOpen)}
+                                className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none flex items-center justify-between"
+                            >
+                                <span className={newRelease.documentType ? "text-slate-700 font-medium" : "text-slate-400"}>
+                                    {newRelease.documentType || "Select Document Type"}
+                                </span>
+                                <ChevronDown className="w-4 h-4 text-slate-400" />
+                            </button>
+                            <MyDropDown
+                                isOpen={isReleaseTypeOpen}
+                                onClose={() => setIsReleaseTypeOpen(false)}
+                                anchorId="release-type-trigger"
+                                options={releasesConstants.map((c: any) => ({
+                                    id: c._id,
+                                    label: c.value,
+                                    value: c.value
+                                }))}
+                                selectedValues={newRelease.documentType ? [newRelease.documentType] : []}
+                                onSelect={(val) => {
+                                    setNewRelease(prev => ({ ...prev, documentType: val }));
+                                    setIsReleaseTypeOpen(false);
+                                }}
+                                placeholder="Search Document Type"
+                                width="w-full"
+                            />
                         </div>
                     </div>
 
@@ -4945,7 +4943,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Through Date</label>
-                                    <Input 
+                                    <Input
                                         type="date"
                                         value={newRelease.date}
                                         onChange={e => setNewRelease(prev => ({ ...prev, date: e.target.value }))}
@@ -4953,7 +4951,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount of Check</label>
-                                    <Input 
+                                    <Input
                                         type="number"
                                         value={newRelease.amountOfCheck}
                                         onChange={e => setNewRelease(prev => ({ ...prev, amountOfCheck: e.target.value }))}
@@ -4961,12 +4959,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     />
                                 </div>
                             </div>
-                            
+
                             {/* DatesOfWaiverRelease Array */}
                             <div className="space-y-2 pt-2 border-t border-slate-100">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Dates of Waiver Release</label>
-                                    <button 
+                                    <button
                                         onClick={() => setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: [...prev.DatesOfWaiverRelease, ''] }))}
                                         className="text-[10px] text-blue-600 font-bold hover:underline"
                                     >
@@ -4975,7 +4973,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                                 {newRelease.DatesOfWaiverRelease.length > 0 ? newRelease.DatesOfWaiverRelease.map((dt, i) => (
                                     <div key={i} className="flex gap-2">
-                                        <Input 
+                                        <Input
                                             type="date"
                                             value={dt}
                                             onChange={e => {
@@ -4984,7 +4982,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: updated }));
                                             }}
                                         />
-                                        <button onClick={() => setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: prev.DatesOfWaiverRelease.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16}/></button>
+                                        <button onClick={() => setNewRelease(prev => ({ ...prev, DatesOfWaiverRelease: prev.DatesOfWaiverRelease.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16} /></button>
                                     </div>
                                 )) : <span className="text-xs text-slate-400 italic pl-1">No additional dates added</span>}
                             </div>
@@ -4993,7 +4991,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="space-y-2 pt-2 border-t border-slate-100">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Unpaid Progress Ammounts</label>
-                                    <button 
+                                    <button
                                         onClick={() => setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: [...prev.amountsOfUnpaidProgressPayment, ''] }))}
                                         className="text-[10px] text-blue-600 font-bold hover:underline"
                                     >
@@ -5002,7 +5000,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                                 {newRelease.amountsOfUnpaidProgressPayment.length > 0 ? newRelease.amountsOfUnpaidProgressPayment.map((amt, i) => (
                                     <div key={i} className="flex gap-2">
-                                        <Input 
+                                        <Input
                                             type="number"
                                             placeholder="0.00"
                                             value={amt}
@@ -5012,7 +5010,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: updated }));
                                             }}
                                         />
-                                        <button onClick={() => setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: prev.amountsOfUnpaidProgressPayment.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16}/></button>
+                                        <button onClick={() => setNewRelease(prev => ({ ...prev, amountsOfUnpaidProgressPayment: prev.amountsOfUnpaidProgressPayment.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16} /></button>
                                     </div>
                                 )) : <span className="text-xs text-slate-400 italic pl-1">No unpaid amounts added</span>}
                             </div>
@@ -5024,18 +5022,18 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Through Date</label>
-                                <Input 
+                                <Input
                                     type="date"
                                     value={newRelease.date}
                                     onChange={e => setNewRelease(prev => ({ ...prev, date: e.target.value }))}
                                 />
                             </div>
-                            
+
                             {/* receivedProgressPayments Array */}
                             <div className="space-y-2 pt-2 border-t border-slate-100">
                                 <div className="flex items-center justify-between">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Received Progress Payment(s)</label>
-                                    <button 
+                                    <button
                                         onClick={() => setNewRelease(prev => ({ ...prev, receivedProgressPayments: [...prev.receivedProgressPayments, ''] }))}
                                         className="text-[10px] text-blue-600 font-bold hover:underline"
                                     >
@@ -5044,7 +5042,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                                 {newRelease.receivedProgressPayments.length > 0 ? newRelease.receivedProgressPayments.map((amt, i) => (
                                     <div key={i} className="flex gap-2">
-                                        <Input 
+                                        <Input
                                             type="text"
                                             placeholder="Amount or Description"
                                             value={amt}
@@ -5054,7 +5052,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 setNewRelease(prev => ({ ...prev, receivedProgressPayments: updated }));
                                             }}
                                         />
-                                        <button onClick={() => setNewRelease(prev => ({ ...prev, receivedProgressPayments: prev.receivedProgressPayments.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16}/></button>
+                                        <button onClick={() => setNewRelease(prev => ({ ...prev, receivedProgressPayments: prev.receivedProgressPayments.filter((_, idx) => idx !== i) }))} className="p-2 text-red-400 hover:text-red-500"><X size={16} /></button>
                                     </div>
                                 )) : <span className="text-xs text-slate-400 italic pl-1">No payments added</span>}
                             </div>
@@ -5066,7 +5064,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount of Check</label>
-                                <Input 
+                                <Input
                                     type="number"
                                     value={newRelease.amountOfCheck}
                                     onChange={e => setNewRelease(prev => ({ ...prev, amountOfCheck: e.target.value }))}
@@ -5075,7 +5073,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Disputed Claims ($)</label>
-                                <Input 
+                                <Input
                                     type="number"
                                     value={newRelease.disputedClaims}
                                     onChange={e => setNewRelease(prev => ({ ...prev, disputedClaims: e.target.value }))}
@@ -5087,9 +5085,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                     {/* UF Fields */}
                     {getReleaseCode(newRelease.documentType) === 'UF' && (
-                         <div className="space-y-1.5">
+                        <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Disputed Claims ($)</label>
-                            <Input 
+                            <Input
                                 type="number"
                                 value={newRelease.disputedClaims}
                                 onChange={e => setNewRelease(prev => ({ ...prev, disputedClaims: e.target.value }))}
@@ -5357,7 +5355,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
-                            <Input 
+                            <Input
                                 type="date"
                                 value={newBillingTicket.date}
                                 onChange={e => setNewBillingTicket(prev => ({ ...prev, date: e.target.value }))}
@@ -5376,7 +5374,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     </span>
                                     <ChevronDown className="w-4 h-4 text-slate-400" />
                                 </button>
-                                <MyDropDown 
+                                <MyDropDown
                                     isOpen={isBillingTermsOpen}
                                     onClose={() => setIsBillingTermsOpen(false)}
                                     anchorId="billing-terms-trigger"
@@ -5393,7 +5391,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Lump Sum ($)</label>
-                            <Input 
+                            <Input
                                 type="number"
                                 placeholder="0.00"
                                 value={newBillingTicket.lumpSum}
@@ -5406,7 +5404,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     {newBillingTicket.billingTerms === 'Other' && (
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Other Billing Terms</label>
-                            <Input 
+                            <Input
                                 type="text"
                                 placeholder="Specify billing terms"
                                 value={newBillingTicket.otherBillingTerms}
@@ -5422,7 +5420,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
                                 Titles & Descriptions
                             </label>
-                            <button 
+                            <button
                                 onClick={addTitleDescription}
                                 className="text-[10px] text-indigo-600 font-bold hover:underline"
                             >
@@ -5432,16 +5430,16 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         {newBillingTicket.titleDescriptions.map((td, i) => (
                             <div key={i} className="bg-slate-50 rounded-xl p-3 space-y-2 relative group">
                                 {newBillingTicket.titleDescriptions.length > 1 && (
-                                    <button 
+                                    <button
                                         onClick={() => removeTitleDescription(i)}
                                         className="absolute top-2 right-2 p-1 text-red-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
                                     >
-                                        <X size={14}/>
+                                        <X size={14} />
                                     </button>
                                 )}
                                 <div className="space-y-1">
                                     <label className="text-[9px] font-bold text-slate-400 uppercase">Title</label>
-                                    <Input 
+                                    <Input
                                         type="text"
                                         placeholder="Enter title"
                                         value={td.title}
@@ -5450,7 +5448,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 </div>
                                 <div className="space-y-1">
                                     <label className="text-[9px] font-bold text-slate-400 uppercase">Description</label>
-                                    <textarea 
+                                    <textarea
                                         placeholder="Enter description..."
                                         value={td.description}
                                         onChange={e => updateTitleDescription(i, 'description', e.target.value)}
@@ -5470,12 +5468,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </label>
                             <label className="text-[10px] text-indigo-600 font-bold cursor-pointer hover:underline">
                                 + Add Files
-                                <input 
-                                    type="file" 
-                                    multiple 
+                                <input
+                                    type="file"
+                                    multiple
                                     accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
-                                    className="hidden" 
-                                    onChange={handleBillingTicketFileUpload} 
+                                    className="hidden"
+                                    onChange={handleBillingTicketFileUpload}
                                 />
                             </label>
                         </div>
@@ -5489,8 +5487,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 {newBillingTicket.uploads.map((file, i) => (
                                     <div key={i} className="relative group">
                                         {file.type?.startsWith('image') ? (
-                                            <img 
-                                                src={file.thumbnailUrl || file.url} 
+                                            <img
+                                                src={file.thumbnailUrl || file.url}
                                                 alt={file.name}
                                                 className="w-16 h-16 object-cover rounded-lg border border-slate-200"
                                             />
@@ -5499,7 +5497,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 <FileText className="w-6 h-6 text-slate-400" />
                                             </div>
                                         )}
-                                        <button 
+                                        <button
                                             onClick={() => removeBillingTicketUpload(i)}
                                             className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
@@ -5557,7 +5555,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Type</label>
-                                <select 
+                                <select
                                     value={newReceipt.type}
                                     onChange={e => setNewReceipt(prev => ({ ...prev, type: e.target.value as any }))}
                                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -5568,7 +5566,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount ($)</label>
-                                <Input 
+                                <Input
                                     type="number"
                                     placeholder="0.00"
                                     value={newReceipt.amount}
@@ -5579,7 +5577,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Vendor</label>
-                            <Input 
+                            <Input
                                 placeholder="Vendor Name"
                                 value={newReceipt.vendor}
                                 onChange={e => setNewReceipt(prev => ({ ...prev, vendor: e.target.value }))}
@@ -5589,7 +5587,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
-                                <Input 
+                                <Input
                                     type="date"
                                     value={newReceipt.date}
                                     onChange={e => setNewReceipt(prev => ({ ...prev, date: e.target.value }))}
@@ -5597,7 +5595,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Due Date</label>
-                                <Input 
+                                <Input
                                     type="date"
                                     value={newReceipt.dueDate}
                                     onChange={e => setNewReceipt(prev => ({ ...prev, dueDate: e.target.value }))}
@@ -5607,7 +5605,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Remarks</label>
-                            <textarea 
+                            <textarea
                                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none h-20"
                                 placeholder="..."
                                 value={newReceipt.remarks}
@@ -5626,7 +5624,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <span className="text-slate-400">Tag team members...</span>
                                     <Plus className={`w-4 h-4 transition-transform ${isTagDropdownOpen ? 'rotate-45' : ''}`} />
                                 </button>
-                                <MyDropDown 
+                                <MyDropDown
                                     isOpen={isTagDropdownOpen}
                                     onClose={() => setIsTagDropdownOpen(false)}
                                     anchorId="tag-dropdown-anchor"
@@ -5635,7 +5633,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     onSelect={(val: string) => {
                                         setNewReceipt(prev => ({
                                             ...prev,
-                                            tag: prev.tag.includes(val) 
+                                            tag: prev.tag.includes(val)
                                                 ? prev.tag.filter(t => t !== val)
                                                 : [...prev.tag, val]
                                         }));
@@ -5652,9 +5650,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                     {emp?.image ? <img src={emp.image} className="w-full h-full object-cover" /> : <User className="w-3 h-3 text-slate-400" />}
                                                 </div>
                                                 {emp?.label || t}
-                                                <X 
-                                                    className="w-3 h-3 cursor-pointer hover:text-red-500 transition-colors ml-1" 
-                                                    onClick={() => setNewReceipt(prev => ({ ...prev, tag: prev.tag.filter(tag => tag !== t) }))} 
+                                                <X
+                                                    className="w-3 h-3 cursor-pointer hover:text-red-500 transition-colors ml-1"
+                                                    onClick={() => setNewReceipt(prev => ({ ...prev, tag: prev.tag.filter(tag => tag !== t) }))}
                                                 />
                                             </span>
                                         );
@@ -5668,9 +5666,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Attachments</label>
                             <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/50 flex flex-col items-center justify-center gap-3 transition-colors hover:bg-slate-50 hover:border-slate-300 relative h-40">
-                                <input 
-                                    type="file" 
-                                    multiple 
+                                <input
+                                    type="file"
+                                    multiple
                                     onChange={handleReceiptFileUpload}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                     disabled={isReceiptUploading}
@@ -5693,7 +5691,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                 {file.type?.startsWith('image/') ? <ImageIcon className="w-3.5 h-3.5 text-blue-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
                                                 <span className="text-[10px] font-bold text-slate-600 truncate">{file.name}</span>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => setNewReceipt(prev => ({ ...prev, upload: prev.upload.filter((_, i) => i !== idx) }))}
                                                 className="p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
                                             >
@@ -5708,7 +5706,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Devco Paid</label>
-                                <div 
+                                <div
                                     onClick={() => {
                                         if (newReceipt.status === 'Devco Paid') {
                                             setNewReceipt(prev => ({ ...prev, status: '', paidBy: '', paymentDate: '' }));
@@ -5731,7 +5729,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Approval</label>
-                                <select 
+                                <select
                                     value={newReceipt.approvalStatus}
                                     onChange={e => setNewReceipt(prev => ({ ...prev, approvalStatus: e.target.value as any }))}
                                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -5792,7 +5790,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Status</label>
                                 <div className="flex flex-col gap-2">
-                                    <div 
+                                    <div
                                         onClick={() => handleUpdateReceiptStatus(receiptsAndCosts.indexOf(selectedReceipt), 'status', selectedReceipt.status === 'Devco Paid' ? '' : 'Devco Paid')}
                                         className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase cursor-pointer transition-all ${selectedReceipt.status === 'Devco Paid' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}
                                     >
@@ -5806,7 +5804,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Approval</label>
                                 <div className="flex flex-col gap-2">
-                                    <select 
+                                    <select
                                         value={selectedReceipt.approvalStatus}
                                         onChange={(e) => handleUpdateReceiptStatus(receiptsAndCosts.indexOf(selectedReceipt), 'approvalStatus', e.target.value)}
                                         className="bg-transparent font-black text-slate-900 outline-none cursor-pointer hover:text-blue-600 transition-colors"
@@ -5900,15 +5898,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block">Attachments ({selectedReceipt.upload?.length || 0})</label>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {selectedReceipt.upload?.map((file: any, idx: number) => (
-                                    <div 
+                                    <div
                                         key={idx}
                                         onClick={() => handleFileDownload(file.url, file.name)}
                                         className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-pink-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.thumbnailUrl ? (
-                                                <img 
-                                                    src={file.thumbnailUrl} 
+                                                <img
+                                                    src={file.thumbnailUrl}
                                                     alt={file.name}
                                                     className="w-full h-full object-contain transition-all duration-500 group-hover:scale-105"
                                                 />
@@ -5923,7 +5921,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="text-center w-full">
                                             <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleFileDownload(file.url, file.name);
@@ -5960,7 +5958,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 text-nowrap">Document Name</label>
-                            <Input 
+                            <Input
                                 placeholder="e.g. USA Ticket"
                                 value={newPlanningItem.documentName}
                                 onChange={(e) => setNewPlanningItem(prev => ({ ...prev, documentName: e.target.value }))}
@@ -5977,7 +5975,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     <span>{newPlanningItem.planningType || 'Select Type...'}</span>
                                     <ChevronDown className="w-4 h-4 text-slate-400" />
                                 </button>
-                                <MyDropDown 
+                                <MyDropDown
                                     isOpen={isPlanningTypeDropdownOpen}
                                     onClose={() => setIsPlanningTypeDropdownOpen(false)}
                                     anchorId="planning-type-anchor"
@@ -6000,7 +5998,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">USA Ticket No (Optional)</label>
-                        <Input 
+                        <Input
                             placeholder="Enter ticket number"
                             value={newPlanningItem.usaTicketNo}
                             onChange={(e) => setNewPlanningItem(prev => ({ ...prev, usaTicketNo: e.target.value }))}
@@ -6010,7 +6008,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Submitted</label>
-                            <Input 
+                            <Input
                                 type="date"
                                 value={newPlanningItem.dateSubmitted}
                                 onChange={(e) => setNewPlanningItem(prev => ({ ...prev, dateSubmitted: e.target.value }))}
@@ -6018,7 +6016,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Activation</label>
-                            <Input 
+                            <Input
                                 type="date"
                                 value={newPlanningItem.activationDate}
                                 onChange={(e) => setNewPlanningItem(prev => ({ ...prev, activationDate: e.target.value }))}
@@ -6026,7 +6024,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Expiration</label>
-                            <Input 
+                            <Input
                                 type="date"
                                 value={newPlanningItem.expirationDate}
                                 onChange={(e) => setNewPlanningItem(prev => ({ ...prev, expirationDate: e.target.value }))}
@@ -6036,7 +6034,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                     <div className="space-y-3">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1 block">Documents / Attachments</label>
-                        
+
                         <div className="grid grid-cols-2 gap-4">
                             {newPlanningItem.documents.map((file: any, idx: number) => (
                                 <div key={idx} className="flex items-center gap-3 p-3 bg-violet-50/50 border border-violet-100 rounded-xl group relative">
@@ -6047,7 +6045,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <p className="text-[10px] font-black text-slate-700 truncate leading-none mb-1">{file.name}</p>
                                         <p className="text-[8px] font-bold text-slate-400 leading-none">Uploaded {format(new Date(file.uploadedAt), 'MMM d')}</p>
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => setNewPlanningItem(prev => ({ ...prev, documents: prev.documents.filter((_, i) => i !== idx) }))}
                                         className="absolute -top-2 -right-2 w-6 h-6 bg-white shadow-md border border-slate-100 rounded-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                                     >
@@ -6055,15 +6053,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     </button>
                                 </div>
                             ))}
-                            
+
                             <label className={`
                                 flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border-2 border-dashed transition-all cursor-pointer min-h-[80px]
                                 ${isPlanningUploading ? 'bg-slate-50 border-slate-200 pointer-events-none' : 'bg-violet-50/30 border-violet-100 hover:bg-violet-50 hover:border-violet-200'}
                             `}>
-                                <input 
-                                    type="file" 
-                                    multiple 
-                                    className="hidden" 
+                                <input
+                                    type="file"
+                                    multiple
+                                    className="hidden"
                                     onChange={handlePlanningFileUpload}
                                 />
                                 {isPlanningUploading ? (
@@ -6104,9 +6102,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <div className="text-right">
                                 <div className="p-3 bg-white/80 rounded-2xl shadow-sm border border-white inline-block">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                                    <p className={`text-sm font-black ${
-                                        selectedPlanningItem.expirationDate && new Date(selectedPlanningItem.expirationDate) < new Date() ? 'text-red-500' : 'text-green-500'
-                                    }`}>
+                                    <p className={`text-sm font-black ${selectedPlanningItem.expirationDate && new Date(selectedPlanningItem.expirationDate) < new Date() ? 'text-red-500' : 'text-green-500'
+                                        }`}>
                                         {selectedPlanningItem.expirationDate && new Date(selectedPlanningItem.expirationDate) < new Date() ? 'EXPIRED' : 'ACTIVE'}
                                     </p>
                                 </div>
@@ -6128,15 +6125,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             </div>
                             <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Expiration Date</p>
-                                <p className={`text-base font-black ${
-                                    (() => {
-                                        if (!selectedPlanningItem.expirationDate) return 'text-slate-800';
-                                        try {
-                                            const d = new Date(selectedPlanningItem.expirationDate);
-                                            return !isNaN(d.getTime()) && d < new Date() ? 'text-red-500' : 'text-slate-800';
-                                        } catch (e) { return 'text-slate-800'; }
-                                    })()
-                                }`}>
+                                <p className={`text-base font-black ${(() => {
+                                    if (!selectedPlanningItem.expirationDate) return 'text-slate-800';
+                                    try {
+                                        const d = new Date(selectedPlanningItem.expirationDate);
+                                        return !isNaN(d.getTime()) && d < new Date() ? 'text-red-500' : 'text-slate-800';
+                                    } catch (e) { return 'text-slate-800'; }
+                                })()
+                                    }`}>
                                     {safeFormatDate(selectedPlanningItem.expirationDate, 'MMM dd, yyyy')}
                                 </p>
                             </div>
@@ -6146,15 +6142,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 block">Attachments ({selectedPlanningItem.documents?.length || 0})</label>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pb-4">
                                 {selectedPlanningItem.documents?.map((file: any, idx: number) => (
-                                    <div 
+                                    <div
                                         key={idx}
                                         onClick={() => handleFileDownload(file.url, file.name)}
                                         className="group relative flex flex-col items-center gap-3 p-4 bg-white rounded-[24px] border border-slate-100 shadow-sm hover:shadow-xl hover:border-violet-200 transition-all duration-300 overflow-hidden cursor-pointer"
                                     >
                                         <div className="w-full aspect-square rounded-2xl bg-slate-50 flex items-center justify-center overflow-hidden border border-slate-50 relative">
                                             {file.type?.startsWith('image/') ? (
-                                                <img 
-                                                    src={file.url} 
+                                                <img
+                                                    src={file.url}
                                                     alt={file.name}
                                                     className="w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
                                                 />
@@ -6169,7 +6165,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                         <div className="text-center w-full">
                                             <p className="text-xs font-bold text-slate-600 truncate px-1">{file.name}</p>
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleFileDownload(file.url, file.name);
@@ -6241,7 +6237,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 <span>{employeeOptions.find(o => o.value === paymentDetails.paidBy)?.label || 'Select Employee...'}</span>
                                 <Plus className={`w-4 h-4 transition-transform ${isEmployeeDropdownOpen ? 'rotate-45' : ''}`} />
                             </button>
-                            <MyDropDown 
+                            <MyDropDown
                                 isOpen={isEmployeeDropdownOpen}
                                 onClose={() => setIsEmployeeDropdownOpen(false)}
                                 anchorId="employee-dropdown-anchor"
@@ -6258,7 +6254,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Payment Date</label>
-                        <Input 
+                        <Input
                             type="date"
                             value={paymentDetails.paymentDate}
                             onChange={(e) => setPaymentDetails(prev => ({ ...prev, paymentDate: e.target.value }))}
@@ -6283,16 +6279,16 @@ const DocCard: React.FC<DocCardProps> = ({ label, isPayroll, isLoading, progress
     const [isHovered, setIsHovered] = useState(false);
 
     return (
-        <div 
+        <div
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
             onClick={onClick}
             className={`
                 group flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all duration-300 relative overflow-hidden
-                ${isLoading 
+                ${isLoading
                     ? 'bg-blue-50 shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
-                    : isHovered 
-                        ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]' 
+                    : isHovered
+                        ? 'bg-[#eef2f6] shadow-[inset_2px_2px_5px_#d1d9e6,inset_-2px_-2px_5px_#ffffff]'
                         : 'bg-white/60 shadow-[2px_2px_5px_#d1d9e6,-2px_-2px_5px_#ffffff]'
                 }
             `}
@@ -6300,7 +6296,7 @@ const DocCard: React.FC<DocCardProps> = ({ label, isPayroll, isLoading, progress
             {/* Progress Bar */}
             {isLoading && progress !== undefined && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-slate-100/50">
-                    <div 
+                    <div
                         className="h-full bg-gradient-to-r from-blue-400 via-indigo-500 to-purple-600 transition-all duration-300 relative"
                         style={{ width: `${progress}%` }}
                     >

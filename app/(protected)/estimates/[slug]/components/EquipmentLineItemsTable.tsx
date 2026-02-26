@@ -36,14 +36,14 @@ function LiveInput({
         if (e.key === 'Tab' || e.key === 'Enter') {
             e.preventDefault();
             e.currentTarget.blur();
-            
+
             const currentInput = e.currentTarget;
             const allInputs = Array.from(
                 document.querySelectorAll('input[data-input-id], select')
             ).filter(el => !el.hasAttribute('disabled')) as HTMLElement[];
-            
+
             const currentIndex = allInputs.indexOf(currentInput);
-            
+
             if (e.shiftKey) {
                 if (currentIndex > 0) {
                     setTimeout(() => allInputs[currentIndex - 1].focus(), 0);
@@ -136,20 +136,20 @@ function EquipmentRow({
         const qty = parseFloat(localValues.quantity) || 1;
         const times = parseFloat(localValues.times) || 1;
         const uom = localValues.uom || 'Daily';
-        
+
         let cost = 0;
         if (uom === 'Daily') cost = parseFloat(localValues.dailyCost) || 0;
         else if (uom === 'Weekly') cost = parseFloat(localValues.weeklyCost) || 0;
         else if (uom === 'Monthly') cost = parseFloat(localValues.monthlyCost) || 0;
         else cost = parseFloat(localValues.dailyCost) || 0;
-        
+
         const fuel = parseFloat(localValues.fuelAdditiveCost) || 0;
         const delivery = parseFloat(localValues.deliveryPickup) || 0;
-        
+
         const baseTotal = cost * qty * times;
         const fuelTotal = qty * fuel;
         const deliveryTotal = qty * delivery;
-        
+
         return baseTotal + fuelTotal + deliveryTotal;
     }, [localValues.quantity, localValues.times, localValues.uom, localValues.dailyCost, localValues.weeklyCost, localValues.monthlyCost, localValues.fuelAdditiveCost, localValues.deliveryPickup]);
 
@@ -409,7 +409,7 @@ export function EquipmentLineItemsTable({
                 <tbody className="divide-y divide-gray-50">
                     {items.map((item, i) => (
                         <EquipmentRow
-                            key={item._id || `item-${i}`}
+                            key={`${item._id || 'item'}-${i}`}
                             item={item}
                             index={i}
                             onUpdateItem={onUpdateItem}

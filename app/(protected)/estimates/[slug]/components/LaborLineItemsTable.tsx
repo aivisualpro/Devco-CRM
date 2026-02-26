@@ -40,14 +40,14 @@ function LiveInput({
         if (e.key === 'Tab' || e.key === 'Enter') {
             e.preventDefault();
             e.currentTarget.blur();
-            
+
             const currentInput = e.currentTarget;
             const allInputs = Array.from(
                 document.querySelectorAll('input[data-input-id], select')
             ).filter(el => !el.hasAttribute('disabled')) as HTMLElement[];
-            
+
             const currentIndex = allInputs.indexOf(currentInput);
-            
+
             if (e.shiftKey) {
                 if (currentIndex > 0) {
                     setTimeout(() => allInputs[currentIndex - 1].focus(), 0);
@@ -144,55 +144,55 @@ function LaborRow({
         const dtPd = parseFloat(localValues.dtPd) || 0;
         const wCompPct = parseFloat(localValues.wCompPercent) || 0;
         const taxesPct = parseFloat(localValues.payrollTaxesPercent) || 0;
-        
+
         const subClass = String(item.subClassification || '').toLowerCase();
-        
+
         // Per Diem or Hotel: simple calculation
         if (subClass === 'per diem' || subClass === 'hotel') {
             return basePay * qty * days;
         }
-        
+
         // 10-step formula
         // 1. Total Hours = qty * days * 8
         const totalHours = qty * days * 8;
-        
+
         // 2. Total OT Hours = qty * days * otPd
         const totalOtHours = qty * days * otPd;
-        
+
         // 3. WComp Tax = basePay * (wCompPct / 100)
         const wCompTaxAmount = basePay * (wCompPct / 100);
         const otWCompTaxAmount = (basePay * 1.5) * (wCompPct / 100);
         const dtWCompTaxAmount = (basePay * 2) * (wCompPct / 100);
-        
+
         // 4. Payroll Taxes = basePay * (taxesPct / 100)
         const payrollTaxAmount = basePay * (taxesPct / 100);
-        
+
         // 5 & 8. OT Payroll Taxes = basePay * 1.5 * (taxesPct / 100)
         const otPayrollTaxAmount = basePay * 1.5 * (taxesPct / 100);
         const dtPayrollTaxAmount = basePay * 2 * (taxesPct / 100);
-        
+
         // 6. Fringe (value from constants)
         // Prefer item-specific fringe if available, otherwise use global rate
         let fringeAmount = fringeRate;
         if (item.fringe && fringeConstants) {
             fringeAmount = getFringeRate(item.fringe as string, fringeConstants);
         }
-        
+
         // 7. Base Rate = basePay + wCompTax + payrollTax + fringe
         const baseRate = basePay + wCompTaxAmount + payrollTaxAmount + fringeAmount;
-        
+
         // 9. OT Rate = (basePay * 1.5) + otWCompTax + otPayrollTax + fringe
         const otBasePay = basePay * 1.5;
         const otRate = otBasePay + otWCompTaxAmount + otPayrollTaxAmount + fringeAmount; // Fixed: Use otWCompTaxAmount
 
-         // DT Rate = (basePay * 2) + dtWCompTax + dtPayrollTax + fringe
-         const dtBasePay = basePay * 2;
-         const dtRate = dtBasePay + dtWCompTaxAmount + dtPayrollTaxAmount + fringeAmount; // Fixed: Use dtWCompTaxAmount
-        
+        // DT Rate = (basePay * 2) + dtWCompTax + dtPayrollTax + fringe
+        const dtBasePay = basePay * 2;
+        const dtRate = dtBasePay + dtWCompTaxAmount + dtPayrollTaxAmount + fringeAmount; // Fixed: Use dtWCompTaxAmount
+
         // 10. Total = (totalHours * baseRate) + (totalOtHours * otRate) + (dtHours * dtRate)
         const dtHours = qty * days * dtPd;
         const total = (totalHours * baseRate) + (totalOtHours * otRate) + (dtHours * dtRate);
-        
+
         return isNaN(total) ? 0 : total;
     }, [localValues.basePay, localValues.quantity, localValues.days, localValues.otPd, localValues.dtPd, localValues.wCompPercent, localValues.payrollTaxesPercent, item.subClassification, item.fringe, fringeRate, fringeConstants]);
 
@@ -308,8 +308,8 @@ function LaborRow({
             <td className="p-1 text-xs text-gray-700 font-medium bg-gray-50" style={{ width: '7%' }}>
                 <div className="px-1.5 py-0.5 truncate" title={localValues.fringe || 'No Fringe'}>
                     {formatCurrency(
-                        (item.fringe && fringeConstants 
-                            ? getFringeRate(item.fringe as string, fringeConstants) 
+                        (item.fringe && fringeConstants
+                            ? getFringeRate(item.fringe as string, fringeConstants)
                             : fringeRate) || 0
                     )}
                 </div>
@@ -397,7 +397,7 @@ export function LaborLineItemsTable({
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             Fringe
                         </th>
-                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
+                        <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
                             W.Comp
                         </th>
                         <th className="p-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest whitespace-nowrap" style={{ width: '7%' }}>
@@ -412,7 +412,7 @@ export function LaborLineItemsTable({
                 <tbody className="divide-y divide-gray-50">
                     {items.map((item, i) => (
                         <LaborRow
-                            key={item._id || `item-${i}`}
+                            key={`${item._id || 'item'}-${i}`}
                             item={item}
                             index={i}
                             onUpdateItem={onUpdateItem}
