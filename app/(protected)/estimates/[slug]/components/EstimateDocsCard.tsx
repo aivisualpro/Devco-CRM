@@ -4922,17 +4922,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         {(() => {
                             const attachedVS: any[] = (formData?.estimateVendorsSubContractors as any[]) || [];
                             if (attachedVS.length > 0) {
-                                const vsOptions = [
-                                    ...attachedVS.map((v: any) => ({ id: v._id || v.name, label: `${v.name} — ${v.type}`, value: v.name })),
-                                    { id: '__other__', label: 'Other (type manually)...', value: '__other__' }
-                                ];
+                                const vsOptions = attachedVS.map((v: any) => ({ id: v._id || v.name, label: `${v.name} — ${v.type}`, value: v.name }));
                                 const selectedLabel = (() => {
-                                    if (!newVendorSubs.vendorSubName || newVendorSubs.vendorSubName === '__other__') return null;
+                                    if (!newVendorSubs.vendorSubName) return null;
                                     const opt = vsOptions.find(o => o.value === newVendorSubs.vendorSubName);
                                     return opt ? opt.label : newVendorSubs.vendorSubName;
                                 })();
                                 return (
-                                    <div className="space-y-2">
+                                    <div>
                                         <button
                                             id="vendor-sub-name-dropdown-trigger"
                                             type="button"
@@ -4964,14 +4961,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             emptyMessage="No vendors attached to this estimate"
                                             modal
                                         />
-                                        {newVendorSubs.vendorSubName === '__other__' && (
-                                            <Input
-                                                value=""
-                                                onChange={e => setNewVendorSubs(prev => ({ ...prev, vendorSubName: e.target.value }))}
-                                                placeholder="Type vendor / sub name..."
-                                                autoFocus
-                                            />
-                                        )}
                                     </div>
                                 );
                             }
