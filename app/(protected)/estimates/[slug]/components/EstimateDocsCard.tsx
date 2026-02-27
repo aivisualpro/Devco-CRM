@@ -1614,9 +1614,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }
     };
 
-    const getEmployeeData = (idOrEmail: string) => {
+    const getEmployeeData = (idOrEmail: any) => {
         if (!idOrEmail) return null;
-        const lower = idOrEmail.toLowerCase();
+        // Handle arrays (e.g. createdBy could be an array)
+        const raw = Array.isArray(idOrEmail) ? idOrEmail[0] : idOrEmail;
+        if (!raw) return null;
+        const lower = String(raw).toLowerCase();
         const found = employees.find(e =>
             String(e._id || '').toLowerCase() === lower ||
             String(e.email || '').toLowerCase() === lower ||
@@ -2408,9 +2411,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                                     // Find sender employee for avatar
                                     const senderEmp = employees.find(e =>
-                                        e.email?.toLowerCase() === msg.sender?.toLowerCase() ||
+                                        String(e.email || '').toLowerCase() === String(msg.sender || '').toLowerCase() ||
                                         e._id === msg.sender ||
-                                        e.value?.toLowerCase() === msg.sender?.toLowerCase()
+                                        String(e.value || '').toLowerCase() === String(msg.sender || '').toLowerCase()
                                     );
                                     const senderLabel = senderEmp?.label || senderEmp?.firstName || msg.senderName || msg.sender || 'U';
                                     const senderInitials = senderLabel.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -2421,11 +2424,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             if (part.startsWith('@')) {
                                                 const label = part.slice(1);
                                                 // Check if this person is already an assignee (hide them from text if they are)
-                                                const isAssignee = msg.assignees?.some((email: string) => {
+                                                const isAssignee = msg.assignees?.some((assignee: any) => {
+                                                    // Handle both string (email) and object ({email, name}) formats
+                                                    const email = typeof assignee === 'string' ? assignee : assignee?.email || '';
                                                     const emp = employees.find(e =>
-                                                        e.email?.toLowerCase() === email?.toLowerCase() ||
+                                                        String(e.email || '').toLowerCase() === String(email || '').toLowerCase() ||
                                                         e._id === email ||
-                                                        e.value?.toLowerCase() === email?.toLowerCase()
+                                                        String(e.value || '').toLowerCase() === String(email || '').toLowerCase()
                                                     );
                                                     return (emp?.label === label || emp?.firstName === label) || email === label;
                                                 });
@@ -2445,9 +2450,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         // Handle both string (email) and object ({email, name}) formats
                                                         const email = typeof assignee === 'string' ? assignee : assignee?.email || '';
                                                         const assEmp = employees.find(e =>
-                                                            e.email?.toLowerCase() === email?.toLowerCase() ||
+                                                            String(e.email || '').toLowerCase() === String(email || '').toLowerCase() ||
                                                             e._id === email ||
-                                                            e.value?.toLowerCase() === email?.toLowerCase()
+                                                            String(e.value || '').toLowerCase() === String(email || '').toLowerCase()
                                                         );
                                                         const assName = assEmp?.label || assEmp?.firstName || (typeof assignee === 'object' ? assignee?.name : null) || email || 'U';
                                                         return (
