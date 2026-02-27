@@ -668,11 +668,12 @@ export default function EstimateViewPage() {
                     })
                     .map((c: any) => ({
                         id: c._id,
-                        label: c.description || c.value,
-                        value: c.description || c.value,
+                        label: c.description || c.value || '',
+                        value: c.description || c.value || '',
                         color: c.color
                     }))
-                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
+                    .filter((c: any) => c.label)
+                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
                 setStatusOptions(statuses);
 
                 // Process Service Options
@@ -698,11 +699,12 @@ export default function EstimateViewPage() {
                     })
                     .map((c: any) => ({
                         id: c._id,
-                        label: c.description || c.value,
+                        label: c.description || c.value || '',
                         value: (c.description || c.value || '').trim(), // Ensure trim
                         color: c.color
                     }))
-                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
+                    .filter((c: any) => c.label)
+                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
                 setFringeOptions(fringes);
 
                 // Process Certified Payroll Options
@@ -713,11 +715,12 @@ export default function EstimateViewPage() {
                     })
                     .map((c: any) => ({
                         id: c._id,
-                        label: c.description || c.value,
+                        label: c.description || c.value || '',
                         value: (c.description || c.value || '').trim(),
                         color: c.color
                     }))
-                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
+                    .filter((c: any) => c.label)
+                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
                 setCertifiedPayrollOptions(certifiedPayroll);
 
                 // Process Planning Options
@@ -728,11 +731,12 @@ export default function EstimateViewPage() {
                     })
                     .map((c: any) => ({
                         id: c._id,
-                        label: c.description || c.value,
+                        label: c.description || c.value || '',
                         value: (c.description || c.value || '').trim(),
                         color: c.color
                     }))
-                    .sort((a: any, b: any) => a.label.localeCompare(b.label));
+                    .filter((c: any) => c.label)
+                    .sort((a: any, b: any) => String(a.label).localeCompare(String(b.label)));
                 setPlanningOptions(planning);
 
                 // Fetch Employees for Proposal Writer
