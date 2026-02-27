@@ -1491,7 +1491,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         // Build assignees with name lookup (chatAssignees is string[] of emails here)
         const safeAssignees = chatAssignees.map(email => {
             const emp = employees.find((e: any) =>
-                (e.value || e.email || '')?.toLowerCase() === email.toLowerCase()
+                String(e.value || e.email || '').toLowerCase() === String(email || '').toLowerCase()
             );
             return {
                 email,
@@ -1640,13 +1640,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 value: emp.email || emp._id || emp.value,
                 profilePicture: emp.image || emp.profilePicture
             };
-        }).sort((a, b) => a.label.localeCompare(b.label));
+        }).sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
     }, [employees]);
 
     const filteredChatOptions = useMemo(() => {
         const source = employeeOptions;
         if (!mentionQuery) return source.slice(0, 100);
-        return source.filter(e => e.label.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 50);
+        return source.filter(e => String(e.label || '').toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 50);
     }, [mentionQuery, employeeOptions]);
 
     const handleAddPlanning = () => {
