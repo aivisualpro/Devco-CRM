@@ -243,8 +243,8 @@ export default function EmployeeViewPage() {
 
     const handleAddDocument = async () => {
         if (!employee) return;
-        if (!newDocument.type && !newDocument.description) {
-            toastError('Please enter at least a type or description');
+        if (!newDocument.fileName) {
+            toastError('Please enter a file name');
             return;
         }
         setSavingDocument(true);
@@ -670,17 +670,9 @@ export default function EmployeeViewPage() {
                                                 </button>
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <div className="md:col-span-2">
+                                                <div className="md:col-span-4">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">File Name</label>
                                                     <Input placeholder="e.g. W-4 Form, Contract" value={newDocument.fileName || ''} onChange={e => setNewDocument({ ...newDocument, fileName: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Expiry Date</label>
-                                                    <Input type="date" value={toDateInputValue(newDocument.expiryDate)} onChange={e => setNewDocument({ ...newDocument, expiryDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Created At</label>
-                                                    <Input type="date" value={toDateInputValue(newDocument.createdAt)} onChange={e => setNewDocument({ ...newDocument, createdAt: e.target.value })} />
                                                 </div>
                                                 <div className="md:col-span-4">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
@@ -725,17 +717,9 @@ export default function EmployeeViewPage() {
                                                 </button>
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                                <div className="md:col-span-2">
+                                                <div className="md:col-span-4">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">File Name</label>
                                                     <Input placeholder="e.g. W-4 Form, Contract" value={editingDoc.fileName || ''} onChange={e => setEditingDoc({ ...editingDoc, fileName: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Expiry Date</label>
-                                                    <Input type="date" value={toDateInputValue(editingDoc.expiryDate)} onChange={e => setEditingDoc({ ...editingDoc, expiryDate: e.target.value })} />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Created At</label>
-                                                    <Input type="date" value={toDateInputValue(editingDoc.createdAt)} onChange={e => setEditingDoc({ ...editingDoc, createdAt: e.target.value })} />
                                                 </div>
                                                 <div className="md:col-span-4">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Document</label>
@@ -780,8 +764,6 @@ export default function EmployeeViewPage() {
                                             <thead>
                                                 <tr className="border-b border-slate-100">
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File Name</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Expiry Date</th>
-                                                    <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Created At</th>
                                                     <th className="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">File</th>
                                                     <th className="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase w-20">Actions</th>
                                                 </tr>
@@ -790,8 +772,6 @@ export default function EmployeeViewPage() {
                                                 {employee.documents?.map((doc: any, i: number) => (
                                                     <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${editingDocIdx === i ? 'bg-blue-50/30' : ''}`}>
                                                         <td className="py-2 px-3 text-slate-800 font-medium">{doc.fileName || '-'}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(doc.expiryDate)}</td>
-                                                        <td className="py-2 px-3 text-slate-600">{formatDateDisplay(doc.createdAt)}</td>
                                                         <td className="py-2 px-3">{doc.fileUrl ? <button onClick={() => openFileUrl(doc.fileUrl)} className="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium hover:bg-emerald-100 transition-colors cursor-pointer">View File</button> : '-'}</td>
                                                         <td className="py-2 px-3 text-right">
                                                             <div className="flex items-center justify-end gap-1">
