@@ -24,7 +24,7 @@ if (PRIVATE_KEY) {
     if (PRIVATE_KEY.startsWith('"') && PRIVATE_KEY.endsWith('"')) {
         PRIVATE_KEY = PRIVATE_KEY.slice(1, -1);
     }
-    
+
     // 2. Handle escaped newlines (e.g. if pasted as a single line with \n)
     if (PRIVATE_KEY.includes('\\n')) {
         PRIVATE_KEY = PRIVATE_KEY.replace(/\\n/g, '\n');
@@ -58,15 +58,22 @@ const getAuthClient = async () => {
         scopes: SCOPES
     });
     await client.authorize();
-    
+
     // Cache for 50 minutes
     cachedAuthClient = client;
     authExpiry = now + (50 * 60 * 1000);
-    
+
     return client;
 };
 
-export async function processGoogleDoc(templateId: string, variables: Record<string, any>): Promise<Buffer> {
+export async function processGoogleDoc(
+    templateId: string,
+    variables: Record<string, any>,
+    options?: {
+        postProcess?: (docId: string, docsApi: any, driveApi: any) => Promise<void>;
+        imageSize?: { width: number; height: number };
+    }
+): Promise<Buffer> {
     if (!SHARED_DRIVE_FOLDER_ID) throw new Error('GOOGLE_TEMP_FOLDER_ID is not configured');
 
     const auth = await getAuthClient();
@@ -96,7 +103,7 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
                             if (!r.ok) return null;
                             buf = Buffer.from(await r.arrayBuffer());
                         }
-                        
+
                         const res = await drive.files.create({
                             supportsAllDrives: true,
                             fields: 'id',
@@ -105,10 +112,10 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
                         });
                         const id = res.data.id!;
                         tempImageIds.push(id);
-                        
+
                         // Fire and forget permission update
-                        drive.permissions.create({ fileId: id, supportsAllDrives: true, requestBody: { role: 'reader', type: 'anyone' } }).catch(() => {});
-                        
+                        drive.permissions.create({ fileId: id, supportsAllDrives: true, requestBody: { role: 'reader', type: 'anyone' } }).catch(() => { });
+
                         const marker = `__I${key}__`;
                         return { key, marker, url: `https://drive.google.com/uc?export=view&id=${id}` };
                     } catch { return null; }
@@ -141,20 +148,20 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
                     const properties = Object.keys(value[0]);
                     for (const prop of properties) {
                         const flattenedValue = value.map(item => item[prop] || '').join('\n');
-                        requests.push({ 
-                            replaceAllText: { 
-                                containsText: { text: `{{${key}}}{{${prop}}}`, matchCase: false }, 
-                                replaceText: flattenedValue 
-                            } 
+                        requests.push({
+                            replaceAllText: {
+                                containsText: { text: `{{${key}}}{{${prop}}}`, matchCase: false },
+                                replaceText: flattenedValue
+                            }
                         });
                     }
                 } else {
                     // Simple array of strings/numbers
-                    requests.push({ 
-                        replaceAllText: { 
-                            containsText: { text: `{{${key}}}`, matchCase: false }, 
-                            replaceText: value.join('\n') 
-                        } 
+                    requests.push({
+                        replaceAllText: {
+                            containsText: { text: `{{${key}}}`, matchCase: false },
+                            replaceText: value.join('\n')
+                        }
                     });
                 }
                 continue;
@@ -162,11 +169,11 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
 
             // Standard flat variables
             if (typeof value !== 'boolean') {
-                requests.push({ 
-                    replaceAllText: { 
-                        containsText: { text: `{{${key}}}`, matchCase: false }, 
-                        replaceText: String(value ?? '') 
-                    } 
+                requests.push({
+                    replaceAllText: {
+                        containsText: { text: `{{${key}}}`, matchCase: false },
+                        replaceText: String(value ?? '')
+                    }
                 });
             }
         }
@@ -192,11 +199,11 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
                         const bRegex = /\[B\]([\s\S]*?)\[\/B\]/g;
                         let bMatch;
                         while ((bMatch = bRegex.exec(text)) !== null) {
-                            richRequests.push({ 
-                                updateTextStyle: { 
+                            richRequests.push({
+                                updateTextStyle: {
                                     range: { startIndex: startIdx + bMatch.index, endIndex: startIdx + bMatch.index + bMatch[0].length },
-                                    textStyle: { bold: true }, fields: 'bold' 
-                                } 
+                                    textStyle: { bold: true }, fields: 'bold'
+                                }
                             });
                         }
 
@@ -204,11 +211,11 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
                         const sRegex = /\[S\+\]([\s\S]*?)\[\/S\+\]/g;
                         let sMatch;
                         while ((sMatch = sRegex.exec(text)) !== null) {
-                            richRequests.push({ 
-                                updateTextStyle: { 
+                            richRequests.push({
+                                updateTextStyle: {
                                     range: { startIndex: startIdx + sMatch.index, endIndex: startIdx + sMatch.index + sMatch[0].length },
-                                    textStyle: { fontSize: { magnitude: currentSize + 1, unit: 'PT' } }, fields: 'fontSize' 
-                                } 
+                                    textStyle: { fontSize: { magnitude: currentSize + 1, unit: 'PT' } }, fields: 'fontSize'
+                                }
                             });
                         }
                     }
@@ -244,7 +251,9 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
                             for (const ir of imageResults) {
                                 if (ir && txt.includes(ir.marker)) {
                                     const idx = start + txt.indexOf(ir.marker);
-                                    ops.push({ index: idx, op: { insertInlineImage: { location: { index: idx }, uri: ir.url, objectSize: { height: { magnitude: 40, unit: 'PT' }, width: { magnitude: 120, unit: 'PT' } } } } });
+                                    const imgW = options?.imageSize?.width || 120;
+                                    const imgH = options?.imageSize?.height || 40;
+                                    ops.push({ index: idx, op: { insertInlineImage: { location: { index: idx }, uri: ir.url, objectSize: { height: { magnitude: imgH, unit: 'PT' }, width: { magnitude: imgW, unit: 'PT' } } } } });
                                     ops.push({ index: idx + 0.1, op: { deleteContentRange: { range: { startIndex: idx, endIndex: Math.min(idx + ir.marker.length, bodyEnd) } } } });
                                 }
                             }
@@ -263,14 +272,19 @@ export async function processGoogleDoc(templateId: string, variables: Record<str
             }
         }
 
-        // Step 4: Export PDF
+        // Step 5: Post-process callback (e.g. delete empty table rows)
+        if (options?.postProcess) {
+            await options.postProcess(tempFileId!, docs, drive);
+        }
+
+        // Step 6: Export PDF
         const pdf = await drive.files.export({ fileId: tempFileId, mimeType: 'application/pdf' }, { responseType: 'arraybuffer' });
         return Buffer.from(pdf.data as ArrayBuffer);
 
     } finally {
         // Cleanup in background - don't wait
-        if (tempFileId) drive.files.delete({ fileId: tempFileId, supportsAllDrives: true }).catch(() => {});
-        tempImageIds.forEach(id => drive.files.delete({ fileId: id, supportsAllDrives: true }).catch(() => {}));
+        if (tempFileId) drive.files.delete({ fileId: tempFileId, supportsAllDrives: true }).catch(() => { });
+        tempImageIds.forEach(id => drive.files.delete({ fileId: id, supportsAllDrives: true }).catch(() => { }));
     }
 }
 
@@ -284,7 +298,7 @@ export async function cleanupTempFiles() {
         includeItemsFromAllDrives: true
     });
     for (const f of res.data.files || []) {
-        try { await drive.files.delete({ fileId: f.id!, supportsAllDrives: true }); } catch (e) {}
+        try { await drive.files.delete({ fileId: f.id!, supportsAllDrives: true }); } catch (e) { }
     }
 }
 

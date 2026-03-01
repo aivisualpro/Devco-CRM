@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Plus, Search, ArrowUpDown, Pencil, Trash2, Eye,
     Loader2, ChevronDown, Check, MapPin, Calendar,
-    Image as ImageIcon, X, ChevronRight, Upload, ChevronLeft
+    Image as ImageIcon, X, ChevronRight, Upload, ChevronLeft,
+    LocateFixed
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -52,6 +53,8 @@ interface PotholeItem {
     photos?: string[];  // Multiple photos array
     photo1?: string;    // Legacy field for backward compatibility
     photo2?: string;    // Legacy field for backward compatibility
+    latitude?: string;
+    longitude?: string;
     pin?: string;
     createdBy?: string;
     createdAt?: Date;
@@ -85,6 +88,20 @@ interface Employee {
     profilePicture?: string;
 }
 
+// Helper to extract GPS coordinates from photo EXIF data
+async function extractGPSFromPhoto(file: File): Promise<{ latitude: number; longitude: number } | null> {
+    try {
+        const exifr = (await import('exifr')).default;
+        const gps = await exifr.gps(file);
+        if (gps && gps.latitude && gps.longitude) {
+            return { latitude: gps.latitude, longitude: gps.longitude };
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 export default function PotholeLogsPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -114,8 +131,6 @@ export default function PotholeLogsPage() {
         date: '',
         estimate: '',
         jobAddress: '',
-        locationLat: '',
-        locationLng: '',
         potholeItems: [] as PotholeItem[]
     });
 
@@ -130,6 +145,9 @@ export default function PotholeLogsPage() {
     // Mobile action sheet
     const [actionSheetItem, setActionSheetItem] = useState<PotholeLog | null>(null);
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+    // Geolocation loading state per item index
+    const [geoLoadingIndex, setGeoLoadingIndex] = useState<number | null>(null);
 
     const handleLongPressStart = (log: PotholeLog) => {
         longPressTimer.current = setTimeout(() => {
@@ -279,14 +297,17 @@ export default function PotholeLogsPage() {
                 ...(item.photo1 ? [item.photo1] : []),
                 ...(item.photo2 ? [item.photo2] : [])
             ].filter((v, i, a) => a.indexOf(v) === i); // Remove duplicates
-            return { ...item, photos };
+            return {
+                ...item,
+                photos,
+                latitude: item.latitude?.toString() || '',
+                longitude: item.longitude?.toString() || ''
+            };
         });
         setFormData({
             date: log.date ? format(new Date(log.date), 'yyyy-MM-dd') : '',
             estimate: log.estimate || '',
             jobAddress: log.jobAddress || log.projectionLocation || '',
-            locationLat: log.locationOfPothole?.lat?.toString() || '',
-            locationLng: log.locationOfPothole?.lng?.toString() || '',
             potholeItems: migratedPotholeItems
         });
         setSelectedEstimateId(log.estimate);
@@ -299,8 +320,6 @@ export default function PotholeLogsPage() {
             date: format(new Date(), 'yyyy-MM-dd'),
             estimate: '',
             jobAddress: '',
-            locationLat: '',
-            locationLng: '',
             potholeItems: []
         });
         setSelectedEstimateId('');
@@ -317,6 +336,8 @@ export default function PotholeLogsPage() {
                 topDepthOfUtility: '',
                 bottomDepthOfUtility: '',
                 photos: [],
+                latitude: '',
+                longitude: '',
                 pin: '',
                 createdBy: user?.email || ''
             }]
@@ -344,9 +365,16 @@ export default function PotholeLogsPage() {
 
         const currentPhotos = formData.potholeItems[index]?.photos || [];
         const newPhotoUrls: string[] = [];
+        let extractedGPS: { latitude: number; longitude: number } | null = null;
 
         for (let i = 0; i < files.length; i++) {
             const file = files[i];
+
+            // Try to extract GPS from the first photo if item doesn't have coords yet
+            if (!extractedGPS && !formData.potholeItems[index]?.latitude) {
+                extractedGPS = await extractGPSFromPhoto(file);
+            }
+
             const formDataUpload = new FormData();
             formDataUpload.append('file', file);
 
@@ -365,7 +393,56 @@ export default function PotholeLogsPage() {
             }
         }
 
+        // Update photos
         handlePotholeItemChange(index, 'photos', [...currentPhotos, ...newPhotoUrls]);
+
+        // Auto-populate GPS coordinates from EXIF data if extracted
+        if (extractedGPS) {
+            setFormData(prev => ({
+                ...prev,
+                potholeItems: prev.potholeItems.map((item, i) =>
+                    i === index ? {
+                        ...item,
+                        photos: [...(item.photos || []), ...newPhotoUrls],
+                        latitude: extractedGPS!.latitude.toFixed(6),
+                        longitude: extractedGPS!.longitude.toFixed(6)
+                    } : item
+                )
+            }));
+            toast.success('📍 GPS coordinates extracted from photo!');
+        }
+    };
+
+    // Drop pin - use browser geolocation
+    const handleDropPin = (index: number) => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported by your browser');
+            return;
+        }
+
+        setGeoLoadingIndex(index);
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const { latitude, longitude } = position.coords;
+                setFormData(prev => ({
+                    ...prev,
+                    potholeItems: prev.potholeItems.map((item, i) =>
+                        i === index ? {
+                            ...item,
+                            latitude: latitude.toFixed(6),
+                            longitude: longitude.toFixed(6)
+                        } : item
+                    )
+                }));
+                setGeoLoadingIndex(null);
+                toast.success('📍 Location pinned successfully!');
+            },
+            (error) => {
+                setGeoLoadingIndex(null);
+                toast.error(`Location error: ${error.message}`);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
     };
 
     const handleRemovePhoto = (itemIndex: number, photoIndex: number) => {
@@ -413,11 +490,11 @@ export default function PotholeLogsPage() {
                 date: formData.date ? new Date(formData.date) : new Date(),
                 estimate: selectedEstimateId,
                 jobAddress: formData.jobAddress,
-                locationOfPothole: formData.locationLat && formData.locationLng ? {
-                    lat: parseFloat(formData.locationLat),
-                    lng: parseFloat(formData.locationLng)
-                } : undefined,
-                potholeItems: formData.potholeItems,
+                potholeItems: formData.potholeItems.map(item => ({
+                    ...item,
+                    latitude: item.latitude ? parseFloat(item.latitude as string) : undefined,
+                    longitude: item.longitude ? parseFloat(item.longitude as string) : undefined
+                })),
                 createdBy: editingLog?.createdBy || user?.email
             };
 
@@ -654,7 +731,7 @@ export default function PotholeLogsPage() {
                                                         <TableCell>
                                                             <span
                                                                 className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                                                onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${log.estimate}`); }}
+                                                                onClick={(e) => { e.stopPropagation(); router.push(`/estimates/${estInfo?._id || log.estimate}`); }}
                                                             >
                                                                 {estInfo?.estimate || log.estimate || 'N/A'}
                                                             </span>
@@ -716,6 +793,12 @@ export default function PotholeLogsPage() {
                                                                     <span><strong>Utility:</strong> {item.typeOfUtility || '-'}</span>
                                                                     <span><strong>Soil:</strong> {item.soilType || '-'}</span>
                                                                     <span><strong>Depth:</strong> {item.topDepthOfUtility || '-'} to {item.bottomDepthOfUtility || '-'}</span>
+                                                                    {(item.latitude || item.longitude) && (
+                                                                        <span className="text-emerald-600">
+                                                                            <MapPin size={10} className="inline mr-1" />
+                                                                            {item.latitude}, {item.longitude}
+                                                                        </span>
+                                                                    )}
                                                                     {/* Show photos from photos array or legacy photo1/photo2 */}
                                                                     {(() => {
                                                                         const allPhotos = [
@@ -908,26 +991,6 @@ export default function PotholeLogsPage() {
                             />
                         </div>
 
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Latitude</Label>
-                            <Input
-                                value={formData.locationLat}
-                                onChange={e => setFormData(prev => ({ ...prev, locationLat: e.target.value }))}
-                                className="mt-1"
-                                placeholder="e.g. 34.0522"
-                            />
-                        </div>
-
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Longitude</Label>
-                            <Input
-                                value={formData.locationLng}
-                                onChange={e => setFormData(prev => ({ ...prev, locationLng: e.target.value }))}
-                                className="mt-1"
-                                placeholder="e.g. -118.2437"
-                            />
-                        </div>
-
                         {/* Pothole Items Section */}
                         <div className="col-span-2 mt-4">
                             <div className="flex items-center justify-between mb-2">
@@ -939,7 +1002,7 @@ export default function PotholeLogsPage() {
 
                             {formData.potholeItems.length === 0 ? (
                                 <div className="text-center py-8 text-slate-400 text-sm border border-dashed rounded-xl">
-                                    No pothole items yet. Click "Add Item" to add one.
+                                    No pothole items yet. Click &quot;Add Item&quot; to add one.
                                 </div>
                             ) : (
                                 <div className="space-y-3">
@@ -1010,6 +1073,54 @@ export default function PotholeLogsPage() {
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
+
+                                                {/* Geolocation Section */}
+                                                <div className="col-span-3 mt-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <Label className="text-[9px] text-slate-400 flex items-center gap-1">
+                                                            <MapPin size={10} className="text-emerald-500" /> Location
+                                                        </Label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDropPin(idx)}
+                                                            disabled={geoLoadingIndex === idx}
+                                                            className="flex items-center gap-1 px-2 py-0.5 text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                                                        >
+                                                            {geoLoadingIndex === idx ? (
+                                                                <Loader2 size={10} className="animate-spin" />
+                                                            ) : (
+                                                                <LocateFixed size={10} />
+                                                            )}
+                                                            Drop Pin
+                                                        </button>
+                                                        {item.latitude && item.longitude && (
+                                                            <a
+                                                                href={`https://maps.google.com/?q=${item.latitude},${item.longitude}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="text-[9px] text-blue-600 hover:underline"
+                                                                onClick={e => e.stopPropagation()}
+                                                            >
+                                                                View on Map ↗
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <Input
+                                                            value={item.latitude || ''}
+                                                            onChange={e => handlePotholeItemChange(idx, 'latitude', e.target.value)}
+                                                            className="h-7 text-xs"
+                                                            placeholder="Latitude (auto from photo/pin)"
+                                                        />
+                                                        <Input
+                                                            value={item.longitude || ''}
+                                                            onChange={e => handlePotholeItemChange(idx, 'longitude', e.target.value)}
+                                                            className="h-7 text-xs"
+                                                            placeholder="Longitude (auto from photo/pin)"
+                                                        />
+                                                    </div>
+                                                </div>
+
                                                 <div className="col-span-3">
                                                     <Label className="text-[9px] text-slate-400">Photos</Label>
                                                     <div className="mt-1 flex flex-wrap gap-2 items-center">
@@ -1038,6 +1149,7 @@ export default function PotholeLogsPage() {
                                                             />
                                                         </label>
                                                     </div>
+                                                    <p className="text-[8px] text-slate-400 mt-1">📍 GPS coordinates auto-extracted from photos when available</p>
                                                 </div>
                                             </div>
                                         </div>

@@ -9,6 +9,9 @@ export interface IPotholeItem {
     bottomDepthOfUtility: string;
     photo1?: string;
     photo2?: string;
+    photos?: string[];
+    latitude?: number;
+    longitude?: number;
     pin?: string;
     createdBy: string;
     createdAt: Date;
@@ -19,6 +22,7 @@ export interface IPotholeLog extends Document {
     date: Date;
     estimate: string;
     projectionLocation?: string;
+    jobAddress?: string;
     locationOfPothole?: {
         lat: number;
         lng: number;
@@ -38,6 +42,9 @@ const PotholeItemSchema = new Schema({
     bottomDepthOfUtility: { type: String, default: '' },
     photo1: { type: String, default: '' },
     photo2: { type: String, default: '' },
+    photos: [{ type: String }],
+    latitude: { type: Number },
+    longitude: { type: Number },
     pin: { type: String, default: '' },
     createdBy: { type: String, default: '' },
     createdAt: { type: Date, default: Date.now }
@@ -49,6 +56,7 @@ const PotholeLogSchema: Schema = new Schema({
     date: { type: Date, required: true },
     estimate: { type: String, ref: 'Estimate', required: true },
     projectionLocation: { type: String, default: '' },
+    jobAddress: { type: String, default: '' },
     locationOfPothole: {
         lat: { type: Number },
         lng: { type: Number }
