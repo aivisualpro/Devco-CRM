@@ -5,8 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Plus, Search, ArrowUpDown, Pencil, Trash2, Eye,
     Loader2, ChevronDown, Check, Calendar,
-    Image as ImageIcon, X, ChevronRight, Upload, ChevronLeft, Drill
+    Image as ImageIcon, X, ChevronRight, Upload, ChevronLeft, Drill, MapPin,
+    FileText, Mail, Download, Send
 } from 'lucide-react';
+import { SignaturePad } from '@/components/ui/SignaturePad';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -25,9 +27,11 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 const SOIL_TYPES = [
-    '1', '2', '3', '4', '5',
-    'Sandy', 'Clay', 'Loam', 'Rocky', 'Mixed'
+    'Sandy', 'Clay', 'Loam', 'Rocky', 'Mixed',
+    'Sandstone Clay Rock', 'Gravel', 'Silt', 'Topsoil', 'Shale'
 ];
+
+const PRE_BORE_TEMPLATE_ID = '1oz3s9qdfMnMdEivJhr8T4qPS-lwVGsb1A79eB-Djgic';
 
 interface PreBoreLogItem {
     _id?: string;
@@ -141,6 +145,13 @@ export default function PreBoreLogsPage() {
     const [logToDelete, setLogToDelete] = useState<PreBoreLog | null>(null);
     const [saving, setSaving] = useState(false);
 
+    // PDF & Email States
+    const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+    const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+    const [emailTo, setEmailTo] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
+    const [pdfTargetLog, setPdfTargetLog] = useState<PreBoreLog | null>(null);
+
     // Form State
     const [formData, setFormData] = useState({
         date: '',
@@ -172,10 +183,50 @@ export default function PreBoreLogsPage() {
     const [actionSheetItem, setActionSheetItem] = useState<PreBoreLog | null>(null);
     const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
+    // Custom soil types added by user during session
+    const [customSoilTypes, setCustomSoilTypes] = useState<string[]>([]);
+
     // Gallery State
     const [isGalleryOpen, setIsGalleryOpen] = useState(false);
     const [galleryImages, setGalleryImages] = useState<string[]>([]);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+    // Geolocation loading state for address fields
+    const [geoLoadingField, setGeoLoadingField] = useState<'start' | 'end' | null>(null);
+
+    // Drop pin: get GPS, then reverse geocode to an address
+    const handleDropPinAddress = (field: 'addressBoreStart' | 'addressBoreEnd') => {
+        if (!navigator.geolocation) {
+            toast.error('Geolocation is not supported by your browser');
+            return;
+        }
+        setGeoLoadingField(field === 'addressBoreStart' ? 'start' : 'end');
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                const { latitude, longitude } = position.coords;
+                try {
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&addressdetails=1`,
+                        { headers: { 'Accept-Language': 'en' } }
+                    );
+                    const data = await res.json();
+                    const address = data?.display_name || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+                    setFormData(prev => ({ ...prev, [field]: address }));
+                    toast.success('📍 Location pinned!');
+                } catch {
+                    // Fallback to raw coords if geocoding fails
+                    setFormData(prev => ({ ...prev, [field]: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` }));
+                    toast.success('📍 Location pinned (coordinates)');
+                }
+                setGeoLoadingField(null);
+            },
+            (error) => {
+                setGeoLoadingField(null);
+                toast.error(`Location error: ${error.message}`);
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+        );
+    };
 
     const handleLongPressStart = (log: PreBoreLog) => {
         longPressTimer.current = setTimeout(() => {
@@ -279,6 +330,26 @@ export default function PreBoreLogsPage() {
         fetchData();
     }, []);
 
+    // Handle ?edit= query param from detail page
+    useEffect(() => {
+        if (!loading && logs.length > 0) {
+            const editParam = searchParams.get('edit');
+            if (editParam) {
+                // editParam format: "scheduleId_preBoreId"
+                const parts = editParam.split('_');
+                if (parts.length === 2) {
+                    const [sId, pbId] = parts;
+                    const logToEdit = logs.find(l => l.scheduleId === sId && l._id === pbId);
+                    if (logToEdit) {
+                        handleEdit(logToEdit);
+                        // Remove the query param from URL to avoid re-opening on refresh
+                        router.replace('/docs/pre-bore-logs', { scroll: false });
+                    }
+                }
+            }
+        }
+    }, [loading, logs, searchParams]);
+
     // Filtering & Sorting
     const filteredLogs = useMemo(() => {
         let result = [...logs];
@@ -349,8 +420,8 @@ export default function PreBoreLogsPage() {
         const estNum = log.estimate || '';
         setSelectedEstimateId(estNum);
 
-        // Schedule: the _id of the log IS the parentSchedule _id
-        setSelectedScheduleId(log._id);
+        // Schedule: use scheduleId which is the parent Schedule document _id
+        setSelectedScheduleId(log.scheduleId || log._id);
 
         // Fetch schedules for this estimate so the dropdown is populated
         if (estNum) fetchSchedulesByEstimate(estNum);
@@ -488,6 +559,18 @@ export default function PreBoreLogsPage() {
             }));
     }, [schedules]);
 
+    // Employee options for Devco Operator dropdown
+    const employeeOptions = useMemo(() => {
+        return employees
+            .filter(e => e.firstName || e.lastName)
+            .sort((a, b) => `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`))
+            .map(e => ({
+                id: e.email,
+                label: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+                value: `${e.firstName || ''} ${e.lastName || ''}`.trim()
+            }));
+    }, [employees]);
+
     const handleAddBoreItem = () => {
         setFormData(prev => ({
             ...prev,
@@ -608,7 +691,7 @@ export default function PreBoreLogsPage() {
                 body: JSON.stringify({
                     action,
                     payload: editingLog
-                        ? { id: editingLog._id, item: preBoreData }
+                        ? { id: editingLog.scheduleId || editingLog._id, item: { ...preBoreData, legacyId: editingLog.legacyId } }
                         : { scheduleId: selectedScheduleId, item: preBoreData }
                 })
             });
@@ -636,7 +719,7 @@ export default function PreBoreLogsPage() {
             const res = await fetch('/api/pre-bore-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: logToDelete._id } })
+                body: JSON.stringify({ action: 'deletePreBoreLog', payload: { id: logToDelete.scheduleId || logToDelete._id, legacyId: logToDelete.legacyId } })
             });
 
             if (res.ok) {
@@ -651,6 +734,148 @@ export default function PreBoreLogsPage() {
             toast.error('Error deleting log');
         } finally {
             setSaving(false);
+        }
+    };
+
+    // ==================== Build PDF Payload ====================
+    const buildPdfPayload = (log: PreBoreLog) => {
+        const dateStr = log.date && !isNaN(new Date(log.date).getTime())
+            ? format(new Date(log.date), 'MM/dd/yyyy')
+            : '';
+
+        const startTimeStr = log.startTime && !isNaN(new Date(log.startTime).getTime())
+            ? format(new Date(log.startTime), 'hh:mm a')
+            : log.startTime || '';
+
+        const estInfo = estimates.find(e => e._id === log.estimate || e.estimate === log.estimate);
+
+        const variables: Record<string, any> = {
+            date: dateStr,
+            start_time: startTimeStr,
+            estimate: estInfo?.estimate || log.estimate || '',
+            customer_name: log.customerName || log.scheduleCustomerName || '',
+            customer_foreman: log.customerForeman || '',
+            customer_work_request: log.customerWorkRequestNumber || '',
+            devco_operator: log.devcoOperator || '',
+            address_bore_start: log.addressBoreStart || '',
+            address_bore_end: log.addressBoreEnd || '',
+            drill_size: log.drillSize || '',
+            pilot_bore_size: log.pilotBoreSize || '',
+            reamer_size_6: log.reamerSize6 || '',
+            reamer_size_8: log.reamerSize8 || '',
+            reamer_size_10: log.reamerSize10 || '',
+            reamer_size_12: log.reamerSize12 || '',
+            soil_type: log.soilType || '',
+            bore_length: log.boreLength || '',
+            pipe_size: log.pipeSize || '',
+            foreman_signature: log.foremanSignature || '',
+            customer_signature: log.customerSignature || '',
+            total_rods: String(log.preBoreLogs?.length || 0),
+            created_by: (() => {
+                const emp = employees.find(e => e.email?.toLowerCase() === log.createdBy?.toLowerCase());
+                return emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : log.createdBy || '';
+            })(),
+        };
+
+        const items = (log.preBoreLogs || []).map((item, idx) => ({
+            rodNumber: item.rodNumber || String(idx + 1),
+            distance: item.distance || '',
+            topDepth: item.topDepth || '',
+            bottomDepth: item.bottomDepth || '',
+            overOrUnder: item.overOrUnder || '',
+            existingUtilities: item.existingUtilities || '',
+            picture: item.picture || '',
+        }));
+
+        return { templateId: PRE_BORE_TEMPLATE_ID, variables, items };
+    };
+
+    // ==================== Download PDF ====================
+    const handleDownloadPDF = async (log: PreBoreLog) => {
+        setIsGeneratingPDF(true);
+        setPdfTargetLog(log);
+        try {
+            const payload = buildPdfPayload(log);
+            const response = await fetch('/api/generate-prebore-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Failed to generate PDF');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Pre_Bore_Log_${log.estimate || 'Report'}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            a.remove();
+
+            toast.success('PDF downloaded successfully!');
+        } catch (error: any) {
+            console.error('PDF Error:', error);
+            toast.error(error.message || 'Failed to download PDF');
+        } finally {
+            setIsGeneratingPDF(false);
+            setPdfTargetLog(null);
+        }
+    };
+
+    // ==================== Email PDF ====================
+    const handleSendEmail = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pdfTargetLog || !emailTo) return;
+        setIsSendingEmail(true);
+
+        try {
+            const payload = buildPdfPayload(pdfTargetLog);
+
+            const pdfRes = await fetch('/api/generate-prebore-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!pdfRes.ok) throw new Error('Failed to generate PDF');
+            const blob = await pdfRes.blob();
+
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = async () => {
+                const base64data = reader.result as string;
+
+                const emailRes = await fetch('/api/email-prebore-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        emailTo,
+                        subject: `Pre-Bore Log Report - ${pdfTargetLog.estimate || 'Report'}`,
+                        emailBody: `Please find attached the Pre-Bore Log Report for estimate ${pdfTargetLog.estimate || ''}.`,
+                        attachment: base64data
+                    })
+                });
+
+                const emailData = await emailRes.json();
+                if (emailData.success) {
+                    toast.success('PDF emailed successfully!');
+                    setIsEmailModalOpen(false);
+                    setEmailTo('');
+                    setPdfTargetLog(null);
+                } else {
+                    throw new Error(emailData.error || 'Failed to send email');
+                }
+                setIsSendingEmail(false);
+            };
+        } catch (error: any) {
+            console.error('Email Error:', error);
+            toast.error(error.message || 'Failed to send email');
+            setIsSendingEmail(false);
         }
     };
 
@@ -706,7 +931,7 @@ export default function PreBoreLogsPage() {
                                         <div
                                             key={log._id}
                                             className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                            onClick={() => handleEdit(log)}
+                                            onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}/${log._id}`)}
                                             onTouchStart={() => handleLongPressStart(log)}
                                             onTouchEnd={handleLongPressEnd}
                                             onTouchCancel={handleLongPressEnd}
@@ -783,6 +1008,7 @@ export default function PreBoreLogsPage() {
                                             <TableHeader className="w-[80px]">Bore Len</TableHeader>
                                             <TableHeader className="w-[80px] text-center">Rods</TableHeader>
                                             <TableHeader className="w-[100px]">Created By</TableHeader>
+                                            <TableHeader className="w-[120px] text-right">Actions</TableHeader>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
@@ -799,7 +1025,7 @@ export default function PreBoreLogsPage() {
                                                 <React.Fragment key={log._id}>
                                                     <TableRow
                                                         className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onClick={() => handleEdit(log)}
+                                                        onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}/${log._id}`)}
                                                     >
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {log.preBoreLogs?.length > 0 && (
@@ -881,6 +1107,26 @@ export default function PreBoreLogsPage() {
                                                                 return <span className="text-xs text-slate-500 truncate">{log.createdBy || '-'}</span>;
                                                             })()}
                                                         </TableCell>
+                                                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-[#0F4C75]" onClick={() => handleDownloadPDF(log)} disabled={isGeneratingPDF && pdfTargetLog?._id === log._id} title="Download PDF">
+                                                                    {isGeneratingPDF && pdfTargetLog?._id === log._id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                                                </Button>
+                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-emerald-600" onClick={() => { setPdfTargetLog(log); setIsEmailModalOpen(true); }} title="Email PDF">
+                                                                    <Mail size={14} />
+                                                                </Button>
+                                                                {canEdit && (
+                                                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => handleEdit(log)} title="Edit">
+                                                                        <Pencil size={14} />
+                                                                    </Button>
+                                                                )}
+                                                                {canDelete && (
+                                                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => { setLogToDelete(log); setIsDeleteOpen(true); }} title="Delete">
+                                                                        <Trash2 size={14} />
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
                                                     </TableRow>
                                                     {isExpanded && log.preBoreLogs?.map((item, idx) => (
                                                         <TableRow key={`${log._id}-item-${idx}`} className="bg-slate-50/50">
@@ -945,6 +1191,18 @@ export default function PreBoreLogsPage() {
                             <p className="text-xs text-slate-500">{actionSheetItem.addressBoreStart || '-'}</p>
                         </div>
                         <div className="p-2">
+                            <button
+                                onClick={() => { handleDownloadPDF(actionSheetItem); setActionSheetItem(null); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-[#0F4C75] hover:bg-blue-50"
+                            >
+                                <Download size={18} /> Download PDF
+                            </button>
+                            <button
+                                onClick={() => { setPdfTargetLog(actionSheetItem); setIsEmailModalOpen(true); setActionSheetItem(null); }}
+                                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-emerald-600 hover:bg-emerald-50"
+                            >
+                                <Mail size={18} /> Email PDF
+                            </button>
                             {canEdit && (
                                 <button
                                     onClick={() => { handleEdit(actionSheetItem); setActionSheetItem(null); }}
@@ -1150,29 +1408,82 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Devco Operator</Label>
-                            <Input
-                                value={formData.devcoOperator}
-                                onChange={e => setFormData(prev => ({ ...prev, devcoOperator: e.target.value }))}
-                                className="mt-1"
-                            />
+                            <div className="relative mt-1">
+                                <div
+                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                    onClick={() => setOpenDropdownId(openDropdownId === 'operator' ? null : 'operator')}
+                                >
+                                    <span className={`text-sm truncate ${formData.devcoOperator ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                        {formData.devcoOperator || 'Select Operator...'}
+                                    </span>
+                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'operator' ? 'rotate-180' : ''}`} />
+                                </div>
+                                {openDropdownId === 'operator' && (
+                                    <MyDropDown
+                                        isOpen={true}
+                                        onClose={() => setOpenDropdownId(null)}
+                                        options={employeeOptions}
+                                        selectedValues={formData.devcoOperator ? [formData.devcoOperator] : []}
+                                        onSelect={(val) => {
+                                            setFormData(prev => ({ ...prev, devcoOperator: val === prev.devcoOperator ? '' : val }));
+                                            setOpenDropdownId(null);
+                                        }}
+                                        placeholder="Search employees..."
+                                        width="w-full"
+                                        modal={false}
+                                    />
+                                )}
+                            </div>
                         </div>
 
                         <div className="col-span-2 sm:col-span-3 grid grid-cols-2 gap-4">
                             <div>
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore Start</Label>
-                                <Input
-                                    value={formData.addressBoreStart}
-                                    onChange={e => setFormData(prev => ({ ...prev, addressBoreStart: e.target.value }))}
-                                    className="mt-1"
-                                />
+                                <div className="relative mt-1">
+                                    <Input
+                                        value={formData.addressBoreStart}
+                                        onChange={e => setFormData(prev => ({ ...prev, addressBoreStart: e.target.value }))}
+                                        className="pr-10"
+                                        placeholder="Enter or pin drop..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDropPinAddress('addressBoreStart')}
+                                        disabled={geoLoadingField === 'start'}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                        title="Drop pin for current location"
+                                    >
+                                        {geoLoadingField === 'start' ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <MapPin size={14} />
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Address Bore End</Label>
-                                <Input
-                                    value={formData.addressBoreEnd}
-                                    onChange={e => setFormData(prev => ({ ...prev, addressBoreEnd: e.target.value }))}
-                                    className="mt-1"
-                                />
+                                <div className="relative mt-1">
+                                    <Input
+                                        value={formData.addressBoreEnd}
+                                        onChange={e => setFormData(prev => ({ ...prev, addressBoreEnd: e.target.value }))}
+                                        className="pr-10"
+                                        placeholder="Enter or pin drop..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDropPinAddress('addressBoreEnd')}
+                                        disabled={geoLoadingField === 'end'}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                        title="Drop pin for current location"
+                                    >
+                                        {geoLoadingField === 'end' ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <MapPin size={14} />
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -1222,33 +1533,49 @@ export default function PreBoreLogsPage() {
                                 <div>
                                     <Label className="text-[9px] text-slate-400">6&quot;</Label>
                                     <Input
+                                        type="number"
+                                        step="any"
+                                        inputMode="decimal"
                                         value={formData.reamerSize6}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize6: e.target.value }))}
                                         className="h-8 text-xs"
+                                        placeholder="0.0"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">8&quot;</Label>
                                     <Input
+                                        type="number"
+                                        step="any"
+                                        inputMode="decimal"
                                         value={formData.reamerSize8}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize8: e.target.value }))}
                                         className="h-8 text-xs"
+                                        placeholder="0.0"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">10&quot;</Label>
                                     <Input
+                                        type="number"
+                                        step="any"
+                                        inputMode="decimal"
                                         value={formData.reamerSize10}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize10: e.target.value }))}
                                         className="h-8 text-xs"
+                                        placeholder="0.0"
                                     />
                                 </div>
                                 <div>
                                     <Label className="text-[9px] text-slate-400">12&quot;</Label>
                                     <Input
+                                        type="number"
+                                        step="any"
+                                        inputMode="decimal"
                                         value={formData.reamerSize12}
                                         onChange={e => setFormData(prev => ({ ...prev, reamerSize12: e.target.value }))}
                                         className="h-8 text-xs"
+                                        placeholder="0.0"
                                     />
                                 </div>
                             </div>
@@ -1256,16 +1583,43 @@ export default function PreBoreLogsPage() {
 
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Soil Type</Label>
-                            <select
-                                value={formData.soilType}
-                                onChange={e => setFormData(prev => ({ ...prev, soilType: e.target.value }))}
-                                className="w-full mt-1 h-9 text-sm border rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
-                            >
-                                <option value="">Select soil...</option>
-                                {SOIL_TYPES.map(type => (
-                                    <option key={type} value={type}>{type}</option>
-                                ))}
-                            </select>
+                            <div className="relative mt-1">
+                                <div
+                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                    onClick={() => setOpenDropdownId(openDropdownId === 'soilType' ? null : 'soilType')}
+                                >
+                                    <span className={`text-sm truncate ${formData.soilType ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                        {formData.soilType || 'Select soil...'}
+                                    </span>
+                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'soilType' ? 'rotate-180' : ''}`} />
+                                </div>
+                                {openDropdownId === 'soilType' && (
+                                    <MyDropDown
+                                        isOpen={true}
+                                        onClose={() => setOpenDropdownId(null)}
+                                        options={[
+                                            ...SOIL_TYPES.map(t => ({ id: t, label: t, value: t })),
+                                            ...customSoilTypes.filter(t => !SOIL_TYPES.includes(t)).map(t => ({ id: t, label: t, value: t }))
+                                        ]}
+                                        selectedValues={formData.soilType ? [formData.soilType] : []}
+                                        onSelect={(val) => {
+                                            setFormData(prev => ({ ...prev, soilType: val === prev.soilType ? '' : val }));
+                                            setOpenDropdownId(null);
+                                        }}
+                                        onAdd={async (search) => {
+                                            const trimmed = search.trim();
+                                            if (trimmed && !SOIL_TYPES.includes(trimmed) && !customSoilTypes.includes(trimmed)) {
+                                                setCustomSoilTypes(prev => [...prev, trimmed]);
+                                            }
+                                            setFormData(prev => ({ ...prev, soilType: trimmed }));
+                                            setOpenDropdownId(null);
+                                        }}
+                                        placeholder="Search or add soil type..."
+                                        width="w-full"
+                                        modal={false}
+                                    />
+                                )}
+                            </div>
                         </div>
 
                         {/* Pre-Bore Log Items Section */}
@@ -1374,6 +1728,31 @@ export default function PreBoreLogsPage() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Signatures & Customer Section */}
+                        <div className="col-span-2 sm:col-span-3 mt-4">
+                            <div className="mb-4">
+                                <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer Name</Label>
+                                <Input
+                                    value={formData.customerName}
+                                    onChange={e => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
+                                    className="mt-1 max-w-md"
+                                    placeholder="Customer name..."
+                                />
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <SignaturePad
+                                    value={formData.foremanSignature}
+                                    onChange={(sig) => setFormData(prev => ({ ...prev, foremanSignature: sig }))}
+                                    label="Foreman Signature"
+                                />
+                                <SignaturePad
+                                    value={formData.customerSignature}
+                                    onChange={(sig) => setFormData(prev => ({ ...prev, customerSignature: sig }))}
+                                    label="Customer Signature"
+                                />
+                            </div>
+                        </div>
                     </div>
 
                     <DialogFooter>
@@ -1402,6 +1781,51 @@ export default function PreBoreLogsPage() {
                             {saving ? 'Deleting...' : 'Delete'}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Email PDF Modal */}
+            <Dialog open={isEmailModalOpen} onOpenChange={(open) => { setIsEmailModalOpen(open); if (!open) { setEmailTo(''); setPdfTargetLog(null); } }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Mail size={18} className="text-emerald-600" />
+                            Email Pre-Bore Log PDF
+                        </DialogTitle>
+                        <DialogDescription>
+                            Send the Pre-Bore Log as a PDF attachment for{' '}
+                            <strong>{pdfTargetLog?.customerName || pdfTargetLog?.devcoOperator || 'this record'}</strong>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSendEmail}>
+                        <div className="space-y-4 py-2">
+                            <div>
+                                <Label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email To</Label>
+                                <Input
+                                    type="email"
+                                    required
+                                    value={emailTo}
+                                    onChange={e => setEmailTo(e.target.value)}
+                                    placeholder="recipient@example.com"
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div className="bg-slate-50 rounded-lg p-3 text-xs text-slate-500">
+                                <p className="font-medium text-slate-700 mb-1">Subject:</p>
+                                <p>Pre-Bore Log Report - {pdfTargetLog?.estimate || 'Report'}</p>
+                            </div>
+                        </div>
+                        <DialogFooter className="mt-4">
+                            <Button type="button" variant="outline" onClick={() => { setIsEmailModalOpen(false); setEmailTo(''); setPdfTargetLog(null); }}>Cancel</Button>
+                            <Button type="submit" disabled={isSendingEmail || !emailTo} className="bg-emerald-600 hover:bg-emerald-700">
+                                {isSendingEmail ? (
+                                    <><Loader2 size={14} className="animate-spin mr-2" /> Sending...</>
+                                ) : (
+                                    <><Send size={14} className="mr-2" /> Send Email</>
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </form>
                 </DialogContent>
             </Dialog>
 

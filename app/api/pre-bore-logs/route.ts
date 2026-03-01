@@ -35,7 +35,8 @@ export async function POST(request: NextRequest) {
                     if (s.preBore && Array.isArray(s.preBore)) {
                         for (const pb of s.preBore) {
                             result.push({
-                                _id: s._id,
+                                ...pb,
+                                scheduleId: s._id,
                                 scheduleTitle: s.title,
                                 estimate: s.estimate,
                                 scheduleCustomerId: s.customerId,
@@ -43,7 +44,6 @@ export async function POST(request: NextRequest) {
                                 scheduleCustomerName: s.customerName,
                                 preBoreId: pb._id,
                                 legacyId: pb.legacyId,
-                                ...pb,
                                 preBoreLogs: pb.preBoreLogs || []
                             });
                         }
@@ -63,6 +63,34 @@ export async function POST(request: NextRequest) {
                     return NextResponse.json({ success: false, error: 'Schedule not found' }, { status: 404 });
                 }
                 return NextResponse.json({ success: true, result: { _id: (schedule as any)._id, preBore: (schedule as any).preBore || [] } });
+            }
+
+            case 'getPreBoreLogDetail': {
+                const { scheduleId, preBoreId } = payload;
+                if (!scheduleId || !preBoreId) {
+                    return NextResponse.json({ success: false, error: 'scheduleId and preBoreId are required' }, { status: 400 });
+                }
+                const sched = await Schedule.findById(scheduleId, {
+                    _id: 1, title: 1, estimate: 1, customerId: 1, customerName: 1, foremanName: 1, preBore: 1
+                }).lean() as any;
+                if (!sched) {
+                    return NextResponse.json({ success: false, error: 'Schedule not found' }, { status: 404 });
+                }
+                const preBoreEntry = (sched.preBore || []).find((pb: any) => String(pb._id) === String(preBoreId));
+                if (!preBoreEntry) {
+                    return NextResponse.json({ success: false, error: 'Pre-bore log not found' }, { status: 404 });
+                }
+                const flattened = {
+                    ...preBoreEntry,
+                    scheduleId: sched._id,
+                    scheduleTitle: sched.title,
+                    estimate: sched.estimate,
+                    scheduleCustomerId: sched.customerId,
+                    scheduleCustomerName: sched.customerName,
+                    scheduleForemanName: sched.foremanName,
+                    preBoreLogs: preBoreEntry.preBoreLogs || [],
+                };
+                return NextResponse.json({ success: true, result: flattened });
             }
 
             case 'createPreBoreLog': {
@@ -324,10 +352,10 @@ export async function GET(request: NextRequest) {
             if (s.preBore && Array.isArray(s.preBore)) {
                 for (const pb of s.preBore) {
                     result.push({
-                        _id: s._id,
+                        ...pb,
+                        scheduleId: s._id,
                         scheduleTitle: s.title,
                         estimate: s.estimate,
-                        ...pb,
                         preBoreLogs: pb.preBoreLogs || []
                     });
                 }
