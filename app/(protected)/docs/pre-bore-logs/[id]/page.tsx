@@ -5,7 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import {
     ArrowLeft, Calendar, MapPin, FileText, Pencil, Trash2,
     Loader2, Download, Mail, Send, X, ChevronLeft, ChevronRight,
-    Clock, Drill, User, ExternalLink
+    Clock, Drill, User
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -75,10 +75,14 @@ const PRE_BORE_TEMPLATE_ID = '1oz3s9qdfMnMdEivJhr8T4qPS-lwVGsb1A79eB-Djgic';
 export default function PreBoreLogDetailPage() {
     const router = useRouter();
     const params = useParams();
-    const scheduleId = params.scheduleId as string;
-    const preBoreId = params.preBoreId as string;
-    const { can } = usePermissions();
+    const rawId = params.id as string;
 
+    // Parse the combined id — format: "scheduleId___preBoreId"
+    const parts = rawId?.split('___') || [];
+    const scheduleId = parts[0] || '';
+    const preBoreId = parts[1] || '';
+
+    const { can } = usePermissions();
     const canEdit = can(MODULES.JHA, ACTIONS.EDIT);
     const canDelete = can(MODULES.JHA, ACTIONS.DELETE);
 
@@ -543,7 +547,7 @@ export default function PreBoreLogDetailPage() {
                                 </div>
                             </div>
 
-                            {/* Row 6: Created By */}
+                            {/* Row 6: Created By | Bore Length */}
                             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
                                 <div className="p-4">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Created By</label>
@@ -617,7 +621,6 @@ export default function PreBoreLogDetailPage() {
                                 <h2 className="font-bold text-slate-800">Signatures</h2>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-                                {/* Foreman Signature */}
                                 <div className="p-5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-3">Foreman Signature</label>
                                     {log.foremanSignature ? (
@@ -639,7 +642,6 @@ export default function PreBoreLogDetailPage() {
                                         </div>
                                     )}
                                 </div>
-                                {/* Customer Signature */}
                                 <div className="p-5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-3">Customer Signature</label>
                                     {log.customerSignature ? (

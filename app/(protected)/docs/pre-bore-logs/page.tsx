@@ -931,7 +931,7 @@ export default function PreBoreLogsPage() {
                                         <div
                                             key={log._id}
                                             className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                            onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}/${log._id}`)}
+                                            onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
                                             onTouchStart={() => handleLongPressStart(log)}
                                             onTouchEnd={handleLongPressEnd}
                                             onTouchCancel={handleLongPressEnd}
@@ -1025,7 +1025,7 @@ export default function PreBoreLogsPage() {
                                                 <React.Fragment key={log._id}>
                                                     <TableRow
                                                         className="group hover:bg-slate-50 transition-colors cursor-pointer"
-                                                        onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}/${log._id}`)}
+                                                        onClick={() => router.push(`/docs/pre-bore-logs/${log.scheduleId}___${log._id}`)}
                                                     >
                                                         <TableCell onClick={(e) => e.stopPropagation()}>
                                                             {log.preBoreLogs?.length > 0 && (
