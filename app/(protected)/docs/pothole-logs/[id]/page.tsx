@@ -407,7 +407,7 @@ export default function PotholeLogDetailsPage() {
             <Header showDashboardActions />
 
             <div className="flex-1 overflow-auto p-6">
-                <div className="max-w-5xl mx-auto space-y-6 pb-10">
+                <div className="max-w-6xl mx-auto space-y-6 pb-10">
 
                     {/* Back Button */}
                     <button
@@ -418,108 +418,118 @@ export default function PotholeLogDetailsPage() {
                         Back to Pothole Logs
                     </button>
 
-                    {/* Header Card */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                        <div className="bg-gradient-to-r from-[#0F4C75] to-[#3282B8] p-6">
-                            <div className="flex items-start justify-between">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-white mb-2">
-                                        Pothole Log
-                                    </h1>
-                                    <p className="text-white/70 text-sm">{log._id}</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    {/* PDF Download Button */}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="bg-white/90 hover:bg-white"
-                                        onClick={handleDownloadPDF}
-                                        disabled={isGeneratingPDF}
-                                    >
-                                        {isGeneratingPDF ? (
-                                            <Loader2 size={14} className="mr-1 animate-spin" />
-                                        ) : (
-                                            <Download size={14} className="mr-1" />
-                                        )}
-                                        PDF
-                                    </Button>
-                                    {/* Email Button */}
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="bg-white/90 hover:bg-white"
-                                        onClick={() => setIsEmailModalOpen(true)}
-                                    >
-                                        <Mail size={14} className="mr-1" /> Email
-                                    </Button>
-                                    {canEdit && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="bg-white/90 hover:bg-white"
-                                            onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
-                                        >
-                                            <Pencil size={14} className="mr-1" /> Edit
-                                        </Button>
-                                    )}
-                                    {canDelete && (
-                                        <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            onClick={() => setIsDeleteOpen(true)}
-                                        >
-                                            <Trash2 size={14} className="mr-1" /> Delete
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</label>
-                                <p className="text-slate-800 font-semibold flex items-center gap-2 mt-1">
-                                    <Calendar size={14} className="text-[#0F4C75]" />
-                                    {log.date && !isNaN(new Date(log.date).getTime())
-                                        ? format(new Date(log.date), 'MMM dd, yyyy')
-                                        : '-'}
-                                </p>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Estimate</label>
-                                <p
-                                    className="text-[#0F4C75] font-bold flex items-center gap-2 mt-1 cursor-pointer hover:underline"
-                                    onClick={() => router.push(`/estimates/${estimate?._id || log.estimate}`)}
+                    {/* Page Header: Title + Action Buttons inline */}
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                        <h1 className="text-2xl font-bold text-slate-800">
+                            Pothole Log Details
+                        </h1>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-slate-300 hover:bg-slate-50"
+                                onClick={handleDownloadPDF}
+                                disabled={isGeneratingPDF}
+                            >
+                                {isGeneratingPDF ? (
+                                    <Loader2 size={14} className="mr-1.5 animate-spin" />
+                                ) : (
+                                    <Download size={14} className="mr-1.5" />
+                                )}
+                                PDF
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-slate-300 hover:bg-slate-50"
+                                onClick={() => setIsEmailModalOpen(true)}
+                            >
+                                <Mail size={14} className="mr-1.5" /> Email
+                            </Button>
+                            {canEdit && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-slate-300 hover:bg-slate-50"
+                                    onClick={() => router.push(`/docs/pothole-logs?edit=${log._id}`)}
                                 >
-                                    {estimate?.estimate || log.estimate || '-'}
-                                    <ExternalLink size={12} />
-                                </p>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Project</label>
-                                <p className="text-slate-800 font-medium mt-1">{estimate?.projectName || '-'}</p>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Created By</label>
-                                <div className="mt-1">
-                                    <EmployeeDisplay email={log.createdBy} />
-                                </div>
-                            </div>
+                                    <Pencil size={14} className="mr-1.5" /> Edit
+                                </Button>
+                            )}
+                            {canDelete && (
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setIsDeleteOpen(true)}
+                                >
+                                    <Trash2 size={14} className="mr-1.5" /> Delete
+                                </Button>
+                            )}
                         </div>
-
-                        {(log.jobAddress || log.projectionLocation) && (
-                            <div className="px-6 pb-6">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Job Address</label>
-                                <p className="text-slate-700 flex items-center gap-2 mt-1">
-                                    <MapPin size={14} className="text-orange-500" />
-                                    {log.jobAddress || log.projectionLocation}
-                                </p>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Pothole Items */}
+                    {/* Info Card — 2 column grid matching PDF layout */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="divide-y divide-slate-100">
+                            {/* Row 1: Customer Name | Job Location */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                                <div className="p-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Name</label>
+                                    <p className="text-slate-800 font-semibold mt-1">
+                                        {estimate?.customerName || estimate?.customer || estimate?.ocName || '-'}
+                                    </p>
+                                </div>
+                                <div className="p-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Job Location</label>
+                                    <p className="text-slate-700 flex items-center gap-2 mt-1">
+                                        <MapPin size={14} className="text-orange-500 shrink-0" />
+                                        {log.jobAddress || log.projectionLocation || estimate?.jobAddress || '-'}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Row 2: Customer Job Number | DEVCO Job Number */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                                <div className="p-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Job Number</label>
+                                    <p className="text-slate-800 font-semibold mt-1">
+                                        {estimate?.customerJobNo || estimate?.customerJobNumber || '-'}
+                                    </p>
+                                </div>
+                                <div className="p-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">DEVCO Job Number</label>
+                                    <p
+                                        className="text-[#0F4C75] font-bold flex items-center gap-2 mt-1 cursor-pointer hover:underline"
+                                        onClick={() => router.push(`/estimates/${estimate?._id || log.estimate}`)}
+                                    >
+                                        {estimate?.estimate || log.estimate || '-'}
+                                        <ExternalLink size={12} />
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Row 3: Date | Potholes Completed By */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+                                <div className="p-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Date</label>
+                                    <p className="text-slate-800 font-semibold flex items-center gap-2 mt-1">
+                                        <Calendar size={14} className="text-[#0F4C75]" />
+                                        {log.date && !isNaN(new Date(log.date).getTime())
+                                            ? format(new Date(log.date), 'MMM dd, yyyy')
+                                            : '-'}
+                                    </p>
+                                </div>
+                                <div className="p-4">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Potholes Completed By</label>
+                                    <div className="mt-1">
+                                        <EmployeeDisplay email={log.createdBy} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pothole Items Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
                             <h2 className="font-bold text-slate-800 flex items-center gap-2">
@@ -530,89 +540,94 @@ export default function PotholeLogDetailsPage() {
                         </div>
 
                         {log.potholeItems?.length > 0 ? (
-                            <div className="divide-y divide-slate-100">
-                                {log.potholeItems.map((item, idx) => (
-                                    <div key={item._id || idx} className="p-4 hover:bg-slate-50 transition-colors">
-                                        <div className="flex items-start gap-4">
-                                            <div className="w-10 h-10 rounded-xl bg-[#0F4C75] text-white flex items-center justify-center font-bold text-sm shrink-0">
-                                                #{item.potholeNo || idx + 1}
-                                            </div>
-                                            <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Type of Utility</label>
-                                                    <p className="text-slate-700 font-medium text-sm">{item.typeOfUtility || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Soil Type</label>
-                                                    <p className="text-slate-700 font-medium text-sm">{item.soilType || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Top Depth</label>
-                                                    <p className="text-slate-700 font-medium text-sm">{item.topDepthOfUtility || '-'}</p>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-400 uppercase">Bottom Depth</label>
-                                                    <p className="text-slate-700 font-medium text-sm">{item.bottomDepthOfUtility || '-'}</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-3 shrink-0 flex-wrap">
-                                                {(() => {
-                                                    const allPhotos = [
-                                                        ...(item.photos || []),
-                                                        ...(item.photo1 ? [item.photo1] : []),
-                                                        ...(item.photo2 ? [item.photo2] : [])
-                                                    ].filter((v, i, a) => a.indexOf(v) === i);
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[70px]">Pothole #</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Type of Utility</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[80px]">Soil Type</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Top Depth</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Bottom Depth</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pin</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[100px]">Photo 1</th>
+                                            <th className="text-left px-4 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[100px]">Photo 2</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {log.potholeItems.map((item, idx) => {
+                                            const allPhotos = [
+                                                ...(item.photos || []),
+                                                ...(item.photo1 ? [item.photo1] : []),
+                                                ...(item.photo2 ? [item.photo2] : [])
+                                            ].filter((v, i, a) => a.indexOf(v) === i);
 
-                                                    return (
-                                                        <>
-                                                            {allPhotos.map((photo, pIdx) => (
-                                                                <div
-                                                                    key={pIdx}
-                                                                    className="relative group cursor-pointer"
-                                                                    onClick={() => openGallery(allPhotos, pIdx)}
-                                                                >
-                                                                    <div className="w-16 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] transition-all shadow-sm group-hover:shadow-md">
-                                                                        <img
-                                                                            src={photo}
-                                                                            alt={`Photo ${pIdx + 1}`}
-                                                                            className="w-full h-full object-cover transition-transform group-hover:scale-110"
-                                                                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                                        />
-                                                                    </div>
-                                                                    {allPhotos.length > 1 && pIdx === 0 && (
-                                                                        <div className="absolute -top-2 -right-2 bg-[#0F4C75] text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold shadow-sm border border-white">
-                                                                            {allPhotos.length}
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
-                                        {/* Location & Pin Info */}
-                                        <div className="mt-2 ml-14 flex items-center gap-4 flex-wrap">
-                                            {(item.latitude && item.longitude) && (
-                                                <a
-                                                    href={`https://maps.google.com/?q=${item.latitude},${item.longitude}`}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                    className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                                                >
-                                                    <MapPin size={10} />
-                                                    {Number(item.latitude).toFixed(6)}, {Number(item.longitude).toFixed(6)}
-                                                    <ExternalLink size={9} />
-                                                </a>
-                                            )}
-                                            {item.pin && (
-                                                <span className="text-xs text-slate-500">
-                                                    <strong>Pin:</strong> {item.pin}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                                            return (
+                                                <tr key={item._id || idx} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="px-4 py-3">
+                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-[#0F4C75] text-white font-bold text-xs">
+                                                            {item.potholeNo || idx + 1}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-slate-700 font-medium">{item.typeOfUtility || '-'}</td>
+                                                    <td className="px-4 py-3 text-slate-700">{item.soilType || '-'}</td>
+                                                    <td className="px-4 py-3 text-slate-700">{item.topDepthOfUtility || '-'}</td>
+                                                    <td className="px-4 py-3 text-slate-700">{item.bottomDepthOfUtility || '-'}</td>
+                                                    <td className="px-4 py-3">
+                                                        {(item.latitude && item.longitude) ? (
+                                                            <a
+                                                                href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="text-xs text-[#0F4C75] hover:underline flex items-center gap-1"
+                                                            >
+                                                                <MapPin size={10} className="shrink-0" />
+                                                                {Number(item.latitude).toFixed(6)},<br />{Number(item.longitude).toFixed(6)}
+                                                                <ExternalLink size={9} className="shrink-0" />
+                                                            </a>
+                                                        ) : (
+                                                            <span className="text-slate-400 text-xs">{item.pin || '-'}</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {allPhotos[0] ? (
+                                                            <div
+                                                                className="w-20 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] cursor-pointer transition-all shadow-sm hover:shadow-md"
+                                                                onClick={() => openGallery(allPhotos, 0)}
+                                                            >
+                                                                <img
+                                                                    src={allPhotos[0]}
+                                                                    alt="Photo 1"
+                                                                    className="w-full h-full object-cover hover:scale-110 transition-transform"
+                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs">-</span>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {allPhotos[1] ? (
+                                                            <div
+                                                                className="w-20 h-16 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#0F4C75] cursor-pointer transition-all shadow-sm hover:shadow-md"
+                                                                onClick={() => openGallery(allPhotos, 1)}
+                                                            >
+                                                                <img
+                                                                    src={allPhotos[1]}
+                                                                    alt="Photo 2"
+                                                                    className="w-full h-full object-cover hover:scale-110 transition-transform"
+                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-300 text-xs">-</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         ) : (
                             <div className="p-8 text-center text-slate-400">

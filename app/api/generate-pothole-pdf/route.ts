@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
 
         // Collect original photo URLs in order for linking images in the PDF
         const originalPhotoUrls: string[] = [];
+        // Collect coordinate info for Google Maps links
+        const coordInfo: { lat: string; lng: string; mapsUrl: string }[] = [];
+
         for (let i = 0; i < itemCount; i++) {
             const item = items[i];
             const photos = [
@@ -71,6 +74,17 @@ export async function POST(req: NextRequest) {
             ].filter((v: string, vi: number, a: string[]) => a.indexOf(v) === vi);
             if (photos[0]) originalPhotoUrls.push(photos[0]);
             if (photos[1]) originalPhotoUrls.push(photos[1]);
+
+            // Coordinates for Google Maps links
+            if (item.latitude && item.longitude) {
+                const lat = String(item.latitude);
+                const lng = String(item.longitude);
+                coordInfo.push({
+                    lat,
+                    lng,
+                    mapsUrl: `https://www.google.com/maps?q=${lat},${lng}`
+                });
+            }
         }
 
         // Generate PDF using processGoogleDoc with custom options
@@ -191,6 +205,59 @@ export async function POST(req: NextRequest) {
                             await docsApi.documents.batchUpdate({
                                 documentId: docId,
                                 requestBody: { requests: linkRequests }
+                            });
+                        }
+                    }
+
+                    // ── Step 3: Make coordinates clickable (Google Maps links) ──
+                    if (coordInfo.length > 0) {
+                        // Re-read document after image link changes
+                        doc = await docsApi.documents.get({ documentId: docId });
+                        body = doc.data.body?.content || [];
+
+                        const coordLinkRequests: any[] = [];
+                        const usedLats = new Set<string>();
+
+                        const scanForCoordLinks = (content: any[]) => {
+                            for (const el of content) {
+                                if (el.paragraph?.elements) {
+                                    for (const e of el.paragraph.elements) {
+                                        const text = e.textRun?.content || '';
+                                        for (const coord of coordInfo) {
+                                            if (text.includes(coord.lat) && !usedLats.has(coord.lat)) {
+                                                usedLats.add(coord.lat);
+                                                const paraStart = el.paragraph.elements[0]?.startIndex;
+                                                const paraEnd = el.paragraph.elements[el.paragraph.elements.length - 1]?.endIndex;
+                                                if (paraStart != null && paraEnd != null && paraEnd > paraStart) {
+                                                    coordLinkRequests.push({
+                                                        updateTextStyle: {
+                                                            range: { startIndex: paraStart, endIndex: paraEnd },
+                                                            textStyle: {
+                                                                link: { url: coord.mapsUrl },
+                                                                foregroundColor: { color: { rgbColor: { red: 0.06, green: 0.3, blue: 0.46 } } }
+                                                            },
+                                                            fields: 'link,foregroundColor'
+                                                        }
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (el.table?.tableRows) {
+                                    for (const r of el.table.tableRows) {
+                                        for (const cell of r.tableCells || []) {
+                                            if (cell.content) scanForCoordLinks(cell.content);
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                        scanForCoordLinks(body);
+
+                        if (coordLinkRequests.length > 0) {
+                            await docsApi.documents.batchUpdate({
+                                documentId: docId,
+                                requestBody: { requests: coordLinkRequests }
                             });
                         }
                     }
