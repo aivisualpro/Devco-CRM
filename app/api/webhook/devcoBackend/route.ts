@@ -125,7 +125,7 @@ async function uploadRawToCloudinary(fileString: string, fileName: string, conte
     if (!fileString) return null;
     try {
         const safeId = fileName.replace(/[^a-zA-Z0-9]/g, '_');
-        
+
         const uploadResult = await cloudinary.uploader.upload(fileString, {
             folder: 'signed_contracts',
             public_id: safeId,
@@ -211,10 +211,10 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
     // 2. Prepare Data Mapping
     // Ensure we handle numeric fields safely with formatting
     const fmtMoney = (val: any) => (parseFloat(String(val).replace(/[^0-9.-]+/g, "")) || 0).toFixed(2);
-    
+
     // Mapping keys to AppSheet columns as requested
     const appSheetRow = {
-        "Proposal Number": String(data.estimate || ""), 
+        "Proposal Number": String(data.estimate || ""),
         "Project Name": String(data.projectName || ""),
         "Proposal Writer": String(data.proposalWriter || ""),
         "Client": String(data.customerId || ""),
@@ -267,7 +267,7 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
 
     try {
         console.log(`[AppSheet] Syncing ${action} for Estimate #${data.estimate}...`);
-        
+
         const response = await fetch(APPSHEET_URL, {
             method: "POST",
             headers: {
@@ -286,7 +286,7 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
             console.error(`[AppSheet] Error ${response.status}:`, errorText);
             return { success: false, status: response.status, error: `AppSheet ${response.status}: ${errorText}` };
         }
-        
+
         console.log(`[AppSheet] Sync Success`);
         return { success: true };
     } catch (error) {
@@ -298,8 +298,8 @@ async function updateAppSheet(data: any, lineItems: Record<string, unknown[]> | 
 // AppSheet Client Sync Helper
 async function updateAppSheetClient(data: any | any[], action: "Add" | "Edit" | "Delete" = "Edit") {
     if (process.env.NODE_ENV !== 'production') {
-         console.log(`[AppSheet Client] Skipping ${action} sync: Not in production environment.`);
-         return; 
+        console.log(`[AppSheet Client] Skipping ${action} sync: Not in production environment.`);
+        return;
     }
 
     const { appId, accessKey, tableName } = getAppSheetClientConfig();
@@ -312,7 +312,7 @@ async function updateAppSheetClient(data: any | any[], action: "Add" | "Edit" | 
         // Extract Primary Contact
         const contacts = Array.isArray(client.contacts) ? client.contacts : [];
         const primaryContact = contacts.find((c: any) => c.primary) || contacts.find((c: any) => c.active) || contacts[0] || {};
-        
+
         // Extract Accounting Contact
         const accountingContact = contacts.find((c: any) => c.type === 'Accounting') || {};
 
@@ -377,7 +377,7 @@ function normalizeServices(services: any): string[] {
 // Helper to check for template service conflicts
 async function checkTemplateServicesConflict(services: string[], excludeId?: string) {
     if (!services || services.length === 0) return null;
-    
+
     // Use $size for exact array length and $all to ensure all specific services match
     return await Template.findOne({
         services: { $size: services.length, $all: services },
@@ -397,16 +397,16 @@ export async function POST(request: NextRequest) {
         action = bodyAction || action;
 
         await connectToDatabase();
-        
+
         // Security Check: Verify user is active
         const userPayload = await getUserFromRequest(request);
         if (userPayload) {
-             const user = await Employee.findById(userPayload.userId).lean();
-             if (user && user.status !== 'Active') {
-                 return NextResponse.json({ success: false, error: 'Account is inactive' }, { status: 401 });
-             }
+            const user = await Employee.findById(userPayload.userId).lean();
+            if (user && user.status !== 'Active') {
+                return NextResponse.json({ success: false, error: 'Account is inactive' }, { status: 401 });
+            }
         }
-        
+
         const { getEmptyTemplate } = await import('@/lib/templateResolver');
 
         // Helper to enrich estimate with Client's primary address for contactAddress
@@ -626,33 +626,35 @@ export async function POST(request: NextRequest) {
                 const facetResult = await Estimate.aggregate([
                     { $match: baseQuery },
                     { $addFields: { _nDate: dateNormField } },
-                    { $facet: {
-                        all: [{ $count: 'count' }],
-                        thisMonth: [
-                            { $match: { _nDate: { $gte: thisMonthStart, $lte: thisMonthEnd } } },
-                            { $count: 'count' }
-                        ],
-                        lastMonth: [
-                            { $match: { _nDate: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
-                            { $count: 'count' }
-                        ],
-                        pending: [
-                            { $match: { status: { $regex: /^pending$/i } } },
-                            { $count: 'count' }
-                        ],
-                        completed: [
-                            { $match: { status: { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] } } },
-                            { $count: 'count' }
-                        ],
-                        won: [
-                            { $match: { status: { $in: ['Won', 'Confirmed', 'won', 'confirmed'] } } },
-                            { $count: 'count' }
-                        ],
-                        lost: [
-                            { $match: { status: { $in: ['Lost', 'lost'] } } },
-                            { $count: 'count' }
-                        ]
-                    }}
+                    {
+                        $facet: {
+                            all: [{ $count: 'count' }],
+                            thisMonth: [
+                                { $match: { _nDate: { $gte: thisMonthStart, $lte: thisMonthEnd } } },
+                                { $count: 'count' }
+                            ],
+                            lastMonth: [
+                                { $match: { _nDate: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
+                                { $count: 'count' }
+                            ],
+                            pending: [
+                                { $match: { status: { $regex: /^pending$/i } } },
+                                { $count: 'count' }
+                            ],
+                            completed: [
+                                { $match: { status: { $in: ['Completed', 'Confirmed', 'completed', 'confirmed'] } } },
+                                { $count: 'count' }
+                            ],
+                            won: [
+                                { $match: { status: { $in: ['Won', 'Confirmed', 'won', 'confirmed'] } } },
+                                { $count: 'count' }
+                            ],
+                            lost: [
+                                { $match: { status: { $in: ['Lost', 'lost'] } } },
+                                { $count: 'count' }
+                            ]
+                        }
+                    }
                 ]);
 
                 const facets = facetResult[0] || {};
@@ -684,8 +686,8 @@ export async function POST(request: NextRequest) {
                         Client.find().select('_id name businessAddress').lean()
                     ]);
 
-                    return NextResponse.json({ 
-                        success: true, 
+                    return NextResponse.json({
+                        success: true,
                         result: {
                             estimates,
                             constants,
@@ -703,7 +705,7 @@ export async function POST(request: NextRequest) {
             case 'getEstimateStats': {
                 // Aggregate estimates by status with count and total grandTotal
                 const { startDate, endDate } = payload || {};
-                
+
                 const pipeline: any[] = [];
 
                 // 1. Normalize fields (handle String vs Date for createdAt, String vs Number for grandTotal)
@@ -712,11 +714,11 @@ export async function POST(request: NextRequest) {
                         // Prioritize 'date' field (e.g. "10/6/2023"), fallback to 'createdAt'
                         normalizedDate: {
                             $cond: {
-                                if: { 
+                                if: {
                                     $and: [
-                                        { $ifNull: ["$date", false] }, 
+                                        { $ifNull: ["$date", false] },
                                         { $ne: ["$date", ""] }
-                                    ] 
+                                    ]
                                 },
                                 then: {
                                     $convert: {
@@ -729,21 +731,21 @@ export async function POST(request: NextRequest) {
                                 else: "$createdAt"
                             }
                         },
-                        
+
                         // Ensure grandTotal is a number
-                        normalizedTotal: { 
-                             $cond: {
+                        normalizedTotal: {
+                            $cond: {
                                 if: { $isNumber: "$grandTotal" }, // if number, use it
                                 then: "$grandTotal",
                                 else: { $toDouble: "$grandTotal" } // try to parse string
-                             }
+                            }
                         }
                     }
                 });
 
                 // 2. Build Match Query
                 const matchQuery: any = { status: { $ne: 'deleted' } };
-                
+
                 if (startDate || endDate) {
                     matchQuery.normalizedDate = {};
                     // Ensure we compare Date objects to Date objects
@@ -1018,11 +1020,11 @@ export async function POST(request: NextRequest) {
                     if (errorStr.includes("duplicate") || errorStr.includes("already exists") || errorStr.includes("row having key")) {
                         console.log(`[AppSheet Manual Sync] Add failed (duplicate), retrying with Edit...`);
                         const editResult = await updateAppSheet(est, null, "Edit");
-                        
+
                         if (!editResult.success) {
-                            return NextResponse.json({ 
-                                success: false, 
-                                error: `Sync Failed. ADD Error: ${addResult.error}. EDIT Error: ${editResult.error}` 
+                            return NextResponse.json({
+                                success: false,
+                                error: `Sync Failed. ADD Error: ${addResult.error}. EDIT Error: ${editResult.error}`
                             });
                         }
                     } else {
@@ -1067,7 +1069,7 @@ export async function POST(request: NextRequest) {
                 }
 
                 // 3. Create New Estimate Document
-                
+
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
                 const { _id, createdAt, updatedAt, __v, ...sourceData } = sourceEst as any;
 
@@ -1204,11 +1206,11 @@ export async function POST(request: NextRequest) {
 
                 // 3. Create New Change Order Document
                 // copy ONLY header info, NOT line items or proposals as requested
-                const { 
+                const {
                     _id, createdAt, updatedAt, __v,
                     labor, equipment, material, tools, overhead, subcontractor, disposal, miscellaneous,
                     proposals, proposal,
-                    ...headerData 
+                    ...headerData
                 } = sourceEst as any;
 
                 const newCOData = {
@@ -1227,7 +1229,7 @@ export async function POST(request: NextRequest) {
                     disposal: [],
                     miscellaneous: [],
                     proposals: [],
-                    
+
                     date: new Date().toLocaleDateString(),
                     createdAt: new Date(),
                     updatedAt: new Date()
@@ -1255,7 +1257,7 @@ export async function POST(request: NextRequest) {
                     { ...updateData, updatedAt: new Date() },
                     { new: true }
                 );
-                
+
                 // Log Activity
                 if (updated) {
                     try {
@@ -1263,11 +1265,11 @@ export async function POST(request: NextRequest) {
                         await Activity.create({
                             _id: activityId,
                             user: (() => {
-                                const u = (updateData as any).proposalWriter || 
-                                          (updateData as any).createdBy || 
-                                          (payload as any).updatedBy || 
-                                          updated?.proposalWriter || 
-                                          'System';
+                                const u = (updateData as any).proposalWriter ||
+                                    (updateData as any).createdBy ||
+                                    (payload as any).updatedBy ||
+                                    updated?.proposalWriter ||
+                                    'System';
                                 return Array.isArray(u) ? u.join(', ') : String(u);
                             })(),
                             action: 'updated_estimate',
@@ -1278,7 +1280,7 @@ export async function POST(request: NextRequest) {
                             createdAt: new Date()
                         });
                     } catch (e) {
-                         console.error('Failed to log activity:', e);
+                        console.error('Failed to log activity:', e);
                     }
 
                     // Sync to AppSheet if status changed
@@ -1338,15 +1340,15 @@ export async function POST(request: NextRequest) {
 
                 // AppSheet Sync - Only if this is the LATEST version
                 if (updated && updated.estimate) {
-                     try {
+                    try {
                         const latestVer = await Estimate.find({ estimate: updated.estimate }).sort({ versionNumber: -1 }).limit(1).lean();
                         if (latestVer.length > 0 && String(latestVer[0]._id) === String(updated._id)) {
-                             // This IS the latest version, so sync it
-                             await updateAppSheet(updated.toObject(), null, "Edit");
+                            // This IS the latest version, so sync it
+                            await updateAppSheet(updated.toObject(), null, "Edit");
                         }
-                     } catch (e) {
-                         console.error('AppSheet Update Sync Error:', e);
-                     }
+                    } catch (e) {
+                        console.error('AppSheet Update Sync Error:', e);
+                    }
                 }
                 return NextResponse.json({ success: true, result: updated });
             }
@@ -1370,11 +1372,11 @@ export async function POST(request: NextRequest) {
 
                 // Default "Smart" Mode (Edit -> Add Fallback)
                 const result = await updateAppSheet(est, null, "Edit");
-                
+
                 if (!result.success && result.status === 404) {
-                     console.log('Edit failed (404), trying Add...');
-                     const addResult = await updateAppSheet(est, null, "Add");
-                     return NextResponse.json(addResult);
+                    console.log('Edit failed (404), trying Add...');
+                    const addResult = await updateAppSheet(est, null, "Add");
+                    return NextResponse.json(addResult);
                 }
 
                 if (!result.success) {
@@ -1398,27 +1400,27 @@ export async function POST(request: NextRequest) {
                 const estimateNumber = estToDelete.estimate;
                 const isCO = estToDelete.isChangeOrder === true;
                 const parentVersionId = estToDelete.parentVersionId;
-                
+
                 // 2. Delete the target version
                 await Estimate.findByIdAndDelete(deleteId);
-                
+
                 // 3. Handle AppSheet Sync for Deletion
                 if (estimateNumber) {
-                     // Check if there are other versions left (temporarily, before renumbering)
-                     const remaining = await Estimate.find({ estimate: estimateNumber }).sort({ versionNumber: -1 }).limit(1).lean();
-                     
-                     if (remaining.length === 0) {
-                         // No versions left, truly DELETE from AppSheet
-                         updateAppSheet(estToDelete, null, "Delete").catch(err => console.error('Delete sync error:', err));
-                     }
+                    // Check if there are other versions left (temporarily, before renumbering)
+                    const remaining = await Estimate.find({ estimate: estimateNumber }).sort({ versionNumber: -1 }).limit(1).lean();
+
+                    if (remaining.length === 0) {
+                        // No versions left, truly DELETE from AppSheet
+                        updateAppSheet(estToDelete, null, "Delete").catch(err => console.error('Delete sync error:', err));
+                    }
                 }
 
                 if (isCO) {
                     // --- CASE A: Deleting a Change Order ---
                     // Renumber remaining COs for this specific parent version
-                    const otherCOs = await Estimate.find({ 
-                        parentVersionId, 
-                        isChangeOrder: true 
+                    const otherCOs = await Estimate.find({
+                        parentVersionId,
+                        isChangeOrder: true
                     }).sort({ createdAt: 1 }).lean();
 
                     for (let i = 0; i < otherCOs.length; i++) {
@@ -1429,7 +1431,7 @@ export async function POST(request: NextRequest) {
                         if (String(doc._id) !== expectedId) {
                             const oldId = String(doc._id);
                             const { _id, __v, ...data } = doc as any;
-                            
+
                             // Re-create with new sequential ID
                             await Estimate.create({
                                 ...data,
@@ -1442,22 +1444,22 @@ export async function POST(request: NextRequest) {
                 } else {
                     // --- CASE B: Deleting a Regular Version ---
                     // Shift subsequent versions down, and also update their child COs
-                    const allVersions = await Estimate.find({ 
-                        estimate: estimateNumber, 
-                        isChangeOrder: { $ne: true } 
+                    const allVersions = await Estimate.find({
+                        estimate: estimateNumber,
+                        isChangeOrder: { $ne: true }
                     })
-                    .sort({ versionNumber: 1 })
-                    .lean();
+                        .sort({ versionNumber: 1 })
+                        .lean();
 
                     for (let i = 0; i < allVersions.length; i++) {
                         const doc = allVersions[i];
                         const correctVerNum = i + 1;
                         const expectedId = `${estimateNumber}-V${correctVerNum}`;
-                        
+
                         if (doc.versionNumber !== correctVerNum || String(doc._id) !== expectedId) {
                             const oldId = String(doc._id);
                             const { _id, __v, ...data } = doc as any;
-                            
+
                             // 1. Move the regular version
                             await Estimate.create({
                                 ...data,
@@ -1495,10 +1497,10 @@ export async function POST(request: NextRequest) {
                     .sort({ versionNumber: -1 })
                     .limit(1)
                     .lean();
-                
+
                 if (finalLatest.length > 0) {
-                     // Sync this as an Edit (restoring the "Estimate" record to the content of the latest version)
-                     updateAppSheet(finalLatest[0], null, "Edit").catch(err => console.error('Renumber-Sync error:', err));
+                    // Sync this as an Edit (restoring the "Estimate" record to the content of the latest version)
+                    updateAppSheet(finalLatest[0], null, "Edit").catch(err => console.error('Renumber-Sync error:', err));
                 }
 
                 return NextResponse.json({ success: true });
@@ -1549,16 +1551,16 @@ export async function POST(request: NextRequest) {
                     };
 
                     const cleanData = { ...e };
-                    
+
                     // Enhanced Field Mapping with Fallbacks
                     cleanData.estimate = baseEstNum; // Use cleaned number
-                    
+
                     const custName = getValue(e, ['Customer', 'Customer Name', 'customerName', 'customer']);
                     if (custName) cleanData.customerName = custName;
 
                     if (e['Date']) cleanData.date = e['Date'];
                     if (e['Status']) cleanData.status = e['Status']?.toLowerCase();
-                    
+
                     // Smart Proposal Writer Resolution
                     const writerInput = getValue(e, ['Proposal Writer', 'proposalWriter', 'Writer', 'proposal_writer']);
                     if (writerInput) {
@@ -1573,7 +1575,7 @@ export async function POST(request: NextRequest) {
                                 const firstOnly = (emp.firstName || '').toLowerCase();
                                 return fullName === valStr.toLowerCase() || firstOnly === valStr.toLowerCase();
                             });
-                            
+
                             if (found) {
                                 cleanData.proposalWriter = found._id || found.email;
                             } else {
@@ -1621,7 +1623,7 @@ export async function POST(request: NextRequest) {
                     if (e['Prelim Amount']) cleanData.prelimAmount = e['Prelim Amount'];
                     if (e['Billing Terms']) cleanData.billingTerms = e['Billing Terms'];
                     if (e['Other Billing Terms']) cleanData.otherBillingTerms = e['Other Billing Terms'];
-                    
+
                     // Explicit mapping for camelCase or specific user-provided headers to ensure they are captured
                     if (e['accountingContact']) cleanData.accountingContact = e['accountingContact'];
                     if (e['accountingEmail']) cleanData.accountingEmail = e['accountingEmail'];
@@ -1672,7 +1674,7 @@ export async function POST(request: NextRequest) {
                     if (cleanData.grandTotal !== undefined) cleanData.grandTotal = parseVal(cleanData.grandTotal);
                     if (cleanData.subTotal !== undefined) cleanData.subTotal = parseVal(cleanData.subTotal);
                     if (cleanData.margin !== undefined) cleanData.margin = parseVal(cleanData.margin);
-                    
+
                     // If Margin is present but Grand Total is 0, attempt a reconstruction 
                     // (This helps with imports where only partial totals were provided)
                     if ((cleanData.grandTotal === 0 || !cleanData.grandTotal) && cleanData.margin > 0 && cleanData.subTotal > 0) {
@@ -1695,7 +1697,7 @@ export async function POST(request: NextRequest) {
                     // Removing the prune logic that deletes fields if they are falsy.
                     // If the CSV has a blank value, maybe we WANT to blank it out?
                     // Or if our mapping logic failed, it might be undefined.
-                    
+
                     // Let's NOT delete these for now to ensure whatever we mapped IS used.
                     // (Commented out pruning)
                     // if (!cleanData.status) delete cleanData.status;
@@ -2255,7 +2257,7 @@ export async function POST(request: NextRequest) {
 
                     // Sync to AppSheet
                     if (updated) {
-                         updateAppSheetClient(updated, "Edit").catch(err => console.error('AppSheet Client Sync Error:', err));
+                        updateAppSheetClient(updated, "Edit").catch(err => console.error('AppSheet Client Sync Error:', err));
                     }
 
                     return NextResponse.json({ success: true, result: updated });
@@ -2399,7 +2401,7 @@ export async function POST(request: NextRequest) {
             case 'deleteCloudinaryFiles': {
                 const { urls } = payload || {};
                 if (!urls || !Array.isArray(urls)) return NextResponse.json({ success: false, error: 'Missing urls' }, { status: 400 });
-                
+
                 for (const url of urls) {
                     await deleteFromCloudinary(url);
                 }
@@ -2440,12 +2442,12 @@ export async function POST(request: NextRequest) {
             case 'addTemplate': {
                 const item = payload?.item || {};
                 const services = normalizeServices(item.services);
-                
+
                 const conflict = await checkTemplateServicesConflict(services);
                 if (conflict) {
-                    return NextResponse.json({ 
-                        success: false, 
-                        error: `Service conflict: The template "${(conflict as any).title}" already uses this exact set of services.` 
+                    return NextResponse.json({
+                        success: false,
+                        error: `Service conflict: The template "${(conflict as any).title}" already uses this exact set of services.`
                     }, { status: 200 }); // Return 200 to avoid red console errors, UI handles success: false
                 }
 
@@ -2456,14 +2458,14 @@ export async function POST(request: NextRequest) {
             case 'updateTemplate': {
                 const { id: tempId, item: tempItem } = payload || {};
                 if (!tempId) return NextResponse.json({ success: false, error: 'Missing id' }, { status: 400 });
-                
+
                 if (tempItem.services) {
                     const services = normalizeServices(tempItem.services);
                     const conflict = await checkTemplateServicesConflict(services, tempId);
                     if (conflict) {
-                        return NextResponse.json({ 
-                            success: false, 
-                            error: `Service conflict: The template "${(conflict as any).title}" already uses this exact set of services.` 
+                        return NextResponse.json({
+                            success: false,
+                            error: `Service conflict: The template "${(conflict as any).title}" already uses this exact set of services.`
                         }, { status: 200 }); // Return 200 to avoid red console errors
                     }
                     tempItem.services = services;
@@ -2486,7 +2488,7 @@ export async function POST(request: NextRequest) {
                 const original = await Template.findById(cloneId).lean();
                 if (!original) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 const { _id, createdAt, updatedAt, ...rest } = original as any;
-                
+
                 // When cloning, we clear services to avoid immediate uniqueness conflict
                 const newTemplate = await Template.create({
                     ...rest,
@@ -2539,7 +2541,7 @@ export async function POST(request: NextRequest) {
                 if (!template) return NextResponse.json({ success: false, error: 'Template not found' }, { status: 404 });
                 if (!dbEstimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
                 let estimate = estimateData ? { ...dbEstimate, ...estimateData } : dbEstimate;
-                
+
                 // FORCE: contactAddress to be Client's Primary Address
                 estimate = await enrichEstimate(estimate);
 
@@ -2576,12 +2578,12 @@ export async function POST(request: NextRequest) {
                 estimate.markModified('customVariables');
                 const estimateObj = estimate.toObject() as any;
                 estimateObj.customVariables = customVariables;
-                
+
                 // FORCE: contactAddress to be Client's Primary Address
                 await enrichEstimate(estimateObj);
 
                 const html = resolveTemplateDocument(template, estimateObj, false);
-                
+
                 const proposalData = {
                     templateId: templateId === 'empty' ? 'empty' : String(template._id),
                     templateVersion: template.version || 1,
@@ -2591,21 +2593,21 @@ export async function POST(request: NextRequest) {
                     customPages: template.pages || [],
                     services: estimateData?.services || estimate.services || []
                 };
-                
+
                 // Removed legacy singular proposal/templateId updates in favor of proposals array
-                
+
                 // Also save to proposals array - ALWAYS push new for version history
                 const proposals = (estimate as any).proposals || [];
-                
+
                 // Add unique ID for the new proposal version
                 (proposalData as any)._id = new Types.ObjectId();
-                
+
                 // Push new version
                 proposals.push(proposalData as any);
-                
+
                 (estimate as any).proposals = proposals;
                 estimate.markModified('proposals');
-                
+
                 await estimate.save();
                 return NextResponse.json({ success: true, result: { html } });
             }
@@ -2615,7 +2617,7 @@ export async function POST(request: NextRequest) {
                 const { templateId, estimateId, pages, estimateData = null } = payload || {};
                 if (!estimateId) return NextResponse.json({ success: false, error: 'Missing estimateId' }, { status: 400 });
                 if (!pages || !Array.isArray(pages)) return NextResponse.json({ success: false, error: 'Missing or invalid pages' }, { status: 400 });
-                
+
                 const estimate = await Estimate.findById(estimateId);
                 if (!estimate) return NextResponse.json({ success: false, error: 'Estimate not found' }, { status: 404 });
 
@@ -2636,12 +2638,12 @@ export async function POST(request: NextRequest) {
                 };
 
                 const estimateObj = estimate.toObject() as any;
-                
+
                 // FORCE: contactAddress to be Client's Primary Address
                 await enrichEstimate(estimateObj);
 
                 const html = resolveTemplateDocument(tempTemplate, estimateObj, false);
-                
+
                 const proposalData = {
                     templateId: templateId ? String(templateId) : 'custom',
                     templateVersion: 0, // Custom version - not from template
@@ -2651,23 +2653,23 @@ export async function POST(request: NextRequest) {
                     customPages: pages, // Store the custom pages for future editing
                     services: estimateData?.services || estimate.services || []
                 };
-                
+
                 // Save to proposals array - ALWAYS push new for version history
                 const proposals = (estimate as any).proposals || [];
-                
+
                 // Add unique ID for the new proposal version
                 (proposalData as any)._id = new Types.ObjectId();
-                
+
                 // Push new version
                 proposals.push(proposalData);
-                
+
                 // Removed legacy singular proposal/templateId updates
 
                 (estimate as any).proposals = proposals;
                 estimate.markModified('proposals');
-                
+
                 await estimate.save();
-                
+
                 // Return the FULL proposal object so frontend can grab the new ID
                 return NextResponse.json({ success: true, result: proposalData });
             }
@@ -2707,7 +2709,12 @@ export async function POST(request: NextRequest) {
                     const uploaded = await uploadImage(item.profilePicture, item.email);
                     if (uploaded) profilePictureUrl = uploaded;
                 }
-                const employeeData = { ...item, _id: item.email, profilePicture: profilePictureUrl };
+                let signatureUrl = item.signature;
+                if (item.signature && item.signature.startsWith('data:image')) {
+                    const uploaded = await uploadImage(item.signature, `${item.email}_signature`);
+                    if (uploaded) signatureUrl = uploaded;
+                }
+                const employeeData = { ...item, _id: item.email, profilePicture: profilePictureUrl, signature: signatureUrl };
                 const newEmployee = await Employee.create(employeeData);
                 return NextResponse.json({ success: true, result: newEmployee });
             }
@@ -2719,6 +2726,10 @@ export async function POST(request: NextRequest) {
                 if (empItem.profilePicture && empItem.profilePicture.startsWith('data:image')) {
                     const uploaded = await uploadImage(empItem.profilePicture, empId);
                     if (uploaded) updateData.profilePicture = uploaded;
+                }
+                if (empItem.signature && empItem.signature.startsWith('data:image')) {
+                    const uploaded = await uploadImage(empItem.signature, `${empId}_signature`);
+                    if (uploaded) updateData.signature = uploaded;
                 }
                 const updated = await Employee.findByIdAndUpdate(empId, { ...updateData, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
@@ -2818,9 +2829,9 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                return NextResponse.json({ 
-                    success: true, 
-                    count: totalDocs, 
+                return NextResponse.json({
+                    success: true,
+                    count: totalDocs,
                     employeesUpdated,
                     totalInCSV: records.length,
                     skippedEmpty,
@@ -2918,13 +2929,13 @@ export async function POST(request: NextRequest) {
 
                 for (const [estKey, entries] of Object.entries(groups)) {
                     // Find the latest version of this estimate
-                    const targetDoc = await Estimate.findOne({ 
+                    const targetDoc = await Estimate.findOne({
                         $or: [{ _id: estKey }, { estimate: estKey }]
                     }).sort({ versionNumber: -1 });
 
                     if (targetDoc) {
                         const existing = targetDoc.receiptsAndCosts || [];
-                        
+
                         for (const r of entries) {
                             const recordId = String(r._id || r.Record_ID || new Types.ObjectId().toString());
                             const cleanRecord: any = {
@@ -2997,13 +3008,13 @@ export async function POST(request: NextRequest) {
 
                 for (const [estKey, entries] of Object.entries(groups)) {
                     // Find the latest version of this estimate
-                    const targetDoc = await Estimate.findOne({ 
+                    const targetDoc = await Estimate.findOne({
                         $or: [{ _id: estKey }, { estimate: estKey }]
                     }).sort({ versionNumber: -1 });
 
                     if (targetDoc) {
                         const existing = targetDoc.jobPlanningDocs || [];
-                        
+
                         for (const r of entries) {
                             const recordId = String(r._id || r.Record_ID || new Types.ObjectId().toString());
                             const cleanRecord: any = {
@@ -3079,16 +3090,16 @@ export async function POST(request: NextRequest) {
 
                 for (const [estKey, entries] of Object.entries(groups)) {
                     // Find the latest version of this estimate
-                    const targetDoc = await Estimate.findOne({ 
+                    const targetDoc = await Estimate.findOne({
                         $or: [{ _id: estKey }, { estimate: estKey }]
                     }).sort({ versionNumber: -1 });
 
                     if (targetDoc) {
                         const existing = (targetDoc as any).billingTickets || [];
-                        
+
                         for (const r of entries) {
                             const recordId = String(r._id || r.Record_ID || new Types.ObjectId().toString());
-                            
+
                             // Parse links array
                             let links: string[] = [];
                             if (r.links || r.Links) {

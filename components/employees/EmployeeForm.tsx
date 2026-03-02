@@ -140,7 +140,7 @@ const COMPLIANCE_FIELDS = [
     { key: 'veriforce', label: 'Veriforce' },
     { key: 'unionPaperwork1184', label: 'Union Paperwork (1184)' },
 ]
-    
+
 const formatPhoneNumber = (value: string) => {
     if (!value) return value
     const phoneNumber = value.replace(/[^\d]/g, "")
@@ -295,11 +295,29 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                 ? { id: initialData._id, item: submitData }
                 : { item: submitData }
 
+            const bodyStr = JSON.stringify({ action, payload })
+
+            // Check payload size — Vercel serverless has a ~4.5MB limit
+            const bodySizeMB = new Blob([bodyStr]).size / (1024 * 1024)
+            if (bodySizeMB > 4) {
+                showError(`Payload too large (${bodySizeMB.toFixed(1)}MB). Try reducing signature or profile picture size.`)
+                return
+            }
+
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, payload })
+                body: bodyStr
             })
+
+            // Handle non-JSON responses (e.g. Vercel HTML error pages)
+            const contentType = res.headers.get('content-type') || ''
+            if (!contentType.includes('application/json')) {
+                const text = await res.text()
+                console.error('Non-JSON response:', res.status, text.substring(0, 500))
+                showError(`Server error (${res.status}): ${res.statusText || 'Request failed'}. This may be due to payload size limits.`)
+                return
+            }
 
             const result = await res.json()
             if (result.success) {
@@ -307,11 +325,11 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                 onSave()
                 onOpenChange(false)
             } else {
-                 showError(result.error || "Something went wrong")
+                showError(result.error || "Something went wrong")
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err)
-             showError("Failed to save employee")
+            showError(`Failed to save employee: ${err?.message || 'Unknown error'}`)
         } finally {
             setIsLoading(false)
         }
@@ -366,46 +384,46 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                 <div className="flex-1 flex overflow-hidden min-h-0">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="flex w-full h-full overflow-hidden">
-                            
+
                             {/* Left Sidebar - Tabs */}
                             <div className="w-64 bg-slate-50/50 border-r flex flex-col p-4 gap-2">
                                 <Tabs value={activeTab} onValueChange={setActiveTab} orientation="vertical" className="w-full flex-col">
                                     <TabsList className="bg-transparent h-auto flex-col items-stretch space-y-1 p-0 border-none shadow-none">
-                                        <SidebarTabTrigger 
-                                            value="personal" 
-                                            label="Personal Info" 
-                                            icon={User} 
-                                            hasError={!!errors.firstName || !!errors.lastName || !!errors.email} 
+                                        <SidebarTabTrigger
+                                            value="personal"
+                                            label="Personal Info"
+                                            icon={User}
+                                            hasError={!!errors.firstName || !!errors.lastName || !!errors.email}
                                         />
-                                        <SidebarTabTrigger 
-                                            value="employment" 
-                                            label="Employment Details" 
-                                            icon={Shield} 
+                                        <SidebarTabTrigger
+                                            value="employment"
+                                            label="Employment Details"
+                                            icon={Shield}
                                             hasError={!!errors.appRole || !!errors.status}
                                         />
-                                        <SidebarTabTrigger 
-                                            value="compliance" 
-                                            label="Files & Compliance" 
-                                            icon={Check} 
+                                        <SidebarTabTrigger
+                                            value="compliance"
+                                            label="Files & Compliance"
+                                            icon={Check}
                                         />
-                                        <SidebarTabTrigger 
-                                            value="documents" 
-                                            label="Documents" 
-                                            icon={FileText} 
+                                        <SidebarTabTrigger
+                                            value="documents"
+                                            label="Documents"
+                                            icon={FileText}
                                         />
-                                        <SidebarTabTrigger 
-                                            value="drugTesting" 
-                                            label="Drug Testing" 
-                                            icon={FlaskConical} 
+                                        <SidebarTabTrigger
+                                            value="drugTesting"
+                                            label="Drug Testing"
+                                            icon={FlaskConical}
                                         />
-                                        <SidebarTabTrigger 
-                                            value="training" 
-                                            label="Training & Certs" 
-                                            icon={GraduationCap} 
+                                        <SidebarTabTrigger
+                                            value="training"
+                                            label="Training & Certs"
+                                            icon={GraduationCap}
                                         />
                                     </TabsList>
                                 </Tabs>
-                                
+
                                 <div className="mt-auto p-4 bg-blue-50/50 rounded-lg border border-blue-100">
                                     <p className="text-xs text-slate-500 mb-2 font-semibold">Profile Completion</p>
                                     <div className="text-xs text-slate-400">
@@ -493,9 +511,9 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     <FormItem>
                                                         <FormLabel>Phone</FormLabel>
                                                         <FormControl>
-                                                            <Input 
-                                                                placeholder="(555) 123-4567" 
-                                                                {...field} 
+                                                            <Input
+                                                                placeholder="(555) 123-4567"
+                                                                {...field}
                                                                 onChange={(e) => {
                                                                     const formatted = formatPhoneNumber(e.target.value)
                                                                     field.onChange(formatted)
@@ -513,9 +531,9 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     <FormItem>
                                                         <FormLabel>Mobile</FormLabel>
                                                         <FormControl>
-                                                            <Input 
-                                                                placeholder="(555) 987-6543" 
-                                                                {...field} 
+                                                            <Input
+                                                                placeholder="(555) 987-6543"
+                                                                {...field}
                                                                 onChange={(e) => {
                                                                     const formatted = formatPhoneNumber(e.target.value)
                                                                     field.onChange(formatted)
@@ -689,7 +707,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                         <FormLabel className="sr-only">Profile Picture</FormLabel>
                                                         <div className="relative group cursor-pointer w-32 h-32">
                                                             <Avatar className="w-full h-full border-4 border-white shadow-md">
-                                                                <AvatarImage src={field.value} className="object-cover"/>
+                                                                <AvatarImage src={field.value} className="object-cover" />
                                                                 <AvatarFallback className="text-2xl bg-slate-200">
                                                                     {form.getValues("firstName")?.[0]}{form.getValues("lastName")?.[0]}
                                                                 </AvatarFallback>
@@ -711,10 +729,10 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
 
                                             <div className="flex-1 w-full relative">
                                                 <FormLabel className="mb-2 block text-sm font-semibold text-slate-700">Digital Signature</FormLabel>
-                                                    <SignaturePad
-                                                        value={form.getValues("signature")}
-                                                        onChange={(sig) => form.setValue("signature", sig)}
-                                                    />
+                                                <SignaturePad
+                                                    value={form.getValues("signature")}
+                                                    onChange={(sig) => form.setValue("signature", sig)}
+                                                />
                                             </div>
                                         </div>
                                     </div>
@@ -749,7 +767,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     </FormItem>
                                                 )}
                                             />
-                                            
+
                                             <FormField
                                                 control={form.control}
                                                 name="status"
@@ -780,7 +798,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                     <FormItem className="relative">
                                                         <FormLabel>Company Position</FormLabel>
                                                         <FormControl>
-                                                            <div 
+                                                            <div
                                                                 id="company-position-trigger"
                                                                 className="flex items-center justify-between px-3 h-10 border border-slate-200 rounded-lg bg-white cursor-pointer hover:border-[#0F4C75] transition-all"
                                                                 onClick={() => setCompanyPositionOpen(!companyPositionOpen)}
@@ -819,7 +837,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                         <FormItem className="relative">
                                                             <FormLabel>Designation</FormLabel>
                                                             <FormControl>
-                                                                <div 
+                                                                <div
                                                                     id="designation-trigger"
                                                                     className="flex items-center justify-between px-3 h-10 border border-slate-200 rounded-lg bg-white cursor-pointer hover:border-[#0F4C75] transition-all"
                                                                     onClick={() => setDesignationOpen(!designationOpen)}
@@ -829,8 +847,8 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                                             selected.map((val) => (
                                                                                 <Badge key={val} variant="default" className="bg-slate-100 text-slate-700 hover:bg-slate-200 text-[10px] py-0 h-5">
                                                                                     {val}
-                                                                                    <X 
-                                                                                        className="ml-1 w-3 h-3 cursor-pointer" 
+                                                                                    <X
+                                                                                        className="ml-1 w-3 h-3 cursor-pointer"
                                                                                         onClick={(e) => {
                                                                                             e.stopPropagation()
                                                                                             const newVal = selected.filter(s => s !== val).join(', ')
@@ -957,7 +975,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
 
                                         {/* Separation Info - only if Inactive/Terminated */}
                                         {(form.watch("status") === "Inactive" || form.watch("status") === "Terminated") && (
-                                              <div className="bg-red-50 p-6 rounded-xl border border-red-100 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2">
+                                            <div className="bg-red-50 p-6 rounded-xl border border-red-100 grid grid-cols-1 md:grid-cols-2 gap-6 animate-in slide-in-from-top-2">
                                                 <FormField
                                                     control={form.control}
                                                     name="separationDate"
@@ -971,7 +989,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                         </FormItem>
                                                     )}
                                                 />
-                                                 <FormField
+                                                <FormField
                                                     control={form.control}
                                                     name="separationReason"
                                                     render={({ field }) => (
@@ -984,7 +1002,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                         </FormItem>
                                                     )}
                                                 />
-                                              </div>
+                                            </div>
                                         )}
 
                                     </div>
@@ -1006,10 +1024,10 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                                 <FormControl>
                                                                     <SelectTrigger className={cn(
                                                                         "h-10",
-                                                                         !formField.value ? "text-muted-foreground" :
-                                                                         formField.value === "Yes" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
-                                                                         formField.value === "No" ? "bg-red-50 border-red-200 text-red-700" : 
-                                                                         ""
+                                                                        !formField.value ? "text-muted-foreground" :
+                                                                            formField.value === "Yes" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                                                                                formField.value === "No" ? "bg-red-50 border-red-200 text-red-700" :
+                                                                                    ""
                                                                     )}>
                                                                         <SelectValue placeholder="Select Status" />
                                                                     </SelectTrigger>
@@ -1183,7 +1201,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                                                 </div>
                                                 <div className="relative">
                                                     <label className="block text-xs font-medium text-slate-500 mb-1">Frequency</label>
-                                                    <div 
+                                                    <div
                                                         id="frequency-trigger"
                                                         className="flex items-center justify-between px-3 h-10 border border-slate-200 rounded-lg bg-white cursor-pointer hover:border-[#0F4C75] transition-all"
                                                         onClick={() => setFrequencyOpen(!frequencyOpen)}
@@ -1286,7 +1304,7 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
 
                                 </div>
                             </div>
-                            
+
                             {/* Hidden submit button to allow form submission on Enter */}
                             <button type="submit" className="hidden" />
                         </form>
@@ -1297,9 +1315,9 @@ export function EmployeeForm({ open, onOpenChange, initialData, onSave, roles = 
                     <Button variant="outline" onClick={() => onOpenChange(false)} type="button">
                         Cancel
                     </Button>
-                    <Button 
-                        onClick={form.handleSubmit(onSubmit)} 
-                        disabled={isLoading} 
+                    <Button
+                        onClick={form.handleSubmit(onSubmit)}
+                        disabled={isLoading}
                         className="bg-[#0F4C75] hover:bg-[#0b3c5e] text-white min-w-[120px]"
                     >
                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}

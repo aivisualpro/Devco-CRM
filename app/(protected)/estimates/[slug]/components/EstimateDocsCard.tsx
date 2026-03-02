@@ -1092,6 +1092,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                         ...item,
                         value: item.value || item.description || ''
                     }));
+                    // Sort: CP first, then CF, then UP, then UF
+                    const relOrder: Record<string, number> = { 'CP': 0, 'CF': 1, 'UP': 2, 'UF': 3 };
+                    constants.sort((a: any, b: any) => {
+                        const aCode = a.value?.startsWith('CP') ? 'CP' : a.value?.startsWith('CF') ? 'CF' : a.value?.startsWith('UP') ? 'UP' : a.value?.startsWith('UF') ? 'UF' : 'ZZ';
+                        const bCode = b.value?.startsWith('CP') ? 'CP' : b.value?.startsWith('CF') ? 'CF' : b.value?.startsWith('UP') ? 'UP' : b.value?.startsWith('UF') ? 'UF' : 'ZZ';
+                        return (relOrder[aCode] ?? 99) - (relOrder[bCode] ?? 99);
+                    });
                     setReleasesConstants(constants);
                 }
             } catch (e) { console.error('Failed to fetch release constants', e); }
@@ -1957,6 +1964,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.amountOfCheck = formatted;
                     // Also set receivedProgressPayments for CP template compatibility
                     variables.receivedProgressPayments = formatted;
+                    variables.receivedProgressPayment = formatted;
                 }
 
                 if (releaseItem.disputedClaims) {
@@ -1997,7 +2005,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 // Received Progress Payments array (for UP)
                 if (releaseItem.receivedProgressPayments && Array.isArray(releaseItem.receivedProgressPayments)) {
-                    variables.receivedProgressPayments = releaseItem.receivedProgressPayments.join(', ');
+                    const joined = releaseItem.receivedProgressPayments.map((val: any) => {
+                        const rawVal = String(val).replace(/[^0-9.-]+/g, '');
+                        const num = parseFloat(rawVal);
+                        return !isNaN(num) ? `$${num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : val;
+                    }).join(', ');
+                    variables.receivedProgressPayments = joined;
+                    variables.receivedProgressPayment = joined;
                 }
             }
 
