@@ -22,7 +22,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -54,6 +54,7 @@ const menuStructure: MenuItem[] = [
             { label: 'Vehicle & Equipment Docs', href: '/docs/vehicle-equipment', icon: <Truck className="w-5 h-5" />, description: 'Unit compliance & registration', colorClass: 'text-amber-600' },
             { label: 'Pothole Logs', href: '/docs/pothole-logs', icon: <MapPin className="w-5 h-5" />, description: 'Pothole log documentation', colorClass: 'text-orange-600' },
             { label: 'Pre-Bore Logs', href: '/docs/pre-bore-logs', icon: <FileText className="w-5 h-5" />, description: 'Pre-bore log records', colorClass: 'text-cyan-600' },
+            { label: 'Equipment Inspections', href: '/docs/equipment-inspection', icon: <ClipboardCheck className="w-5 h-5" />, description: 'Equipment inspection checklists', colorClass: 'text-emerald-600' },
             { label: 'USA 811 Tickets', href: '/docs/usa-811-tickets', icon: <MapPin className="w-5 h-5" />, description: 'Utility locate ticket tracking', colorClass: 'text-yellow-600' },
         ]
     },
@@ -142,16 +143,16 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                 localStorage.removeItem('devco_user');
             }
         }
-        
+
         // Click outside listener for dropdowns
         const handleClickOutside = (event: MouseEvent) => {
-           if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-               setUserDropdownOpen(false);
-           }
-           // Close nav menu when clicking outside
-           if (navRef.current && !navRef.current.contains(event.target as Node)) {
-               setOpenMenu(null);
-           }
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setUserDropdownOpen(false);
+            }
+            // Close nav menu when clicking outside
+            if (navRef.current && !navRef.current.contains(event.target as Node)) {
+                setOpenMenu(null);
+            }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -214,8 +215,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                     <div className="flex items-center justify-between h-12 relative">
                         {/* Left Content + Navigation Menu */}
                         <div className="flex items-center gap-2">
-                             {/* Mobile Burger Menu Button */}
-                             <button
+                            {/* Mobile Burger Menu Button */}
+                            <button
                                 onClick={() => setIsMobileMenuOpen(true)}
                                 className="lg:hidden p-1.5 text-slate-600 hover:bg-slate-200/50 rounded-lg transition-colors"
                             >
@@ -233,7 +234,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                 {menuStructure.map((group) => {
                                     // Filter items based on permissions
                                     const visibleItems = (group.items || []).filter(item => canAccessRoute(item.href));
-                                    
+
                                     // If group has no visible items and no direct href, hide it
                                     if (visibleItems.length === 0 && !group.href) {
                                         return null;
@@ -260,8 +261,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     }
 
                                     return (
-                                        <div 
-                                            key={group.label} 
+                                        <div
+                                            key={group.label}
                                             className="relative"
                                         >
                                             <button
@@ -333,13 +334,13 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                                     {/* Toggle WIP/QuickBooks */}
                                     <div className="flex p-0.5 bg-slate-200/50 rounded-xl border border-slate-200/50">
-                                        <button 
+                                        <button
                                             onClick={() => wipReportFilters.setActiveTab('wip')}
                                             className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${wipReportFilters.activeTab === 'wip' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
                                             WIP
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => wipReportFilters.setActiveTab('quickbooks')}
                                             className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all ${wipReportFilters.activeTab === 'quickbooks' ? 'bg-white text-[#0F4C75] shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                                         >
@@ -351,7 +352,7 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
 
                                     {/* Date Range Select */}
                                     <div className="relative group">
-                                        <select 
+                                        <select
                                             value={wipReportFilters.dateRangeFilter}
                                             onChange={(e) => wipReportFilters.setDateRangeFilter(e.target.value)}
                                             className="appearance-none bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 pr-7 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] cursor-pointer min-w-[100px] shadow-sm hover:bg-slate-50 transition-all"
@@ -367,17 +368,17 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                     {/* Search Input */}
                                     <div className="relative w-[220px]">
                                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                                        <input 
-                                            type="text" 
-                                            placeholder="Search projects..." 
+                                        <input
+                                            type="text"
+                                            placeholder="Search projects..."
                                             value={wipReportFilters.searchQuery}
                                             onChange={(e) => wipReportFilters.setSearchQuery(e.target.value)}
-                                            className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] shadow-sm hover:bg-slate-50 transition-all" 
+                                            className="w-full bg-white border border-slate-200 rounded-lg pl-8 pr-3 py-1.5 text-[10px] font-bold text-slate-700 outline-none focus:ring-2 focus:ring-[#0F4C75]/20 focus:border-[#0F4C75] shadow-sm hover:bg-slate-50 transition-all"
                                         />
                                     </div>
 
                                     {wipReportFilters.hasActiveFilters && (
-                                        <button 
+                                        <button
                                             onClick={wipReportFilters.clearFilters}
                                             className="p-1.5 text-slate-400 hover:text-rose-500 transition-colors"
                                             title="Clear filters"
@@ -464,10 +465,10 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                     Profile
                                                 </Link>
                                             )}
-                                            
+
                                             {/* Sign In option if no user */}
                                             {!user && (
-                                                 <Link
+                                                <Link
                                                     href="/login"
                                                     onClick={() => setUserDropdownOpen(false)}
                                                     className="flex items-center gap-3 px-3 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-[#0F4C75] rounded-xl transition-colors font-medium group"
@@ -502,11 +503,11 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
             {isMobileMenuOpen && (
                 <div className="fixed inset-0 z-[150] bg-white/95 backdrop-blur-xl animate-in slide-in-from-right duration-300 lg:hidden mt-10 shadow-2xl rounded-t-[32px] border-t border-slate-200">
                     <div className="flex flex-col h-full">
-                         <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
+                        <div className="flex items-center justify-between p-4 border-b border-slate-100/50 bg-gradient-to-r from-[#0F4C75]/5 to-transparent">
                             <Link href="/dashboard" onClick={() => setIsMobileMenuOpen(false)} className="text-xl tracking-tight hover:opacity-80 transition-opacity" style={{ color: '#0F4C75', fontFamily: "'BBH Hegarty', sans-serif" }}>
                                 DEVCO
                             </Link>
-                            <button 
+                            <button
                                 onClick={() => setIsMobileMenuOpen(false)}
                                 className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors"
                             >
@@ -574,11 +575,10 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                                 setIsMobileMenuOpen(false);
                                                                 setMobileOpenGroup(null);
                                                             }}
-                                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all active:scale-[0.98] ${
-                                                                isActive
+                                                            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all active:scale-[0.98] ${isActive
                                                                     ? 'bg-[#0F4C75]/10 text-[#0F4C75]'
                                                                     : 'text-slate-600 hover:bg-slate-50'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive ? 'bg-[#0F4C75]/10' : 'bg-slate-100'} ${item.colorClass}`}>
                                                                 {item.icon && React.cloneElement(item.icon as React.ReactElement<any>, { className: `w-4 h-4` })}
@@ -599,10 +599,10 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                             })}
 
                             <div className="pt-4 mt-2 border-t border-slate-100">
-                                <button 
+                                <button
                                     onClick={() => {
-                                         handleLogout();
-                                         setIsMobileMenuOpen(false);
+                                        handleLogout();
+                                        setIsMobileMenuOpen(false);
                                     }}
                                     className="w-full flex items-center justify-center gap-3 p-3.5 bg-rose-50 text-rose-600 rounded-xl font-bold border border-rose-100/50 active:scale-95 transition-all text-sm"
                                 >

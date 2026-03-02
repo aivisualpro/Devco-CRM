@@ -916,11 +916,11 @@ export default function PreBoreLogsPage() {
             />
 
             <div className="flex-1 p-4 lg:p-6 overflow-auto flex flex-col min-h-0">
-                {loading ? (
+                {loading || returnTo ? (
                     <div className="flex-1 flex items-center justify-center">
                         <div className="flex flex-col items-center gap-2">
                             <Loader2 className="animate-spin text-[#0F4C75]" />
-                            <span className="text-sm text-slate-500">Loading pre-bore logs...</span>
+                            <span className="text-sm text-slate-500">{returnTo ? 'Loading editor...' : 'Loading pre-bore logs...'}</span>
                         </div>
                     </div>
                 ) : (
