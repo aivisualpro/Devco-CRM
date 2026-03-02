@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 
 import {
     Header, Button, Table, TableHeader, TableRow, TableHead,
-    TableBody, TableCell, Badge, Input
+    TableBody, TableCell, Badge, Input, MyDropDown
 } from '@/components/ui';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
@@ -39,8 +39,15 @@ const UTILITY_TYPES = [
 ];
 
 const SOIL_TYPES = [
-    '1', '2', '3', '4', '5',
-    'Sandy', 'Clay', 'Loam', 'Rocky', 'Mixed'
+    'Base & Sand',
+    'Clay',
+    'Dirt Backfill',
+    'Hard Clay',
+    'Loamy',
+    'Rocky',
+    'Sandy',
+    'Slurry',
+    'Tight Sand'
 ];
 
 interface PotholeItem {
@@ -148,6 +155,12 @@ export default function PotholeLogsPage() {
 
     // Geolocation loading state per item index
     const [geoLoadingIndex, setGeoLoadingIndex] = useState<number | null>(null);
+
+    // Dropdown open states for pothole item fields (keyed by item index)
+    const [utilityDropdownOpen, setUtilityDropdownOpen] = useState<Record<number, boolean>>({});
+    const [soilDropdownOpen, setSoilDropdownOpen] = useState<Record<number, boolean>>({});
+    const [utilityOptions, setUtilityOptions] = useState<string[]>(UTILITY_TYPES);
+    const [soilOptions, setSoilOptions] = useState<string[]>(SOIL_TYPES);
 
     const handleLongPressStart = (log: PotholeLog) => {
         longPressTimer.current = setTimeout(() => {
@@ -1023,31 +1036,83 @@ export default function PotholeLogsPage() {
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>
-                                                <div>
+                                                <div className="relative">
                                                     <Label className="text-[9px] text-slate-400">Type of Utility</Label>
-                                                    <select
-                                                        value={item.typeOfUtility}
-                                                        onChange={e => handlePotholeItemChange(idx, 'typeOfUtility', e.target.value)}
-                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                                                    <div
+                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-white flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
+                                                        onClick={() => setUtilityDropdownOpen(prev => ({ ...prev, [idx]: !prev[idx] }))}
                                                     >
-                                                        <option value="">Select type...</option>
-                                                        {UTILITY_TYPES.map(type => (
-                                                            <option key={type} value={type}>{type}</option>
-                                                        ))}
-                                                    </select>
+                                                        <span className={`truncate ${item.typeOfUtility ? 'text-slate-900' : 'text-slate-400'}`}>
+                                                            {item.typeOfUtility || 'Select type...'}
+                                                        </span>
+                                                        <ChevronDown size={12} className="text-slate-400 shrink-0" />
+                                                    </div>
+                                                    <MyDropDown
+                                                        isOpen={!!utilityDropdownOpen[idx]}
+                                                        onClose={() => setUtilityDropdownOpen(prev => ({ ...prev, [idx]: false }))}
+                                                        options={utilityOptions.map(o => ({ id: o, label: o, value: o }))}
+                                                        selectedValues={item.typeOfUtility ? item.typeOfUtility.split(',').map(s => s.trim()).filter(Boolean) : []}
+                                                        onSelect={(val) => {
+                                                            const current = item.typeOfUtility ? item.typeOfUtility.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                                            const exists = current.indexOf(val);
+                                                            let newValues;
+                                                            if (exists >= 0) {
+                                                                newValues = current.filter(c => c !== val);
+                                                            } else {
+                                                                newValues = [...current, val];
+                                                            }
+                                                            handlePotholeItemChange(idx, 'typeOfUtility', newValues.join(', '));
+                                                        }}
+                                                        onAdd={async (val) => {
+                                                            if (!utilityOptions.includes(val)) {
+                                                                setUtilityOptions(prev => [...prev, val]);
+                                                            }
+                                                            const current = item.typeOfUtility ? item.typeOfUtility.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                                            handlePotholeItemChange(idx, 'typeOfUtility', [...current, val].join(', '));
+                                                        }}
+                                                        width="w-full"
+                                                        placeholder="Search utility types..."
+                                                        multiSelect={true}
+                                                    />
                                                 </div>
-                                                <div>
+                                                <div className="relative">
                                                     <Label className="text-[9px] text-slate-400">Soil Type</Label>
-                                                    <select
-                                                        value={item.soilType}
-                                                        onChange={e => handlePotholeItemChange(idx, 'soilType', e.target.value)}
-                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
+                                                    <div
+                                                        className="w-full h-8 text-xs border rounded-lg px-2 bg-white flex items-center justify-between cursor-pointer hover:border-slate-400 transition-colors"
+                                                        onClick={() => setSoilDropdownOpen(prev => ({ ...prev, [idx]: !prev[idx] }))}
                                                     >
-                                                        <option value="">Select soil...</option>
-                                                        {SOIL_TYPES.map(type => (
-                                                            <option key={type} value={type}>{type}</option>
-                                                        ))}
-                                                    </select>
+                                                        <span className={`truncate ${item.soilType ? 'text-slate-900' : 'text-slate-400'}`}>
+                                                            {item.soilType || 'Select soil...'}
+                                                        </span>
+                                                        <ChevronDown size={12} className="text-slate-400 shrink-0" />
+                                                    </div>
+                                                    <MyDropDown
+                                                        isOpen={!!soilDropdownOpen[idx]}
+                                                        onClose={() => setSoilDropdownOpen(prev => ({ ...prev, [idx]: false }))}
+                                                        options={soilOptions.map(o => ({ id: o, label: o, value: o }))}
+                                                        selectedValues={item.soilType ? item.soilType.split(',').map(s => s.trim()).filter(Boolean) : []}
+                                                        onSelect={(val) => {
+                                                            const current = item.soilType ? item.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                                            const exists = current.indexOf(val);
+                                                            let newValues;
+                                                            if (exists >= 0) {
+                                                                newValues = current.filter(c => c !== val);
+                                                            } else {
+                                                                newValues = [...current, val];
+                                                            }
+                                                            handlePotholeItemChange(idx, 'soilType', newValues.join(', '));
+                                                        }}
+                                                        onAdd={async (val) => {
+                                                            if (!soilOptions.includes(val)) {
+                                                                setSoilOptions(prev => [...prev, val]);
+                                                            }
+                                                            const current = item.soilType ? item.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                                            handlePotholeItemChange(idx, 'soilType', [...current, val].join(', '));
+                                                        }}
+                                                        width="w-full"
+                                                        placeholder="Search soil types..."
+                                                        multiSelect={true}
+                                                    />
                                                 </div>
                                                 <div>
                                                     <Label className="text-[9px] text-slate-400">Top Depth</Label>
@@ -1062,14 +1127,6 @@ export default function PotholeLogsPage() {
                                                     <Input
                                                         value={item.bottomDepthOfUtility}
                                                         onChange={e => handlePotholeItemChange(idx, 'bottomDepthOfUtility', e.target.value)}
-                                                        className="h-8 text-xs"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <Label className="text-[9px] text-slate-400">Pin</Label>
-                                                    <Input
-                                                        value={item.pin || ''}
-                                                        onChange={e => handlePotholeItemChange(idx, 'pin', e.target.value)}
                                                         className="h-8 text-xs"
                                                     />
                                                 </div>

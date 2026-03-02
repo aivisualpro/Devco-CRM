@@ -30,6 +30,7 @@ export interface IPreBoreLog extends Document {
     reamerSize8: string;
     reamerSize10: string;
     reamerSize12: string;
+    reamers: string;
     soilType: string;
     boreLength: string;
     pipeSize: string;
@@ -73,6 +74,7 @@ const PreBoreLogSchema: Schema = new Schema({
     reamerSize8: { type: String, default: '' },
     reamerSize10: { type: String, default: '' },
     reamerSize12: { type: String, default: '' },
+    reamers: { type: String, default: '' },
     soilType: { type: String, default: '' },
     boreLength: { type: String, default: '' },
     pipeSize: { type: String, default: '' },

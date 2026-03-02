@@ -27,9 +27,23 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
 
 const SOIL_TYPES = [
-    'Sandy', 'Clay', 'Loam', 'Rocky', 'Mixed',
-    'Sandstone Clay Rock', 'Gravel', 'Silt', 'Topsoil', 'Shale'
+    'Base & Sand',
+    'Clay',
+    'Dirt Backfill',
+    'Hard Clay',
+    'Loamy',
+    'Rocky',
+    'Sandy',
+    'Slurry',
+    'Tight Sand'
 ];
+
+// Reamer options: numbers 1 through 60
+const REAMER_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
+    id: String(i + 1),
+    label: `${i + 1}"`,
+    value: String(i + 1)
+}));
 
 const PRE_BORE_TEMPLATE_ID = '1oz3s9qdfMnMdEivJhr8T4qPS-lwVGsb1A79eB-Djgic';
 
@@ -163,10 +177,7 @@ export default function PreBoreLogsPage() {
         devcoOperator: '',
         drillSize: '',
         pilotBoreSize: '',
-        reamerSize6: '',
-        reamerSize8: '',
-        reamerSize10: '',
-        reamerSize12: '',
+        reamers: '',
         soilType: '',
         boreLength: '',
         pipeSize: '',
@@ -331,6 +342,7 @@ export default function PreBoreLogsPage() {
     }, []);
 
     // Handle ?edit= query param from detail page
+    const returnTo = searchParams.get('returnTo');
     useEffect(() => {
         if (!loading && logs.length > 0) {
             const editParam = searchParams.get('edit');
@@ -456,10 +468,7 @@ export default function PreBoreLogsPage() {
             devcoOperator: log.devcoOperator || '',
             drillSize: log.drillSize || '',
             pilotBoreSize: log.pilotBoreSize || '',
-            reamerSize6: log.reamerSize6 || '',
-            reamerSize8: log.reamerSize8 || '',
-            reamerSize10: log.reamerSize10 || '',
-            reamerSize12: log.reamerSize12 || '',
+            reamers: (log as any).reamers || [log.reamerSize6, log.reamerSize8, log.reamerSize10, log.reamerSize12].filter(Boolean).join(', ') || '',
             soilType: log.soilType || '',
             boreLength: log.boreLength || '',
             pipeSize: log.pipeSize || '',
@@ -483,10 +492,7 @@ export default function PreBoreLogsPage() {
             devcoOperator: '',
             drillSize: '',
             pilotBoreSize: '',
-            reamerSize6: '',
-            reamerSize8: '',
-            reamerSize10: '',
-            reamerSize12: '',
+            reamers: '',
             soilType: '',
             boreLength: '',
             pipeSize: '',
@@ -670,10 +676,7 @@ export default function PreBoreLogsPage() {
                 devcoOperator: formData.devcoOperator,
                 drillSize: formData.drillSize,
                 pilotBoreSize: formData.pilotBoreSize,
-                reamerSize6: formData.reamerSize6,
-                reamerSize8: formData.reamerSize8,
-                reamerSize10: formData.reamerSize10,
-                reamerSize12: formData.reamerSize12,
+                reamers: formData.reamers,
                 soilType: formData.soilType,
                 boreLength: formData.boreLength,
                 pipeSize: formData.pipeSize,
@@ -700,7 +703,11 @@ export default function PreBoreLogsPage() {
             if (result.success) {
                 toast.success(editingLog ? 'Pre-Bore Log updated' : 'Pre-Bore Log created');
                 setIsModalOpen(false);
-                fetchData();
+                if (returnTo) {
+                    router.push(returnTo);
+                } else {
+                    fetchData();
+                }
             } else {
                 toast.error(result.error || 'Failed to save');
             }
@@ -765,6 +772,7 @@ export default function PreBoreLogsPage() {
             reamer_size_8: log.reamerSize8 || '',
             reamer_size_10: log.reamerSize10 || '',
             reamer_size_12: log.reamerSize12 || '',
+            reamers: (log as any).reamers || [log.reamerSize6, log.reamerSize8, log.reamerSize10, log.reamerSize12].filter(Boolean).map(s => `${s}"`).join(', ') || '',
             soil_type: log.soilType || '',
             bore_length: log.boreLength || '',
             pipe_size: log.pipeSize || '',
@@ -1006,15 +1014,15 @@ export default function PreBoreLogsPage() {
                                             <TableHeader className="min-w-[140px]">Bore End</TableHeader>
                                             <TableHeader className="w-[80px]">Soil</TableHeader>
                                             <TableHeader className="w-[80px]">Bore Len</TableHeader>
+                                            <TableHeader className="w-[100px]">Reamers</TableHeader>
                                             <TableHeader className="w-[80px] text-center">Rods</TableHeader>
                                             <TableHeader className="w-[100px]">Created By</TableHeader>
-                                            <TableHeader className="w-[120px] text-right">Actions</TableHeader>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {filteredLogs.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={12} className="h-48 text-center text-slate-500">
+                                                <TableCell colSpan={13} className="h-48 text-center text-slate-500">
                                                     No pre-bore logs found.
                                                 </TableCell>
                                             </TableRow>
@@ -1080,6 +1088,11 @@ export default function PreBoreLogsPage() {
                                                         <TableCell className="text-xs text-slate-600">
                                                             {log.boreLength || '-'}
                                                         </TableCell>
+                                                        <TableCell className="text-xs text-slate-600">
+                                                            {(log as any).reamers
+                                                                ? (log as any).reamers.split(',').map((s: string) => s.trim()).filter(Boolean).map((s: string) => `${s}"`).join(', ')
+                                                                : [log.reamerSize6 && '6"', log.reamerSize8 && '8"', log.reamerSize10 && '10"', log.reamerSize12 && '12"'].filter(Boolean).join(', ') || '-'}
+                                                        </TableCell>
                                                         <TableCell className="text-center">
                                                             <Badge variant="default" className="text-[10px]">
                                                                 {log.preBoreLogs?.length || 0}
@@ -1107,31 +1120,11 @@ export default function PreBoreLogsPage() {
                                                                 return <span className="text-xs text-slate-500 truncate">{log.createdBy || '-'}</span>;
                                                             })()}
                                                         </TableCell>
-                                                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-[#0F4C75]" onClick={() => handleDownloadPDF(log)} disabled={isGeneratingPDF && pdfTargetLog?._id === log._id} title="Download PDF">
-                                                                    {isGeneratingPDF && pdfTargetLog?._id === log._id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                                                                </Button>
-                                                                <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-emerald-600" onClick={() => { setPdfTargetLog(log); setIsEmailModalOpen(true); }} title="Email PDF">
-                                                                    <Mail size={14} />
-                                                                </Button>
-                                                                {canEdit && (
-                                                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-blue-600" onClick={() => handleEdit(log)} title="Edit">
-                                                                        <Pencil size={14} />
-                                                                    </Button>
-                                                                )}
-                                                                {canDelete && (
-                                                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-slate-400 hover:text-red-600" onClick={() => { setLogToDelete(log); setIsDeleteOpen(true); }} title="Delete">
-                                                                        <Trash2 size={14} />
-                                                                    </Button>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
                                                     </TableRow>
                                                     {isExpanded && log.preBoreLogs?.map((item, idx) => (
                                                         <TableRow key={`${log._id}-item-${idx}`} className="bg-slate-50/50">
                                                             <TableCell> </TableCell>
-                                                            <TableCell colSpan={11}>
+                                                            <TableCell colSpan={12}>
                                                                 <div className="flex items-center gap-4 py-2 px-4 text-xs">
                                                                     <span className="font-bold text-slate-700">Rod #{item.rodNumber || idx + 1}</span>
                                                                     <span><strong>Distance:</strong> {item.distance || '-'}</span>
@@ -1233,7 +1226,10 @@ export default function PreBoreLogsPage() {
             )}
 
             {/* Add/Edit Modal */}
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Dialog open={isModalOpen} onOpenChange={(open) => {
+                setIsModalOpen(open);
+                if (!open && returnTo) router.push(returnTo);
+            }}>
                 <DialogContent className="!max-w-5xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{editingLog ? 'Edit Pre-Bore Log' : 'New Pre-Bore Log'}</DialogTitle>
@@ -1526,64 +1522,48 @@ export default function PreBoreLogsPage() {
                             </div>
                         </div>
 
-                        {/* Reamer Sizes */}
+                        {/* Reamer(s) */}
                         <div className="col-span-2 sm:col-span-3">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Reamer Sizes</Label>
-                            <div className="grid grid-cols-4 gap-3">
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">6&quot;</Label>
-                                    <Input
-                                        type="number"
-                                        step="any"
-                                        inputMode="decimal"
-                                        value={formData.reamerSize6}
-                                        onChange={e => setFormData(prev => ({ ...prev, reamerSize6: e.target.value }))}
-                                        className="h-8 text-xs"
-                                        placeholder="0.0"
-                                    />
+                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Reamer(s)</Label>
+                            <div className="relative">
+                                <div
+                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                    onClick={() => setOpenDropdownId(openDropdownId === 'reamers' ? null : 'reamers')}
+                                >
+                                    <span className={`text-sm truncate ${formData.reamers ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                        {formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean).map(s => `${s}"`).join(', ') : 'Select reamer sizes...'}
+                                    </span>
+                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'reamers' ? 'rotate-180' : ''}`} />
                                 </div>
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">8&quot;</Label>
-                                    <Input
-                                        type="number"
-                                        step="any"
-                                        inputMode="decimal"
-                                        value={formData.reamerSize8}
-                                        onChange={e => setFormData(prev => ({ ...prev, reamerSize8: e.target.value }))}
-                                        className="h-8 text-xs"
-                                        placeholder="0.0"
+                                {openDropdownId === 'reamers' && (
+                                    <MyDropDown
+                                        isOpen={true}
+                                        onClose={() => setOpenDropdownId(null)}
+                                        options={REAMER_OPTIONS}
+                                        selectedValues={formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : []}
+                                        onSelect={(val) => {
+                                            const current = formData.reamers ? formData.reamers.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                            const exists = current.indexOf(val);
+                                            let newValues;
+                                            if (exists >= 0) {
+                                                newValues = current.filter(c => c !== val);
+                                            } else {
+                                                newValues = [...current, val];
+                                            }
+                                            setFormData(prev => ({ ...prev, reamers: newValues.join(', ') }));
+                                        }}
+                                        placeholder="Search reamer sizes..."
+                                        width="w-full"
+                                        modal={false}
+                                        multiSelect={true}
                                     />
-                                </div>
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">10&quot;</Label>
-                                    <Input
-                                        type="number"
-                                        step="any"
-                                        inputMode="decimal"
-                                        value={formData.reamerSize10}
-                                        onChange={e => setFormData(prev => ({ ...prev, reamerSize10: e.target.value }))}
-                                        className="h-8 text-xs"
-                                        placeholder="0.0"
-                                    />
-                                </div>
-                                <div>
-                                    <Label className="text-[9px] text-slate-400">12&quot;</Label>
-                                    <Input
-                                        type="number"
-                                        step="any"
-                                        inputMode="decimal"
-                                        value={formData.reamerSize12}
-                                        onChange={e => setFormData(prev => ({ ...prev, reamerSize12: e.target.value }))}
-                                        className="h-8 text-xs"
-                                        placeholder="0.0"
-                                    />
-                                </div>
+                                )}
                             </div>
                         </div>
 
-                        <div>
+                        <div className="relative">
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Soil Type</Label>
-                            <div className="relative mt-1">
+                            <div className="mt-1">
                                 <div
                                     className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
                                     onClick={() => setOpenDropdownId(openDropdownId === 'soilType' ? null : 'soilType')}
@@ -1601,22 +1581,30 @@ export default function PreBoreLogsPage() {
                                             ...SOIL_TYPES.map(t => ({ id: t, label: t, value: t })),
                                             ...customSoilTypes.filter(t => !SOIL_TYPES.includes(t)).map(t => ({ id: t, label: t, value: t }))
                                         ]}
-                                        selectedValues={formData.soilType ? [formData.soilType] : []}
+                                        selectedValues={formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : []}
                                         onSelect={(val) => {
-                                            setFormData(prev => ({ ...prev, soilType: val === prev.soilType ? '' : val }));
-                                            setOpenDropdownId(null);
+                                            const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                            const exists = current.indexOf(val);
+                                            let newValues;
+                                            if (exists >= 0) {
+                                                newValues = current.filter(c => c !== val);
+                                            } else {
+                                                newValues = [...current, val];
+                                            }
+                                            setFormData(prev => ({ ...prev, soilType: newValues.join(', ') }));
                                         }}
                                         onAdd={async (search) => {
                                             const trimmed = search.trim();
                                             if (trimmed && !SOIL_TYPES.includes(trimmed) && !customSoilTypes.includes(trimmed)) {
                                                 setCustomSoilTypes(prev => [...prev, trimmed]);
                                             }
-                                            setFormData(prev => ({ ...prev, soilType: trimmed }));
-                                            setOpenDropdownId(null);
+                                            const current = formData.soilType ? formData.soilType.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                            setFormData(prev => ({ ...prev, soilType: [...current, trimmed].join(', ') }));
                                         }}
                                         placeholder="Search or add soil type..."
                                         width="w-full"
                                         modal={false}
+                                        multiSelect={true}
                                     />
                                 )}
                             </div>
@@ -1756,7 +1744,10 @@ export default function PreBoreLogsPage() {
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => {
+                            setIsModalOpen(false);
+                            if (returnTo) router.push(returnTo);
+                        }}>Cancel</Button>
                         <Button onClick={handleSave} disabled={saving} className="bg-[#0F4C75] hover:bg-[#0a3a5c]">
                             {saving ? 'Saving...' : (editingLog ? 'Update' : 'Create')}
                         </Button>

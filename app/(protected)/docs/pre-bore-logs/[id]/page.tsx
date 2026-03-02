@@ -48,6 +48,7 @@ interface PreBoreLog {
     reamerSize8: string;
     reamerSize10: string;
     reamerSize12: string;
+    reamers: string;
     soilType: string;
     boreLength: string;
     pipeSize: string;
@@ -235,6 +236,7 @@ export default function PreBoreLogDetailPage() {
             reamer_size_8: log.reamerSize8 || '',
             reamer_size_10: log.reamerSize10 || '',
             reamer_size_12: log.reamerSize12 || '',
+            reamers: log.reamers || [log.reamerSize6, log.reamerSize8, log.reamerSize10, log.reamerSize12].filter(Boolean).map(s => `${s}"`).join(', ') || '',
             soil_type: log.soilType || '',
             bore_length: log.boreLength || '',
             pipe_size: log.pipeSize || '',
@@ -450,7 +452,7 @@ export default function PreBoreLogDetailPage() {
                                     variant="outline"
                                     size="sm"
                                     className="border-slate-300 hover:bg-slate-50"
-                                    onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}`)}
+                                    onClick={() => router.push(`/docs/pre-bore-logs?edit=${scheduleId}_${preBoreId}&returnTo=${encodeURIComponent(`/docs/pre-bore-logs/${rawId}`)}`)}
                                 >
                                     <Pencil size={14} className="mr-1.5" /> Edit
                                 </Button>
@@ -590,26 +592,13 @@ export default function PreBoreLogDetailPage() {
                             </div>
                         </div>
                         <div className="border-t border-slate-100">
-                            <div className="p-4 border-b border-slate-100">
-                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reamer Sizes</label>
-                            </div>
-                            <div className="grid grid-cols-4 divide-x divide-slate-100">
-                                <div className="p-4 text-center">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase">6&quot;</label>
-                                    <p className="text-slate-800 font-bold mt-1">{log.reamerSize6 || '-'}</p>
-                                </div>
-                                <div className="p-4 text-center">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase">8&quot;</label>
-                                    <p className="text-slate-800 font-bold mt-1">{log.reamerSize8 || '-'}</p>
-                                </div>
-                                <div className="p-4 text-center">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase">10&quot;</label>
-                                    <p className="text-slate-800 font-bold mt-1">{log.reamerSize10 || '-'}</p>
-                                </div>
-                                <div className="p-4 text-center">
-                                    <label className="text-[9px] font-bold text-slate-400 uppercase">12&quot;</label>
-                                    <p className="text-slate-800 font-bold mt-1">{log.reamerSize12 || '-'}</p>
-                                </div>
+                            <div className="p-4">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reamer(s)</label>
+                                <p className="text-slate-800 font-bold mt-1 text-lg">
+                                    {log.reamers
+                                        ? log.reamers.split(',').map(s => s.trim()).filter(Boolean).map(s => `${s}"`).join(', ')
+                                        : [log.reamerSize6 && `6"`, log.reamerSize8 && `8"`, log.reamerSize10 && `10"`, log.reamerSize12 && `12"`].filter(Boolean).join(', ') || '-'}
+                                </p>
                             </div>
                         </div>
                     </div>

@@ -323,6 +323,48 @@ export async function POST(request: NextRequest) {
                 });
             }
 
+            case 'migrateReamers': {
+                // Migration: merge reamerSize6/8/10/12 into single "reamers" field
+                const schedules = await Schedule.find(
+                    { 'preBore.0': { $exists: true } }
+                ).lean() as any[];
+
+                let migratedCount = 0;
+
+                for (const sched of schedules) {
+                    if (!sched.preBore || !Array.isArray(sched.preBore)) continue;
+
+                    let modified = false;
+                    for (let i = 0; i < sched.preBore.length; i++) {
+                        const pb = sched.preBore[i];
+                        // Skip if already migrated
+                        if (pb.reamers) continue;
+
+                        // Collect non-empty reamer sizes
+                        const sizes: string[] = [];
+                        if (pb.reamerSize6) sizes.push('6');
+                        if (pb.reamerSize8) sizes.push('8');
+                        if (pb.reamerSize10) sizes.push('10');
+                        if (pb.reamerSize12) sizes.push('12');
+
+                        if (sizes.length > 0) {
+                            await Schedule.updateOne(
+                                { _id: sched._id },
+                                { $set: { [`preBore.${i}.reamers`]: sizes.join(', ') } }
+                            );
+                            modified = true;
+                        }
+                    }
+                    if (modified) migratedCount++;
+                }
+
+                return NextResponse.json({
+                    success: true,
+                    message: `Migrated reamers for ${migratedCount} schedules`,
+                    migratedCount
+                });
+            }
+
             default:
                 return NextResponse.json({ success: false, error: `Unknown action: ${action}` }, { status: 400 });
         }

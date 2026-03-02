@@ -28,6 +28,7 @@ export interface IPreBore {
     reamerSize8?: string;
     reamerSize10?: string;
     reamerSize12?: string;
+    reamers?: string;
     soilType?: string;
     boreLength?: string;
     pipeSize?: string;
@@ -125,7 +126,7 @@ export interface ITimesheet {
     shopTime?: string; // string
     comments?: string; // long text
     createdBy?: string;
-    createdAt?: string; 
+    createdAt?: string;
     manualDistance?: string;
     manualDuration?: string;
     distance?: number;
@@ -189,7 +190,7 @@ const ScheduleSchema = new Schema({
     siteLayout: { type: String },
     timesheet: { type: [TimesheetSchema], default: [] },
     jha: { type: Object, default: null },
-    djt: { 
+    djt: {
         type: {
             _id: { type: String },
             dailyJobDescription: { type: String },
@@ -214,17 +215,19 @@ const ScheduleSchema = new Schema({
             }],
             signatures: { type: [], default: [] },
             djtCost: { type: Number, default: 0 }
-        }, 
-        default: null 
+        },
+        default: null
     },
     JHASignatures: { type: [], default: [] },
     DJTSignatures: { type: [], default: [] },
-    todayObjectives: { type: [{
-        text: { type: String, required: true },
-        completed: { type: Boolean, default: false },
-        completedBy: { type: String },
-        completedAt: { type: Date }
-    }], default: [] },
+    todayObjectives: {
+        type: [{
+            text: { type: String, required: true },
+            completed: { type: Boolean, default: false },
+            completedBy: { type: String },
+            completedAt: { type: Date }
+        }], default: []
+    },
     preBore: {
         type: [{
             legacyId: { type: String },
@@ -241,6 +244,7 @@ const ScheduleSchema = new Schema({
             reamerSize8: { type: String },
             reamerSize10: { type: String },
             reamerSize12: { type: String },
+            reamers: { type: String },
             soilType: { type: String },
             boreLength: { type: String },
             pipeSize: { type: String },
