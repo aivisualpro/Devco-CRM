@@ -148,7 +148,7 @@ const FormSelect = ({ label, value, onChange, options, placeholder, allowAdd = t
     return (
         <div className="relative">
             {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
-            <div 
+            <div
                 className="w-full h-10 px-3 py-2 bg-white border border-gray-300 rounded-lg flex items-center justify-between cursor-pointer hover:border-[#0F4C75] transition-colors"
                 onClick={() => setIsOpen(!isOpen)}
             >
@@ -159,7 +159,7 @@ const FormSelect = ({ label, value, onChange, options, placeholder, allowAdd = t
                 </div>
                 <ChevronDown size={16} className={`text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </div>
-            
+
             <MyDropDown
                 isOpen={isOpen}
                 onClose={() => setIsOpen(false)}
@@ -185,13 +185,12 @@ const RoleBadge = ({ value, color }: { value: string, color?: string }) => {
     return (
         <div className="flex flex-wrap gap-1">
             {items.map((item, i) => (
-                <div 
-                    key={i} 
-                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${
-                        color 
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                <div
+                    key={i}
+                    className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${color
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : 'bg-slate-50 text-slate-700 border-slate-200'
-                    }`}
+                        }`}
                 >
                     {item}
                 </div>
@@ -204,7 +203,7 @@ export default function EmployeesPage() {
     const router = useRouter();
     const { success, error } = useToast();
     const { can, loading: permsLoading } = usePermissions();
-    
+
     // Permissions
     const canCreate = can(MODULES.EMPLOYEES, ACTIONS.CREATE);
     const canEdit = can(MODULES.EMPLOYEES, ACTIONS.EDIT);
@@ -213,7 +212,7 @@ export default function EmployeesPage() {
 
     useEffect(() => {
         if (!permsLoading && !canView) {
-             router.push('/');
+            router.push('/');
         }
     }, [permsLoading, canView, router]);
 
@@ -335,6 +334,10 @@ export default function EmployeesPage() {
             if (sortConfig.key === 'name') {
                 aValue = `${a.firstName || ''} ${a.lastName || ''}`.toLowerCase();
                 bValue = `${b.firstName || ''} ${b.lastName || ''}`.toLowerCase();
+            } else if (sortConfig.key === 'recordId') {
+                // Sort Employee ID numerically
+                aValue = parseInt(a.recordId || '0', 10) || 0;
+                bValue = parseInt(b.recordId || '0', 10) || 0;
             } else {
                 aValue = (a[sortConfig.key] || '').toString().toLowerCase();
                 bValue = (b[sortConfig.key] || '').toString().toLowerCase();
@@ -412,7 +415,7 @@ export default function EmployeesPage() {
 
     const appRoleOptions = useMemo(() => {
         if (roles && roles.length > 0) {
-           return roles.map(r => r.name);
+            return roles.map(r => r.name);
         }
         return getOptions('appRole');
     }, [roles, employees]);
@@ -522,63 +525,63 @@ export default function EmployeesPage() {
     return (
         <div className="flex flex-col h-full">
             <div className="flex-none">
-            <Header
-                hideLogo={false}
-                rightContent={
-                    <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:flex-initial">
-                        <SearchInput
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search employees..."
-                        />
+                <Header
+                    hideLogo={false}
+                    rightContent={
+                        <div className="flex items-center gap-2 md:gap-3 flex-1 justify-end md:flex-initial">
+                            <SearchInput
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search employees..."
+                            />
 
-                        <input
-                            type="file"
-                            accept=".csv"
-                            ref={fileInputRef}
-                            className="hidden"
-                            onChange={handleImport}
-                        />
-                        {/* Only show import if can create (implies bulk create) OR maybe dedicated import permission? defaulting to create */}
-                        {canCreate && (
-                            <div className="hidden lg:block">
+                            <input
+                                type="file"
+                                accept=".csv"
+                                ref={fileInputRef}
+                                className="hidden"
+                                onChange={handleImport}
+                            />
+                            {/* Only show import if can create (implies bulk create) OR maybe dedicated import permission? defaulting to create */}
+                            {canCreate && (
+                                <div className="hidden lg:block">
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                onClick={() => fileInputRef.current?.click()}
+                                                disabled={isImporting}
+                                                className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
+                                            >
+                                                <Upload size={18} />
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </div>
+                            )}
+
+                            {canCreate && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <button
-                                            onClick={() => fileInputRef.current?.click()}
-                                            disabled={isImporting}
-                                            className={`w-10 h-10 flex items-center justify-center bg-white border border-slate-200 text-slate-600 rounded-full hover:bg-slate-50 hover:text-[#0F4C75] transition-all shadow-sm ${isImporting ? 'animate-pulse cursor-not-allowed' : ''}`}
+                                        <Button
+                                            onClick={openAddModal}
+                                            variant="default"
+                                            size="icon"
+                                            className="rounded-full shadow-lg active:scale-95 transition-transform"
                                         >
-                                            <Upload size={18} />
-                                        </button>
+                                            <Plus size={24} />
+                                        </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>
-                                        <p>{isImporting ? 'Importing...' : 'Import CSV'}</p>
+                                        <p>Add New</p>
                                     </TooltipContent>
                                 </Tooltip>
-                            </div>
-                        )}
-
-                        {canCreate && (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        onClick={openAddModal}
-                                        variant="default"
-                                        size="icon"
-                                        className="rounded-full shadow-lg active:scale-95 transition-transform"
-                                    >
-                                        <Plus size={24} />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Add New</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        )}
-                    </div>
-                }
-            />
+                            )}
+                        </div>
+                    }
+                />
 
             </div>
 
@@ -596,262 +599,262 @@ export default function EmployeesPage() {
                 <div className="flex-1 flex flex-col min-h-0 pb-4 overflow-y-auto">
 
 
-                {loading ? (
-                    <>
-                        <div className="md:hidden grid grid-cols-2 gap-2">
-                            {[1, 2, 3, 4, 5, 6].map(i => (
-                                <div key={i} className="h-48 bg-white rounded-2xl border border-slate-100 animate-pulse" />
-                            ))}
-                        </div>
-                                <div className="hidden md:block h-full">
-                                    <SkeletonTable rows={10} columns={7} className="h-full" />
-                                </div>
-                    </>
-                ) : (
-                    <>
-                        {/* Mobile Card View - 2 Columns */}
-                        <div className="md:hidden grid grid-cols-2 gap-2 pb-8">
-                            {mobileEmployees.length === 0 ? (
-                                <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-                                    <p className="text-slate-500 font-medium">No employees found</p>
-                                </div>
-                            ) : (
-                                mobileEmployees.map((emp) => (
-                                    <div
-                                        key={emp._id}
-                                        className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col items-center text-center"
-                                        onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
-                                    >
-                                        <div className="w-16 h-16 rounded-full bg-indigo-50 border-2 border-white shadow-sm overflow-hidden mb-3">
-                                            {emp.profilePicture ? (
-                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center text-xl font-bold text-indigo-300">
-                                                    {(emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <h3 className="font-bold text-slate-800 text-sm line-clamp-1 leading-tight mb-1">
-                                            {emp.firstName} {emp.lastName}
-                                        </h3>
-
-                                        <p className="text-[10px] font-medium text-slate-400 mb-2 truncate w-full">
-                                            {emp.companyPosition || emp.appRole || '-'}
-                                        </p>
-
-                                        <div className="flex items-center gap-2 mt-auto pt-2 w-full border-t border-slate-50 justify-center">
-                                            <a
-                                                href={`tel:${emp.mobile || emp.phone}`}
-                                                className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
-                                                onClick={e => e.stopPropagation()}
-                                            >
-                                                <Phone size={12} />
-                                            </a>
-                                            <a
-                                                href={`mailto:${emp.email}`}
-                                                className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                                                onClick={e => e.stopPropagation()}
-                                            >
-                                                <Mail size={12} />
-                                            </a>
-                                            <Badge variant={emp.status === 'Active' ? 'success' : 'default'} className="text-[8px] py-0 px-1.5 h-4 uppercase">
-                                                {emp.status || 'Active'}
-                                            </Badge>
-                                        </div>
+                    {loading ? (
+                        <>
+                            <div className="md:hidden grid grid-cols-2 gap-2">
+                                {[1, 2, 3, 4, 5, 6].map(i => (
+                                    <div key={i} className="h-48 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+                                ))}
+                            </div>
+                            <div className="hidden md:block h-full">
+                                <SkeletonTable rows={10} columns={7} className="h-full" />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* Mobile Card View - 2 Columns */}
+                            <div className="md:hidden grid grid-cols-2 gap-2 pb-8">
+                                {mobileEmployees.length === 0 ? (
+                                    <div className="col-span-2 text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                        <p className="text-slate-500 font-medium">No employees found</p>
                                     </div>
-                                ))
-                            )}
-                            <div ref={observerTarget} className="h-4 col-span-2" />
-                        </div>
-
-                        {/* Desktop Table View */}
-                        <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full">
-                        <Table
-                            containerClassName="h-full"
-                            footer={
-                                <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-                            }
-                        >
-                                <TableHead>
-                                    <TableRow>
-                                        <TableHeader
-                                            onClick={() => handleSort('name')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'name' ? sortConfig.direction : null}
+                                ) : (
+                                    mobileEmployees.map((emp) => (
+                                        <div
+                                            key={emp._id}
+                                            className="bg-white rounded-2xl p-3 shadow-sm border border-slate-50 hover:border-slate-100 transition-all active:scale-[0.98] flex flex-col items-center text-center"
+                                            onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
                                         >
-                                            Name
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('recordId')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'recordId' ? sortConfig.direction : null}
-                                        >
-                                            Employee ID
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('companyPosition')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'companyPosition' ? sortConfig.direction : null}
-                                        >
-                                            Position
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('email')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'email' ? sortConfig.direction : null}
-                                        >
-                                            Email
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('mobile')} // sorting by mobile/phone
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'mobile' ? sortConfig.direction : null}
-                                        >
-                                            Phone
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('designation')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'designation' ? sortConfig.direction : null}
-                                        >
-                                            Designation
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('appRole')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'appRole' ? sortConfig.direction : null}
-                                        >
-                                            App Role
-                                        </TableHeader>
-                                        <TableHeader
-                                            onClick={() => handleSort('status')}
-                                            sortable={true}
-                                            sortDirection={sortConfig?.key === 'status' ? sortConfig.direction : null}
-                                        >
-                                            Status
-                                        </TableHeader>
-                                        <TableHeader className="text-right">Actions</TableHeader>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {paginatedEmployees.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                                                <div className="flex flex-col items-center justify-center">
-                                                    <p className="text-base font-medium text-gray-900">No employees found</p>
-                                                    <p className="text-sm text-gray-500 mt-1">Get started by adding a new employee.</p>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        paginatedEmployees.map((emp) => (
-                                            <TableRow
-                                                key={emp._id}
-                                                onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
-                                                className="cursor-pointer hover:bg-gray-50/80 transition-colors"
-                                            >
-                                                <TableCell className="font-medium text-gray-900">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold overflow-hidden border border-indigo-200 shadow-sm">
-                                                            {emp.profilePicture ? (
-                                                                <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
-                                                            ) : (
-                                                                (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
-                                                            )}
-                                                        </div>
-                                                        <span>{emp.firstName} {emp.lastName}</span>
+                                            <div className="w-16 h-16 rounded-full bg-indigo-50 border-2 border-white shadow-sm overflow-hidden mb-3">
+                                                {emp.profilePicture ? (
+                                                    <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center text-xl font-bold text-indigo-300">
+                                                        {(emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')}
                                                     </div>
-                                                </TableCell>
+                                                )}
+                                            </div>
 
-                                                <TableCell className="text-sm text-gray-600">{emp.recordId || '-'}</TableCell>
+                                            <h3 className="font-bold text-slate-800 text-sm line-clamp-1 leading-tight mb-1">
+                                                {emp.firstName} {emp.lastName}
+                                            </h3>
 
-                                                <TableCell>{emp.companyPosition || '-'}</TableCell>
-                                                <TableCell>{emp.email}</TableCell>
-                                                <TableCell>
-                                                    <a href={`tel:${emp.mobile || emp.phone}`} className="hover:text-indigo-600 hover:underline">
-                                                        {(emp.mobile || emp.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}
-                                                    </a>
+                                            <p className="text-[10px] font-medium text-slate-400 mb-2 truncate w-full">
+                                                {emp.companyPosition || emp.appRole || '-'}
+                                            </p>
 
-                                                </TableCell>
-                                                <TableCell>
-                                                    <RoleBadge value={emp.designation || ''} color="bg-emerald-600" />
-                                                </TableCell>
-                                                <TableCell>
-                                                    {(() => {
-                                                        const role = roles.find(r => r.name === emp.appRole);
-                                                        if (role) {
-                                                            return (
-                                                                <div 
-                                                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border"
-                                                                    style={{ 
-                                                                        backgroundColor: `${role.color}15`, // 15 = roughly 8% opacity
-                                                                        color: role.color,
-                                                                        borderColor: `${role.color}30` // 30 = roughly 20% opacity
-                                                                    }}
-                                                                >
-                                                                    {ROLE_ICONS[role.icon || 'User'] || <User className="w-3.5 h-3.5" />}
-                                                                    {role.name}
-                                                                </div>
-                                                            );
-                                                        }
-                                                        return <RoleBadge value={emp.appRole || ''} />;
-                                                    })()}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>
-                                                        {emp.status || 'Active'}
-                                                    </Badge>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        {canEdit && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            openEditModal(emp);
-                                                                        }}
-                                                                        className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
-                                                                    >
-                                                                        <Pencil className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Edit Employee</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        )}
+                                            <div className="flex items-center gap-2 mt-auto pt-2 w-full border-t border-slate-50 justify-center">
+                                                <a
+                                                    href={`tel:${emp.mobile || emp.phone}`}
+                                                    className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100 transition-colors"
+                                                    onClick={e => e.stopPropagation()}
+                                                >
+                                                    <Phone size={12} />
+                                                </a>
+                                                <a
+                                                    href={`mailto:${emp.email}`}
+                                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                                                    onClick={e => e.stopPropagation()}
+                                                >
+                                                    <Mail size={12} />
+                                                </a>
+                                                <Badge variant={emp.status === 'Active' ? 'success' : 'default'} className="text-[8px] py-0 px-1.5 h-4 uppercase">
+                                                    {emp.status || 'Active'}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                <div ref={observerTarget} className="h-4 col-span-2" />
+                            </div>
 
-                                                        {canDelete && (
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <button
-                                                                        onClick={(e) => {
-                                                                            e.stopPropagation();
-                                                                            openDeleteModal(emp);
-                                                                        }}
-                                                                        className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
-                                                                    >
-                                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                                    </button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>Delete Employee</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        )}
+                            {/* Desktop Table View */}
+                            <div className="hidden md:flex md:flex-col md:flex-1 md:min-h-0 h-full">
+                                <Table
+                                    containerClassName="h-full"
+                                    footer={
+                                        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+                                    }
+                                >
+                                    <TableHead>
+                                        <TableRow>
+                                            <TableHeader
+                                                onClick={() => handleSort('name')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'name' ? sortConfig.direction : null}
+                                            >
+                                                Name
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('recordId')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'recordId' ? sortConfig.direction : null}
+                                            >
+                                                Employee ID
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('companyPosition')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'companyPosition' ? sortConfig.direction : null}
+                                            >
+                                                Position
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('email')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'email' ? sortConfig.direction : null}
+                                            >
+                                                Email
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('mobile')} // sorting by mobile/phone
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'mobile' ? sortConfig.direction : null}
+                                            >
+                                                Phone
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('designation')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'designation' ? sortConfig.direction : null}
+                                            >
+                                                Designation
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('appRole')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'appRole' ? sortConfig.direction : null}
+                                            >
+                                                App Role
+                                            </TableHeader>
+                                            <TableHeader
+                                                onClick={() => handleSort('status')}
+                                                sortable={true}
+                                                sortDirection={sortConfig?.key === 'status' ? sortConfig.direction : null}
+                                            >
+                                                Status
+                                            </TableHeader>
+                                            <TableHeader className="text-right">Actions</TableHeader>
+                                        </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                        {paginatedEmployees.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                                                    <div className="flex flex-col items-center justify-center">
+                                                        <p className="text-base font-medium text-gray-900">No employees found</p>
+                                                        <p className="text-sm text-gray-500 mt-1">Get started by adding a new employee.</p>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </>
-                )}
+                                        ) : (
+                                            paginatedEmployees.map((emp) => (
+                                                <TableRow
+                                                    key={emp._id}
+                                                    onClick={() => router.push(`/employees/${encodeURIComponent(emp._id)}`)}
+                                                    className="cursor-pointer hover:bg-gray-50/80 transition-colors"
+                                                >
+                                                    <TableCell className="font-medium text-gray-900">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-bold overflow-hidden border border-indigo-200 shadow-sm">
+                                                                {emp.profilePicture ? (
+                                                                    <img src={emp.profilePicture} alt="" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    (emp.firstName?.[0] || '') + (emp.lastName?.[0] || '')
+                                                                )}
+                                                            </div>
+                                                            <span>{emp.firstName} {emp.lastName}</span>
+                                                        </div>
+                                                    </TableCell>
+
+                                                    <TableCell className="text-sm text-gray-600">{emp.recordId || '-'}</TableCell>
+
+                                                    <TableCell>{emp.companyPosition || '-'}</TableCell>
+                                                    <TableCell>{emp.email}</TableCell>
+                                                    <TableCell>
+                                                        <a href={`tel:${emp.mobile || emp.phone}`} className="hover:text-indigo-600 hover:underline">
+                                                            {(emp.mobile || emp.phone || '').replace(/(\d{3})(\d{3})(\d{4})/, '$1 $2 $3')}
+                                                        </a>
+
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <RoleBadge value={emp.designation || ''} color="bg-emerald-600" />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {(() => {
+                                                            const role = roles.find(r => r.name === emp.appRole);
+                                                            if (role) {
+                                                                return (
+                                                                    <div
+                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border"
+                                                                        style={{
+                                                                            backgroundColor: `${role.color}15`, // 15 = roughly 8% opacity
+                                                                            color: role.color,
+                                                                            borderColor: `${role.color}30` // 30 = roughly 20% opacity
+                                                                        }}
+                                                                    >
+                                                                        {ROLE_ICONS[role.icon || 'User'] || <User className="w-3.5 h-3.5" />}
+                                                                        {role.name}
+                                                                    </div>
+                                                                );
+                                                            }
+                                                            return <RoleBadge value={emp.appRole || ''} />;
+                                                        })()}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant={emp.status === 'Active' ? 'success' : 'default'}>
+                                                            {emp.status || 'Active'}
+                                                        </Badge>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {canEdit && (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                openEditModal(emp);
+                                                                            }}
+                                                                            className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-[#0F4C75] hover:bg-slate-50 rounded-full border border-slate-100 shadow-sm transition-all"
+                                                                        >
+                                                                            <Pencil className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Edit Employee</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            )}
+
+                                                            {canDelete && (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <button
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                openDeleteModal(emp);
+                                                                            }}
+                                                                            className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full border border-slate-100 shadow-sm transition-all"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>
+                                                                        <p>Delete Employee</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
