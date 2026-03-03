@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest } from '@/lib/permissions/middleware';
 import { Types } from 'mongoose';
+
+// Increase Vercel serverless function timeout to prevent 504 on cold starts
+export const maxDuration = 60;
 import { connectToDatabase } from '@/lib/db';
 import { resolveTemplate, resolveTemplateDocument } from '@/lib/templateResolver';
 import {

@@ -188,8 +188,8 @@ const RoleBadge = ({ value, color }: { value: string, color?: string }) => {
                 <div
                     key={i}
                     className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium border ${color
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            : 'bg-slate-50 text-slate-700 border-slate-200'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-50 text-slate-700 border-slate-200'
                         }`}
                 >
                     {item}
@@ -244,7 +244,7 @@ export default function EmployeesPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isImporting, setIsImporting] = useState(false);
 
-    async function fetchEmployees() {
+    async function fetchEmployees(retryCount = 0) {
         setLoading(true);
         try {
             const res = await fetch('/api/webhook/devcoBackend', {
@@ -252,12 +252,22 @@ export default function EmployeesPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getEmployees', payload: { includeInactive: true } })
             });
+            if (!res.ok) {
+                // Server returned an error (e.g. 504 timeout) — don't try to parse as JSON
+                if (retryCount < 1) {
+                    console.warn(`getEmployees returned ${res.status}, retrying...`);
+                    setLoading(false);
+                    return fetchEmployees(retryCount + 1);
+                }
+                throw new Error(`Server error: ${res.status}`);
+            }
             const data = await res.json();
             if (data.success) {
                 setEmployees(data.result || []);
             }
         } catch (err) {
             console.error('Error fetching employees:', err);
+            error('Failed to load employees. Please refresh the page.');
         }
         setLoading(false);
     }
