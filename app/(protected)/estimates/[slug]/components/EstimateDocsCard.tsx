@@ -1190,6 +1190,13 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     const [editingBillingTicketIndex, setEditingBillingTicketIndex] = useState<number | null>(null);
     const [billingTicketToDelete, setBillingTicketToDelete] = useState<number | null>(null);
     const [isBillingTicketUploading, setIsBillingTicketUploading] = useState(false);
+
+    // Billing Ticket Sent Date State
+    const [billingTicketSentDateOpen, setBillingTicketSentDateOpen] = useState(false);
+    const [billingTicketSentDateIndex, setBillingTicketSentDateIndex] = useState<number | null>(null);
+    const [billingTicketSentDateValue, setBillingTicketSentDateValue] = useState(format(new Date(), 'yyyy-MM-dd'));
+    const [billingTicketSentDateSaving, setBillingTicketSentDateSaving] = useState(false);
+
     const [newBillingTicket, setNewBillingTicket] = useState({
         date: format(new Date(), 'yyyy-MM-dd'),
         billingTerms: '' as 'COD' | 'Net 30' | 'Net 45' | 'Net 60' | 'Other' | '',
@@ -1201,6 +1208,42 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     });
 
     const billingTermsOptions = ['COD', 'Net 30', 'Net 45', 'Net 60', 'Other'];
+
+    const handleOpenBillingTicketSentDate = (idx: number, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        setBillingTicketSentDateIndex(idx);
+        setBillingTicketSentDateValue(format(new Date(), 'yyyy-MM-dd'));
+        setBillingTicketSentDateOpen(true);
+    };
+
+    const handleConfirmBillingTicketSentDate = async () => {
+        if (billingTicketSentDateIndex === null || !onUpdate) return;
+        setBillingTicketSentDateSaving(true);
+        try {
+            const dateToSave = new Date(billingTicketSentDateValue + 'T12:00:00').toISOString();
+            const updated = billingTickets.map((t: any, i: number) =>
+                i === billingTicketSentDateIndex ? { ...t, sentDate: dateToSave } : t
+            );
+            onUpdate('billingTickets', updated);
+            toast.success('Marked as sent');
+            setBillingTicketSentDateOpen(false);
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to update sent date');
+        } finally {
+            setBillingTicketSentDateSaving(false);
+        }
+    };
+
+    const handleClearBillingTicketSentDate = (idx: number, e?: React.MouseEvent) => {
+        if (e) e.stopPropagation();
+        if (!onUpdate) return;
+        const updated = billingTickets.map((t: any, i: number) =>
+            i === idx ? { ...t, sentDate: '' } : t
+        );
+        onUpdate('billingTickets', updated);
+        toast.success('Sent date cleared');
+    };
 
     const handleAddBillingTicket = () => {
         setNewBillingTicket({
@@ -3185,15 +3228,9 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                     )}
 
                                     {item.titleDescriptions?.length > 0 && (
-                                        <div className="mt-2 space-y-1 bg-slate-50/50 p-2 rounded-lg border border-slate-100">
-                                            {item.titleDescriptions.slice(0, 3).map((td: any, tIdx: number) => (
-                                                <div key={tIdx} className="text-[9px] text-slate-600 leading-tight">
-                                                    <span className="font-bold text-slate-800">{td.title}:</span> {td.description ? `${td.description.substring(0, 80)}${td.description.length > 80 ? '...' : ''}` : ''}
-                                                </div>
-                                            ))}
-                                            {item.titleDescriptions.length > 3 && (
-                                                <p className="text-[8px] text-slate-400 font-bold ml-1">+{item.titleDescriptions.length - 3} more items...</p>
-                                            )}
+                                        <div className="mt-1.5 flex items-center gap-1.5">
+                                            <FileText className="w-3 h-3 text-slate-300 flex-shrink-0" />
+                                            <span className="text-[9px] text-slate-400 font-semibold">{item.titleDescriptions.length} line item{item.titleDescriptions.length !== 1 ? 's' : ''}</span>
                                         </div>
                                     )}
 
@@ -3217,6 +3254,37 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             ))}
                                         </div>
                                     )}
+
+                                    {/* Sent Date — isolated click zone */}
+                                    <div className="mt-2.5 pt-2 border-t border-slate-100/60" onClick={(e) => e.stopPropagation()}>
+                                        {item.sentDate ? (
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="w-4 h-4 rounded-full bg-emerald-100 flex items-center justify-center">
+                                                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                                    </div>
+                                                    <span className="text-[9px] font-bold text-emerald-600">
+                                                        Sent {safeFormatDate(item.sentDate, 'MMM dd, yyyy')}
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => handleClearBillingTicketSentDate(idx, e)}
+                                                    className="p-0.5 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all"
+                                                    title="Clear sent date"
+                                                >
+                                                    <X className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={(e) => handleOpenBillingTicketSentDate(idx, e)}
+                                                className="w-full inline-flex items-center justify-center gap-1.5 px-2 py-1 rounded-lg text-[9px] font-semibold text-slate-400 bg-slate-50/70 hover:bg-blue-50 hover:text-blue-600 border border-dashed border-slate-200 hover:border-blue-300 transition-all"
+                                            >
+                                                <Send className="w-2.5 h-2.5" />
+                                                Mark as Sent
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             )) : (
                                 <p className="text-[10px] text-slate-400 font-bold text-center py-4">No billing tickets</p>
@@ -5951,6 +6019,36 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 confirmText="Remove"
                 variant="danger"
             />
+
+            {/* Billing Ticket Sent Date Modal */}
+            <Modal
+                isOpen={billingTicketSentDateOpen}
+                onClose={() => setBillingTicketSentDateOpen(false)}
+                title="Mark as Sent"
+                maxWidth="sm"
+            >
+                <div className="p-4">
+                    <p className="text-xs text-slate-500 mb-3">Set the date this billing ticket was sent.</p>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sent Date</label>
+                    <input
+                        type="date"
+                        value={billingTicketSentDateValue}
+                        onChange={(e) => setBillingTicketSentDateValue(e.target.value)}
+                        className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                    />
+                    <div className="flex items-center justify-end gap-2 mt-4">
+                        <Button variant="outline" size="sm" onClick={() => setBillingTicketSentDateOpen(false)}>Cancel</Button>
+                        <Button
+                            size="sm"
+                            onClick={handleConfirmBillingTicketSentDate}
+                            disabled={billingTicketSentDateSaving}
+                            className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white"
+                        >
+                            {billingTicketSentDateSaving ? 'Saving...' : 'Confirm'}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
 
             <ConfirmModal
                 isOpen={contractIndexToDelete !== null}

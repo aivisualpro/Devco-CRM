@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-    Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, 
-    MoreVertical, Pencil, Trash2, Calendar, FileText, 
-    Link, Upload, Loader2, ChevronDown, Check, User, DollarSign, Image as ImageIcon, Download
+import {
+    Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
+    MoreVertical, Pencil, Trash2, Calendar, FileText,
+    Link, Upload, Loader2, ChevronDown, Check, User, DollarSign, Image as ImageIcon, Download, Send, X
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
-import { 
-    Header, Button, Table, TableHeader, TableRow, TableHead, 
+import {
+    Header, Button, Table, TableHeader, TableRow, TableHead,
     TableBody, TableCell, Badge, Input, Tooltip, TooltipTrigger, TooltipContent
 } from '@/components/ui';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { 
+import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription
 } from '@/components/ui/dialog';
@@ -34,6 +34,7 @@ interface BillingTicketItem {
     uploads?: any[];
     titleDescriptions?: { title: string; description: string }[];
     lumpSum: string;
+    sentDate?: string;
     createdBy?: string;
     createdAt?: string;
     [key: string]: any;
@@ -68,16 +69,22 @@ export default function BillingTicketsPage() {
     const [estimates, setEstimates] = useState<Estimate[]>([]);
     const [search, setSearch] = useState('');
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'desc' });
-    
+
     // Modal States
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteOpen, setIsDeleteOpen] = useState(false);
     const [editingTicket, setEditingTicket] = useState<FlatBillingTicket | null>(null);
     const [ticketToDelete, setTicketToDelete] = useState<FlatBillingTicket | null>(null);
     const [saving, setSaving] = useState(false);
+    const [markingSent, setMarkingSent] = useState<string | null>(null);
 
-    const [employees, setEmployees] = useState<any[]>([]); 
-    
+    // Sent Date Dialog
+    const [sentDateDialogOpen, setSentDateDialogOpen] = useState(false);
+    const [sentDateTicket, setSentDateTicket] = useState<FlatBillingTicket | null>(null);
+    const [sentDateValue, setSentDateValue] = useState(format(new Date(), 'yyyy-MM-dd'));
+
+    const [employees, setEmployees] = useState<any[]>([]);
+
     // Estimate Selection
     const [selectedEstimateId, setSelectedEstimateId] = useState<string>('');
     const [estimateSearch, setEstimateSearch] = useState('');
@@ -103,10 +110,10 @@ export default function BillingTicketsPage() {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                action: 'getEstimates',
-                payload: { limit: 1000, includeBilling: true }
-            })
+                body: JSON.stringify({
+                    action: 'getEstimates',
+                    payload: { limit: 1000, includeBilling: true }
+                })
             });
             const data = await res.json();
             if (data.success) {
@@ -124,18 +131,18 @@ export default function BillingTicketsPage() {
 
     useEffect(() => {
         fetchEstimates();
-        
+
         // Fetch employees
         fetch('/api/webhook/devcoBackend', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'getEmployees' })
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) setEmployees(data.result || []);
-        })
-        .catch(console.error);
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) setEmployees(data.result || []);
+            })
+            .catch(console.error);
     }, []);
 
     // Derived State: Flattened Tickets
@@ -146,7 +153,7 @@ export default function BillingTicketsPage() {
                 est.billingTickets.forEach((ticket, idx) => {
                     flat.push({
                         ...ticket,
-                        uniqueId: ticket._id || `${est._id}_${idx}`, 
+                        uniqueId: `${est._id}_bt_${idx}`,
                         estimateId: est._id,
                         estimateNumber: est.estimate || 'N/A',
                         projectName: est.projectName || 'Untitled Project'
@@ -163,7 +170,7 @@ export default function BillingTicketsPage() {
 
         if (search) {
             const s = search.toLowerCase();
-            result = result.filter(r => 
+            result = result.filter(r =>
                 String(r.estimateNumber || '').toLowerCase().includes(s) ||
                 String(r.projectName || '').toLowerCase().includes(s) ||
                 String(r.lumpSum || '').includes(s) ||
@@ -175,9 +182,9 @@ export default function BillingTicketsPage() {
             let valA = a[sortConfig.key];
             let valB = b[sortConfig.key];
 
-            if (sortConfig.key === 'date') {
-                valA = new Date(valA).getTime();
-                valB = new Date(valB).getTime();
+            if (sortConfig.key === 'date' || sortConfig.key === 'sentDate') {
+                valA = valA ? new Date(valA).getTime() : 0;
+                valB = valB ? new Date(valB).getTime() : 0;
             }
 
             if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
@@ -207,6 +214,123 @@ export default function BillingTicketsPage() {
         setIsModalOpen(true);
     };
 
+    const handleOpenSentDateDialog = (ticket: FlatBillingTicket) => {
+        setSentDateTicket(ticket);
+        setSentDateValue(format(new Date(), 'yyyy-MM-dd'));
+        setSentDateDialogOpen(true);
+    };
+
+    const handleConfirmSentDate = async () => {
+        if (!sentDateTicket) return;
+        setMarkingSent(sentDateTicket.uniqueId);
+        const dateToSave = new Date(sentDateValue + 'T12:00:00').toISOString();
+
+        // Optimistic local update — instant UI
+        setEstimates(prev => prev.map(est => {
+            if (est._id !== sentDateTicket.estimateId) return est;
+            return {
+                ...est,
+                billingTickets: (est.billingTickets || []).map((t: any) =>
+                    t._id && t._id === sentDateTicket._id ? { ...t, sentDate: dateToSave } : t
+                )
+            };
+        }));
+        setSentDateDialogOpen(false);
+        toast.success('Marked as sent');
+
+        // Background save
+        try {
+            const targetEstimate = estimates.find(e => e._id === sentDateTicket.estimateId);
+            if (!targetEstimate) return;
+
+            const updatedTickets = [...(targetEstimate.billingTickets || [])].map(t => {
+                if (t._id && t._id === sentDateTicket._id) {
+                    return { ...t, sentDate: dateToSave };
+                }
+                return t;
+            });
+
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateEstimate',
+                    payload: {
+                        id: sentDateTicket.estimateId,
+                        billingTickets: updatedTickets,
+                        updatedBy: user?.email
+                    }
+                })
+            });
+
+            const result = await res.json();
+            if (!result.success) {
+                toast.error('Failed to save — reverting');
+                fetchEstimates();
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to save — reverting');
+            fetchEstimates();
+        } finally {
+            setMarkingSent(null);
+        }
+    };
+
+    const handleClearSentDate = async (ticket: FlatBillingTicket) => {
+        setMarkingSent(ticket.uniqueId);
+
+        // Optimistic local update — instant UI
+        setEstimates(prev => prev.map(est => {
+            if (est._id !== ticket.estimateId) return est;
+            return {
+                ...est,
+                billingTickets: (est.billingTickets || []).map((t: any) =>
+                    t._id && t._id === ticket._id ? { ...t, sentDate: '' } : t
+                )
+            };
+        }));
+        toast.success('Sent date cleared');
+
+        // Background save
+        try {
+            const targetEstimate = estimates.find(e => e._id === ticket.estimateId);
+            if (!targetEstimate) return;
+
+            const updatedTickets = [...(targetEstimate.billingTickets || [])].map(t => {
+                if (t._id && t._id === ticket._id) {
+                    return { ...t, sentDate: '' };
+                }
+                return t;
+            });
+
+            const res = await fetch('/api/webhook/devcoBackend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateEstimate',
+                    payload: {
+                        id: ticket.estimateId,
+                        billingTickets: updatedTickets,
+                        updatedBy: user?.email
+                    }
+                })
+            });
+
+            const result = await res.json();
+            if (!result.success) {
+                toast.error('Failed to save — reverting');
+                fetchEstimates();
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error('Failed to save — reverting');
+            fetchEstimates();
+        } finally {
+            setMarkingSent(null);
+        }
+    };
+
     const handleDownloadPdf = async (ticket: FlatBillingTicket) => {
         const est = estimates.find(e => e._id === ticket.estimateId);
         if (!est) {
@@ -226,7 +350,7 @@ export default function BillingTicketsPage() {
                 date: ticket.date ? new Date(ticket.date).toLocaleDateString() : '',
                 day: ticket.date ? format(new Date(ticket.date), 'EEEE') : '',
                 today: new Date().toLocaleDateString(),
-                
+
                 // Addresses/Names
                 poName: est.poName || '', PoAddress: est.PoAddress || '', PoPhone: est.PoPhone || '',
                 ocName: est.ocName || '', ocAddress: est.ocAddress || '', ocPhone: est.ocPhone || '',
@@ -235,13 +359,24 @@ export default function BillingTicketsPage() {
                 scName: est.scName || '', scAddress: est.scAddress || '', scPhone: est.scPhone || '',
                 bondNumber: est.bondNumber || '',
                 fbName: est.fbName || '', fbAddress: est.fbAddress || '',
-                
+
                 // Customer/Project
                 customerName: est.customerName || '',
+                customerId: est.customerName || est.customer || '',
+                contactName: est.contactName || '',
+                contactEmail: est.contactEmail || '',
+                contactPhone: est.contactPhone || '',
                 projectName: est.projectName || '',
                 estimate: est.estimate || '',
                 projectId: est.projectId || '',
                 customerJobNo: est.customerJobNo || '',
+                customerJobNumber: est.customerJobNo || '',
+                customerPONo: est.customerPONo || '',
+                workRequestNo: est.workRequestNo || '',
+                subContractAgreementNo: est.subContractAgreementNo || '',
+                DIRProjectNo: est.DIRProjectNo || '',
+                certifiedPayroll: est.certifiedPayroll || '',
+                usaNumber: est.usaNumber || '',
 
                 // Billing Ticket Specifics
                 billingTerms: ticket.billingTerms || '',
@@ -251,7 +386,7 @@ export default function BillingTicketsPage() {
 
             // Enhanced Billing Ticket Details with Formatting
             if (ticket.titleDescriptions && ticket.titleDescriptions.length > 0) {
-                 variables.billingTicketDetails = ticket.titleDescriptions.map((td: any) => {
+                variables.billingTicketDetails = ticket.titleDescriptions.map((td: any) => {
                     let itemStr = '';
                     if (td.title && td.title.trim()) {
                         itemStr = `● [B][S+]${td.title.trim()}[/S+][/B]`;
@@ -275,9 +410,9 @@ export default function BillingTicketsPage() {
             const response = await fetch('/api/generate-google-pdf', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    templateId: BILLING_TICKET_TEMPLATE_ID, 
-                    variables 
+                body: JSON.stringify({
+                    templateId: BILLING_TICKET_TEMPLATE_ID,
+                    variables
                 })
             });
 
@@ -292,7 +427,7 @@ export default function BillingTicketsPage() {
             a.click();
             window.URL.revokeObjectURL(url);
             a.remove();
-            
+
             toast.dismiss(toastId);
             toast.success('PDF Downloaded');
         } catch (err) {
@@ -333,17 +468,17 @@ export default function BillingTicketsPage() {
                     // Remove from old
                     const oldEst = estimates.find(e => e._id === editingTicket.estimateId);
                     if (oldEst) {
-                        const oldTickets = (oldEst.billingTickets || []).filter(r => 
-                            (r._id && r._id !== editingTicket._id) || 
+                        const oldTickets = (oldEst.billingTickets || []).filter(r =>
+                            (r._id && r._id !== editingTicket._id) ||
                             (!r._id && JSON.stringify(r) !== JSON.stringify(editingTicket)) // fallback
                         );
                         // Save old estimate
-                         await fetch('/api/webhook/devcoBackend', {
+                        await fetch('/api/webhook/devcoBackend', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ 
-                                action: 'updateEstimate', 
-                                payload: { id: oldEst._id, billingTickets: oldTickets } 
+                            body: JSON.stringify({
+                                action: 'updateEstimate',
+                                payload: { id: oldEst._id, billingTickets: oldTickets }
                             })
                         });
                     }
@@ -351,20 +486,20 @@ export default function BillingTicketsPage() {
                     updatedTickets.push(newTicketItem);
                 } else {
                     // Update in place
-                    const index = updatedTickets.findIndex(t => 
-                        (t._id && t._id === editingTicket._id) || 
+                    const index = updatedTickets.findIndex(t =>
+                        (t._id && t._id === editingTicket._id) ||
                         (!t._id && JSON.stringify(t) === JSON.stringify(editingTicket)) // Loose match fallback
                     );
-                    
+
                     if (index >= 0) {
                         updatedTickets[index] = { ...updatedTickets[index], ...newTicketItem };
                     } else {
                         // Use uniqueId fallback check
                         const legacyIndex = parseInt(editingTicket.uniqueId.split('_')[1]);
                         if (!isNaN(legacyIndex) && legacyIndex >= 0 && legacyIndex < updatedTickets.length) {
-                             updatedTickets[legacyIndex] = newTicketItem;
+                            updatedTickets[legacyIndex] = newTicketItem;
                         } else {
-                             updatedTickets.push(newTicketItem);
+                            updatedTickets.push(newTicketItem);
                         }
                     }
                 }
@@ -376,13 +511,13 @@ export default function BillingTicketsPage() {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'updateEstimate', 
-                    payload: { 
-                        id: selectedEstimateId, 
+                body: JSON.stringify({
+                    action: 'updateEstimate',
+                    payload: {
+                        id: selectedEstimateId,
                         billingTickets: updatedTickets,
                         updatedBy: user?.email
-                    } 
+                    }
                 })
             });
 
@@ -390,7 +525,7 @@ export default function BillingTicketsPage() {
             if (result.success) {
                 toast.success(editingTicket ? 'Billing Ticket updated' : 'Billing Ticket added');
                 setIsModalOpen(false);
-                fetchEstimates(); 
+                fetchEstimates();
             } else {
                 toast.error('Failed to save ticket');
             }
@@ -410,19 +545,19 @@ export default function BillingTicketsPage() {
             if (!targetEstimate) return;
 
             let updatedTickets = [...(targetEstimate.billingTickets || [])];
-           
+
             // Logic to find and remove
-            const index = updatedTickets.findIndex(t => 
-                (t._id && t._id === ticketToDelete._id) || 
-                (ticketToDelete.uniqueId && ticketToDelete.uniqueId.includes('_') && 
-                 parseInt(ticketToDelete.uniqueId.split('_')[1]) < updatedTickets.length && 
-                 JSON.stringify(updatedTickets[parseInt(ticketToDelete.uniqueId.split('_')[1])]) === JSON.stringify(ticketToDelete)) // messy fallback for legacy
+            const index = updatedTickets.findIndex(t =>
+                (t._id && t._id === ticketToDelete._id) ||
+                (ticketToDelete.uniqueId && ticketToDelete.uniqueId.includes('_') &&
+                    parseInt(ticketToDelete.uniqueId.split('_')[1]) < updatedTickets.length &&
+                    JSON.stringify(updatedTickets[parseInt(ticketToDelete.uniqueId.split('_')[1])]) === JSON.stringify(ticketToDelete)) // messy fallback for legacy
             );
 
             // Simple index fallback
             if (index === -1) {
-                 const simpleIndex = parseInt(ticketToDelete.uniqueId.split('_')[1]);
-                 if (!isNaN(simpleIndex)) updatedTickets.splice(simpleIndex, 1);
+                const simpleIndex = parseInt(ticketToDelete.uniqueId.split('_')[1]);
+                if (!isNaN(simpleIndex)) updatedTickets.splice(simpleIndex, 1);
             } else {
                 updatedTickets.splice(index, 1);
             }
@@ -430,13 +565,13 @@ export default function BillingTicketsPage() {
             const res = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'updateEstimate', 
-                    payload: { 
-                        id: ticketToDelete.estimateId, 
+                body: JSON.stringify({
+                    action: 'updateEstimate',
+                    payload: {
+                        id: ticketToDelete.estimateId,
                         billingTickets: updatedTickets,
                         updatedBy: user?.email
-                    } 
+                    }
                 })
             });
 
@@ -458,7 +593,7 @@ export default function BillingTicketsPage() {
     // Filter estimates for dropdown - Deduplicated by Estimate Number
     const filteredEstimates = useMemo(() => {
         const uniqueEstimatesMap: Record<string, Estimate> = {};
-        
+
         estimates.forEach(est => {
             const num = est.estimate;
             if (!num) return;
@@ -470,7 +605,7 @@ export default function BillingTicketsPage() {
         let res = Object.values(uniqueEstimatesMap);
 
         if (estimateSearch) {
-            res = res.filter(e => 
+            res = res.filter(e =>
                 (e.estimate || '').toLowerCase().includes(estimateSearch.toLowerCase()) ||
                 (e.projectName || '').toLowerCase().includes(estimateSearch.toLowerCase())
             );
@@ -487,13 +622,13 @@ export default function BillingTicketsPage() {
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
-            <Header 
+            <Header
                 rightContent={
                     <div className="flex items-center gap-2 sm:gap-3 flex-1 justify-end">
                         <div className="relative flex-1 max-w-[200px] sm:max-w-[264px]">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input 
-                                placeholder="Search tickets..." 
+                            <input
+                                placeholder="Search tickets..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-full text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -501,7 +636,7 @@ export default function BillingTicketsPage() {
                         </div>
                         {canCreate && (
                             <div className="hidden lg:block">
-                                <Button 
+                                <Button
                                     onClick={handleAddNew}
                                     className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white w-8 h-8 p-0 rounded-full flex items-center justify-center"
                                 >
@@ -556,14 +691,24 @@ export default function BillingTicketsPage() {
 
                                             <div className="flex items-center justify-between mt-3">
                                                 <div className="text-xs text-slate-500">
-                                                    {(ticket.billingTerms === 'Other' || !ticket.billingTerms) 
-                                                        ? (ticket.otherBillingTerms || ticket.billingTerms || '-') 
+                                                    {(ticket.billingTerms === 'Other' || !ticket.billingTerms)
+                                                        ? (ticket.otherBillingTerms || ticket.billingTerms || '-')
                                                         : ticket.billingTerms}
                                                 </div>
                                                 <span className="font-mono text-sm font-bold text-slate-800">
                                                     {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
                                                 </span>
                                             </div>
+
+                                            {/* Sent Date Badge */}
+                                            {ticket.sentDate && (
+                                                <div className="mt-2">
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                                        <Check size={10} />
+                                                        Sent {format(new Date(ticket.sentDate), 'MMM dd, yyyy')}
+                                                    </span>
+                                                </div>
+                                            )}
 
                                             <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
                                                 <div className="flex items-center gap-2">
@@ -609,6 +754,9 @@ export default function BillingTicketsPage() {
                                             <TableHeader className="w-[120px]">Term</TableHeader>
                                             <TableHeader className="min-w-[150px]">Lump Sum</TableHeader>
                                             <TableHeader className="w-[120px]">Created By</TableHeader>
+                                            <TableHeader className="w-[130px] cursor-pointer hover:bg-slate-100" onClick={() => handleSort('sentDate')}>
+                                                <div className="flex items-center gap-1">Sent Date <ArrowUpDown size={12} className="opacity-50" /></div>
+                                            </TableHeader>
                                             <TableHeader className="min-w-[100px] text-center">Docs</TableHeader>
                                             <TableHeader className="w-[80px] text-right">Actions</TableHeader>
                                         </TableRow>
@@ -616,130 +764,165 @@ export default function BillingTicketsPage() {
                                     <TableBody>
                                         {filteredTickets.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={8} className="h-48 text-center text-slate-500">
+                                                <TableCell colSpan={9} className="h-48 text-center text-slate-500">
                                                     No billing tickets found.
                                                 </TableCell>
                                             </TableRow>
                                         ) : filteredTickets.map((ticket) => {
                                             const creator = employees.find(e => e.email === ticket.createdBy || e._id === ticket.createdBy);
                                             return (
-                                            <TableRow key={ticket.uniqueId} className="group hover:bg-slate-50 transition-colors">
-                                                <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
-                                                    {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {can(MODULES.ESTIMATES, ACTIONS.VIEW) ? (
-                                                        <span 
-                                                            className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
-                                                            onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
-                                                        >
-                                                            {ticket.estimateNumber || 'N/A'}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="font-semibold text-slate-700 text-xs">
-                                                            {ticket.estimateNumber || 'N/A'}
-                                                        </span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={ticket.projectName}>
-                                                    {ticket.projectName || '-'}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-slate-700">
-                                                    {(ticket.billingTerms === 'Other' || !ticket.billingTerms) 
-                                                        ? (ticket.otherBillingTerms || ticket.billingTerms || '-') 
-                                                        : ticket.billingTerms}
-                                                </TableCell>
-                                                <TableCell className="font-mono text-xs text-slate-700 font-bold">
-                                                     {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        <Tooltip>
-                                                            <TooltipTrigger>
-                                                                {creator?.image || creator?.profilePicture ? (
-                                                                    <img src={creator.image || creator.profilePicture} className="w-6 h-6 rounded-full object-cover border border-slate-200" />
-                                                                ) : (
-                                                                    <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
-                                                                        <User className="w-3 h-3 text-slate-400" />
-                                                                    </div>
-                                                                )}
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>{creator?.label || creator?.firstName ? `${creator.firstName} ${creator.lastName || ''}` : (ticket.createdBy || 'Unknown User')}</p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                        <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{creator?.label || creator?.firstName || ticket.createdBy || '-'}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex items-center justify-center gap-2">
-                                                        <Button 
-                                                            variant="ghost" 
-                                                            size="icon" 
-                                                            className="h-7 w-7 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full" 
-                                                            onClick={() => handleDownloadPdf(ticket)} 
-                                                            title="Generate & Download PDF"
-                                                        >
-                                                            <Download size={14} />
-                                                        </Button>
-                                                        {(!ticket.uploads || ticket.uploads.length === 0) ? null : ticket.uploads.length === 1 ? (
-                                                            <a 
-                                                                href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url} 
-                                                                target="_blank" 
-                                                                rel="noreferrer"
-                                                                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                                <TableRow key={ticket.uniqueId} className="group hover:bg-slate-50 transition-colors">
+                                                    <TableCell className="font-medium text-slate-700 text-xs whitespace-nowrap">
+                                                        {ticket.date && !isNaN(new Date(ticket.date).getTime()) ? format(new Date(ticket.date), 'MMM dd, yyyy') : '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {can(MODULES.ESTIMATES, ACTIONS.VIEW) ? (
+                                                            <span
+                                                                className="font-semibold text-[#0F4C75] text-xs cursor-pointer hover:underline"
+                                                                onClick={() => router.push(`/estimates/${ticket.estimateNumber}`)}
                                                             >
-                                                                <FileText size={14} />
-                                                            </a>
+                                                                {ticket.estimateNumber || 'N/A'}
+                                                            </span>
                                                         ) : (
-                                                            <Popover>
-                                                                <PopoverTrigger>
-                                                                     <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors relative">
-                                                                        <FileText size={14} />
-                                                                        <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 text-[8px] text-white">
-                                                                            {ticket.uploads.length}
-                                                                        </span>
-                                                                     </div>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent className="w-64 p-2">
-                                                                    <div className="flex flex-col gap-1">
-                                                                        {ticket.uploads.map((file: any, i: number) => {
-                                                                            const url = typeof file === 'string' ? file : file.url;
-                                                                            const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
-                                                                            return (
-                                                                                <a 
-                                                                                    key={i} 
-                                                                                    href={url} 
-                                                                                    target="_blank" 
-                                                                                    rel="noreferrer"
-                                                                                    className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
-                                                                                >
-                                                                                    <Link size={12} className="shrink-0" /> 
-                                                                                    <span className="line-clamp-2">{name}</span>
-                                                                                </a>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                </PopoverContent>
-                                                            </Popover>
+                                                            <span className="font-semibold text-slate-700 text-xs">
+                                                                {ticket.estimateNumber || 'N/A'}
+                                                            </span>
                                                         )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        {canEdit && (
-                                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(ticket)}>
-                                                                <Pencil size={14} />
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-slate-600 max-w-[150px] truncate" title={ticket.projectName}>
+                                                        {ticket.projectName || '-'}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-slate-700">
+                                                        {(ticket.billingTerms === 'Other' || !ticket.billingTerms)
+                                                            ? (ticket.otherBillingTerms || ticket.billingTerms || '-')
+                                                            : ticket.billingTerms}
+                                                    </TableCell>
+                                                    <TableCell className="font-mono text-xs text-slate-700 font-bold">
+                                                        {ticket.lumpSum ? formatCurrency(ticket.lumpSum) : '-'}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-2">
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    {creator?.image || creator?.profilePicture ? (
+                                                                        <img src={creator.image || creator.profilePicture} className="w-6 h-6 rounded-full object-cover border border-slate-200" />
+                                                                    ) : (
+                                                                        <div className="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200">
+                                                                            <User className="w-3 h-3 text-slate-400" />
+                                                                        </div>
+                                                                    )}
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{creator?.label || creator?.firstName ? `${creator.firstName} ${creator.lastName || ''}` : (ticket.createdBy || 'Unknown User')}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                            <span className="text-[10px] text-slate-500 truncate max-w-[80px]">{creator?.label || creator?.firstName || ticket.createdBy || '-'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {ticket.sentDate ? (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100">
+                                                                    <Check size={10} className="text-emerald-500" />
+                                                                    {format(new Date(ticket.sentDate), 'MMM dd, yyyy')}
+                                                                </span>
+                                                                <button
+                                                                    onClick={(e) => { e.stopPropagation(); handleClearSentDate(ticket); }}
+                                                                    className="w-5 h-5 rounded-full bg-slate-100 hover:bg-red-100 flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors"
+                                                                    title="Clear sent date"
+                                                                >
+                                                                    <X size={10} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <button
+                                                                        onClick={(e) => { e.stopPropagation(); handleOpenSentDateDialog(ticket); }}
+                                                                        disabled={markingSent === ticket.uniqueId}
+                                                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium text-slate-500 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 border border-slate-200 hover:border-blue-200 transition-all disabled:opacity-50"
+                                                                    >
+                                                                        {markingSent === ticket.uniqueId ? (
+                                                                            <Loader2 size={10} className="animate-spin" />
+                                                                        ) : (
+                                                                            <Send size={10} />
+                                                                        )}
+                                                                        Mark Sent
+                                                                    </button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Mark this billing ticket as sent today</TooltipContent>
+                                                            </Tooltip>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-7 w-7 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-full"
+                                                                onClick={() => handleDownloadPdf(ticket)}
+                                                                title="Generate & Download PDF"
+                                                            >
+                                                                <Download size={14} />
                                                             </Button>
-                                                        )}
-                                                        {canDelete && (
-                                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setTicketToDelete(ticket); setIsDeleteOpen(true); }}>
-                                                                <Trash2 size={14} />
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
+                                                            {(!ticket.uploads || ticket.uploads.length === 0) ? null : ticket.uploads.length === 1 ? (
+                                                                <a
+                                                                    href={typeof ticket.uploads[0] === 'string' ? ticket.uploads[0] : ticket.uploads[0].url}
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                    className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                                                                >
+                                                                    <FileText size={14} />
+                                                                </a>
+                                                            ) : (
+                                                                <Popover>
+                                                                    <PopoverTrigger>
+                                                                        <div className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-100 text-slate-600 cursor-pointer hover:bg-slate-200 transition-colors relative">
+                                                                            <FileText size={14} />
+                                                                            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-500 text-[8px] text-white">
+                                                                                {ticket.uploads.length}
+                                                                            </span>
+                                                                        </div>
+                                                                    </PopoverTrigger>
+                                                                    <PopoverContent className="w-64 p-2">
+                                                                        <div className="flex flex-col gap-1">
+                                                                            {ticket.uploads.map((file: any, i: number) => {
+                                                                                const url = typeof file === 'string' ? file : file.url;
+                                                                                const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
+                                                                                return (
+                                                                                    <a
+                                                                                        key={i}
+                                                                                        href={url}
+                                                                                        target="_blank"
+                                                                                        rel="noreferrer"
+                                                                                        className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
+                                                                                    >
+                                                                                        <Link size={12} className="shrink-0" />
+                                                                                        <span className="line-clamp-2">{name}</span>
+                                                                                    </a>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </PopoverContent>
+                                                                </Popover>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-right">
+                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {canEdit && (
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-blue-600" onClick={() => handleEdit(ticket)}>
+                                                                    <Pencil size={14} />
+                                                                </Button>
+                                                            )}
+                                                            {canDelete && (
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600" onClick={() => { setTicketToDelete(ticket); setIsDeleteOpen(true); }}>
+                                                                    <Trash2 size={14} />
+                                                                </Button>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
                                             );
                                         })}
                                     </TableBody>
@@ -826,7 +1009,7 @@ export default function BillingTicketsPage() {
                 <div className="col-span-1 md:col-span-2 mb-4">
                     <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Linked Estimate *</Label>
                     <div className="relative mt-1">
-                        <div 
+                        <div
                             className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
                             onClick={() => setIsEstimateDropdownOpen(!isEstimateDropdownOpen)}
                         >
@@ -835,12 +1018,12 @@ export default function BillingTicketsPage() {
                             </span>
                             <ChevronDown size={16} className="text-slate-400" />
                         </div>
-                        
+
                         {isEstimateDropdownOpen && (
                             <div className="absolute top-full left-0 right-0 mt-1 bg-white border rounded-xl shadow-xl z-50 max-h-60 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
                                 <div className="p-2 border-b bg-slate-50">
-                                    <Input 
-                                        placeholder="Search estimates..." 
+                                    <Input
+                                        placeholder="Search estimates..."
                                         autoFocus
                                         value={estimateSearch}
                                         onChange={(e) => setEstimateSearch(e.target.value)}
@@ -849,7 +1032,7 @@ export default function BillingTicketsPage() {
                                 </div>
                                 <div className="overflow-y-auto flex-1 p-1">
                                     {filteredEstimates.map(est => (
-                                        <div 
+                                        <div
                                             key={est._id}
                                             className={cn(
                                                 "px-3 py-2 text-sm rounded-lg cursor-pointer hover:bg-blue-50 hover:text-blue-700 flex items-center justify-between",
@@ -862,7 +1045,7 @@ export default function BillingTicketsPage() {
                                         >
                                             <div className="flex flex-col">
                                                 <span className="font-bold flex items-center gap-2">
-                                                    {est.estimate || 'No #'} 
+                                                    {est.estimate || 'No #'}
                                                 </span>
                                                 <span className="text-xs opacity-70">{est.projectName}</span>
                                             </div>
@@ -876,7 +1059,7 @@ export default function BillingTicketsPage() {
                             </div>
                         )}
                     </div>
-                     {isEstimateDropdownOpen && (
+                    {isEstimateDropdownOpen && (
                         <div className="fixed inset-0 z-40" onClick={() => setIsEstimateDropdownOpen(false)} />
                     )}
                 </div>
@@ -889,13 +1072,47 @@ export default function BillingTicketsPage() {
                         <DialogTitle>Delete Billing Ticket</DialogTitle>
                         <DialogDescription>
                             Are you sure you want to delete this ticket?
-                            <br/>This action cannot be undone.
+                            <br />This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancel</Button>
                         <Button variant="destructive" onClick={handleDelete} disabled={saving}>
                             {saving ? 'Deleting...' : 'Delete'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Sent Date Dialog */}
+            <Dialog open={sentDateDialogOpen} onOpenChange={setSentDateDialogOpen}>
+                <DialogContent className="sm:max-w-[360px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Send size={16} className="text-blue-600" />
+                            Mark as Sent
+                        </DialogTitle>
+                        <DialogDescription>
+                            Set the date this billing ticket was sent.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-3">
+                        <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Sent Date</Label>
+                        <input
+                            type="date"
+                            value={sentDateValue}
+                            onChange={(e) => setSentDateValue(e.target.value)}
+                            className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSentDateDialogOpen(false)}>Cancel</Button>
+                        <Button
+                            onClick={handleConfirmSentDate}
+                            disabled={markingSent !== null}
+                            className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white"
+                        >
+                            {markingSent ? 'Saving...' : 'Confirm'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

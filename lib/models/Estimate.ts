@@ -174,6 +174,7 @@ export interface IEstimate extends Document {
             description: string;
         }>;
         lumpSum?: string;
+        sentDate?: string;
         createdBy?: string;
         createdAt?: Date;
     }>;
@@ -333,7 +334,7 @@ const EstimateSchema = new Schema({
         }]
     }],
     syncedToAppSheet: { type: Boolean, default: false },
-    
+
     // Line Items
     labor: { type: [Object], default: [] },
     equipment: { type: [Object], default: [] },
@@ -408,6 +409,7 @@ const EstimateSchema = new Schema({
             description: { type: String }
         }],
         lumpSum: { type: String },
+        sentDate: { type: String },
         createdBy: { type: String },
         createdAt: { type: Date, default: Date.now }
     }],
