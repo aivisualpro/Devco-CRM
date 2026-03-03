@@ -2094,7 +2094,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             return;
         }
 
-        // Open file in a new tab
+        // For old Cloudinary URLs, proxy through our API for reliable download
+        if (url.includes('res.cloudinary.com')) {
+            const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fileName || 'download')}`;
+            window.open(proxyUrl, '_blank');
+            return;
+        }
+
+        // For R2 and other URLs, open directly in a new tab
         window.open(url, '_blank');
     };
 
