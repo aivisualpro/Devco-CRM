@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { v2 as cloudinary } from 'cloudinary';
+
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 /**
- * Proxy endpoint to download files from external URLs (e.g. old Cloudinary files).
- * This solves CORS and content-disposition issues with old Cloudinary uploads.
+ * Proxy endpoint to download old Cloudinary files.
+ * Uses Cloudinary SDK to generate authenticated signed URLs for reliable access.
  * 
  * Usage: GET /api/proxy-download?url=https://res.cloudinary.com/...&filename=contract.pdf
  */
@@ -17,64 +25,57 @@ export async function GET(request: NextRequest) {
         }
 
         // Only allow Cloudinary URLs for security
-        const allowedDomains = ['res.cloudinary.com'];
-        const urlObj = new URL(url);
-
-        if (!allowedDomains.some(domain => urlObj.hostname === domain || urlObj.hostname.endsWith(`.${domain}`))) {
+        if (!url.includes('res.cloudinary.com')) {
             return NextResponse.json({ error: 'URL domain not allowed' }, { status: 403 });
         }
 
-        // For Cloudinary PDFs that were uploaded as image type, we need to use fl_attachment
-        // to force download, or fetch the raw bytes via the API
-        let fetchUrl = url;
+        // Extract public_id and resource_type from the Cloudinary URL
+        // URL format: https://res.cloudinary.com/{cloud}/[resource_type]/upload/[v123456789/][transformations/]public_id.ext
+        const { publicId, resourceType } = parseCloudinaryUrl(url);
 
-        // If it's a Cloudinary image/upload URL for a PDF, modify to force raw delivery
-        if (url.includes('res.cloudinary.com') && url.includes('/image/upload/') && url.toLowerCase().endsWith('.pdf')) {
-            // Replace /image/upload/ with /raw/upload/ for direct PDF access
-            // Also remove any transformation parameters that might be in the URL
-            fetchUrl = url.replace('/image/upload/', '/raw/upload/');
+        if (!publicId) {
+            return NextResponse.json({ error: 'Could not parse Cloudinary URL' }, { status: 400 });
         }
 
-        // Fetch the file from the external URL
-        const response = await fetch(fetchUrl, {
-            headers: {
-                'User-Agent': 'DevCo-CRM-Server/1.0',
-            },
+        // Strategy: Try multiple approaches to fetch the file
+
+        // Approach 1: Generate a signed URL with fl_attachment for direct download
+        const signedUrl = cloudinary.url(publicId, {
+            resource_type: resourceType,
+            type: 'upload',
+            sign_url: true,
+            flags: 'attachment',
+            secure: true,
         });
 
+        let response = await fetch(signedUrl);
+
+        // Approach 2: Try with 'raw' resource type if image didn't work
+        if (!response.ok && resourceType === 'image') {
+            const rawSignedUrl = cloudinary.url(publicId, {
+                resource_type: 'raw',
+                type: 'upload',
+                sign_url: true,
+                secure: true,
+            });
+            response = await fetch(rawSignedUrl);
+        }
+
+        // Approach 3: Try fetching the original URL with fl_attachment injected
         if (!response.ok) {
-            // If raw URL failed, try the original URL as fallback
-            if (fetchUrl !== url) {
-                const fallbackResponse = await fetch(url, {
-                    headers: {
-                        'User-Agent': 'DevCo-CRM-Server/1.0',
-                    },
-                });
+            const attachmentUrl = injectFlAttachment(url);
+            response = await fetch(attachmentUrl);
+        }
 
-                if (!fallbackResponse.ok) {
-                    return NextResponse.json(
-                        { error: `Failed to fetch file: ${fallbackResponse.status} ${fallbackResponse.statusText}` },
-                        { status: fallbackResponse.status }
-                    );
-                }
+        // Approach 4: Try the original URL directly as last resort
+        if (!response.ok) {
+            response = await fetch(url);
+        }
 
-                const fallbackBuffer = await fallbackResponse.arrayBuffer();
-                const fallbackContentType = fallbackResponse.headers.get('content-type') || 'application/octet-stream';
-
-                return new NextResponse(fallbackBuffer, {
-                    status: 200,
-                    headers: {
-                        'Content-Type': fallbackContentType,
-                        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-                        'Content-Length': fallbackBuffer.byteLength.toString(),
-                        'Cache-Control': 'public, max-age=86400',
-                    },
-                });
-            }
-
+        if (!response.ok) {
             return NextResponse.json(
-                { error: `Failed to fetch file: ${response.status} ${response.statusText}` },
-                { status: response.status }
+                { error: `Failed to fetch file from Cloudinary: ${response.status}` },
+                { status: 502 }
             );
         }
 
@@ -105,4 +106,69 @@ export async function GET(request: NextRequest) {
             { status: 500 }
         );
     }
+}
+
+/**
+ * Parse a Cloudinary URL to extract the public_id and resource_type.
+ * Handles URLs like:
+ *   https://res.cloudinary.com/doqijlrhv/image/upload/v1770396289/signed_contracts/contract_xxx.pdf
+ *   https://res.cloudinary.com/doqijlrhv/raw/upload/v123/folder/file.pdf
+ */
+function parseCloudinaryUrl(url: string): { publicId: string; resourceType: string } {
+    try {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/');
+
+        // Find the resource_type (image, video, raw) and 'upload' keyword
+        let resourceType = 'image';
+        let uploadIndex = -1;
+
+        for (let i = 0; i < pathParts.length; i++) {
+            if (pathParts[i] === 'upload') {
+                uploadIndex = i;
+                // Resource type is the part before 'upload'
+                if (i > 0 && ['image', 'video', 'raw'].includes(pathParts[i - 1])) {
+                    resourceType = pathParts[i - 1];
+                }
+                break;
+            }
+        }
+
+        if (uploadIndex === -1) {
+            return { publicId: '', resourceType: 'image' };
+        }
+
+        // Everything after 'upload' – skip version (v123456789) if present
+        let remainingParts = pathParts.slice(uploadIndex + 1);
+
+        // Skip version string (starts with 'v' followed by digits)
+        if (remainingParts.length > 0 && /^v\d+$/.test(remainingParts[0])) {
+            remainingParts = remainingParts.slice(1);
+        }
+
+        // Join remaining parts to get the public_id (with folder path)
+        let publicId = remainingParts.join('/');
+
+        // Remove file extension for the public_id
+        const lastDotIndex = publicId.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            publicId = publicId.substring(0, lastDotIndex);
+        }
+
+        return { publicId, resourceType };
+    } catch {
+        return { publicId: '', resourceType: 'image' };
+    }
+}
+
+/**
+ * Inject fl_attachment flag into a Cloudinary URL for forced download.
+ * Inserts it right after /upload/ in the URL path.
+ */
+function injectFlAttachment(url: string): string {
+    // Insert fl_attachment after /upload/ (before version or public_id)
+    return url.replace(
+        /\/(image|video|raw)\/upload\//,
+        '/$1/upload/fl_attachment/'
+    );
 }
