@@ -6,7 +6,7 @@ import {
     Plus, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown,
     MoreVertical, Pencil, Trash2, Calendar, FileText,
     Receipt, DollarSign, CheckCircle, XCircle, Tag,
-    Link, Upload, Loader2, ChevronDown, Check, User
+    Link, Upload, Loader2, ChevronDown, Check, User, Download
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -111,6 +111,23 @@ export default function ReceiptsCostsPage() {
     };
 
     const [tagInput, setTagInput] = useState('');
+
+    const handleFileDownload = (url: string, fileName: string) => {
+        if (!url) {
+            toast.error('File URL is not available');
+            return;
+        }
+
+        // For old Cloudinary URLs, proxy through our API for reliable download
+        if (url.includes('res.cloudinary.com')) {
+            const proxyUrl = `/api/proxy-download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fileName || 'download')}`;
+            window.open(proxyUrl, '_blank');
+            return;
+        }
+
+        // For R2 and other URLs, open directly in a new tab
+        window.open(url, '_blank');
+    };
 
     const fetchEstimates = async () => {
         setLoading(true);
@@ -747,15 +764,18 @@ export default function ReceiptsCostsPage() {
                                                         {(!receipt.upload || receipt.upload.length === 0) ? (
                                                             <span className="text-slate-300 text-xs">-</span>
                                                         ) : receipt.upload.length === 1 ? (
-                                                            <a
-                                                                href={typeof receipt.upload[0] === 'string' ? receipt.upload[0] : receipt.upload[0].url}
-                                                                target="_blank"
-                                                                rel="noreferrer"
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    const url = typeof receipt.upload![0] === 'string' ? receipt.upload![0] : receipt.upload![0].url;
+                                                                    const name = typeof receipt.upload![0] === 'string' ? 'Document' : receipt.upload![0].name;
+                                                                    handleFileDownload(url, name);
+                                                                }}
                                                                 className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                                                                title={typeof receipt.upload[0] === 'string' ? 'Document' : receipt.upload[0].name}
+                                                                title={typeof receipt.upload[0] === 'string' ? 'Download Document' : `Download ${receipt.upload[0].name}`}
                                                             >
-                                                                <FileText size={16} />
-                                                            </a>
+                                                                <Download size={16} />
+                                                            </button>
                                                         ) : (
                                                             <Popover>
                                                                 <PopoverTrigger>
@@ -772,16 +792,17 @@ export default function ReceiptsCostsPage() {
                                                                             const url = typeof file === 'string' ? file : file.url;
                                                                             const name = typeof file === 'string' ? `Document ${i + 1}` : file.name;
                                                                             return (
-                                                                                <a
+                                                                                <button
                                                                                     key={i}
-                                                                                    href={url}
-                                                                                    target="_blank"
-                                                                                    rel="noreferrer"
-                                                                                    className="text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all"
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        handleFileDownload(url, name);
+                                                                                    }}
+                                                                                    className="w-full text-xs p-2 hover:bg-slate-50 rounded flex items-center gap-2 text-blue-600 break-all text-left"
                                                                                 >
-                                                                                    <Link size={12} className="shrink-0" />
+                                                                                    <Download size={12} className="shrink-0" />
                                                                                     <span className="line-clamp-2">{name}</span>
-                                                                                </a>
+                                                                                </button>
                                                                             );
                                                                         })}
                                                                     </div>
