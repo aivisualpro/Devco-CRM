@@ -66,8 +66,10 @@ interface Estimate {
     _id: string;
     estimate: string;
     projectName?: string;
-    jobLocation?: string;
+    jobAddress?: string;
     versionNumber?: number;
+    customer?: string;
+    customerName?: string;
 }
 
 interface VehicleDoc {
@@ -125,6 +127,7 @@ export default function EquipmentInspectionPage() {
 
     // Dropdown states
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<string>('');
 
     // Form data
     const [formData, setFormData] = useState({
@@ -205,6 +208,22 @@ export default function EquipmentInspectionPage() {
         return Array.from(map.values()).sort((a, b) => (a.estimate || '').localeCompare(b.estimate || ''));
     }, [estimates]);
 
+    // Get unique customers from estimates
+    const uniqueCustomers = useMemo(() => {
+        const set = new Set<string>();
+        for (const e of uniqueEstimates) {
+            const name = e.customerName || e.customer;
+            if (name) set.add(name);
+        }
+        return Array.from(set).sort((a, b) => a.localeCompare(b));
+    }, [uniqueEstimates]);
+
+    // Filter estimates by selected customer
+    const customerFilteredEstimates = useMemo(() => {
+        if (!selectedCustomer) return uniqueEstimates;
+        return uniqueEstimates.filter(e => (e.customerName || e.customer) === selectedCustomer);
+    }, [uniqueEstimates, selectedCustomer]);
+
     // Equipment options from vehicles
     const equipmentOptions = useMemo(() => {
         return vehicles.map(v => ({
@@ -253,12 +272,24 @@ export default function EquipmentInspectionPage() {
 
     // Estimate selection handler
     const handleEstimateSelect = (estNum: string) => {
-        const est = uniqueEstimates.find(e => e.estimate === estNum);
+        const est = customerFilteredEstimates.find(e => e.estimate === estNum) || uniqueEstimates.find(e => e.estimate === estNum);
         setFormData(prev => ({
             ...prev,
             estimate: estNum,
             projectName: est?.projectName || '',
-            jobLocation: est?.jobLocation || ''
+            jobLocation: est?.jobAddress || ''
+        }));
+        setOpenDropdownId(null);
+    };
+
+    const handleCustomerSelect = (custName: string) => {
+        setSelectedCustomer(custName);
+        // Reset estimate fields when customer changes
+        setFormData(prev => ({
+            ...prev,
+            estimate: '',
+            projectName: '',
+            jobLocation: ''
         }));
         setOpenDropdownId(null);
     };
@@ -840,7 +871,7 @@ export default function EquipmentInspectionPage() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
                         {/* Date */}
                         <div>
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date *</Label>
@@ -914,58 +945,91 @@ export default function EquipmentInspectionPage() {
                             </div>
                         </div>
 
-                        {/* Estimate */}
-                        <div className="relative">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimate</Label>
-                            <div className="mt-1">
-                                <div
-                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                    onClick={() => setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate')}
-                                >
-                                    <span className={`text-sm truncate ${formData.estimate ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                        {formData.estimate || 'Select estimate...'}
-                                    </span>
-                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
+                        {/* Customer, Estimate, Project Name, Job Location — only for Project Specific */}
+                        {formData.type !== 'General Maintenance' && (
+                            <>
+                                {/* Customer */}
+                                <div className="relative">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Customer</Label>
+                                    <div className="mt-1">
+                                        <div
+                                            className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                            onClick={() => setOpenDropdownId(openDropdownId === 'customer' ? null : 'customer')}
+                                        >
+                                            <span className={`text-sm truncate ${selectedCustomer ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                                {selectedCustomer || 'Select customer...'}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'customer' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'customer' && (
+                                            <MyDropDown
+                                                isOpen={true}
+                                                onClose={() => setOpenDropdownId(null)}
+                                                options={uniqueCustomers.map(c => ({ id: c, label: c, value: c }))}
+                                                selectedValues={selectedCustomer ? [selectedCustomer] : []}
+                                                onSelect={handleCustomerSelect}
+                                                placeholder="Search customers..."
+                                                width="w-full"
+                                                modal={false}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
-                                {openDropdownId === 'estimate' && (
-                                    <MyDropDown
-                                        isOpen={true}
-                                        onClose={() => setOpenDropdownId(null)}
-                                        options={uniqueEstimates.map(e => ({ id: e.estimate, label: `${e.estimate} — ${e.projectName || ''}`, value: e.estimate }))}
-                                        selectedValues={formData.estimate ? [formData.estimate] : []}
-                                        onSelect={handleEstimateSelect}
-                                        placeholder="Search estimates..."
-                                        width="w-full"
-                                        modal={false}
+
+                                {/* Estimate */}
+                                <div className="relative">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Estimate</Label>
+                                    <div className="mt-1">
+                                        <div
+                                            className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                            onClick={() => setOpenDropdownId(openDropdownId === 'estimate' ? null : 'estimate')}
+                                        >
+                                            <span className={`text-sm truncate ${formData.estimate ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                                {formData.estimate || 'Select estimate...'}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'estimate' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'estimate' && (
+                                            <MyDropDown
+                                                isOpen={true}
+                                                onClose={() => setOpenDropdownId(null)}
+                                                options={customerFilteredEstimates.map(e => ({ id: e.estimate, label: e.estimate, value: e.estimate }))}
+                                                selectedValues={formData.estimate ? [formData.estimate] : []}
+                                                onSelect={handleEstimateSelect}
+                                                placeholder="Search estimates..."
+                                                width="w-full"
+                                                modal={false}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Project Name (auto-filled) */}
+                                <div>
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Project Name</Label>
+                                    <Input
+                                        value={formData.projectName}
+                                        onChange={e => setFormData(prev => ({ ...prev, projectName: e.target.value }))}
+                                        className="h-9 text-sm mt-1 bg-slate-50"
+                                        placeholder="Auto-filled from estimate"
                                     />
-                                )}
-                            </div>
-                        </div>
+                                </div>
 
-                        {/* Project Name (auto-filled) */}
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Project Name</Label>
-                            <Input
-                                value={formData.projectName}
-                                onChange={e => setFormData(prev => ({ ...prev, projectName: e.target.value }))}
-                                className="h-9 text-sm mt-1 bg-slate-50"
-                                placeholder="Auto-filled from estimate"
-                            />
-                        </div>
-
-                        {/* Job Location (auto-filled) */}
-                        <div>
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Location</Label>
-                            <Input
-                                value={formData.jobLocation}
-                                onChange={e => setFormData(prev => ({ ...prev, jobLocation: e.target.value }))}
-                                className="h-9 text-sm mt-1 bg-slate-50"
-                                placeholder="Auto-filled from estimate"
-                            />
-                        </div>
+                                {/* Job Location (auto-filled) */}
+                                <div>
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Location</Label>
+                                    <Input
+                                        value={formData.jobLocation}
+                                        onChange={e => setFormData(prev => ({ ...prev, jobLocation: e.target.value }))}
+                                        className="h-9 text-sm mt-1 bg-slate-50"
+                                        placeholder="Auto-filled from estimate"
+                                    />
+                                </div>
+                            </>
+                        )}
 
                         {/* Equipment */}
-                        <div className="relative col-span-2 sm:col-span-3">
+                        <div className="relative sm:col-span-3">
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equipment</Label>
                             <div className="mt-1">
                                 <div
@@ -981,9 +1045,16 @@ export default function EquipmentInspectionPage() {
                                     <MyDropDown
                                         isOpen={true}
                                         onClose={() => setOpenDropdownId(null)}
-                                        options={equipmentOptions}
+                                        options={[
+                                            { id: '__add_new__', label: '+ Add New Equipment', value: '__add_new__' },
+                                            ...equipmentOptions
+                                        ]}
                                         selectedValues={formData.equipment ? [formData.equipment] : []}
                                         onSelect={(val) => {
+                                            if (val === '__add_new__') {
+                                                router.push('/docs/vehicle-equipment');
+                                                return;
+                                            }
                                             setFormData(prev => ({ ...prev, equipment: val }));
                                             setOpenDropdownId(null);
                                         }}
@@ -996,7 +1067,7 @@ export default function EquipmentInspectionPage() {
                         </div>
                     </div>
 
-                    {/* Inspection Items Table */}
+                    {/* Inspection Items */}
                     <div className="mt-6">
                         <div className="flex items-center justify-between mb-3">
                             <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Inspection Items</Label>
@@ -1004,7 +1075,64 @@ export default function EquipmentInspectionPage() {
                                 <Plus size={14} className="mr-1" /> Add Item
                             </Button>
                         </div>
-                        <div className="border rounded-xl overflow-hidden">
+
+                        {/* Mobile Card View for Inspection Items */}
+                        <div className="sm:hidden space-y-3">
+                            {formData.inspectionItems.map((item, idx) => (
+                                <div key={idx} className="bg-white rounded-xl border border-slate-200 p-3 space-y-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <Input
+                                            value={item.name}
+                                            onChange={e => updateInspectionItem(idx, 'name', e.target.value)}
+                                            className="h-8 text-xs font-medium flex-1"
+                                            placeholder="Item name..."
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => removeInspectionItem(idx)}
+                                            className="text-slate-300 hover:text-red-500 transition-colors shrink-0 p-1"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => updateInspectionItem(idx, 'status', item.status === 'ok' ? '' : 'ok')}
+                                            className={cn(
+                                                "flex-1 py-2 rounded-lg text-[11px] font-bold transition-all border text-center",
+                                                item.status === 'ok'
+                                                    ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                                                    : "bg-white text-slate-400 border-slate-200"
+                                            )}
+                                        >
+                                            ✓ OK
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => updateInspectionItem(idx, 'status', item.status === 'needs_attention' ? '' : 'needs_attention')}
+                                            className={cn(
+                                                "flex-1 py-2 rounded-lg text-[11px] font-bold transition-all border text-center",
+                                                item.status === 'needs_attention'
+                                                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                                                    : "bg-white text-slate-400 border-slate-200"
+                                            )}
+                                        >
+                                            ⚠ Attention
+                                        </button>
+                                    </div>
+                                    <Input
+                                        value={item.notes}
+                                        onChange={e => updateInspectionItem(idx, 'notes', e.target.value)}
+                                        className="h-8 text-xs"
+                                        placeholder="Optional notes..."
+                                    />
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Desktop Table View for Inspection Items */}
+                        <div className="hidden sm:block border rounded-xl overflow-hidden">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
