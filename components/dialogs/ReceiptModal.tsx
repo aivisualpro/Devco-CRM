@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-    FileText, Loader2, Paperclip, X, Image as ImageIcon, Check, User, Plus 
+import {
+    FileText, Loader2, Paperclip, X, Image as ImageIcon, Check, User, Plus
 } from 'lucide-react';
 import { Modal, Input, Button, MyDropDown } from '@/components/ui';
 import { format } from 'date-fns';
@@ -56,12 +56,12 @@ interface ReceiptModalProps {
     canApprove?: boolean;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ 
-    isOpen, 
-    onClose, 
-    initialData, 
-    onSave, 
-    employees, 
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({
+    isOpen,
+    onClose,
+    initialData,
+    onSave,
+    employees,
     children,
     currentUserEmail,
     estimateId = 'doc',
@@ -87,7 +87,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
     const [receipt, setReceipt] = useState<ReceiptData>(defaultState);
     const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
     const [isReceiptUploading, setIsReceiptUploading] = useState(false);
-    
+
     // Payment Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [paymentDetails, setPaymentDetails] = useState({
@@ -109,22 +109,33 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
     // Helpers
     const getEmployeeData = (idOrEmail: string) => {
-        return employees.find(e => e._id === idOrEmail || e.email === idOrEmail) || { 
-            _id: idOrEmail, 
-            firstName: idOrEmail, 
+        return employees.find(e => e._id === idOrEmail || e.email === idOrEmail) || {
+            _id: idOrEmail,
+            firstName: idOrEmail,
             lastName: '',
-            image: null 
+            image: null
         }; // Basic fallback
     };
-    
+
     // Mapped options for Dropdown
     const employeeOptions = employees.map(e => ({
         id: e._id,
         label: `${e.firstName} ${e.lastName}`,
-        value: e.email || e._id, 
+        value: e.email || e._id,
         image: e.profilePicture,
         description: e.email
     }));
+
+    // Admin-only employees for "Paid By" dropdown
+    const adminEmployeeOptions = employees
+        .filter(e => e.appRole === 'Admin')
+        .map(e => ({
+            id: e._id,
+            label: `${e.firstName} ${e.lastName}`,
+            value: e.email || e._id,
+            image: e.profilePicture,
+            description: e.email
+        }));
 
     // Handle Upload
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,8 +208,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 footer={
                     <div className="flex gap-3 justify-end w-full">
                         <Button variant="ghost" onClick={onClose}>Cancel</Button>
-                        <Button 
-                            onClick={() => onSave(receipt)} 
+                        <Button
+                            onClick={() => onSave(receipt)}
                             disabled={!receipt.vendor || !receipt.amount}
                         >
                             Save Entry
@@ -214,7 +225,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Type</label>
-                                <select 
+                                <select
                                     value={receipt.type}
                                     onChange={e => setReceipt(prev => ({ ...prev, type: e.target.value as any }))}
                                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -225,7 +236,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Amount ($)</label>
-                                <Input 
+                                <Input
                                     type="number"
                                     placeholder="0.00"
                                     value={receipt.amount}
@@ -236,7 +247,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Vendor</label>
-                            <Input 
+                            <Input
                                 placeholder="Vendor Name"
                                 value={receipt.vendor}
                                 onChange={e => setReceipt(prev => ({ ...prev, vendor: e.target.value }))}
@@ -246,7 +257,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Date</label>
-                                <Input 
+                                <Input
                                     type="date"
                                     value={receipt.date}
                                     onChange={e => setReceipt(prev => ({ ...prev, date: e.target.value }))}
@@ -254,7 +265,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             </div>
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Due Date</label>
-                                <Input 
+                                <Input
                                     type="date"
                                     value={receipt.dueDate}
                                     onChange={e => setReceipt(prev => ({ ...prev, dueDate: e.target.value }))}
@@ -264,7 +275,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Remarks</label>
-                            <textarea 
+                            <textarea
                                 className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none h-20"
                                 placeholder="..."
                                 value={receipt.remarks}
@@ -283,7 +294,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                     <span className="text-slate-400">Tag team members...</span>
                                     <Plus className={`w-4 h-4 transition-transform ${isTagDropdownOpen ? 'rotate-45' : ''}`} />
                                 </button>
-                                <MyDropDown 
+                                <MyDropDown
                                     isOpen={isTagDropdownOpen}
                                     onClose={() => setIsTagDropdownOpen(false)}
                                     anchorId="tag-dropdown-anchor"
@@ -292,7 +303,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                     onSelect={(val: string) => {
                                         setReceipt(prev => ({
                                             ...prev,
-                                            tag: prev.tag.includes(val) 
+                                            tag: prev.tag.includes(val)
                                                 ? prev.tag.filter(t => t !== val)
                                                 : [...prev.tag, val]
                                         }));
@@ -312,9 +323,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                                     {empImage ? <img src={empImage} className="w-full h-full object-cover" /> : <User className="w-3 h-3 text-slate-400" />}
                                                 </div>
                                                 {empName}
-                                                <X 
-                                                    className="w-3 h-3 cursor-pointer hover:text-red-500 transition-colors ml-1" 
-                                                    onClick={() => setReceipt(prev => ({ ...prev, tag: prev.tag.filter(tag => tag !== t) }))} 
+                                                <X
+                                                    className="w-3 h-3 cursor-pointer hover:text-red-500 transition-colors ml-1"
+                                                    onClick={() => setReceipt(prev => ({ ...prev, tag: prev.tag.filter(tag => tag !== t) }))}
                                                 />
                                             </span>
                                         );
@@ -328,9 +339,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Attachments</label>
                             <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 bg-slate-50/50 flex flex-col items-center justify-center gap-3 transition-colors hover:bg-slate-50 hover:border-slate-300 relative h-40">
-                                <input 
-                                    type="file" 
-                                    multiple 
+                                <input
+                                    type="file"
+                                    multiple
                                     onChange={handleFileUpload}
                                     className="absolute inset-0 opacity-0 cursor-pointer"
                                     disabled={isReceiptUploading}
@@ -353,7 +364,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                                 {file.type?.startsWith('image/') ? <ImageIcon className="w-3.5 h-3.5 text-blue-500" /> : <FileText className="w-3.5 h-3.5 text-blue-500" />}
                                                 <span className="text-[10px] font-bold text-slate-600 truncate">{file.name}</span>
                                             </div>
-                                            <button 
+                                            <button
                                                 onClick={() => setReceipt(prev => ({ ...prev, upload: prev.upload.filter((_, i) => i !== idx) }))}
                                                 className="p-1 hover:bg-red-50 text-slate-300 hover:text-red-500 rounded-lg transition-colors"
                                             >
@@ -368,7 +379,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Devco Paid</label>
-                                <div 
+                                <div
                                     onClick={() => {
                                         if (receipt.status === 'Devco Paid') {
                                             setReceipt(prev => ({ ...prev, status: '', paidBy: '', paymentDate: '' }));
@@ -391,7 +402,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                             {canApprove && (
                                 <div className="space-y-1.5">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Approval</label>
-                                    <select 
+                                    <select
                                         value={receipt.approvalStatus}
                                         onChange={e => setReceipt(prev => ({ ...prev, approvalStatus: e.target.value as any }))}
                                         className="w-full bg-[#f8fafc] border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
@@ -448,14 +459,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                                 onClick={() => setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen)}
                                 className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 flex items-center justify-between text-sm font-medium text-slate-700 hover:bg-slate-100 transition-all outline-none"
                             >
-                                <span>{employeeOptions.find(o => o.value === paymentDetails.paidBy)?.label || 'Select Employee...'}</span>
+                                <span>{adminEmployeeOptions.find(o => o.value === paymentDetails.paidBy)?.label || 'Select Employee...'}</span>
                                 <Plus className={`w-4 h-4 transition-transform ${isEmployeeDropdownOpen ? 'rotate-45' : ''}`} />
                             </button>
-                            <MyDropDown 
+                            <MyDropDown
                                 isOpen={isEmployeeDropdownOpen}
                                 onClose={() => setIsEmployeeDropdownOpen(false)}
                                 anchorId="payment-employee-dropdown-anchor"
-                                options={employeeOptions}
+                                options={adminEmployeeOptions}
                                 selectedValues={paymentDetails.paidBy ? [paymentDetails.paidBy] : []}
                                 onSelect={(val: string) => {
                                     setPaymentDetails(prev => ({ ...prev, paidBy: val }));
@@ -468,7 +479,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
                     <div className="space-y-1.5">
                         <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Payment Date</label>
-                        <Input 
+                        <Input
                             type="date"
                             value={paymentDetails.paymentDate}
                             onChange={(e) => setPaymentDetails(prev => ({ ...prev, paymentDate: e.target.value }))}

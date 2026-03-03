@@ -1653,6 +1653,21 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }).sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
     }, [employees]);
 
+    // Admin-only employees for "Paid By" dropdown
+    const adminEmployeeOptions = useMemo(() => {
+        return employees
+            .filter(emp => emp.appRole === 'Admin')
+            .map(emp => {
+                const label = emp.label || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email || emp._id;
+                return {
+                    id: emp._id,
+                    label: label,
+                    value: emp.email || emp._id || emp.value,
+                    profilePicture: emp.image || emp.profilePicture
+                };
+            }).sort((a, b) => String(a.label || '').localeCompare(String(b.label || '')));
+    }, [employees]);
+
     const filteredChatOptions = useMemo(() => {
         const source = employeeOptions;
         if (!mentionQuery) return source.slice(0, 100);
@@ -6647,14 +6662,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                 onClick={() => setIsEmployeeDropdownOpen(!isEmployeeDropdownOpen)}
                                 className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 flex items-center justify-between text-sm font-medium text-slate-700 hover:bg-slate-100 transition-all outline-none"
                             >
-                                <span>{employeeOptions.find(o => o.value === paymentDetails.paidBy)?.label || 'Select Employee...'}</span>
+                                <span>{adminEmployeeOptions.find(o => o.value === paymentDetails.paidBy)?.label || 'Select Employee...'}</span>
                                 <Plus className={`w-4 h-4 transition-transform ${isEmployeeDropdownOpen ? 'rotate-45' : ''}`} />
                             </button>
                             <MyDropDown
                                 isOpen={isEmployeeDropdownOpen}
                                 onClose={() => setIsEmployeeDropdownOpen(false)}
                                 anchorId="employee-dropdown-anchor"
-                                options={employeeOptions}
+                                options={adminEmployeeOptions}
                                 selectedValues={paymentDetails.paidBy ? [paymentDetails.paidBy] : []}
                                 onSelect={(val: string) => {
                                     setPaymentDetails(prev => ({ ...prev, paidBy: val }));
