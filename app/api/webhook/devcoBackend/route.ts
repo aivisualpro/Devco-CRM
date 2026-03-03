@@ -2681,13 +2681,12 @@ export async function POST(request: NextRequest) {
                 const { includeInactive } = payload || {};
                 const empFilter: any = {};
                 if (!includeInactive) empFilter.status = { $ne: 'Inactive' };
-                const employees = await Employee.find(empFilter).sort({ name: 1 }).lean();
-                // Strip passwords from all employees — no one can see anyone else's password in the list
-                const sanitizedEmployees = employees.map((emp: any) => {
-                    const { password, ...rest } = emp;
-                    return rest;
-                });
-                return NextResponse.json({ success: true, result: sanitizedEmployees });
+                const employees = await Employee.find(empFilter)
+                    .select('-signature -documents -drugTestingRecords -trainingCertifications -reportFilters -password')
+                    .sort({ firstName: 1 })
+                    .lean();
+                // password already excluded via .select() above
+                return NextResponse.json({ success: true, result: employees });
             }
 
             case 'getEmployeeById': {
