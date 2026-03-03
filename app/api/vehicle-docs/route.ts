@@ -83,12 +83,12 @@ export async function POST(request: NextRequest) {
     try {
         await connectToDatabase();
         const body = await request.json();
-        const { unit, unitNumber, vinSerialNumber, equipmentType, documents } = body;
+        const { unit, unitNumber, vinSerialNumber, equipmentType, documents = [] } = body;
 
-        // documents should be an array of { url, r2Key, fileName, type, uploadedBy }
+        // documents is optional - array of { url, r2Key, fileName, type, uploadedBy }
 
-        if (!unit || !unitNumber || !vinSerialNumber || !documents || !Array.isArray(documents)) {
-            return NextResponse.json({ success: false, error: 'All fields are required' }, { status: 400 });
+        if (!unit || !unitNumber || !vinSerialNumber) {
+            return NextResponse.json({ success: false, error: 'Unit, Unit Number, and VIN/Serial are required' }, { status: 400 });
         }
 
         // Check if vehicle entry exists

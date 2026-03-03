@@ -77,6 +77,7 @@ interface VehicleDoc {
     unit: string;
     unitNumber: string;
     vinSerialNumber: string;
+    equipmentType?: 'Devco' | 'Rental';
 }
 
 interface Employee {
@@ -242,6 +243,12 @@ export default function EquipmentInspectionPage() {
             value: `${v.unit} - ${v.unitNumber}`
         }));
     }, [vehicles]);
+
+    // Look up the selected vehicle details for auto-fill fields
+    const selectedVehicleInfo = useMemo(() => {
+        if (!formData.equipment) return null;
+        return vehicles.find(v => `${v.unit} - ${v.unitNumber}` === formData.equipment) || null;
+    }, [formData.equipment, vehicles]);
 
     const getEmployeeByEmail = (email: string) => {
         if (!email) return null;
@@ -1083,43 +1090,92 @@ export default function EquipmentInspectionPage() {
                             </>
                         )}
 
-                        {/* Equipment */}
-                        <div className="relative sm:col-span-3">
-                            <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equipment</Label>
-                            <div className="mt-1">
-                                <div
-                                    className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
-                                    onClick={() => setOpenDropdownId(openDropdownId === 'equipment' ? null : 'equipment')}
-                                >
-                                    <span className={`text-sm truncate ${formData.equipment ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
-                                        {formData.equipment || 'Select equipment...'}
-                                    </span>
-                                    <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'equipment' ? 'rotate-180' : ''}`} />
+                        {/* Equipment Row */}
+                        <div className="sm:col-span-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                                {/* Equipment Dropdown */}
+                                <div className="relative">
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Equipment</Label>
+                                    <div className="mt-1">
+                                        <div
+                                            className="w-full flex items-center justify-between px-3 py-2 border rounded-xl cursor-pointer bg-white hover:border-slate-400 transition-colors"
+                                            onClick={() => setOpenDropdownId(openDropdownId === 'equipment' ? null : 'equipment')}
+                                        >
+                                            <span className={`text-sm truncate ${formData.equipment ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                                                {formData.equipment || 'Select equipment...'}
+                                            </span>
+                                            <ChevronDown size={16} className={`text-slate-400 shrink-0 transition-transform ${openDropdownId === 'equipment' ? 'rotate-180' : ''}`} />
+                                        </div>
+                                        {openDropdownId === 'equipment' && (
+                                            <MyDropDown
+                                                isOpen={true}
+                                                onClose={() => setOpenDropdownId(null)}
+                                                options={[
+                                                    { id: '__add_new__', label: '+ Add New Equipment', value: '__add_new__' },
+                                                    ...equipmentOptions
+                                                ]}
+                                                selectedValues={formData.equipment ? [formData.equipment] : []}
+                                                onSelect={(val) => {
+                                                    if (val === '__add_new__') {
+                                                        setOpenDropdownId(null);
+                                                        setShowAddEquipment(true);
+                                                        return;
+                                                    }
+                                                    setFormData(prev => ({ ...prev, equipment: val }));
+                                                    setOpenDropdownId(null);
+                                                }}
+                                                placeholder="Search equipment..."
+                                                width="w-full"
+                                                modal={false}
+                                                hideAvatar={true}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
-                                {openDropdownId === 'equipment' && (
-                                    <MyDropDown
-                                        isOpen={true}
-                                        onClose={() => setOpenDropdownId(null)}
-                                        options={[
-                                            { id: '__add_new__', label: '+ Add New Equipment', value: '__add_new__' },
-                                            ...equipmentOptions
-                                        ]}
-                                        selectedValues={formData.equipment ? [formData.equipment] : []}
-                                        onSelect={(val) => {
-                                            if (val === '__add_new__') {
-                                                setOpenDropdownId(null);
-                                                setShowAddEquipment(true);
-                                                return;
-                                            }
-                                            setFormData(prev => ({ ...prev, equipment: val }));
-                                            setOpenDropdownId(null);
-                                        }}
-                                        placeholder="Search equipment..."
-                                        width="w-full"
-                                        modal={false}
-                                        hideAvatar={true}
+
+                                {/* Unit (Auto) */}
+                                <div>
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit</Label>
+                                    <Input
+                                        value={selectedVehicleInfo?.unit || ''}
+                                        readOnly
+                                        className="h-9 text-sm mt-1 bg-slate-50 cursor-default"
+                                        placeholder="Auto"
                                     />
-                                )}
+                                </div>
+
+                                {/* Unit Number (Auto) */}
+                                <div>
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit Number</Label>
+                                    <Input
+                                        value={selectedVehicleInfo?.unitNumber || ''}
+                                        readOnly
+                                        className="h-9 text-sm mt-1 bg-slate-50 cursor-default"
+                                        placeholder="Auto"
+                                    />
+                                </div>
+
+                                {/* Type (Auto) */}
+                                <div>
+                                    <Label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Type</Label>
+                                    <div className="mt-1">
+                                        {selectedVehicleInfo ? (
+                                            <div className={`h-9 flex items-center px-3 rounded-xl border text-sm font-medium ${(selectedVehicleInfo.equipmentType || 'Devco') === 'Devco'
+                                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                }`}>
+                                                {selectedVehicleInfo.equipmentType || 'Devco'}
+                                            </div>
+                                        ) : (
+                                            <Input
+                                                value=""
+                                                readOnly
+                                                className="h-9 text-sm bg-slate-50 cursor-default"
+                                                placeholder="Auto"
+                                            />
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Inline Add Equipment Form */}

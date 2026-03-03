@@ -61,7 +61,7 @@ export default function VehicleEquipmentDocsPage() {
 
     const handleSaveDoc = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!docForm.files || !docForm.unit || !docForm.unitNumber || !docForm.vinSerialNumber) {
+        if (!docForm.unit || !docForm.unitNumber || !docForm.vinSerialNumber) {
             showError('Please provide all required fields');
             return;
         }
@@ -70,30 +70,32 @@ export default function VehicleEquipmentDocsPage() {
         try {
             const uploadedDocs = [];
 
-            // Upload all files to R2
-            for (let i = 0; i < docForm.files.length; i++) {
-                const file = docForm.files[i];
-                const formData = new FormData();
-                formData.append('file', file);
-                formData.append('folder', 'vehicle-docs');
+            // Upload files to R2 (if any selected)
+            if (docForm.files && docForm.files.length > 0) {
+                for (let i = 0; i < docForm.files.length; i++) {
+                    const file = docForm.files[i];
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('folder', 'vehicle-docs');
 
-                const uploadRes = await fetch('/api/upload-r2', {
-                    method: 'POST',
-                    body: formData
-                });
-                const uploadData = await uploadRes.json();
+                    const uploadRes = await fetch('/api/upload-r2', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const uploadData = await uploadRes.json();
 
-                if (!uploadData.success) {
-                    throw new Error(`Failed to upload ${file.name}`);
+                    if (!uploadData.success) {
+                        throw new Error(`Failed to upload ${file.name}`);
+                    }
+
+                    uploadedDocs.push({
+                        url: uploadData.url,
+                        r2Key: uploadData.key,
+                        type: uploadData.type,
+                        fileName: file.name,
+                        uploadedBy: userEmail
+                    });
                 }
-
-                uploadedDocs.push({
-                    url: uploadData.url,
-                    r2Key: uploadData.key,
-                    type: uploadData.type,
-                    fileName: file.name,
-                    uploadedBy: userEmail
-                });
             }
 
             // Save document record (or update existing)
@@ -250,14 +252,14 @@ export default function VehicleEquipmentDocsPage() {
                                 key={tab}
                                 onClick={() => setActiveTab(tab)}
                                 className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab
-                                        ? 'bg-[#0F4C75] text-white shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                    ? 'bg-[#0F4C75] text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
                                     }`}
                             >
                                 {tab}
                                 <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === tab
-                                        ? 'bg-white/20 text-white'
-                                        : 'bg-slate-100 text-slate-400'
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-100 text-slate-400'
                                     }`}>
                                     {tabCounts[tab]}
                                 </span>
@@ -311,8 +313,8 @@ export default function VehicleEquipmentDocsPage() {
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${(doc.equipmentType || 'Devco') === 'Devco'
-                                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                    : 'bg-amber-50 text-amber-700 border-amber-200'
                                                     }`}>
                                                     {doc.equipmentType || 'Devco'}
                                                 </span>
@@ -397,10 +399,10 @@ export default function VehicleEquipmentDocsPage() {
                                         type="button"
                                         onClick={() => setDocForm({ ...docForm, equipmentType: t })}
                                         className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all text-center ${docForm.equipmentType === t
-                                                ? t === 'Devco'
-                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                                                    : 'bg-amber-500 text-white border-amber-500 shadow-sm'
-                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                            ? t === 'Devco'
+                                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                : 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
                                             }`}
                                     >
                                         {t}
@@ -433,7 +435,7 @@ export default function VehicleEquipmentDocsPage() {
 
                     <div className="flex justify-end gap-3 pt-4">
                         <Button type="button" variant="outline" onClick={() => setIsDocModalOpen(false)}>Cancel</Button>
-                        <Button type="submit" disabled={isSavingDoc || !docForm.files}>
+                        <Button type="submit" disabled={isSavingDoc}>
                             {isSavingDoc ? (
                                 <>
                                     <Loader2 className="animate-spin mr-2" size={16} />
@@ -460,8 +462,8 @@ export default function VehicleEquipmentDocsPage() {
                         <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
                             <span>Type</span>
                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${(selectedVehicle?.equipmentType || 'Devco') === 'Devco'
-                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-amber-50 text-amber-700 border-amber-200'
                                 }`}>
                                 {selectedVehicle?.equipmentType || 'Devco'}
                             </span>
