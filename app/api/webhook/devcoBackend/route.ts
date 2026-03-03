@@ -84,6 +84,74 @@ async function uploadImage(imageString: string, publicId: string): Promise<strin
     }
 }
 
+/**
+ * Upload a base64 document/file string to R2 and return the URL.
+ * Returns the original string if it's not base64, or null on failure.
+ */
+async function uploadDocFileToR2(base64: string, key: string): Promise<string | null> {
+    if (!base64 || !base64.startsWith('data:')) return base64; // Already a URL or empty
+    try {
+        const contentTypeMatch = base64.match(/^data:([^;]+);base64,/);
+        const contentType = contentTypeMatch?.[1] || 'application/octet-stream';
+        const url = await uploadToR2(base64, `employee-docs/${key}`, contentType);
+        return url;
+    } catch (error) {
+        console.error('R2 Doc Upload Error:', error);
+        return null;
+    }
+}
+
+/**
+ * Process all sub-document arrays on an employee item,
+ * uploading any base64 file data to R2 before saving to MongoDB.
+ */
+async function processEmployeeSubDocFiles(item: any, empId: string): Promise<any> {
+    const safeId = empId.replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Process documents[]
+    if (Array.isArray(item.documents)) {
+        for (let i = 0; i < item.documents.length; i++) {
+            const doc = item.documents[i];
+            if (doc.fileUrl && doc.fileUrl.startsWith('data:')) {
+                const url = await uploadDocFileToR2(doc.fileUrl, `${safeId}_doc_${i}_${Date.now()}`);
+                if (url) item.documents[i].fileUrl = url;
+            }
+        }
+    }
+
+    // Process drugTestingRecords[]
+    if (Array.isArray(item.drugTestingRecords)) {
+        for (let i = 0; i < item.drugTestingRecords.length; i++) {
+            const rec = item.drugTestingRecords[i];
+            if (rec.fileUrl && rec.fileUrl.startsWith('data:')) {
+                const url = await uploadDocFileToR2(rec.fileUrl, `${safeId}_drug_${i}_${Date.now()}`);
+                if (url) item.drugTestingRecords[i].fileUrl = url;
+            }
+            if (Array.isArray(rec.files)) {
+                for (let j = 0; j < rec.files.length; j++) {
+                    if (typeof rec.files[j] === 'string' && rec.files[j].startsWith('data:')) {
+                        const url = await uploadDocFileToR2(rec.files[j], `${safeId}_drug_${i}_f${j}_${Date.now()}`);
+                        if (url) item.drugTestingRecords[i].files[j] = url;
+                    }
+                }
+            }
+        }
+    }
+
+    // Process trainingCertifications[]
+    if (Array.isArray(item.trainingCertifications)) {
+        for (let i = 0; i < item.trainingCertifications.length; i++) {
+            const cert = item.trainingCertifications[i];
+            if (cert.fileUrl && cert.fileUrl.startsWith('data:')) {
+                const url = await uploadDocFileToR2(cert.fileUrl, `${safeId}_cert_${i}_${Date.now()}`);
+                if (url) item.trainingCertifications[i].fileUrl = url;
+            }
+        }
+    }
+
+    return item;
+}
+
 async function uploadThumbnail(fileString: string, publicId: string, contentType: string): Promise<string | null> {
     if (!fileString) return null;
 
@@ -2716,6 +2784,8 @@ export async function POST(request: NextRequest) {
                     const uploaded = await uploadImage(item.signature, `${item.email}_signature`);
                     if (uploaded) signatureUrl = uploaded;
                 }
+                // Upload any base64 files in sub-document arrays to R2
+                await processEmployeeSubDocFiles(item, item.email);
                 const employeeData = { ...item, _id: item.email, profilePicture: profilePictureUrl, signature: signatureUrl };
                 const newEmployee = await Employee.create(employeeData);
                 return NextResponse.json({ success: true, result: newEmployee });
@@ -2733,6 +2803,8 @@ export async function POST(request: NextRequest) {
                     const uploaded = await uploadImage(empItem.signature, `${empId}_signature`);
                     if (uploaded) updateData.signature = uploaded;
                 }
+                // Upload any base64 files in sub-document arrays to R2
+                await processEmployeeSubDocFiles(updateData, empId);
                 const updated = await Employee.findByIdAndUpdate(empId, { ...updateData, updatedAt: new Date() }, { new: true });
                 return NextResponse.json({ success: true, result: updated });
             }
