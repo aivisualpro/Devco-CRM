@@ -20,7 +20,7 @@ const DOC_TEMPLATES: Record<string, string> = {
     'COI - Certificate of Insurance': '',
     'CF - Conditional Release (Final)': '1NXMwX1PAmYFjdzSBwXbPq3jRgFjgUE00zFfpZWrSi5Y',
     'UP - Unconditional Release (Progress)': '1UDSOXcvBirMqQGN1v6Q1lJOBFfO6p2V0r-KRF8OGs-A',
-    'UF - Unconditional Release (Final)': '1CVVEFWUc7Ig0tbgGKhM-RG1GKMRaobJFma66NzuG3Fs',
+    'UF - Unconditional Release (Final)': '',
     'Mechanics Lien': '',
     'Intent to Lien': '1WGKasNMJNAjO62xVBdipNg9wOeSyNA-zRAeZeGI3WM8',
     'Fringe Benefit Statement': '',
@@ -1806,6 +1806,20 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         toast.success('Planning document removed');
     };
 
+    // Robust employee finder - handles arrays, case-insensitive, matches _id or email
+    const findEmployeeByIdOrEmail = (idOrEmail: any): Employee | undefined => {
+        if (!idOrEmail || employees.length === 0) return undefined;
+        // If array, take first element
+        const val = Array.isArray(idOrEmail) ? idOrEmail[0] : idOrEmail;
+        if (!val) return undefined;
+        const normalized = String(val).toLowerCase().trim();
+        return employees.find(e => {
+            const eid = (e._id || '').toLowerCase().trim();
+            const eemail = (e.email || '').toLowerCase().trim();
+            return eid === normalized || eemail === normalized;
+        });
+    };
+
     const handleDocClick = async (docName: string, itemIndex?: number) => {
         // 1. Try to find ID in fetched release constants (dynamic)
         const dbConstant = releasesConstants.find(r => r.value === docName);
@@ -1838,43 +1852,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }, 400);
 
         try {
-            // Fetch employee signatures on-demand (getEmployees API excludes signature for performance)
-            const fetchEmployeeSignature = async (employeeId: string): Promise<string> => {
-                if (!employeeId) return '';
-                try {
-                    const res = await fetch('/api/webhook/devcoBackend', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'getEmployeeById', payload: { id: employeeId } })
-                    });
-                    const data = await res.json();
-                    return data.success ? (data.result?.signature || '') : '';
-                } catch { return ''; }
-            };
-
-            // Determine which employees need signatures fetched
-            const proposalWriterEmail = formData.proposalWriter as string;
-            const cfoEmail = 'dt@devco-inc.com';
-            const releases = formData.releases || [];
-            const releaseItem = (itemIndex !== undefined && releases?.[itemIndex])
-                ? releases[itemIndex]
-                : releases?.find((r: any) => r.documentType === docName);
-            const releaseCreatorId = releaseItem?.createdBy || '';
-
-            // Fetch signatures in parallel for all needed employees
-            const signatureIds = [proposalWriterEmail, cfoEmail];
-            if (releaseCreatorId && !signatureIds.includes(releaseCreatorId)) {
-                signatureIds.push(releaseCreatorId);
-            }
-            const signatureResults = await Promise.all(
-                signatureIds.filter(Boolean).map(async (id) => ({
-                    id,
-                    signature: await fetchEmployeeSignature(id)
-                }))
-            );
-            const signatureMap: Record<string, string> = {};
-            signatureResults.forEach(r => { signatureMap[r.id] = r.signature; });
-
             // Build variables from formData
             const variables: Record<string, string> = {
                 // Job Info
@@ -1973,33 +1950,40 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     return formData.contactPhone || '';
                 })(),
 
-                // Get proposalWriter employee details
+                // Get proposalWriter employee details (robust: handles arrays and case-insensitive matching)
                 createdBy: (() => {
-                    if (proposalWriterEmail && employees.length > 0) {
-                        const emp = employees.find(e => e._id === proposalWriterEmail);
-                        if (emp) {
-                            return `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
-                        }
-                    }
+                    const emp = findEmployeeByIdOrEmail(formData.proposalWriter);
+                    if (emp) return `${emp.firstName || ''} ${emp.lastName || ''}`.trim();
                     return '';
                 })(),
                 companyPosition: (() => {
-                    if (proposalWriterEmail && employees.length > 0) {
-                        const emp = employees.find(e => e._id === proposalWriterEmail);
-                        return emp?.companyPosition || '';
-                    }
-                    return '';
+                    const emp = findEmployeeByIdOrEmail(formData.proposalWriter);
+                    return emp?.companyPosition || '';
                 })(),
                 position: (() => {
-                    if (proposalWriterEmail && employees.length > 0) {
-                        const emp = employees.find(e => e._id === proposalWriterEmail);
-                        return emp?.companyPosition || '';
+                    const emp = findEmployeeByIdOrEmail(formData.proposalWriter);
+                    return emp?.companyPosition || '';
+                })(),
+                signature: (() => {
+                    // 1. Try proposalWriter's signature
+                    const emp = findEmployeeByIdOrEmail(formData.proposalWriter);
+                    if (emp?.signature) {
+                        console.log('[DocGen] Using proposalWriter signature from:', emp._id);
+                        return emp.signature;
                     }
+                    // 2. Fallback to CFO signature
+                    const cfo = findEmployeeByIdOrEmail('dt@devco-inc.com');
+                    if (cfo?.signature) {
+                        console.log('[DocGen] Using CFO signature as fallback');
+                        return cfo.signature;
+                    }
+                    console.warn('[DocGen] No signature found for proposalWriter or CFO');
                     return '';
                 })(),
-                // Signature fetched on-demand from getEmployeeById (not in getEmployees bulk response)
-                signature: signatureMap[proposalWriterEmail] || '',
-                cfoSignature: signatureMap[cfoEmail] || '',
+                cfoSignature: (() => {
+                    const cfo = findEmployeeByIdOrEmail('dt@devco-inc.com');
+                    return cfo?.signature || '';
+                })(),
             };
 
             // Inject Intent to Lien specific fields
@@ -2020,7 +2004,10 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }
 
             // Inject Release specific fields if this doc is a Release type
-            // releaseItem was already resolved above (before signature fetching)
+            // Use itemIndex when available to get the correct release (not just the first match by type)
+            const releaseItem = (itemIndex !== undefined && releases?.[itemIndex])
+                ? releases[itemIndex]
+                : releases?.find((r: any) => r.documentType === docName);
             if (releaseItem) {
                 // Set {{today}} to the release's createdAt date (when the release was created)
                 if (releaseItem.createdAt) {
@@ -2055,14 +2042,28 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.disputedClaims = '';
                 }
 
-                // Inject Creator (Signer) details - use on-demand fetched signature
+                // Inject Creator (Signer) details — robust lookup with fallback
                 const creatorId = releaseItem.createdBy;
-                const creatorEmployee = employees.find(e => e._id === creatorId);
+                const creatorEmployee = findEmployeeByIdOrEmail(creatorId);
                 if (creatorEmployee) {
                     variables.createdBy = `${creatorEmployee.firstName || ''} ${creatorEmployee.lastName || ''}`.trim();
                     variables.companyPosition = creatorEmployee.companyPosition || '';
-                    // Use on-demand fetched signature (not from bulk getEmployees which excludes it)
-                    variables.signature = signatureMap[creatorId] || '';
+                    // Only override signature if the creator actually has one
+                    if (creatorEmployee.signature) {
+                        console.log('[DocGen] Release: Using creator signature from:', creatorEmployee._id);
+                        variables.signature = creatorEmployee.signature;
+                    } else {
+                        // Fallback to CFO signature if creator has no signature
+                        const cfo = findEmployeeByIdOrEmail('dt@devco-inc.com');
+                        if (cfo?.signature) {
+                            console.log('[DocGen] Release: Creator has no signature, falling back to CFO');
+                            variables.signature = cfo.signature;
+                        } else {
+                            console.warn('[DocGen] Release: No signature found for creator or CFO');
+                        }
+                    }
+                } else {
+                    console.warn('[DocGen] Release: Could not find employee for createdBy:', creatorId);
                 }
 
                 // For array fields like un-paid amounts, format them if they are numbers
