@@ -30,6 +30,7 @@ interface MyDropDownProps {
     width?: string;
     className?: string;
     hideSelectionIndicator?: boolean;
+    hideAvatar?: boolean;
     anchorId?: string;
     positionMode?: 'overlay' | 'bottom';
     multiSelect?: boolean;
@@ -50,6 +51,7 @@ export function MyDropDown({
     emptyMessage = "No options available",
     width = "w-80",
     hideSelectionIndicator = false,
+    hideAvatar = false,
     className = "",
     anchorId,
     positionMode = 'bottom',
@@ -280,23 +282,25 @@ export function MyDropDown({
                                     )}
 
                                     {/* Visual Representation (Avatar/Color/Initials) */}
-                                    <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-50 shadow-sm overflow-hidden border-white/50 ${opt.disabled ? 'grayscale' : ''}`}>
-                                        {opt.profilePicture ? (
-                                            <img src={opt.profilePicture} alt={opt.label} className="w-full h-full object-cover" />
-                                        ) : opt.icon ? (
-                                            <div className="flex items-center justify-center w-full h-full text-[#0F4C75]">
-                                                {opt.icon}
-                                            </div>
-                                        ) : opt.color ? (
-                                            <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: opt.color }}>
-                                                {opt.badge && <span className="text-white shadow-sm">{opt.badge}</span>}
-                                            </div>
-                                        ) : opt.badge ? (
-                                            <span>{opt.badge}</span>
-                                        ) : (
-                                            <span>{getInitials(opt.label)}</span>
-                                        )}
-                                    </div>
+                                    {!hideAvatar && (
+                                        <div className={`flex-shrink-0 w-8 h-8 rounded-full bg-white flex items-center justify-center text-xs font-bold text-[#0F4C75] border border-blue-50 shadow-sm overflow-hidden border-white/50 ${opt.disabled ? 'grayscale' : ''}`}>
+                                            {opt.profilePicture ? (
+                                                <img src={opt.profilePicture} alt={opt.label} className="w-full h-full object-cover" />
+                                            ) : opt.icon ? (
+                                                <div className="flex items-center justify-center w-full h-full text-[#0F4C75]">
+                                                    {opt.icon}
+                                                </div>
+                                            ) : opt.color ? (
+                                                <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: opt.color }}>
+                                                    {opt.badge && <span className="text-white shadow-sm">{opt.badge}</span>}
+                                                </div>
+                                            ) : opt.badge ? (
+                                                <span>{opt.badge}</span>
+                                            ) : (
+                                                <span>{getInitials(opt.label)}</span>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center justify-between">

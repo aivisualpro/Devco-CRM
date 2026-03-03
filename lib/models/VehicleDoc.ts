@@ -13,6 +13,7 @@ export interface IVehicleDoc extends Document {
     unit: string;
     unitNumber: string;
     vinSerialNumber: string;
+    equipmentType: 'Devco' | 'Rental';
     documents: IVehicleDocument[];
     createdAt: Date;
     updatedAt: Date;
@@ -22,6 +23,7 @@ const VehicleDocSchema = new Schema<IVehicleDoc>({
     unit: { type: String, required: true },
     unitNumber: { type: String, required: true },
     vinSerialNumber: { type: String, required: true },
+    equipmentType: { type: String, enum: ['Devco', 'Rental'], default: 'Devco' },
     documents: [{
         url: { type: String, required: true },
         r2Key: { type: String },

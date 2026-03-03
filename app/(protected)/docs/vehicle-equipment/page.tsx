@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ExternalLink, Trash2, Plus, FileText, Loader2, Truck, Edit, X, Download, Calendar, User } from 'lucide-react';
 import { Header, Modal, Button, Input, SearchInput } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
 import { usePermissions } from '@/hooks/usePermissions';
 // Using proper VEHICLE_EQUIPMENT permissions
 import { MODULES, ACTIONS } from '@/lib/permissions/types';
+
+const EQUIPMENT_TYPES = ['Devco', 'Rental'] as const;
 
 export default function VehicleEquipmentDocsPage() {
     const { success, error: showError } = useToast();
@@ -15,17 +17,19 @@ export default function VehicleEquipmentDocsPage() {
 
     const [docs, setDocs] = useState<any[]>([]);
     const [isDocModalOpen, setIsDocModalOpen] = useState(false);
-    const [docForm, setDocForm] = useState({ 
-        unit: '', 
-        unitNumber: '', 
+    const [docForm, setDocForm] = useState({
+        unit: '',
+        unitNumber: '',
         vinSerialNumber: '',
-        files: null as FileList | null 
+        equipmentType: 'Devco' as 'Devco' | 'Rental',
+        files: null as FileList | null
     });
     const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
     const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isSavingDoc, setIsSavingDoc] = useState(false);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState<'All' | 'Devco' | 'Rental'>('All');
 
     const fetchDocs = async () => {
         setLoading(true);
@@ -100,15 +104,16 @@ export default function VehicleEquipmentDocsPage() {
                     unit: docForm.unit,
                     unitNumber: docForm.unitNumber,
                     vinSerialNumber: docForm.vinSerialNumber,
+                    equipmentType: docForm.equipmentType,
                     documents: uploadedDocs
                 })
             });
             const data = await res.json();
-            
+
             if (data.success) {
                 success('Documents added successfully');
                 setIsDocModalOpen(false);
-                setDocForm({ unit: '', unitNumber: '', vinSerialNumber: '', files: null });
+                setDocForm({ unit: '', unitNumber: '', vinSerialNumber: '', equipmentType: 'Devco', files: null });
                 fetchDocs();
             } else {
                 showError(data.error || 'Failed to save documents');
@@ -122,11 +127,11 @@ export default function VehicleEquipmentDocsPage() {
 
     const handleDeleteDoc = async (id: string, unit: string) => {
         if (!confirm(`Are you sure you want to delete all documents for ${unit}?`)) return;
-        
+
         try {
             const res = await fetch(`/api/vehicle-docs?id=${id}`, { method: 'DELETE' });
             const data = await res.json();
-            
+
             if (data.success) {
                 setDocs(prev => prev.filter(d => d._id !== id));
                 success('Entry deleted');
@@ -143,6 +148,7 @@ export default function VehicleEquipmentDocsPage() {
             unit: doc.unit,
             unitNumber: doc.unitNumber,
             vinSerialNumber: doc.vinSerialNumber,
+            equipmentType: doc.equipmentType || 'Devco',
             files: null
         });
         setIsDocModalOpen(true);
@@ -160,8 +166,8 @@ export default function VehicleEquipmentDocsPage() {
         if (!confirm(`Are you sure you want to delete "${fileName}"?`)) return;
 
         try {
-            const res = await fetch(`/api/vehicle-docs?id=${vehicleId}&fileId=${fileId}`, { 
-                method: 'DELETE' 
+            const res = await fetch(`/api/vehicle-docs?id=${vehicleId}&fileId=${fileId}`, {
+                method: 'DELETE'
             });
             const data = await res.json();
 
@@ -174,8 +180,8 @@ export default function VehicleEquipmentDocsPage() {
                     setDocs(prev => prev.map(d => d._id === vehicleId ? data.doc : d));
                 } else {
                     // If no doc returned (e.g. somehow entire doc deleted), close modal
-                     setIsViewModalOpen(false);
-                     fetchDocs();
+                    setIsViewModalOpen(false);
+                    fetchDocs();
                 }
                 success('Document deleted');
             } else {
@@ -187,18 +193,36 @@ export default function VehicleEquipmentDocsPage() {
         }
     };
 
-    const filteredDocs = docs.filter(doc => 
-        doc.unit.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.unitNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        doc.vinSerialNumber.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredDocs = useMemo(() => {
+        let result = docs;
+        // Filter by tab
+        if (activeTab !== 'All') {
+            result = result.filter(doc => (doc.equipmentType || 'Devco') === activeTab);
+        }
+        // Filter by search
+        if (searchTerm) {
+            const s = searchTerm.toLowerCase();
+            result = result.filter(doc =>
+                doc.unit.toLowerCase().includes(s) ||
+                doc.unitNumber.toLowerCase().includes(s) ||
+                doc.vinSerialNumber.toLowerCase().includes(s)
+            );
+        }
+        return result;
+    }, [docs, activeTab, searchTerm]);
+
+    const tabCounts = useMemo(() => ({
+        All: docs.length,
+        Devco: docs.filter(d => (d.equipmentType || 'Devco') === 'Devco').length,
+        Rental: docs.filter(d => d.equipmentType === 'Rental').length,
+    }), [docs]);
 
     return (
         <div className="flex flex-col h-full bg-slate-50/50">
-            <Header 
+            <Header
                 rightContent={
                     <div className="flex items-center gap-3">
-                        <SearchInput 
+                        <SearchInput
                             placeholder="Search vehicle docs..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -216,17 +240,40 @@ export default function VehicleEquipmentDocsPage() {
                     </div>
                 }
             />
-            
+
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="max-w-6xl mx-auto">
+                    {/* Tabs */}
+                    <div className="flex items-center gap-1 mb-4 p-1 bg-white rounded-xl border border-slate-200 shadow-sm w-fit">
+                        {(['All', 'Devco', 'Rental'] as const).map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${activeTab === tab
+                                        ? 'bg-[#0F4C75] text-white shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                                    }`}
+                            >
+                                {tab}
+                                <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${activeTab === tab
+                                        ? 'bg-white/20 text-white'
+                                        : 'bg-slate-100 text-slate-400'
+                                    }`}>
+                                    {tabCounts[tab]}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Simple Table */}
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                         <table className="w-full">
                             <thead>
                                 <tr className="bg-slate-50 border-b border-slate-200">
                                     <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">UNIT</th>
-                                    <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">DEVCO UNIT NUMBER</th>
+                                    <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Unit Number</th>
                                     <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">VIN / SERIAL #</th>
+                                    <th className="text-left px-6 py-4 text-sm font-semibold text-slate-700">Type</th>
                                     <th className="text-center px-6 py-4 text-sm font-semibold text-slate-700">Documents</th>
                                     <th className="text-center px-4 py-4 text-sm font-semibold text-slate-700 w-24">Actions</th>
                                 </tr>
@@ -234,22 +281,22 @@ export default function VehicleEquipmentDocsPage() {
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                             <Loader2 className="animate-spin mx-auto mb-2" size={24} />
                                             Loading vehicle docs...
                                         </td>
                                     </tr>
                                 ) : filteredDocs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                                             <Truck className="mx-auto mb-2 text-slate-300" size={32} />
                                             No documents found
                                         </td>
                                     </tr>
                                 ) : (
                                     filteredDocs.map((doc) => (
-                                        <tr 
-                                            key={doc._id} 
+                                        <tr
+                                            key={doc._id}
                                             className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors cursor-pointer"
                                             onClick={() => handleViewDocs(doc)}
                                         >
@@ -262,6 +309,14 @@ export default function VehicleEquipmentDocsPage() {
                                             <td className="px-6 py-4 font-mono text-sm text-slate-600">
                                                 {doc.vinSerialNumber}
                                             </td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${(doc.equipmentType || 'Devco') === 'Devco'
+                                                        ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                        : 'bg-amber-50 text-amber-700 border-amber-200'
+                                                    }`}>
+                                                    {doc.equipmentType || 'Devco'}
+                                                </span>
+                                            </td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
                                                     <FileText size={14} />
@@ -272,7 +327,7 @@ export default function VehicleEquipmentDocsPage() {
                                                 <div className="flex items-center justify-center gap-2">
                                                     {/* Edit Action */}
                                                     {can(MODULES.VEHICLE_EQUIPMENT, ACTIONS.EDIT) && (
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleEditDoc(doc)}
                                                             className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
                                                             title="Edit / Add Files"
@@ -282,7 +337,7 @@ export default function VehicleEquipmentDocsPage() {
                                                     )}
                                                     {/* Delete Action */}
                                                     {can(MODULES.VEHICLE_EQUIPMENT, ACTIONS.DELETE) && (
-                                                        <button 
+                                                        <button
                                                             onClick={() => handleDeleteDoc(doc._id, doc.unit)}
                                                             className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
                                                             title="Delete"
@@ -307,7 +362,7 @@ export default function VehicleEquipmentDocsPage() {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-1">Unit Name</label>
-                            <Input 
+                            <Input
                                 value={docForm.unit}
                                 onChange={(e) => setDocForm({ ...docForm, unit: e.target.value })}
                                 placeholder="e.g. Ford F-150"
@@ -316,28 +371,48 @@ export default function VehicleEquipmentDocsPage() {
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-slate-700 mb-1">Unit Number</label>
-                            <Input 
+                            <Input
                                 value={docForm.unitNumber}
                                 onChange={(e) => setDocForm({ ...docForm, unitNumber: e.target.value })}
                                 placeholder="e.g. T-101"
                             />
                         </div>
                     </div>
-                    
-                    <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-1">VIN / Serial Number</label>
-                        <Input 
-                            value={docForm.vinSerialNumber}
-                            onChange={(e) => setDocForm({ ...docForm, vinSerialNumber: e.target.value })}
-                            placeholder="Enter VIN or Serial Number"
-                        />
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">VIN / Serial Number</label>
+                            <Input
+                                value={docForm.vinSerialNumber}
+                                onChange={(e) => setDocForm({ ...docForm, vinSerialNumber: e.target.value })}
+                                placeholder="Enter VIN or Serial Number"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-700 mb-1">Type</label>
+                            <div className="flex items-center gap-2 mt-1">
+                                {EQUIPMENT_TYPES.map(t => (
+                                    <button
+                                        key={t}
+                                        type="button"
+                                        onClick={() => setDocForm({ ...docForm, equipmentType: t })}
+                                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all text-center ${docForm.equipmentType === t
+                                                ? t === 'Devco'
+                                                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                                    : 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                            }`}
+                                    >
+                                        {t}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Title field removed as requested */}
-                    
                     <div>
                         <label className="block text-sm font-bold text-slate-700 mb-1">Upload File(s)</label>
-                        <input 
+                        <input
                             type="file"
                             multiple
                             onChange={handleFileChange}
@@ -371,16 +446,25 @@ export default function VehicleEquipmentDocsPage() {
             </Modal>
 
             {/* View Documents Modal */}
-            <Modal 
-                isOpen={isViewModalOpen} 
-                onClose={() => setIsViewModalOpen(false)} 
+            <Modal
+                isOpen={isViewModalOpen}
+                onClose={() => setIsViewModalOpen(false)}
                 title={selectedVehicle ? `${selectedVehicle.unit} #${selectedVehicle.unitNumber}` : 'Vehicle Documents'}
             >
                 <div className="p-6">
-                     <div className="mb-6 pb-4 border-b border-slate-100">
+                    <div className="mb-6 pb-4 border-b border-slate-100">
                         <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
                             <span>VIN / Serial Number</span>
                             <span className="font-mono bg-slate-100 px-2 py-1 rounded">{selectedVehicle?.vinSerialNumber}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-slate-500 mb-2">
+                            <span>Type</span>
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold border ${(selectedVehicle?.equipmentType || 'Devco') === 'Devco'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                {selectedVehicle?.equipmentType || 'Devco'}
+                            </span>
                         </div>
                         <div className="flex items-center justify-between text-sm text-slate-500">
                             <span>Total Documents</span>
@@ -391,8 +475,8 @@ export default function VehicleEquipmentDocsPage() {
                     <div className="space-y-3">
                         {selectedVehicle?.documents?.length > 0 ? (
                             selectedVehicle.documents.map((file: any, index: number) => (
-                                <a 
-                                    key={index} 
+                                <a
+                                    key={index}
                                     href={file.url}
                                     target="_blank"
                                     rel="noopener noreferrer"

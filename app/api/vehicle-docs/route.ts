@@ -20,7 +20,7 @@ async function generateSignedUrl(r2Key: string, filename: string): Promise<strin
         Key: r2Key,
         ResponseContentDisposition: `inline; filename="${filename}"`,
     });
-    
+
     // Create a signed URL that expires in 1 hour
     return getSignedUrl(r2Client, getCommand, { expiresIn: 3600 });
 }
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     try {
         await connectToDatabase();
         const docs = await VehicleDoc.find().sort({ createdAt: -1 }).lean();
-        
+
         // Generate fresh signed URLs for R2 documents
         const docsWithUrls = await Promise.all(docs.map(async (doc: any) => {
             // Handle new schema
@@ -48,13 +48,13 @@ export async function GET(request: NextRequest) {
                 }));
                 return { ...doc, documents: updatedDocuments };
             }
-            
+
             // Handle legacy schema (fallback if needed, or simply return as is)
             if (doc.r2Key) {
-                 try {
+                try {
                     const freshUrl = await generateSignedUrl(doc.r2Key, doc.title || 'document');
-                    return { 
-                        ...doc, 
+                    return {
+                        ...doc,
                         documents: [{
                             url: freshUrl,
                             r2Key: doc.r2Key,
@@ -62,16 +62,16 @@ export async function GET(request: NextRequest) {
                             type: doc.type,
                             uploadedBy: doc.uploadedBy,
                             uploadedAt: doc.createdAt
-                        }] 
+                        }]
                     };
                 } catch (err) {
                     return doc;
                 }
             }
-            
+
             return doc;
         }));
-        
+
         return NextResponse.json({ success: true, docs: docsWithUrls });
     } catch (error: any) {
         console.error('Error fetching docs:', error);
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     try {
         await connectToDatabase();
         const body = await request.json();
-        const { unit, unitNumber, vinSerialNumber, documents } = body;
+        const { unit, unitNumber, vinSerialNumber, equipmentType, documents } = body;
 
         // documents should be an array of { url, r2Key, fileName, type, uploadedBy }
 
@@ -97,8 +97,9 @@ export async function POST(request: NextRequest) {
         if (vehicleDoc) {
             // Add new documents to existing entry
             vehicleDoc.documents.push(...documents);
-            // Update other fields if they changed (optional, but good practice to keep unit name in sync)
-            vehicleDoc.unit = unit; 
+            // Update other fields if they changed
+            vehicleDoc.unit = unit;
+            if (equipmentType) vehicleDoc.equipmentType = equipmentType;
             await vehicleDoc.save();
         } else {
             // Create new entry
@@ -106,6 +107,7 @@ export async function POST(request: NextRequest) {
                 unit,
                 unitNumber,
                 vinSerialNumber,
+                equipmentType: equipmentType || 'Devco',
                 documents: documents.map((doc: any) => ({
                     ...doc,
                     uploadedAt: new Date()
@@ -138,7 +140,7 @@ export async function DELETE(request: NextRequest) {
                 { $pull: { documents: { _id: fileId } } },
                 { new: true }
             );
-            
+
             if (!updatedDoc) {
                 return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 });
             }

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
     Plus, Search, ChevronRight, Loader2, ArrowUpDown,
     ClipboardCheck, Download, Mail, Pencil, Trash2,
-    X, Calendar, ChevronDown, Shield, Wrench, Send
+    X, Calendar, ChevronDown, Shield, Wrench, Send, FileText
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
@@ -128,6 +128,16 @@ export default function EquipmentInspectionPage() {
     // Dropdown states
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
     const [selectedCustomer, setSelectedCustomer] = useState<string>('');
+
+    // Add Equipment inline form
+    const [showAddEquipment, setShowAddEquipment] = useState(false);
+    const [savingEquipment, setSavingEquipment] = useState(false);
+    const [addEquipmentForm, setAddEquipmentForm] = useState({
+        unit: '',
+        unitNumber: '',
+        vinSerialNumber: '',
+        equipmentType: 'Devco' as 'Devco' | 'Rental'
+    });
 
     // Form data
     const [formData, setFormData] = useState({
@@ -292,6 +302,47 @@ export default function EquipmentInspectionPage() {
             jobLocation: ''
         }));
         setOpenDropdownId(null);
+    };
+
+    const handleSaveNewEquipment = async () => {
+        const { unit, unitNumber, vinSerialNumber } = addEquipmentForm;
+        if (!unit || !unitNumber || !vinSerialNumber) {
+            toast.error('Please fill all equipment fields');
+            return;
+        }
+        setSavingEquipment(true);
+        try {
+            const res = await fetch('/api/vehicle-docs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    unit: addEquipmentForm.unit,
+                    unitNumber: addEquipmentForm.unitNumber,
+                    vinSerialNumber: addEquipmentForm.vinSerialNumber,
+                    equipmentType: addEquipmentForm.equipmentType,
+                    documents: []
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                toast.success('Equipment added successfully');
+                const newLabel = `${unit} - ${unitNumber}`;
+                // Re-fetch vehicles to update dropdown
+                const vehRes = await fetch('/api/vehicle-docs');
+                const vehData = await vehRes.json();
+                if (vehData.success) setVehicles(vehData.docs || []);
+                // Auto-select the newly created equipment
+                setFormData(prev => ({ ...prev, equipment: newLabel }));
+                setShowAddEquipment(false);
+                setAddEquipmentForm({ unit: '', unitNumber: '', vinSerialNumber: '', equipmentType: 'Devco' });
+            } else {
+                toast.error(data.error || 'Failed to add equipment');
+            }
+        } catch (err) {
+            toast.error('Error adding equipment');
+        } finally {
+            setSavingEquipment(false);
+        }
     };
 
     // Modal handlers
@@ -909,6 +960,7 @@ export default function EquipmentInspectionPage() {
                                         placeholder="Search..."
                                         width="w-full"
                                         modal={false}
+                                        hideAvatar={true}
                                     />
                                 )}
                             </div>
@@ -940,6 +992,7 @@ export default function EquipmentInspectionPage() {
                                         placeholder="Search..."
                                         width="w-full"
                                         modal={false}
+                                        hideAvatar={true}
                                     />
                                 )}
                             </div>
@@ -971,6 +1024,7 @@ export default function EquipmentInspectionPage() {
                                                 placeholder="Search customers..."
                                                 width="w-full"
                                                 modal={false}
+                                                hideAvatar={true}
                                             />
                                         )}
                                     </div>
@@ -999,6 +1053,7 @@ export default function EquipmentInspectionPage() {
                                                 placeholder="Search estimates..."
                                                 width="w-full"
                                                 modal={false}
+                                                hideAvatar={true}
                                             />
                                         )}
                                     </div>
@@ -1052,7 +1107,8 @@ export default function EquipmentInspectionPage() {
                                         selectedValues={formData.equipment ? [formData.equipment] : []}
                                         onSelect={(val) => {
                                             if (val === '__add_new__') {
-                                                router.push('/docs/vehicle-equipment');
+                                                setOpenDropdownId(null);
+                                                setShowAddEquipment(true);
                                                 return;
                                             }
                                             setFormData(prev => ({ ...prev, equipment: val }));
@@ -1061,9 +1117,79 @@ export default function EquipmentInspectionPage() {
                                         placeholder="Search equipment..."
                                         width="w-full"
                                         modal={false}
+                                        hideAvatar={true}
                                     />
                                 )}
                             </div>
+
+                            {/* Inline Add Equipment Form */}
+                            {showAddEquipment && (
+                                <div className="mt-3 p-4 border border-blue-200 bg-blue-50/50 rounded-xl space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Add New Equipment</h4>
+                                        <button type="button" onClick={() => setShowAddEquipment(false)} className="text-slate-400 hover:text-slate-600">
+                                            <X size={14} />
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Unit Name *</label>
+                                            <Input
+                                                value={addEquipmentForm.unit}
+                                                onChange={e => setAddEquipmentForm(prev => ({ ...prev, unit: e.target.value }))}
+                                                placeholder="e.g. Ford F-150"
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Unit Number *</label>
+                                            <Input
+                                                value={addEquipmentForm.unitNumber}
+                                                onChange={e => setAddEquipmentForm(prev => ({ ...prev, unitNumber: e.target.value }))}
+                                                placeholder="e.g. T-101"
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">VIN / Serial # *</label>
+                                            <Input
+                                                value={addEquipmentForm.vinSerialNumber}
+                                                onChange={e => setAddEquipmentForm(prev => ({ ...prev, vinSerialNumber: e.target.value }))}
+                                                placeholder="Enter VIN or Serial Number"
+                                                className="h-8 text-xs"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Type</label>
+                                            <div className="flex items-center gap-2">
+                                                {(['Devco', 'Rental'] as const).map(t => (
+                                                    <button
+                                                        key={t}
+                                                        type="button"
+                                                        onClick={() => setAddEquipmentForm(prev => ({ ...prev, equipmentType: t }))}
+                                                        className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border transition-all text-center ${addEquipmentForm.equipmentType === t
+                                                            ? t === 'Devco'
+                                                                ? 'bg-blue-600 text-white border-blue-600'
+                                                                : 'bg-amber-500 text-white border-amber-500'
+                                                            : 'bg-white text-slate-500 border-slate-200'
+                                                            }`}
+                                                    >
+                                                        {t}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <Button type="button" size="sm" variant="outline" onClick={() => setShowAddEquipment(false)}>Cancel</Button>
+                                        <Button type="button" size="sm" disabled={savingEquipment} onClick={handleSaveNewEquipment}>
+                                            {savingEquipment ? (
+                                                <><Loader2 className="animate-spin mr-1" size={12} /> Saving...</>
+                                            ) : 'Save Equipment'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
