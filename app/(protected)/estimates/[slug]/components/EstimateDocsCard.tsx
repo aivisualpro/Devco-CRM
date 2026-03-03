@@ -20,7 +20,7 @@ const DOC_TEMPLATES: Record<string, string> = {
     'COI - Certificate of Insurance': '',
     'CF - Conditional Release (Final)': '1NXMwX1PAmYFjdzSBwXbPq3jRgFjgUE00zFfpZWrSi5Y',
     'UP - Unconditional Release (Progress)': '1UDSOXcvBirMqQGN1v6Q1lJOBFfO6p2V0r-KRF8OGs-A',
-    'UF - Unconditional Release (Final)': '',
+    'UF - Unconditional Release (Final)': '1CVVEFWUc7Ig0tbgGKhM-RG1GKMRaobJFma66NzuG3Fs',
     'Mechanics Lien': '',
     'Intent to Lien': '1WGKasNMJNAjO62xVBdipNg9wOeSyNA-zRAeZeGI3WM8',
     'Fringe Benefit Statement': '',
@@ -1838,6 +1838,43 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         }, 400);
 
         try {
+            // Fetch employee signatures on-demand (getEmployees API excludes signature for performance)
+            const fetchEmployeeSignature = async (employeeId: string): Promise<string> => {
+                if (!employeeId) return '';
+                try {
+                    const res = await fetch('/api/webhook/devcoBackend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'getEmployeeById', payload: { id: employeeId } })
+                    });
+                    const data = await res.json();
+                    return data.success ? (data.result?.signature || '') : '';
+                } catch { return ''; }
+            };
+
+            // Determine which employees need signatures fetched
+            const proposalWriterEmail = formData.proposalWriter as string;
+            const cfoEmail = 'dt@devco-inc.com';
+            const releases = formData.releases || [];
+            const releaseItem = (itemIndex !== undefined && releases?.[itemIndex])
+                ? releases[itemIndex]
+                : releases?.find((r: any) => r.documentType === docName);
+            const releaseCreatorId = releaseItem?.createdBy || '';
+
+            // Fetch signatures in parallel for all needed employees
+            const signatureIds = [proposalWriterEmail, cfoEmail];
+            if (releaseCreatorId && !signatureIds.includes(releaseCreatorId)) {
+                signatureIds.push(releaseCreatorId);
+            }
+            const signatureResults = await Promise.all(
+                signatureIds.filter(Boolean).map(async (id) => ({
+                    id,
+                    signature: await fetchEmployeeSignature(id)
+                }))
+            );
+            const signatureMap: Record<string, string> = {};
+            signatureResults.forEach(r => { signatureMap[r.id] = r.signature; });
+
             // Build variables from formData
             const variables: Record<string, string> = {
                 // Job Info
@@ -1938,7 +1975,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 // Get proposalWriter employee details
                 createdBy: (() => {
-                    const proposalWriterEmail = formData.proposalWriter;
                     if (proposalWriterEmail && employees.length > 0) {
                         const emp = employees.find(e => e._id === proposalWriterEmail);
                         if (emp) {
@@ -1948,7 +1984,6 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     return '';
                 })(),
                 companyPosition: (() => {
-                    const proposalWriterEmail = formData.proposalWriter;
                     if (proposalWriterEmail && employees.length > 0) {
                         const emp = employees.find(e => e._id === proposalWriterEmail);
                         return emp?.companyPosition || '';
@@ -1956,30 +1991,15 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     return '';
                 })(),
                 position: (() => {
-                    const proposalWriterEmail = formData.proposalWriter;
                     if (proposalWriterEmail && employees.length > 0) {
                         const emp = employees.find(e => e._id === proposalWriterEmail);
                         return emp?.companyPosition || '';
                     }
                     return '';
                 })(),
-                signature: (() => {
-                    const proposalWriterEmail = formData.proposalWriter;
-                    if (proposalWriterEmail && employees.length > 0) {
-                        const emp = employees.find(e => e._id === proposalWriterEmail);
-                        return emp?.signature || '';
-                    }
-                    return '';
-                })(),
-                cfoSignature: (() => {
-                    if (employees.length > 0) {
-                        const cfo = employees.find(e =>
-                            (e.email || e._id || '').toLowerCase() === 'dt@devco-inc.com'
-                        );
-                        return cfo?.signature || '';
-                    }
-                    return '';
-                })(),
+                // Signature fetched on-demand from getEmployeeById (not in getEmployees bulk response)
+                signature: signatureMap[proposalWriterEmail] || '',
+                cfoSignature: signatureMap[cfoEmail] || '',
             };
 
             // Inject Intent to Lien specific fields
@@ -2000,10 +2020,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             }
 
             // Inject Release specific fields if this doc is a Release type
-            // Use itemIndex when available to get the correct release (not just the first match by type)
-            const releaseItem = (itemIndex !== undefined && releases?.[itemIndex])
-                ? releases[itemIndex]
-                : releases?.find((r: any) => r.documentType === docName);
+            // releaseItem was already resolved above (before signature fetching)
             if (releaseItem) {
                 // Set {{today}} to the release's createdAt date (when the release was created)
                 if (releaseItem.createdAt) {
@@ -2038,13 +2055,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                     variables.disputedClaims = '';
                 }
 
-                // Inject Creator (Signer) details
+                // Inject Creator (Signer) details - use on-demand fetched signature
                 const creatorId = releaseItem.createdBy;
                 const creatorEmployee = employees.find(e => e._id === creatorId);
                 if (creatorEmployee) {
                     variables.createdBy = `${creatorEmployee.firstName || ''} ${creatorEmployee.lastName || ''}`.trim();
                     variables.companyPosition = creatorEmployee.companyPosition || '';
-                    variables.signature = creatorEmployee.signature || '';
+                    // Use on-demand fetched signature (not from bulk getEmployees which excludes it)
+                    variables.signature = signatureMap[creatorId] || '';
                 }
 
                 // For array fields like un-paid amounts, format them if they are numbers
