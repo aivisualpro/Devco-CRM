@@ -128,7 +128,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
     // Admin-only employees for "Paid By" dropdown
     const adminEmployeeOptions = employees
-        .filter(e => e.appRole === 'Admin')
+        .filter(e => e.appRole === 'Admin' || e.appRole === 'Super Admin')
         .map(e => ({
             id: e._id,
             label: `${e.firstName} ${e.lastName}`,

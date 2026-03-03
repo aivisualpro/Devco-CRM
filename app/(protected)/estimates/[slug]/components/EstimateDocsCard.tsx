@@ -1656,7 +1656,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
     // Admin-only employees for "Paid By" dropdown
     const adminEmployeeOptions = useMemo(() => {
         return employees
-            .filter(emp => emp.appRole === 'Admin')
+            .filter(emp => emp.appRole === 'Admin' || emp.appRole === 'Super Admin')
             .map(emp => {
                 const label = emp.label || `${emp.firstName || ''} ${emp.lastName || ''}`.trim() || emp.email || emp._id;
                 return {
