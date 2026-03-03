@@ -47,7 +47,7 @@ export async function GET(
             }).lean();
 
             const scheduleIds = schedules.map(s => String(s._id));
-            
+
             // Get all standalone DJTs for these schedules to ensure we don't miss any
             const standaloneDjts = await DailyJobTicket.find({
                 schedule_id: { $in: scheduleIds }
@@ -71,26 +71,15 @@ export async function GET(
                     const qty = Number(eq.qty) || 0; // Default to 0 for internal cost if not set
                     return sum + (cost * qty);
                 }, 0);
-                
-                // totalTicketCost should be the recorded djtCost OR (eq + overhead)
-                const recordedTotal = Number(djt.djtCost) || 0;
-                
-                let finalTotal = 0;
-                let ovCost = 0;
 
-                if (recordedTotal > 0) {
-                    finalTotal = recordedTotal;
-                    // If djtCost is provided, it covers everything.
-                    // Overhead is the remaining portion after equipment.
-                    ovCost = Math.max(0, recordedTotal - eqCost);
-                } else {
-                    // Fallback to auto-calc: Owned Equipment + Standard Overhead
-                    ovCost = overheadRate;
-                    finalTotal = eqCost + ovCost;
-                }
-                
+                // djtCost only stores equipment costs (owned).
+                // Overhead is always the standard daily rate (Devco Overhead + Risk Factor)
+                // per ticket — matching the Estimates Schedule Card calculation.
+                const ovCost = overheadRate;
+                const finalTotal = eqCost + ovCost;
+
                 devcoCost += finalTotal;
-                
+
                 return {
                     id: djt._id,
                     schedule_id: s._id,
