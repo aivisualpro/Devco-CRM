@@ -553,45 +553,141 @@ export default function EquipmentInspectionPage() {
                         {/* Mobile Card View */}
                         <div className="lg:hidden space-y-3">
                             {filteredInspections.length === 0 ? (
-                                <div className="text-center py-16 text-slate-400 text-sm">No inspections found.</div>
-                            ) : filteredInspections.map((record) => (
-                                <div
-                                    key={record._id}
-                                    className="bg-white rounded-2xl border border-slate-100 p-4 active:scale-[0.98] transition-transform shadow-sm"
-                                    onClick={() => router.push(`/docs/equipment-inspection/${record._id}`)}
-                                >
-                                    <div className="flex items-start justify-between mb-2">
-                                        <div>
-                                            <div className="text-sm font-bold text-slate-800">
-                                                {record.date && !isNaN(new Date(record.date).getTime()) ? format(new Date(record.date), 'MMM dd, yyyy') : '-'}
-                                            </div>
-                                            <span className="text-xs text-slate-500 truncate block max-w-[180px]">{record.equipment || '-'}</span>
-                                        </div>
-                                        <Badge className={cn(
-                                            "text-[10px] shrink-0",
-                                            record.type === 'General Maintenance' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-purple-100 text-purple-700 border-purple-200'
-                                        )}>
-                                            {record.type || 'N/A'}
-                                        </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                                        <Shield size={10} className="text-slate-400" />
-                                        <span>{record.inspectionFrequency}</span>
-                                        <span className="text-slate-300">•</span>
-                                        <span className="text-emerald-600 font-medium">
-                                            {record.inspectionItems?.filter(i => i.status === 'ok').length || 0} OK
-                                        </span>
-                                        {(record.inspectionItems?.filter(i => i.status === 'needs_attention').length || 0) > 0 && (
-                                            <>
-                                                <span className="text-slate-300">•</span>
-                                                <span className="text-amber-600 font-medium">
-                                                    {record.inspectionItems?.filter(i => i.status === 'needs_attention').length} ⚠
-                                                </span>
-                                            </>
-                                        )}
-                                    </div>
+                                <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200">
+                                    <ClipboardCheck className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                    <p className="text-slate-500 font-medium text-sm">No inspections found.</p>
+                                    {canCreate && (
+                                        <Button onClick={handleAddNew} className="bg-[#0F4C75] hover:bg-[#0a3a5c] text-white mt-3" size="sm">
+                                            <Plus size={14} className="mr-1" /> New Inspection
+                                        </Button>
+                                    )}
                                 </div>
-                            ))}
+                            ) : filteredInspections.map((record) => {
+                                const okCount = record.inspectionItems?.filter(i => i.status === 'ok').length || 0;
+                                const attentionCount = record.inspectionItems?.filter(i => i.status === 'needs_attention').length || 0;
+                                const creator = getEmployeeByEmail(record.createdBy);
+                                return (
+                                    <div
+                                        key={record._id}
+                                        className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm"
+                                    >
+                                        {/* Top row: Date + Type badge */}
+                                        <div className="flex items-start justify-between mb-2">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-bold text-slate-800">
+                                                    {record.date && !isNaN(new Date(record.date).getTime()) ? format(new Date(record.date), 'MMM dd, yyyy') : '-'}
+                                                </div>
+                                                <p className="text-xs text-slate-500 truncate mt-0.5">{record.equipment || '-'}</p>
+                                            </div>
+                                            <Badge className={cn(
+                                                "text-[10px] shrink-0 ml-2",
+                                                record.type === 'General Maintenance' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-purple-100 text-purple-700 border-purple-200'
+                                            )}>
+                                                {record.type || 'N/A'}
+                                            </Badge>
+                                        </div>
+
+                                        {/* Project + Estimate */}
+                                        {(record.estimate || record.projectName) && (
+                                            <div className="flex items-center gap-2 mb-2 text-xs">
+                                                {record.estimate && (
+                                                    <span className="font-semibold text-[#0F4C75]">{record.estimate}</span>
+                                                )}
+                                                {record.estimate && record.projectName && <span className="text-slate-300">•</span>}
+                                                {record.projectName && (
+                                                    <span className="text-slate-500 truncate">{record.projectName}</span>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Status badges */}
+                                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                                            <Shield size={10} className="text-slate-400" />
+                                            <span>{record.inspectionFrequency}</span>
+                                            <span className="text-slate-300">•</span>
+                                            <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
+                                                <span className="w-4 h-4 rounded bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">{okCount}</span> OK
+                                            </span>
+                                            {attentionCount > 0 && (
+                                                <>
+                                                    <span className="text-slate-300">•</span>
+                                                    <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
+                                                        <span className="w-4 h-4 rounded bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold">{attentionCount}</span> ⚠
+                                                    </span>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* Footer: Creator + Actions */}
+                                        <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-50">
+                                            <div className="flex items-center gap-2">
+                                                {creator?.profilePicture ? (
+                                                    <img src={creator.profilePicture} className="w-5 h-5 rounded-full object-cover border border-slate-200" />
+                                                ) : (
+                                                    <div className="w-5 h-5 rounded-full bg-[#0F4C75] text-white flex items-center justify-center text-[8px] font-bold shrink-0">
+                                                        {creator ? `${creator.firstName?.[0] || ''}${creator.lastName?.[0] || ''}` : (record.createdBy?.[0]?.toUpperCase() || '?')}
+                                                    </div>
+                                                )}
+                                                <span className="text-[10px] text-slate-500 truncate max-w-[80px]">
+                                                    {creator ? `${creator.firstName || ''} ${creator.lastName?.[0] || ''}.` : (record.createdBy || '-')}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 text-slate-400 hover:text-[#0F4C75]"
+                                                    onClick={(e) => { e.stopPropagation(); router.push(`/docs/equipment-inspection/${record._id}`); }}
+                                                    title="View Details"
+                                                >
+                                                    <ChevronRight size={14} />
+                                                </Button>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 text-slate-400 hover:text-[#0F4C75]"
+                                                    onClick={(e) => { e.stopPropagation(); handleDownloadPDF(record); }}
+                                                    disabled={isGeneratingPDF && pdfTarget?._id === record._id}
+                                                    title="Download PDF"
+                                                >
+                                                    {isGeneratingPDF && pdfTarget?._id === record._id ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                                </Button>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 text-slate-400 hover:text-emerald-600"
+                                                    onClick={(e) => { e.stopPropagation(); setPdfTarget(record); setIsEmailModalOpen(true); }}
+                                                    title="Email PDF"
+                                                >
+                                                    <Mail size={14} />
+                                                </Button>
+                                                {canEdit && (
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 text-slate-400 hover:text-blue-600"
+                                                        onClick={(e) => { e.stopPropagation(); handleEdit(record); }}
+                                                        title="Edit"
+                                                    >
+                                                        <Pencil size={14} />
+                                                    </Button>
+                                                )}
+                                                {canDelete && (
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 text-slate-400 hover:text-red-600"
+                                                        onClick={(e) => { e.stopPropagation(); setRecordToDelete(record); setIsDeleteOpen(true); }}
+                                                        title="Delete"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {/* Desktop Table View */}
@@ -721,7 +817,7 @@ export default function EquipmentInspectionPage() {
                         {/* Mobile FAB */}
                         {canCreate && (
                             <button
-                                className="lg:hidden fixed bottom-6 right-6 z-40 w-14 h-14 rounded-full bg-[#0F4C75] text-white shadow-xl flex items-center justify-center hover:bg-[#0a3a5c] active:scale-95 transition-all"
+                                className="lg:hidden fixed bottom-24 right-6 z-40 w-14 h-14 rounded-full bg-[#0F4C75] text-white shadow-2xl flex items-center justify-center hover:bg-[#0a3a5c] active:scale-95 transition-all border-4 border-white"
                                 onClick={handleAddNew}
                             >
                                 <Plus size={24} />

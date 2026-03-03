@@ -22,7 +22,7 @@ interface MenuItem {
     href?: string;
 }
 
-const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection'];
+const IMPLEMENTED_ROUTES = ['/catalogue', '/templates', '/estimates', '/clients', '/employees', '/contacts', '/jobs/schedules', '/jobs/time-cards', '/reports/payroll', '/reports/workers-comp', '/reports/fringe-benefits', '/reports/wip', '/reports/daily-activities', '/roles', '/constants', '/dashboard', '/docs/jha', '/docs/job-tickets', '/settings/imports', '/settings/knowledgebase', '/settings/general', '/docs/receipts-costs', '/docs/billing-tickets', '/docs/company-docs', '/docs/vehicle-equipment', '/docs/pothole-logs', '/docs/pre-bore-logs', '/docs/usa-811-tickets', '/docs/equipment-inspection', '/trainings'];
 
 const menuStructure: MenuItem[] = [
     {
@@ -576,8 +576,8 @@ export function Header({ rightContent, leftContent, centerContent, showDashboard
                                                                 setMobileOpenGroup(null);
                                                             }}
                                                             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all active:scale-[0.98] ${isActive
-                                                                    ? 'bg-[#0F4C75]/10 text-[#0F4C75]'
-                                                                    : 'text-slate-600 hover:bg-slate-50'
+                                                                ? 'bg-[#0F4C75]/10 text-[#0F4C75]'
+                                                                : 'text-slate-600 hover:bg-slate-50'
                                                                 }`}
                                                         >
                                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isActive ? 'bg-[#0F4C75]/10' : 'bg-slate-100'} ${item.colorClass}`}>

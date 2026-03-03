@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Calendar, Clock, Menu, X, BookOpen, Settings, MessageSquare, ClipboardList } from 'lucide-react';
+import { Calendar, Clock, Menu, X, BookOpen, Settings, MessageSquare, ClipboardList, GraduationCap } from 'lucide-react';
 
 const MobileNav = () => {
     const pathname = usePathname();
@@ -15,6 +15,7 @@ const MobileNav = () => {
         { label: 'Time Cards', href: '/jobs/time-cards', icon: Clock },
         { label: 'Tasks', href: '/dashboard?view=tasks', icon: ClipboardList },
         { label: 'Chat', href: '/dashboard?view=chat', icon: MessageSquare },
+        { label: 'Trainings', href: '/trainings', icon: GraduationCap },
     ];
 
     const isTabActive = (tabHref: string) => {
@@ -47,10 +48,10 @@ const MobileNav = () => {
     }, [isMenuOpen]);
 
     const menuItems = [
-        { 
-            label: 'Knowledgebase', 
-            href: '/settings/knowledgebase', 
-            icon: BookOpen, 
+        {
+            label: 'Knowledgebase',
+            href: '/settings/knowledgebase',
+            icon: BookOpen,
             colorClass: 'text-blue-500',
             bgClass: 'bg-blue-50',
             description: 'Help articles & guides'
@@ -63,14 +64,14 @@ const MobileNav = () => {
                 className="lg:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl z-[120] px-4"
                 style={{ height: 'calc(3.5rem + env(safe-area-inset-bottom))' }}
             >
-                 <div className="flex justify-around items-center h-full relative">
+                <div className="flex justify-around items-center h-full relative">
                     {tabs.map((tab) => {
                         const Active = isTabActive(tab.href);
                         const Icon = tab.icon;
 
                         return (
-                            <button 
-                                key={tab.label} 
+                            <button
+                                key={tab.label}
                                 onClick={() => {
                                     const weekParam = searchParams.get('week');
                                     let url = tab.href;
@@ -86,7 +87,7 @@ const MobileNav = () => {
                                 <div className={`relative p-2 rounded-xl transition-all duration-500 ${Active ? 'scale-110' : 'hover:bg-slate-100'}`}>
                                     <Icon size={20} strokeWidth={Active ? 2.5 : 2} />
                                 </div>
-                                <span 
+                                <span
                                     suppressHydrationWarning
                                     className={`text-[10px] font-black tracking-tight mt-1 uppercase ${Active ? 'opacity-100' : 'opacity-80'}`}
                                 >
@@ -95,7 +96,7 @@ const MobileNav = () => {
                             </button>
                         );
                     })}
-                    
+
                 </div>
             </div>
         </>
