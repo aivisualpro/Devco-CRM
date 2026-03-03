@@ -468,6 +468,17 @@ export default function EquipmentInspectionPage() {
         const emp = getEmployeeByEmail(record.createdBy);
         const createdByName = emp ? `${emp.firstName || ''} ${emp.lastName || ''}`.trim() : record.createdBy || '';
 
+        // Look up customer from estimate
+        const linkedEstimate = record.estimate
+            ? uniqueEstimates.find(e => e.estimate === record.estimate)
+            : null;
+        const customerName = linkedEstimate?.customerName || linkedEstimate?.customer || '';
+
+        // Look up unit and equipment type from vehicles
+        const linkedVehicle = record.equipment
+            ? vehicles.find(v => `${v.unit} - ${v.unitNumber}` === record.equipment)
+            : null;
+
         const variables: Record<string, any> = {
             date: dateStr,
             type: record.type || '',
@@ -480,6 +491,10 @@ export default function EquipmentInspectionPage() {
             total_items: String(record.inspectionItems?.length || 0),
             ok_count: String(record.inspectionItems?.filter(i => i.status === 'ok').length || 0),
             attention_count: String(record.inspectionItems?.filter(i => i.status === 'needs_attention').length || 0),
+            // New template variables
+            customer: customerName,
+            unit: linkedVehicle?.unit || '',
+            unittype: linkedVehicle?.equipmentType || 'Devco',
         };
 
         const items = (record.inspectionItems || []).map(item => ({
