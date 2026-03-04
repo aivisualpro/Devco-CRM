@@ -34,18 +34,42 @@ const DOC_TEMPLATES: Record<string, string> = {
     // Add more templates here as needed
 };
 
+/**
+ * Parse a date string into a local Date, preventing timezone shifts.
+ * Date-only strings like "2026-03-04" are treated as local midnight
+ * instead of UTC midnight (which causes off-by-one day issues).
+ */
+const toLocalDate = (dateStr: string | undefined | null): Date | null => {
+    if (!dateStr || String(dateStr).trim() === '') return null;
+    let finalStr = String(dateStr).trim();
+    // If it's a date-only string (YYYY-MM-DD), append local time to avoid UTC interpretation
+    if (/^\d{4}-\d{2}-\d{2}$/.test(finalStr)) {
+        finalStr = `${finalStr}T00:00:00`;
+    }
+    // If it has a 'T' but no timezone offset/Z suffix, it's already local — leave it
+    // If it has 'Z' or an offset like +05:00, parse it but we still want local display
+    const d = new Date(finalStr);
+    if (isNaN(d.getTime())) return null;
+    return d;
+};
+
+/**
+ * Format a date string as local date for display in documents.
+ * Uses toLocalDate to prevent timezone day-shifts.
+ */
+const localeDateString = (dateStr: string | undefined | null): string => {
+    if (!dateStr) return '';
+    const d = toLocalDate(dateStr);
+    if (!d) return String(dateStr);
+    return d.toLocaleDateString('en-US');
+};
+
 const safeFormatDate = (dateStr: string | undefined | null, formatStr: string = 'MM/dd/yy') => {
     if (!dateStr || String(dateStr).trim() === '') return '-';
     try {
-        let finalStr = String(dateStr);
-        if (finalStr.includes('-') && !finalStr.includes('T')) {
-            finalStr = `${finalStr}T00:00:00`;
-        }
-        const d = new Date(finalStr);
-        if (isNaN(d.getTime())) {
-            const d2 = new Date(String(dateStr));
-            if (isNaN(d2.getTime())) return String(dateStr);
-            return format(d2, formatStr);
+        const d = toLocalDate(dateStr);
+        if (!d) {
+            return String(dateStr) || '-';
         }
         return format(d, formatStr);
     } catch (e) {
@@ -518,7 +542,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
         try {
             const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
             const schedule = estimateSchedules.find(s => s._id === selectedJHA.schedule_id);
-            const variables: any = { ...selectedJHA, customerName: schedule?.customerName, date: selectedJHA.date || new Date().toLocaleDateString() };
+            const variables: any = { ...selectedJHA, customerName: schedule?.customerName, date: localeDateString(selectedJHA.date) || new Date().toLocaleDateString() };
             const response = await fetch('/api/generate-google-pdf', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ templateId, variables }) });
             if (response.ok) {
                 const blob = await response.blob();
@@ -580,8 +604,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 jobLocation: schedule?.jobLocation || '',
                 estimate: schedule?.estimate || '',
                 foremanName: schedule?.foremanName || '',
-                date: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString(),
-                day: new Date(selectedDJT.date || schedule?.fromDate || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
+                date: localeDateString(selectedDJT.date || schedule?.fromDate) || new Date().toLocaleDateString(),
+                day: (toLocalDate(selectedDJT.date || schedule?.fromDate) || new Date()).toLocaleDateString('en-US', { weekday: 'long' }),
             };
             if (selectedDJT.customerSignature) variables['customerSignature'] = selectedDJT.customerSignature;
             for (let i = 1; i <= 15; i++) { variables[`sig_name_${i}`] = ''; variables[`sig_img_${i}`] = ''; variables[`Print Name_${i}`] = ''; variables[`Times_${i}`] = ''; }
@@ -1858,7 +1882,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 jobAddress: formData.jobAddress || '',
                 projectDescription: formData.projectDescription || '',
                 prelimAmount: formData.prelimAmount || '',
-                date: formData.date || new Date().toLocaleDateString(),
+                date: localeDateString(formData.date) || new Date().toLocaleDateString(),
                 today: new Date().toLocaleDateString(),
 
                 // Property Owner / Public Agency
@@ -1992,14 +2016,14 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                 if (intentItem) {
                     // Set {{today}} to the intent to lien's createdAt date
                     if (intentItem.createdAt) {
-                        variables.today = new Date(intentItem.createdAt).toLocaleDateString();
+                        variables.today = localeDateString(intentItem.createdAt);
                     }
 
                     // Intent to Lien specific fields
                     variables.arBalance = intentItem.arBalance || '';
-                    variables.fromDate = intentItem.fromDate ? new Date(intentItem.fromDate).toLocaleDateString() : '';
-                    variables.toDate = intentItem.toDate ? new Date(intentItem.toDate).toLocaleDateString() : '';
-                    variables.dueDate = intentItem.dueDate ? new Date(intentItem.dueDate).toLocaleDateString() : '';
+                    variables.fromDate = intentItem.fromDate ? localeDateString(intentItem.fromDate) : '';
+                    variables.toDate = intentItem.toDate ? localeDateString(intentItem.toDate) : '';
+                    variables.dueDate = intentItem.dueDate ? localeDateString(intentItem.dueDate) : '';
                 }
             }
 
@@ -2011,12 +2035,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             if (releaseItem) {
                 // Set {{today}} to the release's createdAt date (when the release was created)
                 if (releaseItem.createdAt) {
-                    variables.today = new Date(releaseItem.createdAt).toLocaleDateString();
+                    variables.today = localeDateString(releaseItem.createdAt);
                 }
 
                 // Ensure date formatting consistency
                 if (releaseItem.date) {
-                    variables.date = new Date(releaseItem.date).toLocaleDateString();
+                    variables.date = localeDateString(releaseItem.date);
                 }
 
                 if (releaseItem.amountOfCheck) {
@@ -2077,7 +2101,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
 
                 if (releaseItem.DatesOfWaiverRelease && Array.isArray(releaseItem.DatesOfWaiverRelease)) {
                     // Format dates?
-                    variables.DatesOfWaiverRelease = releaseItem.DatesOfWaiverRelease.map((d: string) => new Date(d).toLocaleDateString()).join(', ');
+                    variables.DatesOfWaiverRelease = releaseItem.DatesOfWaiverRelease.map((d: string) => localeDateString(d)).join(', ');
                 }
 
                 // Received Progress Payments array (for UP)
@@ -2096,8 +2120,8 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
             if (docName === 'Billing Ticket' && itemIndex !== undefined) {
                 const billingItem = billingTickets[itemIndex];
                 if (billingItem) {
-                    variables.date = billingItem.date ? new Date(billingItem.date).toLocaleDateString() : variables.date;
-                    variables.day = billingItem.date ? format(new Date(billingItem.date), 'EEEE') : format(new Date(), 'EEEE');
+                    variables.date = billingItem.date ? localeDateString(billingItem.date) : variables.date;
+                    variables.day = billingItem.date ? format(toLocalDate(billingItem.date) || new Date(), 'EEEE') : format(new Date(), 'EEEE');
                     variables.billingTerms = billingItem.billingTerms || '';
                     variables.otherBillingTerms = billingItem.otherBillingTerms || '';
                     const rawLumpSum = String(billingItem.lumpSum || '').replace(/[^0-9.-]+/g, '');
@@ -2928,7 +2952,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         </span>
                                                         {coiDocument && (
                                                             <span className="text-[10px] text-emerald-600">
-                                                                Uploaded {new Date(coiDocument.uploadedAt).toLocaleDateString()}
+                                                                Uploaded {localeDateString(coiDocument.uploadedAt)}
                                                             </span>
                                                         )}
                                                     </div>
@@ -3002,7 +3026,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 <Paperclip className="w-3 h-3 text-violet-400 flex-shrink-0" />
                                                                 <span className="text-[10px] text-violet-700 font-medium truncate">{doc.name}</span>
                                                                 <span className="text-[9px] text-violet-400 flex-shrink-0">
-                                                                    {new Date(doc.uploadedAt).toLocaleDateString()}
+                                                                    {localeDateString(doc.uploadedAt)}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center gap-1 flex-shrink-0">
@@ -3095,12 +3119,12 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 </div>
                                                                 <span className="text-[9px] text-amber-600">
                                                                     {item.fromDate && item.toDate
-                                                                        ? `${new Date(item.fromDate).toLocaleDateString()} - ${new Date(item.toDate).toLocaleDateString()}`
+                                                                        ? `${localeDateString(item.fromDate)} - ${localeDateString(item.toDate)}`
                                                                         : 'No date range'
                                                                     }
                                                                 </span>
                                                                 <span className="text-[9px] text-amber-500">
-                                                                    Due: {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : '-'}
+                                                                    Due: {item.dueDate ? localeDateString(item.dueDate) : '-'}
                                                                 </span>
                                                             </div>
                                                             <div className="flex items-center gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
@@ -3498,7 +3522,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                 </div>
                                                             )}
                                                             <span className="text-[10px] text-emerald-600">
-                                                                Uploaded {new Date(uploads[uploads.length - 1].uploadedAt).toLocaleDateString()}
+                                                                Uploaded {localeDateString(uploads[uploads.length - 1].uploadedAt)}
                                                                 {uploads[uploads.length - 1].uploadedBy && (
                                                                     <> by {(() => {
                                                                         const emp = employees.find(e => e._id === uploads[uploads.length - 1].uploadedBy ||
@@ -3613,7 +3637,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                                     </span>
                                                                 )}
                                                                 <span className="text-[8px] text-emerald-500">
-                                                                    {upload.uploadedAt ? new Date(upload.uploadedAt).toLocaleDateString() : ''}
+                                                                    {upload.uploadedAt ? localeDateString(upload.uploadedAt) : ''}
                                                                     {upload.uploadedBy && (
                                                                         <> · {(() => {
                                                                             const email = upload.uploadedBy;
@@ -3880,7 +3904,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                                         </p>
                                                         {doc.uploadedAt && (
                                                             <p className="text-[8px] text-violet-400 leading-tight">
-                                                                {new Date(doc.uploadedAt).toLocaleDateString()}
+                                                                {localeDateString(doc.uploadedAt)}
                                                             </p>
                                                         )}
                                                     </div>
@@ -4280,7 +4304,7 @@ export const EstimateDocsCard: React.FC<EstimateDocsCardProps> = ({ className, f
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                                     {(djt.date || djt.scheduleRef?.fromDate)
-                                                        ? new Date(djt.date || djt.scheduleRef?.fromDate).toLocaleDateString('en-US', { timeZone: 'UTC', month: '2-digit', day: '2-digit', year: 'numeric' })
+                                                        ? (toLocalDate(djt.date || djt.scheduleRef?.fromDate) || new Date()).toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })
                                                         : safeFormatDate(djt.createdAt, 'MM/dd/yyyy')
                                                     }
                                                     {djt.schedule_id && (
