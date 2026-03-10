@@ -1,49 +1,30 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { 
+import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2,
     Briefcase, Info, Search, List, Filter, Download, DollarSign
 } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { 
+import {
     Header, Loading, Modal, Tooltip, TooltipTrigger, TooltipContent,
     SearchableSelect, Card, Table, TableHead, TableBody, TableRow, TableHeader, TableCell,
     Badge
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import { 
-    calculateTimesheetData, 
-    formatDateOnly, 
-    formatTimeOnly, 
-    robustNormalizeISO
+import {
+    calculateTimesheetData,
+    formatDateOnly,
+    formatTimeOnly,
+    robustNormalizeISO,
+    startOfWeek,
+    endOfWeek,
+    addWeeks,
+    subWeeks
 } from '@/lib/timeCardUtils';
 
-// --- Local Utils to fix build issues ---
-const startOfWeek = (date: Date) => {
-    const d = new Date(date);
-    const day = d.getUTCDay();
-    const diff = day === 0 ? -6 : 1 - day; // Monday start
-    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
-    return start;
-};
-
-const endOfWeek = (date: Date) => {
-    const d = startOfWeek(date);
-    const end = new Date(d);
-    end.setUTCDate(d.getUTCDate() + 6);
-    end.setUTCHours(23, 59, 59, 999);
-    return end;
-};
-
-const addWeeks = (date: Date, weeks: number) => {
-    const d = new Date(date);
-    d.setUTCDate(d.getUTCDate() + (weeks * 7));
-    return d;
-};
-
-const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
+// startOfWeek, endOfWeek, addWeeks, subWeeks imported from @/lib/timeCardUtils
 
 // --- Types ---
 
@@ -106,10 +87,10 @@ const generateWeeksForYear = (year: number) => {
     if (year === now.getUTCFullYear()) {
         d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
     }
-    
+
     // Normalize to start of its week (Monday)
     let current = startOfWeek(d);
-    
+
     // Go back until we hit the start of the year
     while (current.getUTCFullYear() >= year) {
         if (current.getUTCFullYear() === year) {
@@ -117,7 +98,7 @@ const generateWeeksForYear = (year: number) => {
             const end = endOfWeek(current);
             const endStr = formatMMDDYY(end);
             const weekNum = getWeekNumber(current);
-            
+
             weeks.push({
                 value: `${startStr}-${endStr}`,
                 label: `Week ${weekNum} (${startStr} - ${endStr})`,
@@ -170,11 +151,11 @@ export default function WorkersCompPage() {
     const [rawSchedules, setRawSchedules] = useState<any[]>([]);
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [workersCompRates, setWorkersCompRates] = useState<Record<string, number>>({});
-    
+
     const params = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
-    
+
     // Filters
     // Initialize with current week
     // Initialize from URL or defaults
@@ -195,7 +176,7 @@ export default function WorkersCompPage() {
         }
         return endOfWeek(new Date());
     });
-    
+
     const [selectedItem, setSelectedItem] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [activityIcons, setActivityIcons] = useState<Record<string, string>>({});
@@ -215,28 +196,30 @@ export default function WorkersCompPage() {
             setIsRefreshing(true);
         }
         try {
-            // Extend date range slightly to capture timesheets on boundary dates
+            // Extend date range by 1 week in each direction to capture timesheets
+            // whose schedule fromDate might be in adjacent weeks but clockIn is in selected range
+            // This matches the time-cards page behavior for consistency
             const extendedStart = new Date(startDate);
-            extendedStart.setDate(extendedStart.getDate() - 7);
+            extendedStart.setUTCDate(extendedStart.getUTCDate() - 7);
             const extendedEnd = new Date(endDate);
-            extendedEnd.setDate(extendedEnd.getDate() + 7);
+            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 7);
 
             // Fetch schedules with date range filtering
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     action: 'getSchedulesPage',
-                    payload: { 
-                        limit: 5000,
+                    payload: {
+                        limit: 10000,
                         includeTimesheets: true,
                         startDate: extendedStart.toISOString(),
                         endDate: extendedEnd.toISOString()
-                    } 
-                }) 
+                    }
+                })
             });
             const data = await res.json();
-            
+
             // Fetch Constants for Workers Comp Rates
             const resConst = await fetch('/api/webhook/devcoBackend', {
                 method: 'POST',
@@ -284,22 +267,22 @@ export default function WorkersCompPage() {
                     const data = await res.json();
                     const filters = data.filters?.['workers-comp'];
                     if (filters) {
-                         if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
+                        if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
                             setIncludeDriveTime(filters.includeDriveTime);
-                         }
-                         if (filters.selectedItem) setSelectedItem(filters.selectedItem);
-                         
-                         // Only restore saved dates if URL params are missing
-                         if (!params.get('from') && !params.get('to')) {
-                             if (filters.startStr) {
-                                 const s = new Date(filters.startStr);
-                                 if (!isNaN(s.getTime())) setStartDate(s);
-                             }
-                             if (filters.endStr) {
-                                 const e = new Date(filters.endStr);
-                                 if (!isNaN(e.getTime())) setEndDate(e);
-                             }
-                         }
+                        }
+                        if (filters.selectedItem) setSelectedItem(filters.selectedItem);
+
+                        // Only restore saved dates if URL params are missing
+                        if (!params.get('from') && !params.get('to')) {
+                            if (filters.startStr) {
+                                const s = new Date(filters.startStr);
+                                if (!isNaN(s.getTime())) setStartDate(s);
+                            }
+                            if (filters.endStr) {
+                                const e = new Date(filters.endStr);
+                                if (!isNaN(e.getTime())) setEndDate(e);
+                            }
+                        }
                     }
                 }
             } catch (e) {
@@ -321,18 +304,18 @@ export default function WorkersCompPage() {
     // Debounced fetch for date changes (refresh, not initial)
     useEffect(() => {
         if (!prefsLoaded || isInitialLoad) return;
-        
+
         const timer = setTimeout(() => {
             fetchData(false);
         }, 300); // Debounce 300ms to avoid rapid refetches
-        
+
         return () => clearTimeout(timer);
     }, [startDate, endDate]);
 
     // Save Preferences
     useEffect(() => {
         if (!prefsLoaded) return;
-        
+
         const timer = setTimeout(() => {
             const filters = {
                 includeDriveTime,
@@ -340,7 +323,7 @@ export default function WorkersCompPage() {
                 startStr: startDate.toISOString(),
                 endStr: endDate.toISOString()
             };
-            
+
             fetch('/api/user/preferences', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -360,9 +343,9 @@ export default function WorkersCompPage() {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
         const driveTimeStr = String(includeDriveTime);
-        
+
         let needsUpdate = false;
-        
+
         if (currentParams.get('from') !== startStr) {
             currentParams.set('from', startStr);
             needsUpdate = true;
@@ -400,7 +383,7 @@ export default function WorkersCompPage() {
 
         rawSchedules.forEach(sched => {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
-            
+
             sched.timesheet.forEach((ts: any) => {
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
@@ -468,11 +451,11 @@ export default function WorkersCompPage() {
 
         Object.values(employeeDays).forEach((day: any) => {
             const empInfo = employeesMap[day.empKey] || {};
-            
+
             // Profile rates (like Payroll lines 520-521)
             const profileRateSite = parseRate(empInfo.hourlyRateSITE) ?? 45;
             const profileRateTravel = parseRate(empInfo.hourlyRateDrive) ?? (profileRateSite * 0.75);
-            
+
             // Day-specific rates override profile (like Payroll lines 548-549)
             const dayRateSite = day.dayRateSite ?? profileRateSite;
             const dayRateTravel = day.dayRateDrive ?? profileRateTravel;
@@ -555,7 +538,7 @@ export default function WorkersCompPage() {
         const total = flat.reduce((s, r) => s + r.grossPay, 0);
         const totalSite = flat.reduce((s, r) => s + r.regPay + r.otPay + r.dtPay, 0);
         const totalTravel = flat.reduce((s, r) => s + r.travelPay, 0);
-        
+
         // Group totals by employee for easy comparison
         const empTotals: Record<string, any> = {};
         flat.forEach(r => {
@@ -571,10 +554,10 @@ export default function WorkersCompPage() {
                 empTotals[name].travelHrs += r.hoursVal;
             }
         });
-        
+
         console.log('[WC] Total:', total.toFixed(2), '(Site:', totalSite.toFixed(2), 'Travel:', totalTravel.toFixed(2), ')', 'Records:', flat.length);
         console.log('[WC] Employee Breakdown:', Object.entries(empTotals)
-            .sort(([,a], [,b]) => b.total - a.total)
+            .sort(([, a], [, b]) => b.total - a.total)
             .map(([name, d]) => {
                 const avgSiteRate = d.siteHrs ? (d.site / d.siteHrs).toFixed(2) : '0.00';
                 return `${name}: $${d.userTotal ? d.userTotal.toFixed(2) : d.total.toFixed(2)} (S: $${d.site.toFixed(2)} @ ${d.siteHrs.toFixed(1)}h (Rate ~$${avgSiteRate}), T: $${d.travel.toFixed(2)})`;
@@ -587,7 +570,7 @@ export default function WorkersCompPage() {
     // Grouping Data
     const groups = useMemo(() => {
         const gMap: Record<string, WorkerCompGroup> = {};
-        
+
         allRecords.forEach(r => {
             const key = r.item;
             if (!gMap[key]) {
@@ -628,8 +611,8 @@ export default function WorkersCompPage() {
         }
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            filtered = filtered.filter(r => 
-                r.employee.toLowerCase().includes(q) || 
+            filtered = filtered.filter(r =>
+                r.employee.toLowerCase().includes(q) ||
                 r.title.toLowerCase().includes(q) ||
                 r.estimateRef.toLowerCase().includes(q) ||
                 (employeesMap[r.employee.toLowerCase()]?.label || '').toLowerCase().includes(q)
@@ -643,11 +626,11 @@ export default function WorkersCompPage() {
 
         tableData.forEach(r => {
             if (!summaryMap[r.employee]) {
-                summaryMap[r.employee] = { 
+                summaryMap[r.employee] = {
                     reg: 0, ot: 0, dt: 0,
                     totalHours: 0,
                     regPay: 0, otPay: 0, dtPay: 0,
-                    gross: 0, 
+                    gross: 0,
                     count: 0,
                     employee: r.employee
                 };
@@ -696,11 +679,11 @@ export default function WorkersCompPage() {
 
     return (
         <div className="flex flex-col h-full bg-[#f4f7fa]">
-            <Header 
+            <Header
                 hideLogo={false}
                 rightContent={
                     <div className="flex items-center gap-3">
-                        <button 
+                        <button
                             onClick={downloadCSV}
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                         >
@@ -712,61 +695,61 @@ export default function WorkersCompPage() {
             />
 
             <main className="flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto p-4 overflow-hidden">
-                
+
                 {/* Filter & KPI Bar Combined */}
                 <div className="flex items-center mb-3 min-h-[40px] relative z-40">
                     {/* Left: Sidebar-aligned Filters */}
-                        <div className="w-[320px] flex items-center gap-2 shrink-0">
-                             {/* Date Range Picker */}
-                             <div className="flex items-center gap-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                                 <div className="flex items-center gap-2 px-3 py-1.5 border-r border-slate-100">
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">From</span>
-                                      <input 
-                                         type="date"
-                                         value={startDate.toISOString().split('T')[0]}
-                                         onChange={(e) => {
-                                             const d = new Date(e.target.value);
-                                             if (!isNaN(d.getTime())) {
-                                                 setStartDate(d);
-                                                 // Auto-set End Date to (Start Date + 1 Month - 1 Day)
-                                                 const next = new Date(d);
-                                                 next.setMonth(next.getMonth() + 1);
-                                                 next.setDate(next.getDate() - 1);
-                                                 setEndDate(next);
-                                             }
-                                         }}
-                                         className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
-                                      />
-                                 </div>
-                                 <div className="flex items-center gap-2 px-3 py-1.5">
-                                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">To</span>
-                                      <input 
-                                         type="date"
-                                         value={endDate.toISOString().split('T')[0]}
-                                         onChange={(e) => {
-                                             const d = new Date(e.target.value);
-                                             if (!isNaN(d.getTime())) setEndDate(d);
-                                         }}
-                                         className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
-                                      />
-                                 </div>
-                             </div>
+                    <div className="w-[320px] flex items-center gap-2 shrink-0">
+                        {/* Date Range Picker */}
+                        <div className="flex items-center gap-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-1.5 border-r border-slate-100">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">From</span>
+                                <input
+                                    type="date"
+                                    value={startDate.toISOString().split('T')[0]}
+                                    onChange={(e) => {
+                                        const d = new Date(e.target.value);
+                                        if (!isNaN(d.getTime())) {
+                                            setStartDate(d);
+                                            // Auto-set End Date to (Start Date + 1 Month - 1 Day)
+                                            const next = new Date(d);
+                                            next.setMonth(next.getMonth() + 1);
+                                            next.setDate(next.getDate() - 1);
+                                            setEndDate(next);
+                                        }
+                                    }}
+                                    className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">To</span>
+                                <input
+                                    type="date"
+                                    value={endDate.toISOString().split('T')[0]}
+                                    onChange={(e) => {
+                                        const d = new Date(e.target.value);
+                                        if (!isNaN(d.getTime())) setEndDate(d);
+                                    }}
+                                    className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
+                                />
+                            </div>
                         </div>
+                    </div>
 
-                        {/* Drive Time Toggle */}
-                        <button 
-                            onClick={() => setIncludeDriveTime(!includeDriveTime)}
-                            className={`
+                    {/* Drive Time Toggle */}
+                    <button
+                        onClick={() => setIncludeDriveTime(!includeDriveTime)}
+                        className={`
                                 w-[42px] h-[34px] flex items-center justify-center rounded-xl border shadow-sm transition-all
-                                ${includeDriveTime 
-                                    ? 'bg-blue-50 border-blue-200' 
-                                    : 'bg-white border-slate-200 hover:bg-slate-50'
-                                }
+                                ${includeDriveTime
+                                ? 'bg-blue-50 border-blue-200'
+                                : 'bg-white border-slate-200 hover:bg-slate-50'
+                            }
                             `}
-                            title={includeDriveTime ? "Drive Time Included" : "Drive Time Excluded"}
-                        >
-                            <Truck size={16} className={includeDriveTime ? 'text-[#0F4C75]' : 'text-slate-300'} />
-                        </button>
+                        title={includeDriveTime ? "Drive Time Included" : "Drive Time Excluded"}
+                    >
+                        <Truck size={16} className={includeDriveTime ? 'text-[#0F4C75]' : 'text-slate-300'} />
+                    </button>
 
                     <div className="w-3" /> {/* Gap spacer */}
 
@@ -820,7 +803,7 @@ export default function WorkersCompPage() {
                         {/* Search Filter - Right Aligned */}
                         <div className="relative w-48 mx-3">
                             <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input 
+                            <input
                                 type="text"
                                 placeholder="Search records..."
                                 value={searchQuery}
@@ -830,7 +813,7 @@ export default function WorkersCompPage() {
                         </div>
 
                         {expandedEmp && (
-                            <button 
+                            <button
                                 onClick={() => setExpandedEmp(null)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white rounded-xl text-[10px] font-bold hover:bg-slate-700 transition-all shadow-lg shrink-0"
                             >
@@ -842,7 +825,7 @@ export default function WorkersCompPage() {
                 </div>
 
                 <div className="flex-1 flex gap-3 min-h-0">
-                    
+
                     {/* Left Sidebar - Grouping */}
                     <aside className="w-[320px] bg-white rounded-2xl shadow-sm border border-slate-100 flex flex-col overflow-hidden shrink-0">
                         <div className="p-3 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
@@ -858,64 +841,64 @@ export default function WorkersCompPage() {
                             {isRefreshing && !groups.length ? (
                                 <SidebarSkeleton />
                             ) : (
-                            <>
-                            {/* All Categories Button */}
-                            <button 
-                                onClick={() => setSelectedItem('All')}
-                                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
-                                    ${selectedItem === 'All' 
-                                        ? 'bg-[#0F4C75] text-white shadow-lg shadow-blue-900/10' 
-                                        : 'text-slate-600 hover:bg-slate-50'}
+                                <>
+                                    {/* All Categories Button */}
+                                    <button
+                                        onClick={() => setSelectedItem('All')}
+                                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
+                                    ${selectedItem === 'All'
+                                                ? 'bg-[#0F4C75] text-white shadow-lg shadow-blue-900/10'
+                                                : 'text-slate-600 hover:bg-slate-50'}
                                 `}
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === 'All' ? 'bg-white/20' : 'bg-slate-100'}`}>
-                                        <List size={14} />
-                                    </div>
-                                    <span className="text-xs font-semibold">All Activities</span>
-                                </div>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedItem === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                    ${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                </span>
-                            </button>
-
-                            {/* Group List */}
-                            {groups.map(group => (
-                                <button 
-                                    key={group.id}
-                                    onClick={() => setSelectedItem(group.id)}
-                                    className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
-                                        ${selectedItem === group.id 
-                                            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/10' 
-                                            : 'text-slate-600 hover:bg-slate-50'}
-                                    `}
-                                >
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100'}`}>
-                                            {activityIcons[group.label.toLowerCase()] ? (
-                                                <img 
-                                                    src={activityIcons[group.label.toLowerCase()]} 
-                                                    alt="" 
-                                                    className="w-4 h-4 object-contain"
-                                                />
-                                            ) : (
-                                                <Briefcase size={14} />
-                                            )}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === 'All' ? 'bg-white/20' : 'bg-slate-100'}`}>
+                                                <List size={14} />
+                                            </div>
+                                            <span className="text-xs font-semibold">All Activities</span>
                                         </div>
-                                        <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
-                                    </div>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                        ${group.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                    </span>
-                                </button>
-                            ))}
-                            </>
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedItem === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                            ${totals.gross.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </span>
+                                    </button>
+
+                                    {/* Group List */}
+                                    {groups.map(group => (
+                                        <button
+                                            key={group.id}
+                                            onClick={() => setSelectedItem(group.id)}
+                                            className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
+                                        ${selectedItem === group.id
+                                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/10'
+                                                    : 'text-slate-600 hover:bg-slate-50'}
+                                    `}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100'}`}>
+                                                    {activityIcons[group.label.toLowerCase()] ? (
+                                                        <img
+                                                            src={activityIcons[group.label.toLowerCase()]}
+                                                            alt=""
+                                                            className="w-4 h-4 object-contain"
+                                                        />
+                                                    ) : (
+                                                        <Briefcase size={14} />
+                                                    )}
+                                                </div>
+                                                <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
+                                            </div>
+                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedItem === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                                ${group.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </>
                             )}
                         </div>
                     </aside>
 
                     <div className="flex-1 flex flex-col min-w-0">
-                        
+
 
                         <Card className="flex-1 min-h-0 overflow-hidden flex flex-col border-none shadow-sm rounded-2xl">
                             <Table containerClassName="h-full border-none shadow-none bg-transparent min-h-0">
@@ -951,7 +934,7 @@ export default function WorkersCompPage() {
                                         <>
                                             {/* Summary "All" Row */}
                                             {employeeSummary.length > 0 && (
-                                                <TableRow 
+                                                <TableRow
                                                     className="bg-slate-50/50 font-bold border-b border-slate-100 hover:bg-slate-100/50 transition-colors cursor-pointer group"
                                                     onClick={() => setExpandedEmp('_all_')}
                                                 >
@@ -964,20 +947,20 @@ export default function WorkersCompPage() {
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-left">
                                                         <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full tabular-nums">
-                                                            {employeeSummary.reduce((a,b)=>a+b.count,0)}
+                                                            {employeeSummary.reduce((a, b) => a + b.count, 0)}
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-left text-[11px] text-emerald-600 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.regPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                        ${employeeSummary.reduce((a, b) => a + b.regPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-left text-[11px] text-orange-600 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.otPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                        ${employeeSummary.reduce((a, b) => a + b.otPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-left text-[11px] text-red-600 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.dtPay,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                        ${employeeSummary.reduce((a, b) => a + b.dtPay, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-left text-[12px] text-slate-900 tabular-nums">
-                                                        ${employeeSummary.reduce((a,b)=>a+b.gross,0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                                        ${employeeSummary.reduce((a, b) => a + b.gross, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -995,7 +978,7 @@ export default function WorkersCompPage() {
                                                                 {employeesMap[emp.employee]?.image ? (
                                                                     <img src={employeesMap[emp.employee].image} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n:any)=>n[0]).join('').substring(0,2).toUpperCase()
+                                                                    (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
                                                                 )}
                                                             </div>
                                                             <div>
@@ -1064,7 +1047,7 @@ export default function WorkersCompPage() {
                                                                 {employeesMap[record.employee]?.image ? (
                                                                     <img src={employeesMap[record.employee].image} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    (employeesMap[record.employee]?.label || record.employee).split(' ').map((n:any)=>n[0]).join('').substring(0,2).toUpperCase()
+                                                                    (employeesMap[record.employee]?.label || record.employee).split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
                                                                 )}
                                                             </div>
                                                             <div>
@@ -1127,7 +1110,7 @@ export default function WorkersCompPage() {
                                             {displayData.length > visibleRows && (
                                                 <TableRow className="hover:bg-transparent">
                                                     <TableCell colSpan={9} className="py-6 text-center">
-                                                        <button 
+                                                        <button
                                                             onClick={() => setVisibleRows(prev => prev + 50)}
                                                             className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm active:scale-95"
                                                         >

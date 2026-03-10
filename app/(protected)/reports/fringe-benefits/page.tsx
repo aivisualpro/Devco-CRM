@@ -1,49 +1,30 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { 
+import {
     ChevronRight, ChevronLeft, ChevronDown, User, Calendar as CalendarIcon,
     MapPin, Truck, Trash2, Edit, RotateCcw, FileText, Clock, RefreshCcw, Plus, CheckCircle2,
     Briefcase, Info, Search, List, Filter, Download, DollarSign, BarChart3
 } from 'lucide-react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { 
+import {
     Header, Loading, Modal, Tooltip, TooltipTrigger, TooltipContent,
     SearchableSelect, Card, Table, TableHead, TableBody, TableRow, TableHeader, TableCell,
     Badge
 } from '@/components/ui';
 import { useToast } from '@/hooks/useToast';
-import { 
-    calculateTimesheetData, 
-    formatDateOnly, 
-    formatTimeOnly, 
-    robustNormalizeISO
+import {
+    calculateTimesheetData,
+    formatDateOnly,
+    formatTimeOnly,
+    robustNormalizeISO,
+    startOfWeek,
+    endOfWeek,
+    addWeeks,
+    subWeeks
 } from '@/lib/timeCardUtils';
 
-// --- Local Utils ---
-const startOfWeek = (date: Date) => {
-    const d = new Date(date);
-    const day = d.getUTCDay();
-    const diff = day === 0 ? -6 : 1 - day; // Monday start
-    const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff, 0, 0, 0, 0));
-    return start;
-};
-
-const endOfWeek = (date: Date) => {
-    const d = startOfWeek(date);
-    const end = new Date(d);
-    end.setUTCDate(d.getUTCDate() + 6);
-    end.setUTCHours(23, 59, 59, 999);
-    return end;
-};
-
-const addWeeks = (date: Date, weeks: number) => {
-    const d = new Date(date);
-    d.setUTCDate(d.getUTCDate() + (weeks * 7));
-    return d;
-};
-
-const subWeeks = (date: Date, weeks: number) => addWeeks(date, -weeks);
+// startOfWeek, endOfWeek, addWeeks, subWeeks imported from @/lib/timeCardUtils
 
 // --- Types ---
 interface TimesheetRecord {
@@ -163,7 +144,7 @@ export default function FringeBenefitsPage() {
     const [employeesMap, setEmployeesMap] = useState<Record<string, any>>({});
     const [estimatesMap, setEstimatesMap] = useState<Record<string, any>>({});
     const [fringeConstantsMap, setFringeConstantsMap] = useState<Record<string, any>>({});
-    
+
     const params = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
@@ -194,7 +175,7 @@ export default function FringeBenefitsPage() {
         }
         return getDefaultDateRange().end;
     });
-    
+
     const [selectedFringe, setSelectedFringe] = useState<string>('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [expandedEmp, setExpandedEmp] = useState<string | null>(null);
@@ -215,24 +196,24 @@ export default function FringeBenefitsPage() {
                     const data = await res.json();
                     const filters = data.filters?.['fringe-benefits'];
                     if (filters) {
-                         if (filters.groupingMode) setGroupingMode(filters.groupingMode);
-                         if (filters.groupingMode) setGroupingMode(filters.groupingMode);
-                         if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
+                        if (filters.groupingMode) setGroupingMode(filters.groupingMode);
+                        if (filters.groupingMode) setGroupingMode(filters.groupingMode);
+                        if (filters.includeDriveTime !== undefined && !params.get('driveTime')) {
                             setIncludeDriveTime(filters.includeDriveTime);
-                         }
-                         if (filters.selectedFringe) setSelectedFringe(filters.selectedFringe);
-                         
-                         // Only restore saved dates if URL params are missing
-                         if (!params.get('from') && !params.get('to')) {
-                             if (filters.startStr) {
-                                 const s = new Date(filters.startStr);
-                                 if (!isNaN(s.getTime())) setStartDate(s);
-                             }
-                             if (filters.endStr) {
-                                 const e = new Date(filters.endStr);
-                                 if (!isNaN(e.getTime())) setEndDate(e);
-                             }
-                         }
+                        }
+                        if (filters.selectedFringe) setSelectedFringe(filters.selectedFringe);
+
+                        // Only restore saved dates if URL params are missing
+                        if (!params.get('from') && !params.get('to')) {
+                            if (filters.startStr) {
+                                const s = new Date(filters.startStr);
+                                if (!isNaN(s.getTime())) setStartDate(s);
+                            }
+                            if (filters.endStr) {
+                                const e = new Date(filters.endStr);
+                                if (!isNaN(e.getTime())) setEndDate(e);
+                            }
+                        }
                     }
                 }
             } catch (e) {
@@ -247,7 +228,7 @@ export default function FringeBenefitsPage() {
     // Save User Preferences (Debounced)
     useEffect(() => {
         if (!prefsLoaded) return;
-        
+
         const timer = setTimeout(() => {
             const filters = {
                 groupingMode,
@@ -256,7 +237,7 @@ export default function FringeBenefitsPage() {
                 startStr: startDate.toISOString(),
                 endStr: endDate.toISOString()
             };
-            
+
             fetch('/api/user/preferences', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -276,9 +257,9 @@ export default function FringeBenefitsPage() {
         const startStr = startDate.toISOString().split('T')[0];
         const endStr = endDate.toISOString().split('T')[0];
         const driveTimeStr = String(includeDriveTime);
-        
+
         let needsUpdate = false;
-        
+
         if (currentParams.get('from') !== startStr) {
             currentParams.set('from', startStr);
             needsUpdate = true;
@@ -305,27 +286,29 @@ export default function FringeBenefitsPage() {
             setIsRefreshing(true);
         }
         try {
-            // Extend date range slightly to capture timesheets on boundary dates
+            // Extend date range by 1 week in each direction to capture timesheets
+            // whose schedule fromDate might be in adjacent weeks but clockIn is in selected range
+            // This matches the time-cards page behavior for consistency
             const extendedStart = new Date(startDate);
-            extendedStart.setDate(extendedStart.getDate() - 7);
+            extendedStart.setUTCDate(extendedStart.getUTCDate() - 7);
             const extendedEnd = new Date(endDate);
-            extendedEnd.setDate(extendedEnd.getDate() + 7);
+            extendedEnd.setUTCDate(extendedEnd.getUTCDate() + 7);
 
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     action: 'getSchedulesPage',
-                    payload: { 
-                        limit: 5000,
+                    payload: {
+                        limit: 10000,
                         includeTimesheets: true,
                         startDate: extendedStart.toISOString(),
                         endDate: extendedEnd.toISOString()
-                    } 
-                }) 
+                    }
+                })
             });
             const data = await res.json();
-            
+
             if (data.success) {
                 setRawSchedules(data.result.schedules || []);
                 const emps = data.result.initialData?.employees || [];
@@ -366,28 +349,28 @@ export default function FringeBenefitsPage() {
     // Debounced fetch for date changes (refresh, not initial)
     useEffect(() => {
         if (!prefsLoaded || isInitialLoad) return;
-        
+
         const timer = setTimeout(() => {
             fetchData(false);
         }, 300); // Debounce 300ms to avoid rapid refetches
-        
+
         return () => clearTimeout(timer);
     }, [startDate, endDate]);
 
     // Flatten and Filter Records
     const allRecords = useMemo(() => {
         const flat: TimesheetRecord[] = [];
-        
+
         // Ensure end date includes the full day
         const filterStart = new Date(startDate);
         filterStart.setHours(0, 0, 0, 0);
-        
+
         const filterEnd = new Date(endDate);
         filterEnd.setHours(23, 59, 59, 999);
 
         rawSchedules.forEach(sched => {
             if (!sched.timesheet || !Array.isArray(sched.timesheet)) return;
-            
+
             sched.timesheet.forEach((ts: any) => {
                 const tType = ts.type?.trim().toLowerCase() || '';
                 const isSite = tType.includes('site');
@@ -399,7 +382,7 @@ export default function FringeBenefitsPage() {
 
                 const clockInDate = new Date(robustNormalizeISO(ts.clockIn));
                 if (isNaN(clockInDate.getTime())) return;
-                
+
                 // Date Filter
                 if (clockInDate < filterStart || clockInDate > filterEnd) return;
 
@@ -409,7 +392,7 @@ export default function FringeBenefitsPage() {
                 const dt = Math.max(0, hours - 12);
 
                 const empInfo = employeesMap[ts.employee.toLowerCase()] || {};
-                
+
                 // Determine Rate based on Type
                 let rate = 0;
                 if (isDrive) {
@@ -417,28 +400,28 @@ export default function FringeBenefitsPage() {
                 } else {
                     rate = parseFloat(empInfo.hourlyRateSITE || '45');
                 }
-                
+
                 const rRegPay = reg * rate;
                 const rOtPay = ot * rate * 1.5;
                 const rDtPay = dt * rate * 2.0;
                 const grossPay = rRegPay + rOtPay + rDtPay;
-                
+
                 const subjectWages = hours * rate;
-                
+
                 // Robust Fringe Lookup
                 let est = estimatesMap[sched.estimate];
                 if (!est && sched.estimate) {
                     // Try case-insensitive specific match
                     const key = Object.keys(estimatesMap).find(k => k.toLowerCase() === sched.estimate.toLowerCase());
                     if (key) est = estimatesMap[key];
-                    
+
                     // Try fuzzy/starts-with match if still not found
                     if (!est) {
-                         const fuzzyKey = Object.keys(estimatesMap).find(k => k.startsWith(sched.estimate) || sched.estimate.startsWith(k));
-                         if (fuzzyKey) est = estimatesMap[fuzzyKey];
+                        const fuzzyKey = Object.keys(estimatesMap).find(k => k.startsWith(sched.estimate) || sched.estimate.startsWith(k));
+                        if (fuzzyKey) est = estimatesMap[fuzzyKey];
                     }
                 }
-                
+
                 const fringeVal = est?.fringe || sched.fringe || 'No';
 
                 flat.push({
@@ -456,7 +439,7 @@ export default function FringeBenefitsPage() {
                     dtPay: rDtPay,
                     grossPay: grossPay,
                     subjectWages: subjectWages,
-                    compCost: 0, 
+                    compCost: 0,
                     scheduleId: sched._id,
                     item: sched.item || 'Uncategorized',
                     fringe: fringeVal,
@@ -473,16 +456,16 @@ export default function FringeBenefitsPage() {
     // Grouping Data by Fringe
     const groups = useMemo(() => {
         const gMap: Record<string, FringeGroup> = {};
-        
+
         allRecords.forEach(r => {
             const key = r.fringe;
             if (!gMap[key]) {
                 const constant = fringeConstantsMap[key];
-                gMap[key] = { 
-                    id: key, 
-                    label: key, 
-                    totalAmount: 0, 
-                    totalHours: 0, 
+                gMap[key] = {
+                    id: key,
+                    label: key,
+                    totalAmount: 0,
+                    totalHours: 0,
                     recordCount: 0,
                     color: constant?.color,
                     image: constant?.image
@@ -518,8 +501,8 @@ export default function FringeBenefitsPage() {
         }
         if (searchQuery) {
             const q = searchQuery.toLowerCase();
-            filtered = filtered.filter(r => 
-                r.employee.toLowerCase().includes(q) || 
+            filtered = filtered.filter(r =>
+                r.employee.toLowerCase().includes(q) ||
                 r.title.toLowerCase().includes(q) ||
                 r.estimateRef.toLowerCase().includes(q) ||
                 (employeesMap[r.employee.toLowerCase()]?.label || '').toLowerCase().includes(q) ||
@@ -534,10 +517,10 @@ export default function FringeBenefitsPage() {
 
         tableData.forEach(r => {
             if (!summaryMap[r.employee]) {
-                summaryMap[r.employee] = { 
+                summaryMap[r.employee] = {
                     reg: 0, ot: 0, dt: 0, totalHours: 0,
                     regPay: 0, otPay: 0, dtPay: 0,
-                    gross: 0, 
+                    gross: 0,
                     count: 0,
                     employee: r.employee
                 };
@@ -572,10 +555,10 @@ export default function FringeBenefitsPage() {
         tableData.forEach(r => {
             const key = r.estimateRef || 'Unknown';
             if (!summaryMap[key]) {
-                summaryMap[key] = { 
+                summaryMap[key] = {
                     reg: 0, ot: 0, dt: 0, totalHours: 0,
                     regPay: 0, otPay: 0, dtPay: 0,
-                    gross: 0, 
+                    gross: 0,
                     count: 0,
                     id: key,
                     label: key,
@@ -631,11 +614,11 @@ export default function FringeBenefitsPage() {
 
     return (
         <div className="flex flex-col h-full bg-[#f4f7fa]">
-            <Header 
+            <Header
                 hideLogo={false}
                 rightContent={
                     <div className="flex items-center gap-3">
-                        <button 
+                        <button
                             onClick={downloadCSV}
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                         >
@@ -647,55 +630,55 @@ export default function FringeBenefitsPage() {
             />
 
             <main className="flex-1 min-h-0 flex flex-col max-w-[1920px] w-full mx-auto p-4 overflow-hidden">
-                
+
                 {/* Filter & KPI Bar */}
                 <div className="flex items-center mb-3 min-h-[40px] relative z-40">
                     <div className="w-[320px] flex items-center gap-2 shrink-0">
-                         {/* Date Range Picker */}
-                         <div className="flex items-center gap-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-                             <div className="flex items-center gap-2 px-3 py-1.5 border-r border-slate-100">
-                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">From</span>
-                                  <input 
-                                     type="date"
-                                     value={startDate.toISOString().split('T')[0]}
-                                     onChange={(e) => {
-                                         const d = new Date(e.target.value);
-                                         if (!isNaN(d.getTime())) {
-                                             setStartDate(d);
-                                             // Auto-set End Date to (Start Date + 1 Month - 1 Day)
-                                             const next = new Date(d);
-                                             next.setMonth(next.getMonth() + 1);
-                                             next.setDate(next.getDate() - 1);
-                                             setEndDate(next);
-                                         }
-                                     }}
-                                     className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
-                                  />
-                             </div>
-                             <div className="flex items-center gap-2 px-3 py-1.5">
-                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">To</span>
-                                  <input 
-                                     type="date"
-                                     value={endDate.toISOString().split('T')[0]}
-                                     onChange={(e) => {
-                                         const d = new Date(e.target.value);
-                                         if (!isNaN(d.getTime())) setEndDate(d);
-                                     }}
-                                     className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
-                                  />
-                             </div>
-                         </div>
+                        {/* Date Range Picker */}
+                        <div className="flex items-center gap-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                            <div className="flex items-center gap-2 px-3 py-1.5 border-r border-slate-100">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">From</span>
+                                <input
+                                    type="date"
+                                    value={startDate.toISOString().split('T')[0]}
+                                    onChange={(e) => {
+                                        const d = new Date(e.target.value);
+                                        if (!isNaN(d.getTime())) {
+                                            setStartDate(d);
+                                            // Auto-set End Date to (Start Date + 1 Month - 1 Day)
+                                            const next = new Date(d);
+                                            next.setMonth(next.getMonth() + 1);
+                                            next.setDate(next.getDate() - 1);
+                                            setEndDate(next);
+                                        }
+                                    }}
+                                    className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">To</span>
+                                <input
+                                    type="date"
+                                    value={endDate.toISOString().split('T')[0]}
+                                    onChange={(e) => {
+                                        const d = new Date(e.target.value);
+                                        if (!isNaN(d.getTime())) setEndDate(d);
+                                    }}
+                                    className="text-[11px] font-bold text-slate-700 bg-transparent focus:outline-none font-mono"
+                                />
+                            </div>
+                        </div>
                     </div>
 
-                     <div className="w-3" />
+                    <div className="w-3" />
 
-                     {/* Drive Time Toggle */}
-                    <button 
+                    {/* Drive Time Toggle */}
+                    <button
                         onClick={() => setIncludeDriveTime(!includeDriveTime)}
                         className={`
                             w-[42px] h-[34px] flex items-center justify-center rounded-xl border shadow-sm transition-all
-                            ${includeDriveTime 
-                                ? 'bg-blue-50 border-blue-200' 
+                            ${includeDriveTime
+                                ? 'bg-blue-50 border-blue-200'
                                 : 'bg-white border-slate-200 hover:bg-slate-50'
                             }
                         `}
@@ -704,11 +687,11 @@ export default function FringeBenefitsPage() {
                         <Truck size={16} className={includeDriveTime ? 'text-[#0F4C75]' : 'text-slate-300'} />
                     </button>
 
-                     <div className="w-3" />
+                    <div className="w-3" />
 
-                     {/* Grouping Toggle */}
+                    {/* Grouping Toggle */}
                     <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 h-[34px]">
-                        <button 
+                        <button
                             onClick={() => {
                                 setGroupingMode('employee');
                                 setExpandedEmp(null);
@@ -718,7 +701,7 @@ export default function FringeBenefitsPage() {
                         >
                             <User size={16} />
                         </button>
-                        <button 
+                        <button
                             onClick={() => {
                                 setGroupingMode('estimate');
                                 setExpandedEmp(null);
@@ -730,7 +713,7 @@ export default function FringeBenefitsPage() {
                         </button>
                     </div>
 
-                     <div className="w-3" />
+                    <div className="w-3" />
 
                     <div className="flex-1 flex items-center justify-between">
                         <div className="flex items-center gap-4 bg-white/50 px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
@@ -780,7 +763,7 @@ export default function FringeBenefitsPage() {
 
                         <div className="relative w-48 mx-3">
                             <Search size={10} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input 
+                            <input
                                 type="text"
                                 placeholder="Search records..."
                                 value={searchQuery}
@@ -790,7 +773,7 @@ export default function FringeBenefitsPage() {
                         </div>
 
                         {expandedEmp && (
-                            <button 
+                            <button
                                 onClick={() => setExpandedEmp(null)}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 text-white rounded-xl text-[10px] font-bold hover:bg-slate-700 transition-all shadow-lg shrink-0"
                             >
@@ -816,58 +799,58 @@ export default function FringeBenefitsPage() {
                             {isRefreshing && !groups.length ? (
                                 <SidebarSkeleton />
                             ) : (
-                            <>
-                            <button 
-                                onClick={() => setSelectedFringe('All')}
-                                className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
-                                    ${selectedFringe === 'All' 
-                                        ? 'bg-[#0F4C75] text-white shadow-lg shadow-blue-900/10' 
-                                        : 'text-slate-600 hover:bg-slate-50'}
+                                <>
+                                    <button
+                                        onClick={() => setSelectedFringe('All')}
+                                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
+                                    ${selectedFringe === 'All'
+                                                ? 'bg-[#0F4C75] text-white shadow-lg shadow-blue-900/10'
+                                                : 'text-slate-600 hover:bg-slate-50'}
                                 `}
-                            >
-                                <div className="flex items-center gap-2.5">
-                                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100'}`}>
-                                        <List size={14} />
-                                    </div>
-                                    <span className="text-xs font-semibold">All Fringe Types</span>
-                                </div>
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                    {totals.hours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                                </span>
-                            </button>
-
-                            {groups.map(group => (
-                                <button 
-                                    key={group.id}
-                                    onClick={() => setSelectedFringe(group.id)}
-                                    className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
-                                        ${selectedFringe === group.id 
-                                            ? 'shadow-lg shadow-blue-900/10' 
-                                            : 'text-slate-600 hover:bg-slate-50'}
-                                    `}
-                                    style={{ 
-                                        backgroundColor: selectedFringe === group.id ? (group.color || '#059669') : '',
-                                        color: selectedFringe === group.id ? 'white' : ''
-                                    }}
-                                >
-                                    <div className="flex items-center gap-2.5">
-                                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100'} overflow-hidden`}>
-                                            {group.image ? (
-                                                <img src={group.image} className="w-full h-full object-cover" alt="" />
-                                            ) : (
-                                                <span className={`text-[10px] font-bold uppercase ${selectedFringe === group.id ? 'text-white' : 'text-slate-500'}`}>
-                                                    {group.label.substring(0, 2)}
-                                                </span>
-                                            )}
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100'}`}>
+                                                <List size={14} />
+                                            </div>
+                                            <span className="text-xs font-semibold">All Fringe Types</span>
                                         </div>
-                                        <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
-                                    </div>
-                                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                                        {group.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                                    </span>
-                                </button>
-                            ))}
-                            </>
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === 'All' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                            {totals.hours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                                        </span>
+                                    </button>
+
+                                    {groups.map(group => (
+                                        <button
+                                            key={group.id}
+                                            onClick={() => setSelectedFringe(group.id)}
+                                            className={`w-full flex items-center justify-between p-3.5 rounded-2xl transition-all group
+                                        ${selectedFringe === group.id
+                                                    ? 'shadow-lg shadow-blue-900/10'
+                                                    : 'text-slate-600 hover:bg-slate-50'}
+                                    `}
+                                            style={{
+                                                backgroundColor: selectedFringe === group.id ? (group.color || '#059669') : '',
+                                                color: selectedFringe === group.id ? 'white' : ''
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-2.5">
+                                                <div className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100'} overflow-hidden`}>
+                                                    {group.image ? (
+                                                        <img src={group.image} className="w-full h-full object-cover" alt="" />
+                                                    ) : (
+                                                        <span className={`text-[10px] font-bold uppercase ${selectedFringe === group.id ? 'text-white' : 'text-slate-500'}`}>
+                                                            {group.label.substring(0, 2)}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-xs font-semibold text-left leading-tight">{group.label}</span>
+                                            </div>
+                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-lg ${selectedFringe === group.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                                                {group.totalHours.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </>
                             )}
                         </div>
                     </aside>
@@ -912,7 +895,7 @@ export default function FringeBenefitsPage() {
                                     {!expandedEmp ? (
                                         <>
                                             {employeeSummary.length > 0 && (
-                                                <TableRow 
+                                                <TableRow
                                                     className="bg-slate-50/50 font-bold border-b border-slate-100 hover:bg-slate-100/50 transition-colors cursor-pointer group"
                                                     onClick={() => setExpandedEmp('_all_')}
                                                 >
@@ -932,16 +915,16 @@ export default function FringeBenefitsPage() {
                                                         --
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-[#0F4C75] tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.reg,0).toFixed(2)}
+                                                        {employeeSummary.reduce((a, b) => a + b.reg, 0).toFixed(2)}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-orange-500 tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.ot,0).toFixed(2)}
+                                                        {employeeSummary.reduce((a, b) => a + b.ot, 0).toFixed(2)}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-red-500 tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+b.dt,0).toFixed(2)}
+                                                        {employeeSummary.reduce((a, b) => a + b.dt, 0).toFixed(2)}
                                                     </TableCell>
                                                     <TableCell className="px-4 py-3 text-right text-[11px] text-blue-600 tabular-nums">
-                                                        {employeeSummary.reduce((a,b)=>a+(b.totalHours || 0),0).toFixed(2)}
+                                                        {employeeSummary.reduce((a, b) => a + (b.totalHours || 0), 0).toFixed(2)}
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -960,7 +943,7 @@ export default function FringeBenefitsPage() {
                                                                     {employeesMap[emp.employee]?.image ? (
                                                                         <img src={employeesMap[emp.employee].image} alt="" className="w-full h-full object-cover" />
                                                                     ) : (
-                                                                        (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n:any)=>n[0]).join('').substring(0,2).toUpperCase()
+                                                                        (employeesMap[emp.employee]?.label || emp.employee).split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
                                                                     )}
                                                                 </div>
                                                                 <div>
@@ -972,11 +955,11 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3">
                                                             <div className="flex items-center gap-2">
                                                                 {emp.fringeDisplay !== 'Multiple' && fringeConstantsMap[emp.fringeDisplay]?.image && (
-                                                                     <div className="w-5 h-5 rounded overflow-hidden">
-                                                                         <img src={fringeConstantsMap[emp.fringeDisplay].image} className="w-full h-full object-cover" alt="" />
-                                                                     </div>
+                                                                    <div className="w-5 h-5 rounded overflow-hidden">
+                                                                        <img src={fringeConstantsMap[emp.fringeDisplay].image} className="w-full h-full object-cover" alt="" />
+                                                                    </div>
                                                                 )}
-                                                                <span 
+                                                                <span
                                                                     className={`text-[10px] font-bold uppercase truncate max-w-[120px] ${emp.fringeDisplay === 'Multiple' ? 'text-slate-400 italic' : ''}`}
                                                                     style={{ color: emp.fringeDisplay !== 'Multiple' ? (fringeConstantsMap[emp.fringeDisplay]?.color || '#0F4C75') : undefined }}
                                                                 >
@@ -1018,11 +1001,11 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3">
                                                             <div className="flex items-center gap-2">
                                                                 {item.fringeDisplay !== 'Multiple' && fringeConstantsMap[item.fringeDisplay]?.image && (
-                                                                     <div className="w-5 h-5 rounded overflow-hidden">
-                                                                         <img src={fringeConstantsMap[item.fringeDisplay].image} className="w-full h-full object-cover" alt="" />
-                                                                     </div>
+                                                                    <div className="w-5 h-5 rounded overflow-hidden">
+                                                                        <img src={fringeConstantsMap[item.fringeDisplay].image} className="w-full h-full object-cover" alt="" />
+                                                                    </div>
                                                                 )}
-                                                                <span 
+                                                                <span
                                                                     className={`text-[10px] font-bold uppercase truncate max-w-[120px] ${item.fringeDisplay === 'Multiple' ? 'text-slate-400 italic' : ''}`}
                                                                     style={{ color: item.fringeDisplay !== 'Multiple' ? (fringeConstantsMap[item.fringeDisplay]?.color || '#0F4C75') : undefined }}
                                                                 >
@@ -1035,7 +1018,7 @@ export default function FringeBenefitsPage() {
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-red-500/80 tabular-nums">{item.dt > 0 ? item.dt.toFixed(2) : '-'}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right text-[11px] font-semibold text-gray-500 tabular-nums">{(item.totalHours || 0).toFixed(2)}</TableCell>
                                                         <TableCell className="px-4 py-3 text-right">
-                                                           <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors inline-block" />
+                                                            <ChevronRight size={12} className="text-slate-300 group-hover:text-[#0F4C75] transition-colors inline-block" />
                                                         </TableCell>
                                                     </TableRow>
                                                 ))
@@ -1047,16 +1030,16 @@ export default function FringeBenefitsPage() {
                                                 <TableRow key={`${record._id}-${idx}`} className="group hover:bg-slate-50/50 transition-colors border-b border-slate-50/50 last:border-0 text-[11px]">
                                                     <TableCell className="px-2 py-2 text-center">
                                                         <div className="flex items-center justify-center gap-2">
-                                                            <div 
+                                                            <div
                                                                 className="w-6 h-6 rounded-lg flex items-center justify-center overflow-hidden border border-slate-50 shadow-sm"
-                                                                style={{ 
+                                                                style={{
                                                                     backgroundColor: fringeConstantsMap[record.fringe]?.color ? `${fringeConstantsMap[record.fringe].color}20` : '#f8fafc',
                                                                 }}
                                                             >
                                                                 {fringeConstantsMap[record.fringe]?.image ? (
                                                                     <img src={fringeConstantsMap[record.fringe].image} className="w-full h-full object-cover" alt="" />
                                                                 ) : (
-                                                                    <span 
+                                                                    <span
                                                                         className="text-[9px] font-black uppercase"
                                                                         style={{ color: fringeConstantsMap[record.fringe]?.color || '#0F4C75' }}
                                                                     >
@@ -1064,9 +1047,9 @@ export default function FringeBenefitsPage() {
                                                                     </span>
                                                                 )}
                                                             </div>
-                                                            <Badge 
+                                                            <Badge
                                                                 className="border-slate-100 text-[9px] font-bold px-1.5 py-0 shadow-none bg-transparent"
-                                                                style={{ 
+                                                                style={{
                                                                     color: fringeConstantsMap[record.fringe]?.color || '#0F4C75',
                                                                     borderColor: fringeConstantsMap[record.fringe]?.color ? `${fringeConstantsMap[record.fringe].color}40` : '#e2e8f0'
                                                                 }}
@@ -1081,7 +1064,7 @@ export default function FringeBenefitsPage() {
                                                                 {employeesMap[record.employee]?.image ? (
                                                                     <img src={employeesMap[record.employee].image} alt="" className="w-full h-full object-cover" />
                                                                 ) : (
-                                                                    (employeesMap[record.employee]?.label || record.employee).split(' ').map((n:any)=>n[0]).join('').substring(0,2).toUpperCase()
+                                                                    (employeesMap[record.employee]?.label || record.employee).split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase()
                                                                 )}
                                                             </div>
                                                             <div>
@@ -1131,7 +1114,7 @@ export default function FringeBenefitsPage() {
                                             {displayData.length > visibleRows && (
                                                 <TableRow className="hover:bg-transparent">
                                                     <TableCell colSpan={groupingMode === 'estimate' ? 10 : 8} className="py-6 text-center">
-                                                        <button 
+                                                        <button
                                                             onClick={() => setVisibleRows(prev => prev + 50)}
                                                             className="px-6 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all shadow-sm active:scale-95"
                                                         >
