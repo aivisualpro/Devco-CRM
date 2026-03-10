@@ -1,5 +1,6 @@
 // Schedule Utility Functions
 // Extracted from page.tsx for better maintainability
+import { robustNormalizeISO } from '@/lib/timeCardUtils';
 
 /**
  * Format date as YYYY-MM-DD in UTC (consistent with how Mongo treats "YYYY-MM-DD" imports)
@@ -20,7 +21,7 @@ export const formatLocalDate = (dateInput: string | Date): string => {
  */
 export const formatLocalDateTime = (dateInput: string | Date): string => {
     if (!dateInput) return '';
-    
+
     // If it's a string in ISO format with Z suffix, parse UTC components directly
     if (typeof dateInput === 'string') {
         // Handle ISO format: "2026-01-26T06:00:00.000Z" or "2026-01-26T06:00:00Z" or "2026-01-26T06:00Z"
@@ -30,7 +31,7 @@ export const formatLocalDateTime = (dateInput: string | Date): string => {
             return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
     }
-    
+
     // Fallback: parse as Date and extract UTC components
     const date = new Date(dateInput);
     if (isNaN(date.getTime())) return '';
@@ -65,46 +66,53 @@ export const combineCurrentDateWithTime = (timeStr: string): string => {
 
 /**
  * Format date to human readable format
+ * TIMEZONE-SAFE: Uses robustNormalizeISO to parse dates as-is without timezone conversion
  */
 export const formatToReadableDateTime = (dateInput: string | Date): string => {
     if (!dateInput) return '';
-    const date = new Date(dateInput);
-    if (isNaN(date.getTime())) return '';
-    const month = date.getUTCMonth() + 1;
-    const day = date.getUTCDate();
-    const year = date.getUTCFullYear();
-    const hours = date.getUTCHours();
-    const minutes = date.getUTCMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    return `${month}/${day}/${year} ${displayHours}:${String(minutes).padStart(2, '0')} ${ampm}`;
+    const iso = typeof dateInput === 'string'
+        ? robustNormalizeISO(dateInput)
+        : dateInput.toISOString();
+    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!match) return '';
+    const [, y, mo, d, hStr, min] = match;
+    const h = parseInt(hStr);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHours = h % 12 || 12;
+    return `${parseInt(mo)}/${parseInt(d)}/${y} ${displayHours}:${min} ${ampm}`;
 };
 
 /**
  * Format time only (HH:MM AM/PM)
+ * TIMEZONE-SAFE: Uses robustNormalizeISO to parse dates as-is without timezone conversion
  */
 export const formatTimeOnly = (dateStr: string): string => {
     if (!dateStr) return '';
     try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return '';
-        const h = d.getUTCHours();
-        const m = d.getUTCMinutes();
+        const normalized = robustNormalizeISO(dateStr);
+        const match = normalized.match(/T(\d{2}):(\d{2})/);
+        if (!match) return '';
+        const [, hStr, mStr] = match;
+        let h = parseInt(hStr);
         const ampm = h >= 12 ? 'PM' : 'AM';
-        const hr = h % 12 || 12;
-        return `${hr}:${String(m).padStart(2, '0')} ${ampm}`;
+        h = h % 12;
+        if (h === 0) h = 12;
+        return `${h}:${mStr} ${ampm}`;
     } catch { return ''; }
 };
 
 /**
  * Format date for display (M/D/YYYY)
+ * TIMEZONE-SAFE: Uses robustNormalizeISO to parse dates as-is without timezone conversion
  */
 export const formatDate = (dateStr: string): string => {
     if (!dateStr) return '';
     try {
-        const date = new Date(dateStr);
-        if (isNaN(date.getTime())) return dateStr;
-        return `${date.getUTCMonth() + 1}/${date.getUTCDate()}/${date.getUTCFullYear()}`;
+        const normalized = robustNormalizeISO(dateStr);
+        const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return dateStr;
+        const [, y, m, d] = match;
+        return `${parseInt(m)}/${parseInt(d)}/${y}`;
     } catch {
         return dateStr;
     }
@@ -195,7 +203,7 @@ export const getDistanceFromLatLonInMiles = (lat1: number, lon1: number, lat2: n
     const R = 3958.8; // Radius of Earth in miles
     const dLat = deg2rad(lat2 - lat1);
     const dLon = deg2rad(lon2 - lon1);
-    const a = 
+    const a =
         Math.sin(dLat / 2) * Math.sin(dLat / 2) +
         Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
         Math.sin(dLon / 2) * Math.sin(dLon / 2);
@@ -232,12 +240,12 @@ export const getWorkDays = (start: string, end: string): number => {
         const startParts = start.match(/^(\d{4})-(\d{2})-(\d{2})/);
         const endParts = end.match(/^(\d{4})-(\d{2})-(\d{2})/);
         if (!startParts || !endParts) return 0;
-        
+
         const startDate = new Date(Date.UTC(parseInt(startParts[1]), parseInt(startParts[2]) - 1, parseInt(startParts[3])));
         const endDate = new Date(Date.UTC(parseInt(endParts[1]), parseInt(endParts[2]) - 1, parseInt(endParts[3])));
-        
+
         if (startDate > endDate) return 0;
-        
+
         let count = 0;
         const current = new Date(startDate);
         while (current <= endDate) {

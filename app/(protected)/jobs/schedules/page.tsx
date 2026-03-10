@@ -63,10 +63,10 @@ function SchedulePageContent() {
     const { user, getDataScope: getScope, isSuperAdmin } = usePermissions();
     // Users with 'self' scope for schedules can only create Day Off schedules
     const isEmployeeScope = !isSuperAdmin && getScope(MODULES.SCHEDULES) === 'self';
-    
+
     // Map Modal State
     const [mapModalOpen, setMapModalOpen] = useState(false);
-    const [selectedMapRoute, setSelectedMapRoute] = useState<{start?: string, end?: string, distance?: number}>({});
+    const [selectedMapRoute, setSelectedMapRoute] = useState<{ start?: string, end?: string, distance?: number }>({});
     const [schedules, setSchedules] = useState<ScheduleItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -108,7 +108,7 @@ function SchedulePageContent() {
         const endStr = `${endOfWeek.getUTCFullYear()}-${String(endOfWeek.getUTCMonth() + 1).padStart(2, '0')}-${String(endOfWeek.getUTCDate()).padStart(2, '0')}`;
         return `${startStr}|${endStr}`;
     });
-    
+
     // Scroll Spy Logic
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [visibleScrollDay, setVisibleScrollDay] = useState<string>('all');
@@ -116,32 +116,32 @@ function SchedulePageContent() {
     useEffect(() => {
         const container = scrollContainerRef.current;
         if (!container) return;
-        
+
         const handleScroll = () => {
-             const stickyHeaderHeight = 60; 
-             const containerRect = container.getBoundingClientRect();
-             const cards = Array.from(container.querySelectorAll('[data-day]'));
-             
-             for (const card of cards) {
-                 const rect = card.getBoundingClientRect();
-                 if (rect.bottom > containerRect.top + stickyHeaderHeight + 10) {
-                     const day = card.getAttribute('data-day');
-                     if (day) setVisibleScrollDay(day);
-                     break;
-                 }
-             }
+            const stickyHeaderHeight = 60;
+            const containerRect = container.getBoundingClientRect();
+            const cards = Array.from(container.querySelectorAll('[data-day]'));
+
+            for (const card of cards) {
+                const rect = card.getBoundingClientRect();
+                if (rect.bottom > containerRect.top + stickyHeaderHeight + 10) {
+                    const day = card.getAttribute('data-day');
+                    if (day) setVisibleScrollDay(day);
+                    break;
+                }
+            }
         };
         container.addEventListener('scroll', handleScroll, { passive: true });
         return () => container.removeEventListener('scroll', handleScroll);
     }, [schedules]);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
-    
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [editingItem, setEditingItem] = useState<Partial<ScheduleItem> | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
-    
+
     // Action Confirmation State
     const [actionConfirm, setActionConfirm] = useState<{
         isOpen: boolean;
@@ -156,10 +156,10 @@ function SchedulePageContent() {
         message: '',
         confirmText: 'Confirm',
         variant: 'primary',
-        onConfirm: () => {}
+        onConfirm: () => { }
     });
 
-    
+
     // JHA Modal State
     const [jhaModalOpen, setJhaModalOpen] = useState(false);
     const [selectedJHA, setSelectedJHA] = useState<any>(null);
@@ -195,7 +195,7 @@ function SchedulePageContent() {
         isOpen: false,
         tsId: null
     });
-    
+
     // Timesheet Edit Modal State (same as time-cards page)
     const [editingTimesheet, setEditingTimesheet] = useState<any>(null);
     const [editTimesheetForm, setEditTimesheetForm] = useState<any>({});
@@ -203,7 +203,7 @@ function SchedulePageContent() {
     // Calendar & Activity State
     const [currentDate, setCurrentDate] = useState(new Date());
     const [monthlyActivityDates, setMonthlyActivityDates] = useState<Set<string>>(new Set());
-    
+
     // AppSheet Sync State
     const [isSyncingToAppSheet, setIsSyncingToAppSheet] = useState(false);
 
@@ -256,15 +256,15 @@ function SchedulePageContent() {
     const fetchDayOffStats = async () => {
         try {
             const today = new Date();
-            today.setHours(0, 0, 0, 0); 
+            today.setHours(0, 0, 0, 0);
             const future = new Date(today);
-            future.setFullYear(today.getFullYear() + 5); 
+            future.setFullYear(today.getFullYear() + 5);
 
             const payload = {
                 action: 'getSchedulesPage',
                 payload: {
                     page: 1,
-                    limit: 1000, 
+                    limit: 1000,
                     startDate: today.toISOString(),
                     endDate: future.toISOString(),
                     filters: { tag: 'Day Off' },
@@ -308,7 +308,7 @@ function SchedulePageContent() {
         const year = today.getFullYear();
         const month = String(today.getMonth() + 1).padStart(2, '0');
         const day = String(today.getDate()).padStart(2, '0');
-        
+
         // Default: 7:00 AM to 3:30 PM (Typical shift) - stored as plain strings
         const fromDate = `${year}-${month}-${day}T07:00`;
         const toDate = `${year}-${month}-${day}T15:30`;
@@ -346,7 +346,7 @@ function SchedulePageContent() {
                 certifiedPayroll: filterCertifiedPayroll
             };
 
-            const payload = { 
+            const payload = {
                 action: 'getSchedulesPage',
                 payload: {
                     page: pageNum,
@@ -365,7 +365,7 @@ function SchedulePageContent() {
                 body: JSON.stringify(payload)
             });
             const data = await res.json();
-            
+
             if (data.success) {
                 const newSchedules = data.result.schedules || [];
                 if (reset) {
@@ -378,11 +378,11 @@ function SchedulePageContent() {
                         return [...prev, ...uniqueNew];
                     });
                 }
-                
+
                 if (data.result.counts) {
-                     const countsMap: Record<string, number> = {};
-                     data.result.counts.forEach((c: any) => countsMap[c._id] = c.count);
-                     setServerCounts(countsMap);
+                    const countsMap: Record<string, number> = {};
+                    data.result.counts.forEach((c: any) => countsMap[c._id] = c.count);
+                    setServerCounts(countsMap);
                 }
                 setServerCapacity(data.result.capacity || 0);
                 setTotalCount(data.result.total || 0);
@@ -412,7 +412,7 @@ function SchedulePageContent() {
     //     // Actually, on mount selectedDates is set, so it triggers. 
     //     // But we need to be careful about double fetch if strict mode.
     // }, []);
-    
+
     const handleLoadMore = () => {
         if (!hasMore || isLoadingMore || loading) return;
         const nextPage = page + 1;
@@ -436,42 +436,42 @@ function SchedulePageContent() {
         const options = [];
         const today = new Date();
         const currentYear = today.getFullYear();
-        
+
         // Start Jan 1 UTC
         let d = new Date(Date.UTC(currentYear, 0, 1));
         const day = d.getUTCDay();
         const diff = d.getUTCDate() - day + (day === 0 ? -6 : 1); // Monday start
         d.setUTCDate(diff);
 
-        for (let i = 0; i < 54; i++) { 
+        for (let i = 0; i < 54; i++) {
             const start = new Date(d);
             const end = new Date(d);
             end.setUTCDate(end.getUTCDate() + 6);
-            
+
             // Format: MM/DD/YY to MM/DD/YY
             const weekNum = String(i + 1).padStart(2, '0');
             const sM = String(start.getUTCMonth() + 1).padStart(2, '0');
             const sD = String(start.getUTCDate()).padStart(2, '0');
             const sY = String(start.getUTCFullYear()).slice(-2);
-            
+
             const eM = String(end.getUTCMonth() + 1).padStart(2, '0');
             const eD = String(end.getUTCDate()).padStart(2, '0');
             const eY = String(end.getUTCFullYear()).slice(-2);
-            
+
             const label = `${sM}/${sD}/${sY} to ${eM}/${eD}/${eY}`;
             const val = `${formatLocalDate(start)}|${formatLocalDate(end)}`;
-             
+
             // Check if today falls in this week range using date strings to avoid timezone issues
             const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
             const startStr2 = formatLocalDate(start);
             const endStr2 = formatLocalDate(end);
             const isCurrent = todayStr >= startStr2 && todayStr <= endStr2;
-             
+
             if (isCurrent) {
-                 // Highlighting with color and label
-                 options.push({ label: `${label} (Current)`, value: val, color: '#10B981', badge: weekNum }); 
+                // Highlighting with color and label
+                options.push({ label: `${label} (Current)`, value: val, color: '#10B981', badge: weekNum });
             } else {
-                 options.push({ label, value: val, badge: weekNum });
+                options.push({ label, value: val, badge: weekNum });
             }
             d.setUTCDate(d.getUTCDate() + 7);
         }
@@ -485,7 +485,7 @@ function SchedulePageContent() {
         const dates = new Set(monthlyActivityDates);
         // Also include loaded schedules just in case (e.g. recent updates locally)
         schedules.forEach(s => {
-             try { dates.add(formatLocalDate(s.fromDate)); } catch {}
+            try { dates.add(formatLocalDate(s.fromDate)); } catch { }
         });
         return dates;
     }, [schedules, monthlyActivityDates]);
@@ -493,34 +493,34 @@ function SchedulePageContent() {
     // Fetch monthly activity when month/year changes
     useEffect(() => {
         const fetchMonthActivity = async () => {
-             const year = currentDate.getFullYear();
-             const month = currentDate.getMonth();
-             const start = new Date(Date.UTC(year, month, 1)).toISOString();
-             const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59)).toISOString();
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const start = new Date(Date.UTC(year, month, 1)).toISOString();
+            const end = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59)).toISOString();
 
-             try {
-                 const res = await fetch('/api/schedules', {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({
-                         action: 'getScheduleActivity',
-                         payload: {
-                             start,
-                             end
-                         }
-                     })
-                 });
-                 const data = await res.json();
-                 if (data.success && Array.isArray(data.result)) {
-                     const dates = new Set<string>();
-                     data.result.forEach((s: any) => {
-                         try { dates.add(formatLocalDate(s.fromDate)); } catch {}
-                     });
-                     setMonthlyActivityDates(dates);
-                 }
-             } catch (e) {
-                 console.error("Failed to fetch monthly activity", e);
-             }
+            try {
+                const res = await fetch('/api/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'getScheduleActivity',
+                        payload: {
+                            start,
+                            end
+                        }
+                    })
+                });
+                const data = await res.json();
+                if (data.success && Array.isArray(data.result)) {
+                    const dates = new Set<string>();
+                    data.result.forEach((s: any) => {
+                        try { dates.add(formatLocalDate(s.fromDate)); } catch { }
+                    });
+                    setMonthlyActivityDates(dates);
+                }
+            } catch (e) {
+                console.error("Failed to fetch monthly activity", e);
+            }
         };
 
         if (currentUser) {
@@ -546,10 +546,10 @@ function SchedulePageContent() {
         dayOrder.forEach(d => scheduleCounts[d] = 0);
 
         if (Object.keys(serverCounts).length > 0) {
-             Object.entries(serverCounts).forEach(([dateStr, count]) => {
-                 const dayName = getDayName(dateStr);
-                 if (scheduleCounts[dayName] !== undefined) scheduleCounts[dayName] += count;
-             });
+            Object.entries(serverCounts).forEach(([dateStr, count]) => {
+                const dayName = getDayName(dateStr);
+                if (scheduleCounts[dayName] !== undefined) scheduleCounts[dayName] += count;
+            });
         } else {
             schedules.forEach(s => {
                 const scheduleDate = formatLocalDate(s.fromDate);
@@ -581,7 +581,7 @@ function SchedulePageContent() {
         return schedules.filter(s => {
             const scheduleDate = formatLocalDate(s.fromDate);
             if (activeDayTab === 'all') return true;
-             return getDayName(scheduleDate) === activeDayTab;
+            return getDayName(scheduleDate) === activeDayTab;
         }).sort((a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime());
     }, [schedules, activeDayTab]);
 
@@ -641,7 +641,7 @@ function SchedulePageContent() {
                     });
                 } else if (timesheet === 'true') {
                     setEditingItem(item);
-                    setTimesheetModalOpen?.(true); 
+                    setTimesheetModalOpen?.(true);
                 }
             }
         }
@@ -660,15 +660,15 @@ function SchedulePageContent() {
             const activeTs = (schedule.timesheet || []).find((ts: any) => {
                 if (ts.employee !== currentUser.email) return false;
                 if (ts.type !== 'Drive Time') return false;
-                
+
                 // Check if clockOut is NOT set (active drive time)
                 // clockOut must be undefined, null, or empty string to be considered active
                 const clockOutValue = ts.clockOut;
-                const isActive = clockOutValue === undefined || 
-                                 clockOutValue === null || 
-                                 clockOutValue === '' ||
-                                 (typeof clockOutValue === 'string' && clockOutValue.trim() === '');
-                
+                const isActive = clockOutValue === undefined ||
+                    clockOutValue === null ||
+                    clockOutValue === '' ||
+                    (typeof clockOutValue === 'string' && clockOutValue.trim() === '');
+
                 return isActive;
             });
             if (activeTs) {
@@ -688,10 +688,10 @@ function SchedulePageContent() {
 
         // Clone deeply to avoid mutation issues
         const updatedObjectives = schedule.todayObjectives ? [...schedule.todayObjectives] : [];
-        if (!updatedObjectives[index]) return; 
+        if (!updatedObjectives[index]) return;
 
         // Update object
-        const updatedObj = typeof updatedObjectives[index] === 'string' 
+        const updatedObj = typeof updatedObjectives[index] === 'string'
             ? { text: updatedObjectives[index] as string, completed: !currentStatus }
             : { ...updatedObjectives[index], completed: !currentStatus };
 
@@ -730,7 +730,7 @@ function SchedulePageContent() {
             if (data.success) {
                 success('Objective updated');
             } else {
-                 throw new Error(data.error || 'Failed to update');
+                throw new Error(data.error || 'Failed to update');
             }
         } catch (err) {
             console.error(err);
@@ -744,14 +744,14 @@ function SchedulePageContent() {
 
         // Validate all mandatory fields - conditional based on tag
         const isDayOff = editingItem?.item === 'Day Off';
-        
+
         // Base required fields (always required)
         const baseRequiredFields = [
             { key: 'item', label: 'Tag', id: 'schedTag' },
             { key: 'fromDate', label: 'From Date', id: 'schedFromDate' },
             { key: 'toDate', label: 'To Date', id: 'schedToDate' },
         ];
-        
+
         // Additional fields required for non-Day Off schedules
         const additionalRequiredFields = [
             { key: 'customerId', label: 'Client', id: 'schedClient' },
@@ -765,14 +765,14 @@ function SchedulePageContent() {
             { key: 'fringe', label: 'Fringe', id: 'schedFringe' },
             { key: 'certifiedPayroll', label: 'Certified Payroll', id: 'schedCP' }
         ];
-        
+
         // Combine fields based on whether it's a Day Off
         const requiredFields = isDayOff ? baseRequiredFields : [...baseRequiredFields, ...additionalRequiredFields];
 
         for (const field of requiredFields) {
             if (!(editingItem as any)?.[field.key]) {
                 toastError(`${field.label} is required`);
-                
+
                 // Scroll to and focus the missing field
                 const el = document.getElementById(field.id);
                 if (el) {
@@ -790,7 +790,7 @@ function SchedulePageContent() {
             // Optimistic Update
             setIsModalOpen(false);
             setEditingItem(null);
-            
+
             // Helper to format date as local ISO string (no timezone conversion)
             const toLocalISOString = (d: string | undefined): string => {
                 if (!d) return '';
@@ -798,21 +798,21 @@ function SchedulePageContent() {
                 // If it already has Z, keep it. If not, add Z to anchor it to UTC (Nominal Time).
                 return d.includes('Z') ? d : `${d}:00Z`;
             };
-            
+
             const prevSchedules = [...schedules];
-            const updatedSchedule = { 
+            const updatedSchedule = {
                 ...editingItem,
                 fromDate: toLocalISOString(editingItem.fromDate),
                 toDate: toLocalISOString(editingItem.toDate)
             };
-            
+
             setSchedules(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
-            
+
             // Also update dayOffStats optimistically if it's a Day Off
             if (updatedSchedule.item === 'Day Off') {
                 setDayOffStats(prev => prev.map(s => s._id === updatedSchedule._id ? { ...s, ...updatedSchedule } : s));
             }
-            
+
             // Background Fetch
             fetch('/api/schedules', {
                 method: 'POST',
@@ -826,7 +826,7 @@ function SchedulePageContent() {
                 } else {
                     toastError(data.error || 'Failed to update schedule');
                     // Revert? For now just error is enough as user will see it didn't persist on reload if they care
-                    setSchedules(prevSchedules); 
+                    setSchedules(prevSchedules);
                 }
             }).catch(err => {
                 console.error(err);
@@ -866,7 +866,7 @@ function SchedulePageContent() {
 
             // Generate MongoDB-compatible ObjectId (24 hex characters)
             const objectIdHex = Array.from({ length: 24 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-            
+
             schedulesToCreate.push({
                 ...editingItem,
                 _id: objectIdHex,
@@ -879,13 +879,13 @@ function SchedulePageContent() {
         // Optimistic Create
         setIsModalOpen(false);
         setEditingItem(null);
-        
+
         const prevSchedules = [...schedules];
         setSchedules(prev => [...schedulesToCreate, ...prev]);
-        
+
         // Also update dayOffStats optimistically
         if (isDayOff) {
-            setDayOffStats(prev => [...schedulesToCreate, ...prev].sort((a,b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime()));
+            setDayOffStats(prev => [...schedulesToCreate, ...prev].sort((a, b) => new Date(a.fromDate).getTime() - new Date(b.fromDate).getTime()));
         }
 
         // Background Fetch
@@ -909,15 +909,15 @@ function SchedulePageContent() {
 
     const handleDelete = async () => {
         if (!deleteId) return;
-        
+
         // Optimistic Delete
         const prevSchedules = [...schedules];
         const idToDelete = deleteId;
-        
+
         setIsConfirmOpen(false);
         setDeleteId(null);
         setSchedules(prev => prev.filter(s => s._id !== idToDelete));
-        
+
         fetch('/api/schedules', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -939,7 +939,7 @@ function SchedulePageContent() {
     // AppSheet sync handler - only for adeel@devco-inc.com
     const handleSyncToAppSheet = async () => {
         if (!selectedSchedule) return;
-        
+
         setIsSyncingToAppSheet(true);
         try {
             const res = await fetch('/api/schedules', {
@@ -951,11 +951,11 @@ function SchedulePageContent() {
                 })
             });
             const data = await res.json();
-            
+
             if (data.success) {
                 success('Schedule synced to AppSheet!');
                 // Update local state to hide the button
-                setSchedules(prev => prev.map(s => 
+                setSchedules(prev => prev.map(s =>
                     s._id === selectedSchedule._id ? { ...s, syncedToAppSheet: true } : s
                 ));
                 setSelectedSchedule(prev => prev ? { ...prev, syncedToAppSheet: true } : null);
@@ -1090,10 +1090,10 @@ function SchedulePageContent() {
                 success('Daily Job Ticket Saved Successfully');
                 const updatedDJT = data.result;
                 // Update local state immediately
-                setSchedules((prev: any[]) => prev.map((s: any) => 
-                    s._id === payload.schedule_id 
-                    ? { ...s, djt: updatedDJT, hasDJT: true } 
-                    : s
+                setSchedules((prev: any[]) => prev.map((s: any) =>
+                    s._id === payload.schedule_id
+                        ? { ...s, djt: updatedDJT, hasDJT: true }
+                        : s
                 ));
                 setIsDjtEditMode(false);
                 // Also update selectedDJT to reflect newest data in modal
@@ -1113,19 +1113,19 @@ function SchedulePageContent() {
         setIsGeneratingJHAPDF(true);
         try {
             const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
-            
+
             // Build variables from selectedJHA and its parent schedule
             const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
-            
+
             // Find matching estimate for contact info - match by estimate number (value field)
             const estimate = initialData.estimates.find((e: any) => {
                 const estNum = e.value || e.estimate || e.estimateNum;
                 return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
             });
-            
+
             // Find matching client for customer name
             const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
-            
+
             // Combine fields
             const variables: Record<string, any> = {
                 ...selectedJHA,
@@ -1150,13 +1150,13 @@ function SchedulePageContent() {
 
             // Convert booleans to "✔️" for checkboxes in the template
             const booleanFields = [
-                 'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
-                 'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
-                 'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
-                 'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
-                 'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
-                 'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
-                 'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+                'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
             ];
             booleanFields.forEach(f => {
                 if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
@@ -1183,7 +1183,7 @@ function SchedulePageContent() {
                     variables[`sig_img_${idx}`] = sig.signature;
                     variables[`Print Name_${idx}`] = empName;
                     variables[`_ComputedName_${idx}`] = empName;
-                    if (idx === 1) variables[`_ComputedName`] = empName; 
+                    if (idx === 1) variables[`_ComputedName`] = empName;
                 });
             } else {
                 variables.hasSignatures = false;
@@ -1224,25 +1224,25 @@ function SchedulePageContent() {
         setIsGeneratingDJTPDF(true);
         try {
             const templateId = '1cN4CpzsvuKLYXtmSANeyqTTlL3HPc7XEyFsjfNwzo-8';
-            
+
             // Build variables from selectedDJT and its parent schedule
             const schedule = schedules.find(s => s._id === (selectedDJT.schedule_id || selectedDJT._id));
-            
+
             // Find matching estimate for contact info - match by estimate number (value field)
             const estimate = initialData.estimates.find((e: any) => {
                 const estNum = e.value || e.estimate || e.estimateNum;
                 return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
             });
-            
+
             // Find matching client for customer name
             const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
-            
+
             // Combine fields
             const variables: Record<string, any> = {
                 // ...selectedDJT, // Don't spread all DJT fields blindly to avoid clutter/collisions if not needed
                 dailyJobDescription: selectedDJT.dailyJobDescription || '',
                 customerPrintName: selectedDJT.customerPrintName || '',
-                
+
                 // Customer name/info from matched estimate or client or schedule
                 customerId: estimate?.customerName || estimate?.customer || client?.name || schedule?.customerName || '',
                 // Contact info from estimate
@@ -1281,14 +1281,14 @@ function SchedulePageContent() {
                     variables[`sig_name_${idx}`] = empName;
                     variables[`sig_img_${idx}`] = sig.signature;
                     variables[`Print Name_${idx}`] = empName;
-                    
+
                     // Add time info if available?
-                     const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
-                     if (timesheet) {
-                         const inTime = new Date(timesheet.clockIn).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                         const outTime = new Date(timesheet.clockOut).toLocaleTimeString([], {hour:'numeric', minute:'2-digit', timeZone: 'UTC'});
-                         variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
-                     }
+                    const timesheet = schedule?.timesheet?.find((t: any) => t.employee === sig.employee);
+                    if (timesheet) {
+                        const inTime = formatTimeOnly(timesheet.clockIn);
+                        const outTime = formatTimeOnly(timesheet.clockOut);
+                        variables[`Times_${idx}`] = `${inTime} - ${outTime}`;
+                    }
                 });
             } else {
                 variables.hasSignatures = false;
@@ -1326,22 +1326,22 @@ function SchedulePageContent() {
     const handleEmailJhaPdf = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedJHA || !emailTo) return;
-        
+
         setIsSendingEmail(true);
         try {
             const templateId = '164zwSdl2631kZ4mRUVtzWhg5oewL0wy6RVCgPQig258';
-            
+
             // Build variables (Duplicate logic from download for safety)
             const schedule = schedules.find(s => s._id === selectedJHA.schedule_id) || selectedJHA.scheduleRef;
-            
+
             // Strict estimate lookup
-             const estimate = initialData.estimates.find(e => {
+            const estimate = initialData.estimates.find(e => {
                 const estNum = e.estimate || e.estimateNum;
                 return estNum && schedule?.estimate && String(estNum).trim() === String(schedule.estimate).trim();
             }) || initialData.estimates.find(e => e.estimateNum === schedule?.estimate || e._id === schedule?.estimate);
 
             const client = initialData.clients.find(c => c._id === schedule?.customerId || c.name === schedule?.customerName);
-            
+
             const variables: Record<string, any> = {
                 ...selectedJHA,
                 customerId: client?.name || schedule?.customerName || '',
@@ -1352,18 +1352,18 @@ function SchedulePageContent() {
                 jobLocation: schedule?.jobLocation || '',
                 estimateNum: schedule?.estimate || '',
                 foremanName: schedule?.foremanName || '',
-                addressOfHospital: selectedJHA.addressOfHospital || selectedJHA.hospitalAddress || '', 
+                addressOfHospital: selectedJHA.addressOfHospital || selectedJHA.hospitalAddress || '',
                 date: selectedJHA.date ? new Date(selectedJHA.date).toLocaleDateString() : '',
             };
 
             const booleanFields = [
-                 'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
-                 'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
-                 'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
-                 'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
-                 'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
-                 'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
-                 'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
+                'operatingMiniEx', 'operatingAVacuumTruck', 'excavatingTrenching', 'acConcWork',
+                'operatingBackhoe', 'workingInATrench', 'trafficControl', 'roadWork', 'operatingHdd',
+                'confinedSpace', 'settingUgBoxes', 'otherDailyWork', 'sidewalks', 'heatAwareness',
+                'ladderWork', 'overheadLifting', 'materialHandling', 'roadHazards', 'heavyLifting',
+                'highNoise', 'pinchPoints', 'sharpObjects', 'trippingHazards', 'otherJobsiteHazards',
+                'stagingAreaDiscussed', 'rescueProceduresDiscussed', 'evacuationRoutesDiscussed',
+                'emergencyContactNumberWillBe911', 'firstAidAndCPREquipmentOnsite', 'closestHospitalDiscussed'
             ];
             booleanFields.forEach(f => {
                 if (variables[f] === true || variables[f] === 'TRUE' || variables[f] === 'Yes' || variables[f] === '1') {
@@ -1389,7 +1389,7 @@ function SchedulePageContent() {
                     variables[`sig_img_${idx}`] = sig.signature;
                     variables[`Print Name_${idx}`] = empName;
                     variables[`_ComputedName_${idx}`] = empName;
-                    if (idx === 1) variables[`_ComputedName`] = empName; 
+                    if (idx === 1) variables[`_ComputedName`] = empName;
                 });
             } else {
                 variables.hasSignatures = false;
@@ -1407,8 +1407,8 @@ function SchedulePageContent() {
             const reader = new FileReader();
             reader.readAsDataURL(blob);
             reader.onloadend = async () => {
-                const base64data = reader.result as string; 
-                
+                const base64data = reader.result as string;
+
                 const emailRes = await fetch('/api/email-jha', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1428,9 +1428,9 @@ function SchedulePageContent() {
                     setEmailModalOpen(false);
                     setEmailTo('');
                     setSelectedJHA((prev: any) => ({
-                         ...prev, 
-                         emailCounter: (prev.emailCounter || 0) + 1,
-                         jhaEmails: emailData.jha?.jhaEmails || [...(prev.jhaEmails || []), { emailto: emailTo, createdAt: new Date() }]
+                        ...prev,
+                        emailCounter: (prev.emailCounter || 0) + 1,
+                        jhaEmails: emailData.jha?.jhaEmails || [...(prev.jhaEmails || []), { emailto: emailTo, createdAt: new Date() }]
                     }));
                 } else {
                     throw new Error(emailData.error || 'Failed to send email');
@@ -1446,7 +1446,7 @@ function SchedulePageContent() {
 
     const handleSaveJHASignature = async (dataUrl: string) => {
         if (!activeSignatureEmployee || !selectedJHA) return;
-        
+
         setIsSavingSignature(true);
         // Location logic removed per request
 
@@ -1476,8 +1476,8 @@ function SchedulePageContent() {
                 const newSig = data.result;
                 setSelectedJHA((prev: any) => ({ ...prev, signatures: [...(prev.signatures || []), newSig] }));
                 setActiveSignatureEmployee(null);
-                 // Refresh schedules to update JHA status icons
-                 fetchPageData();
+                // Refresh schedules to update JHA status icons
+                fetchPageData();
             } else {
                 toastError(data.error || 'Failed to save signature');
             }
@@ -1489,7 +1489,7 @@ function SchedulePageContent() {
 
     const handleSaveDJTSignature = async (dataInput: string | any) => {
         if (!activeSignatureEmployee || !selectedDJT) return;
-        
+
         const dataUrl = typeof dataInput === 'string' ? dataInput : dataInput.signature;
         const lunchStart = typeof dataInput === 'object' ? dataInput.lunchStart : null;
         const lunchEnd = typeof dataInput === 'object' ? dataInput.lunchEnd : null;
@@ -1514,12 +1514,12 @@ function SchedulePageContent() {
             });
 
             const data = await res.json();
-            
+
             if (data.success) {
                 success('Signature saved successfully');
-                
+
                 const updatedDJT = data.result;
-                
+
                 // Update selectedDJT immediately to show "Signed" status
                 // Merge with existing state to preserve scheduleRef and other properties
                 setSelectedDJT((prev: any) => ({
@@ -1527,21 +1527,21 @@ function SchedulePageContent() {
                     ...updatedDJT,
                     signatures: updatedDJT.signatures || []
                 }));
-                
+
                 // Update Schedules List
-                setSchedules((prev: any[]) => prev.map((s: any) => 
-                    String(s._id) === String(updatedDJT.schedule_id || selectedDJT._id) 
-                    ? { ...s, djt: { ...s.djt, ...updatedDJT, signatures: updatedDJT.signatures }, DJTSignatures: updatedDJT.signatures } 
-                    : s
+                setSchedules((prev: any[]) => prev.map((s: any) =>
+                    String(s._id) === String(updatedDJT.schedule_id || selectedDJT._id)
+                        ? { ...s, djt: { ...s.djt, ...updatedDJT, signatures: updatedDJT.signatures }, DJTSignatures: updatedDJT.signatures }
+                        : s
                 ));
 
                 setActiveSignatureEmployee(null);
             } else {
-                 toastError(data.error || 'Failed to save signature');
+                toastError(data.error || 'Failed to save signature');
             }
         } catch (e) {
-             console.error(e);
-             toastError('Error saving signature');
+            console.error(e);
+            toastError('Error saving signature');
         } finally {
             setIsSavingSignature(false);
         }
@@ -1549,14 +1549,14 @@ function SchedulePageContent() {
 
     const handleSaveIndividualTimesheet = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         let employeeEmail = selectedTimesheet.employee;
         if (!employeeEmail && typeof window !== 'undefined') {
-             try {
-                 employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
-             } catch(e) {
-                 console.error(e);
-             }
+            try {
+                employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         if (!employeeEmail) {
@@ -1579,9 +1579,9 @@ function SchedulePageContent() {
             const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'saveIndividualTimesheet', 
-                    payload: { timesheet: finalTimesheet } 
+                body: JSON.stringify({
+                    action: 'saveIndividualTimesheet',
+                    payload: { timesheet: finalTimesheet }
                 })
             });
             const data = await res.json();
@@ -1668,12 +1668,12 @@ function SchedulePageContent() {
 
                 if (durationMs > 0) {
                     const totalHoursRaw = durationMs / (1000 * 60 * 60);
-                    
+
                     // Date Check for Logic Branching
                     const tsDateStr = ts.clockIn || scheduleDate;
                     const tsDate = new Date(tsDateStr);
                     const cutoffDate = new Date('2025-10-26T00:00:00'); // ensuring comparison works
-                    
+
                     if (tsDate < cutoffDate) {
                         // Old Logic: exact decimal hours
                         hours = totalHoursRaw;
@@ -1703,7 +1703,7 @@ function SchedulePageContent() {
                                 // 0 or 1
                                 roundedM = 0;
                             }
-                            
+
                             hours = h + (roundedM / 60);
                         }
                     }
@@ -1728,7 +1728,7 @@ function SchedulePageContent() {
         // Find the schedule to get the estimate
         const schedule = schedules.find(s => s._id === scheduleId);
         const estimate = schedule?.estimate || ts.estimate || '';
-        
+
         setEditingTimesheet({ ...ts, scheduleId, estimate });
         setEditTimesheetForm({ ...ts, scheduleId, estimate });
     };
@@ -1736,29 +1736,29 @@ function SchedulePageContent() {
     // Save timesheet edits to database
     const handleSaveTimesheetEdit = async () => {
         if (!editingTimesheet || !editTimesheetForm.scheduleId) return;
-        
+
         try {
             // Close modal immediately for better UX
             const scheduleId = editTimesheetForm.scheduleId;
             const tsId = editingTimesheet._id || editingTimesheet.recordId;
-            
+
             setEditingTimesheet(null);
             setEditTimesheetForm({});
 
             // Fetch current schedule
             const resGet = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'getScheduleById', payload: { id: scheduleId } })
             });
             const dataGet = await resGet.json();
             if (!dataGet.success) throw new Error("Schedule not found");
-            
+
             const schedule = dataGet.result;
             const updatedTimesheets = (schedule.timesheet || []).map((t: any) => {
                 if ((t._id || t.recordId) === tsId) {
                     const { scheduleId: _, ...rest } = editTimesheetForm;
-                    
+
                     // Embed hourly rate from employee profile for payroll integrity
                     const empEmail = editTimesheetForm.employee || t.employee || '';
                     const empProfile = initialData.employees?.find((e: any) => e.value === empEmail) || {};
@@ -1769,22 +1769,22 @@ function SchedulePageContent() {
                     } else if (tsType.includes('drive') && empProfile.hourlyRateDrive) {
                         rateFields.hourlyRateDrive = empProfile.hourlyRateDrive;
                     }
-                    
+
                     return { ...t, ...rest, ...rateFields };
                 }
                 return t;
             });
-            
+
             // Save updated timesheets
             const resSave = await fetch('/api/schedules', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'updateSchedule',
                     payload: { id: scheduleId, timesheet: updatedTimesheets }
                 })
             });
-            
+
             const saveResult = await resSave.json();
             if (saveResult.success) {
                 success("Timesheet updated");
@@ -1793,7 +1793,7 @@ function SchedulePageContent() {
             } else {
                 throw new Error("Failed to save");
             }
-            
+
         } catch (e) {
             console.error(e);
             toastError("Failed to update timesheet");
@@ -1803,34 +1803,34 @@ function SchedulePageContent() {
 
 
     const executeDriveTimeToggle = async (schedule: any, activeDriveTime: any, e: React.MouseEvent) => {
-       e.stopPropagation();
-       
-       let employeeEmail = currentUser?.email;
-       // Fallback if currentUser is missing context
-       if (!employeeEmail && typeof window !== 'undefined') {
+        e.stopPropagation();
+
+        let employeeEmail = currentUser?.email;
+        // Fallback if currentUser is missing context
+        if (!employeeEmail && typeof window !== 'undefined') {
             try {
                 employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
             } catch (e) { console.error(e); }
-       }
+        }
 
-       if (!employeeEmail) {
-           toastError("User identity not found.");
-           return;
-       }
+        if (!employeeEmail) {
+            toastError("User identity not found.");
+            return;
+        }
 
-       // Geolocation
-       if (!navigator.geolocation) {
-           toastError("Geolocation is not supported by your browser");
-           return;
-       }
+        // Geolocation
+        if (!navigator.geolocation) {
+            toastError("Geolocation is not supported by your browser");
+            return;
+        }
 
-       const getPosition = (): Promise<GeolocationPosition> => {
-           return new Promise((resolve, reject) => {
-               navigator.geolocation.getCurrentPosition(resolve, reject);
-           });
-       };
+        const getPosition = (): Promise<GeolocationPosition> => {
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject);
+            });
+        };
 
-       try {
+        try {
             const position = await getPosition();
             const { latitude, longitude } = position.coords;
 
@@ -1857,7 +1857,7 @@ function SchedulePageContent() {
                     if (s._id !== schedule._id) return s;
                     return {
                         ...s,
-                        timesheet: (s.timesheet || []).map((ts: any) => 
+                        timesheet: (s.timesheet || []).map((ts: any) =>
                             ts._id === activeDriveTime._id ? finalTimesheet : ts
                         )
                     };
@@ -1917,7 +1917,7 @@ function SchedulePageContent() {
                 }).then(res => res.json()).then(data => {
                     if (data.success && data.result) {
                         // Update with real ID from server
-                        const savedTimesheet = data.result.timesheet?.find((ts: any) => 
+                        const savedTimesheet = data.result.timesheet?.find((ts: any) =>
                             ts.employee === employeeEmail && ts.clockIn === newTimesheet.clockIn
                         );
                         if (savedTimesheet) {
@@ -1925,7 +1925,7 @@ function SchedulePageContent() {
                                 if (s._id !== schedule._id) return s;
                                 return {
                                     ...s,
-                                    timesheet: (s.timesheet || []).map((ts: any) => 
+                                    timesheet: (s.timesheet || []).map((ts: any) =>
                                         ts._id === tempId ? { ...ts, _id: savedTimesheet._id } : ts
                                     )
                                 };
@@ -1958,17 +1958,17 @@ function SchedulePageContent() {
             toastError("Unable to retrieve location or save data.");
         }
     };
-    
+
     const executeQuickTimesheet = async (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
         e.stopPropagation();
-        
+
         let employeeEmail = currentUser?.email;
         if (!employeeEmail && typeof window !== 'undefined') {
-             try {
-                 employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
-             } catch (e) { console.error(e); }
+            try {
+                employeeEmail = JSON.parse(localStorage.getItem('devco_user') || '{}')?.email;
+            } catch (e) { console.error(e); }
         }
- 
+
         if (!employeeEmail) {
             toastError("User identity not found.");
             return;
@@ -1981,14 +1981,14 @@ function SchedulePageContent() {
         // Optimistic update
         setSchedules(prev => prev.map(s => {
             if (s._id !== schedule._id) return s;
-            
+
             const timesheets = s.timesheet || [];
             const empEmailLower = employeeEmail!.toLowerCase();
             const existingIndex = timesheets.findIndex((ts: any) => {
                 if (ts.employee?.toLowerCase() !== empEmailLower) return false;
                 const dwVal = String(ts.dumpWashout || '').toLowerCase();
                 const stVal = String(ts.shopTime || '').toLowerCase();
-                
+
                 if (type === 'Dump Washout') return dwVal === 'true' || dwVal === 'yes' || dwVal.includes('hrs');
                 if (type === 'Shop Time') return stVal === 'true' || stVal === 'yes' || stVal.includes('hrs');
                 return false;
@@ -1999,7 +1999,7 @@ function SchedulePageContent() {
                 const existingTs = updatedTimesheets[existingIndex];
                 const newQty = (existingTs.qty || 1) + 1;
                 const newHours = parseFloat(((existingTs.hours || 0) + unitHours).toFixed(2));
-                
+
                 // Update specific flag with string format
                 const update: any = { qty: newQty, hours: newHours };
                 if (type === 'Dump Washout') {
@@ -2040,7 +2040,7 @@ function SchedulePageContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'quickTimesheet',
-                    payload: { 
+                    payload: {
                         scheduleId: schedule._id,
                         employee: employeeEmail,
                         type,
@@ -2075,20 +2075,20 @@ function SchedulePageContent() {
 
     const confirmDeleteTimesheet = async () => {
         if (!selectedSchedule || !deleteConfirmation.tsId) return;
-        
+
         const tsId = deleteConfirmation.tsId;
         const updatedTimesheets = (selectedSchedule.timesheet || []).filter(t => (t._id || t.recordId) !== tsId);
-        
+
         try {
-             const res = await fetch('/api/schedules', {
+            const res = await fetch('/api/schedules', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    action: 'updateSchedule', 
-                    payload: { 
-                        id: selectedSchedule._id, 
-                        timesheet: updatedTimesheets 
-                    } 
+                body: JSON.stringify({
+                    action: 'updateSchedule',
+                    payload: {
+                        id: selectedSchedule._id,
+                        timesheet: updatedTimesheets
+                    }
                 })
             });
             const data = await res.json();
@@ -2124,17 +2124,17 @@ function SchedulePageContent() {
 
     const handleQuickTimesheet = (schedule: any, type: 'Dump Washout' | 'Shop Time', e: React.MouseEvent) => {
         e.stopPropagation();
-        
+
         const isIncrement = (schedule.timesheet || []).some((ts: any) => {
             if (ts.employee?.toLowerCase() !== (currentUser?.email?.toLowerCase() || '')) return false;
             const dwVal = String(ts.dumpWashout || '').toLowerCase();
             const stVal = String(ts.shopTime || '').toLowerCase();
-            
+
             if (type === 'Dump Washout') return dwVal === 'true' || dwVal === 'yes' || dwVal.includes('hrs');
             if (type === 'Shop Time') return stVal === 'true' || stVal === 'yes' || stVal.includes('hrs');
             return false;
         });
-        
+
         const actionWord = isIncrement ? 'INCREMENT' : 'REGISTER';
 
         setActionConfirm({
@@ -2150,64 +2150,64 @@ function SchedulePageContent() {
     return (
         <div className="flex flex-col h-full bg-[#F8FAFC]">
             <div className="flex-none">
-            <Header
-                rightContent={
+                <Header
+                    rightContent={
 
-                    <div className="flex items-center gap-2 sm:gap-3">
-                        {/* Mobile Search Button */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => setShowMobileSearch(!showMobileSearch)}
-                                    className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
-                                >
-                                    <Search size={18} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Search</p>
-                            </TooltipContent>
-                        </Tooltip>
-                        
-                        {/* Mobile Filter Button */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={() => setShowMobileFilters(!showMobileFilters)}
-                                    className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
-                                >
-                                    <Filter size={18} />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Filters</p>
-                            </TooltipContent>
-                        </Tooltip>
+                        <div className="flex items-center gap-2 sm:gap-3">
+                            {/* Mobile Search Button */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setShowMobileSearch(!showMobileSearch)}
+                                        className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
+                                    >
+                                        <Search size={18} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Search</p>
+                                </TooltipContent>
+                            </Tooltip>
 
-                        <SearchInput
-                            ref={searchInputRef}
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="Search schedules..."
-                            className="hidden sm:block"
-                        />
+                            {/* Mobile Filter Button */}
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={() => setShowMobileFilters(!showMobileFilters)}
+                                        className="sm:hidden p-2 bg-white border border-slate-200 rounded-full hover:bg-slate-50 transition-all shadow-sm text-slate-600"
+                                    >
+                                        <Filter size={18} />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Filters</p>
+                                </TooltipContent>
+                            </Tooltip>
 
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <button
-                                    onClick={openCreateModal}
-                                    className="hidden sm:flex p-2 sm:p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
-                                >
-                                    <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
-                                </button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>Create Schedule</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </div>
-                }
-            />
+                            <SearchInput
+                                ref={searchInputRef}
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="Search schedules..."
+                                className="hidden sm:block"
+                            />
+
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        onClick={openCreateModal}
+                                        className="hidden sm:flex p-2 sm:p-2.5 bg-[#0F4C75] text-white rounded-full hover:bg-[#0a3a5c] transition-all shadow-lg hover:shadow-[#0F4C75]/30 group"
+                                    >
+                                        <Plus size={20} className="group-hover:rotate-90 transition-transform duration-300" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>Create Schedule</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    }
+                />
             </div>
 
             {/* Mobile Search Bar */}
@@ -2690,7 +2690,7 @@ function SchedulePageContent() {
                                                 dailyJobDescription: '',
                                                 customerPrintName: '',
                                                 customerSignature: '',
-                                                createdBy: userEmail || '', 
+                                                createdBy: userEmail || '',
                                                 clientEmail: '',
                                                 emailCounter: 0
                                             });
@@ -2712,7 +2712,7 @@ function SchedulePageContent() {
                         )}
 
                         {hasMore && (
-                            <div 
+                            <div
                                 className="mt-8 flex justify-center pb-4 text-slate-400 text-xs font-bold uppercase tracking-wider"
                                 ref={(el) => {
                                     if (el) {
@@ -2748,7 +2748,7 @@ function SchedulePageContent() {
                                 <div className="animate-in slide-in-from-right duration-300">
                                     <div className="animate-in slide-in-from-right duration-300">
                                         <div className="bg-white p-4 rounded-[32px] border border-slate-100 shadow-sm space-y-4">
-                                            
+
                                             {/* Sync to AppSheet Button & ID - Only visible to adeel@devco-inc.com */}
                                             {currentUser?.email === 'adeel@devco-inc.com' && (
                                                 <div className="flex items-center justify-between gap-2">
@@ -2759,18 +2759,17 @@ function SchedulePageContent() {
                                                             {selectedSchedule._id}
                                                         </code>
                                                     </div>
-                                                    
+
                                                     {/* Sync Button - Show for deweloper or if not synced yet? User said "Dont hide"... */}
                                                     <Tooltip>
                                                         <TooltipTrigger asChild>
                                                             <button
                                                                 onClick={handleSyncToAppSheet}
                                                                 disabled={isSyncingToAppSheet}
-                                                                className={`flex items-center gap-2 px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-                                                                    selectedSchedule.syncedToAppSheet 
-                                                                        ? 'bg-slate-400 hover:bg-slate-500' 
+                                                                className={`flex items-center gap-2 px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedSchedule.syncedToAppSheet
+                                                                        ? 'bg-slate-400 hover:bg-slate-500'
                                                                         : 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600'
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 {isSyncingToAppSheet ? (
                                                                     <Loader2 size={14} className="animate-spin" />
@@ -2790,8 +2789,8 @@ function SchedulePageContent() {
                                             )}
 
                                             {/* Row 1: Tag Icon & Client Name */}
-                                             <div className="flex items-center gap-4">
-                                                 {(() => {
+                                            <div className="flex items-center gap-4">
+                                                {(() => {
                                                     const tagConstant = initialData.constants.find(c => c.description === selectedSchedule.item || c.value === selectedSchedule.item);
                                                     const tagImage = tagConstant?.image;
                                                     const tagColor = tagConstant?.color;
@@ -2863,7 +2862,7 @@ function SchedulePageContent() {
                                                     ].map((role, idx) => {
                                                         if (!role.val) return null;
                                                         const emp = initialData.employees.find(e => e.value?.toLowerCase() === role.val?.toLowerCase());
-                                                        const initials = emp?.label 
+                                                        const initials = emp?.label
                                                             ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                                                             : role.val[0]?.toUpperCase() || '?';
                                                         return (
@@ -2889,7 +2888,7 @@ function SchedulePageContent() {
                                                 <div className="flex flex-wrap gap-2">
                                                     {(selectedSchedule.assignees || []).map((assignee, i) => {
                                                         const emp = initialData.employees.find(e => e.value?.toLowerCase() === assignee?.toLowerCase());
-                                                        const initials = emp?.label 
+                                                        const initials = emp?.label
                                                             ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                                                             : assignee[0]?.toUpperCase() || '?';
                                                         return (
@@ -2918,9 +2917,9 @@ function SchedulePageContent() {
                                                             const bgColor = serviceConstant?.color || '#E2E8F0';
                                                             // isLight is imported from lib/scheduleUtils.ts
                                                             const textColor = isLight(bgColor) ? '#1E293B' : '#FFFFFF';
-                                                            
+
                                                             return (
-                                                                <span 
+                                                                <span
                                                                     key={idx}
                                                                     className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold shadow-sm"
                                                                     style={{ backgroundColor: bgColor, color: textColor }}
@@ -2973,8 +2972,8 @@ function SchedulePageContent() {
                                                             const isCompleted = typeof obj === 'string' ? false : obj.completed;
                                                             const text = typeof obj === 'string' ? obj : obj.text;
                                                             return (
-                                                                <div 
-                                                                    key={i} 
+                                                                <div
+                                                                    key={i}
                                                                     className="flex items-start gap-2 cursor-pointer group"
                                                                     onClick={() => handleToggleObjective(selectedSchedule._id, i, isCompleted)}
                                                                 >
@@ -2990,7 +2989,7 @@ function SchedulePageContent() {
                                                                         {typeof obj !== 'string' && obj.completed && obj.completedBy && (
                                                                             <span className="text-[10px] text-slate-400">
                                                                                 Completed by {obj.completedBy}
-                                                                                {obj.completedAt && ` at ${new Date(obj.completedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'})}`}
+                                                                                {obj.completedAt && ` at ${new Date(obj.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`}
                                                                             </span>
                                                                         )}
                                                                     </div>
@@ -3018,13 +3017,13 @@ function SchedulePageContent() {
                                                         {selectedSchedule.aerialImage && (
                                                             <div>
                                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Aerial Image</p>
-                                                                <div 
+                                                                <div
                                                                     className="relative group cursor-pointer"
                                                                     onClick={() => setMediaModal({ isOpen: true, type: 'image', url: selectedSchedule.aerialImage!, title: 'Aerial Site View' })}
                                                                 >
-                                                                    <img 
-                                                                        src={selectedSchedule.aerialImage} 
-                                                                        alt="Aerial View" 
+                                                                    <img
+                                                                        src={selectedSchedule.aerialImage}
+                                                                        alt="Aerial View"
                                                                         className="w-full h-44 object-cover rounded-xl border border-slate-200 group-hover:opacity-90 transition-all shadow-sm"
                                                                     />
                                                                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -3042,9 +3041,9 @@ function SchedulePageContent() {
                                                                     const lat = coordsMatch?.[1];
                                                                     const lng = coordsMatch?.[2];
                                                                     const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
-                                                                    
+
                                                                     return (
-                                                                        <div 
+                                                                        <div
                                                                             className="relative w-full h-44 rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-slate-100 group cursor-pointer"
                                                                             onClick={() => {
                                                                                 if (embedUrl) {
@@ -3094,7 +3093,7 @@ function SchedulePageContent() {
                                                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Timesheets</p>
                                                         <Badge variant="default" className="bg-slate-100 text-slate-500 border-none">{selectedSchedule.timesheet.length} Entries</Badge>
                                                     </div>
-                                                    
+
                                                     {Object.entries(
                                                         selectedSchedule.timesheet.reduce((acc: any, item: any) => {
                                                             const type = item.type || 'Other';
@@ -3137,7 +3136,7 @@ function SchedulePageContent() {
                                                                                                     (emp?.label?.[0] || ts.employee?.[0] || '?').toUpperCase()
                                                                                                 )}
                                                                                             </div>
-                                                                                             <div className="min-w-0 flex items-center gap-2">
+                                                                                            <div className="min-w-0 flex items-center gap-2">
                                                                                                 <p className="font-bold text-slate-700 truncate max-w-[120px]">{emp?.label || ts.employee}</p>
                                                                                                 {(String(ts.dumpWashout).toLowerCase() === 'true' || ts.dumpWashout === true || String(ts.dumpWashout).toLowerCase() === 'yes') && (
                                                                                                     <Droplets size={12} className="text-teal-500" />
@@ -3145,7 +3144,7 @@ function SchedulePageContent() {
                                                                                                 {(String(ts.shopTime).toLowerCase() === 'true' || ts.shopTime === true) && (
                                                                                                     <Warehouse size={12} className="text-amber-500" />
                                                                                                 )}
-                                                                                             </div>
+                                                                                            </div>
                                                                                         </div>
                                                                                     </td>
                                                                                     <td className="p-2 text-center font-medium bg-slate-50/30 group-hover:bg-transparent transition-colors">
@@ -3154,14 +3153,14 @@ function SchedulePageContent() {
                                                                                         </div>
                                                                                     </td>
                                                                                     <td className="p-2 text-center font-medium">
-                                                                                         <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
+                                                                                        <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-rose-50 text-rose-700 border border-rose-100/50">
                                                                                             {formatTimeOnly(ts.clockOut)}
-                                                                                         </div>
+                                                                                        </div>
                                                                                     </td>
                                                                                     {!type.includes('SITE') && (
                                                                                         <td className="p-2 text-right font-medium text-slate-500">
                                                                                             {distance > 0 ? (
-                                                                                                <button 
+                                                                                                <button
                                                                                                     onClick={(e) => {
                                                                                                         e.stopPropagation();
                                                                                                         const isCoord = (val: any) => typeof val === 'string' && val.includes(',');
@@ -3185,37 +3184,37 @@ function SchedulePageContent() {
                                                                                         {hours > 0 ? hours.toFixed(2) : '-'}
                                                                                     </td>
                                                                                     <td className="p-2 text-right">
-                                                                                            <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                                                                                                <Tooltip>
-                                                                                                    <TooltipTrigger asChild>
-                                                                                                        <button 
-                                                                                                            onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
-                                                                                                            className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
-                                                                                                        >
-                                                                                                            <Edit size={12} />
-                                                                                                        </button>
-                                                                                                    </TooltipTrigger>
-                                                                                                    <TooltipContent>
-                                                                                                        <p>Edit</p>
-                                                                                                    </TooltipContent>
-                                                                                                </Tooltip>
-                                                                                                <Tooltip>
-                                                                                                    <TooltipTrigger asChild>
-                                                                                                        <button 
-                                                                                                            onClick={(e) => { 
-                                                                                                                e.stopPropagation(); 
-                                                                                                                handleDeleteTimesheet(ts._id || ts.recordId); 
-                                                                                                            }}
-                                                                                                            className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                                                                                        >
-                                                                                                            <Trash2 size={12} />
-                                                                                                        </button>
-                                                                                                    </TooltipTrigger>
-                                                                                                    <TooltipContent>
-                                                                                                        <p>Delete</p>
-                                                                                                    </TooltipContent>
-                                                                                                </Tooltip>
-                                                                                            </div>
+                                                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                                                                                            <Tooltip>
+                                                                                                <TooltipTrigger asChild>
+                                                                                                    <button
+                                                                                                        onClick={(e) => { e.stopPropagation(); handleEditTimesheetClick(ts, selectedSchedule._id); }}
+                                                                                                        className="p-1.5 text-slate-400 hover:text-[#0F4C75] hover:bg-blue-50 rounded-lg transition-colors"
+                                                                                                    >
+                                                                                                        <Edit size={12} />
+                                                                                                    </button>
+                                                                                                </TooltipTrigger>
+                                                                                                <TooltipContent>
+                                                                                                    <p>Edit</p>
+                                                                                                </TooltipContent>
+                                                                                            </Tooltip>
+                                                                                            <Tooltip>
+                                                                                                <TooltipTrigger asChild>
+                                                                                                    <button
+                                                                                                        onClick={(e) => {
+                                                                                                            e.stopPropagation();
+                                                                                                            handleDeleteTimesheet(ts._id || ts.recordId);
+                                                                                                        }}
+                                                                                                        className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                                                                    >
+                                                                                                        <Trash2 size={12} />
+                                                                                                    </button>
+                                                                                                </TooltipTrigger>
+                                                                                                <TooltipContent>
+                                                                                                    <p>Delete</p>
+                                                                                                </TooltipContent>
+                                                                                            </Tooltip>
+                                                                                        </div>
                                                                                     </td>
                                                                                 </tr>
                                                                             );
@@ -3245,7 +3244,7 @@ function SchedulePageContent() {
                                                     <p className="text-3xl font-black text-white">{serverCapacity}%</p>
                                                     <p className="text-[10px] font-black text-blue-100 uppercase tracking-widest mt-1">CAPACITY</p>
                                                 </div>
-                                            )}  
+                                            )}
 
                                             {dayOffStats.length > 0 && (
                                                 <div className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden w-full">
@@ -3254,10 +3253,10 @@ function SchedulePageContent() {
                                                     </div>
                                                     <div className="divide-y divide-slate-100 max-h-[400px] overflow-y-auto">
                                                         {dayOffStats.map((stat, idx) => {
-                                                            const person = stat.assignees?.[0] 
-                                                                ? initialData.employees.find((e: any) => e.value === stat.assignees[0]) 
+                                                            const person = stat.assignees?.[0]
+                                                                ? initialData.employees.find((e: any) => e.value === stat.assignees[0])
                                                                 : null;
-                                                            
+
                                                             const formatDate = (d: string) => {
                                                                 if (!d) return '';
                                                                 const date = new Date(d);
@@ -3267,11 +3266,11 @@ function SchedulePageContent() {
 
                                                             const getWorkDays = (start: string, end: string) => {
                                                                 if (!start || !end) return { count: 0, days: '' };
-                                                                
+
                                                                 // Use UTC dates because handleSave anchors to "Z" (nominal time)
                                                                 const s = new Date(start);
                                                                 const e = new Date(end);
-                                                                
+
                                                                 // Normalize to UTC midnight
                                                                 const sUTC = Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
                                                                 const eUTC = Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
@@ -3279,38 +3278,38 @@ function SchedulePageContent() {
                                                                 const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                                                                 const daysFound: string[] = [];
                                                                 let count = 0;
-                                                                
+
                                                                 let current = sUTC;
                                                                 while (current <= eUTC) {
                                                                     const d = new Date(current);
                                                                     const dayOfWeek = d.getUTCDay();
-                                                                    
+
                                                                     count++;
                                                                     const name = dayNames[dayOfWeek];
                                                                     if (!daysFound.includes(name)) daysFound.push(name);
-                                                                    
+
                                                                     current += 86400000; // Step by 1 day in ms
                                                                 }
-                                                                
+
                                                                 return { count, days: daysFound.join(', ') };
                                                             };
-                                                            
+
                                                             const { count, days } = getWorkDays(stat.fromDate, stat.toDate);
 
                                                             return (
-                                                                <div 
-                                                                    key={idx} 
+                                                                <div
+                                                                    key={idx}
                                                                     onClick={() => {
                                                                         const assignee = stat.assignees?.[0];
                                                                         if (assignee) setFilterEmployee(assignee);
                                                                         setFilterTag('Day Off');
-                                                                        
+
                                                                         // Create a range of dates for this specific time off
                                                                         const s = new Date(stat.fromDate);
                                                                         const e = new Date(stat.toDate);
                                                                         const sUTC = Date.UTC(s.getUTCFullYear(), s.getUTCMonth(), s.getUTCDate());
                                                                         const eUTC = Date.UTC(e.getUTCFullYear(), e.getUTCMonth(), e.getUTCDate());
-                                                                        
+
                                                                         const range = [];
                                                                         let cur = sUTC;
                                                                         while (cur <= eUTC) {
@@ -3319,14 +3318,14 @@ function SchedulePageContent() {
                                                                             cur += 86400000;
                                                                         }
                                                                         setSelectedDates(range);
-                                                                        
+
                                                                         // Reset page and refetch
                                                                         setPage(1);
                                                                         // Scroll to top of schedule
                                                                         if (scrollContainerRef.current) {
                                                                             scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
                                                                         }
-                                                                        
+
                                                                         // Close mobile filters if open
                                                                         setShowMobileFilters(false);
                                                                         success(`Showing Time Off for ${person?.label || assignee}`);
@@ -3380,11 +3379,11 @@ function SchedulePageContent() {
             {showMobileDetail && selectedSchedule && (
                 <div className="xl:hidden fixed inset-0 z-[60] flex flex-col">
                     {/* Backdrop */}
-                    <div 
+                    <div
                         className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
                         onClick={() => { setShowMobileDetail(false); setSelectedSchedule(null); }}
                     />
-                    
+
                     {/* Bottom Sheet */}
                     <div className="relative mt-auto bg-white rounded-t-[24px] max-h-[75vh] flex flex-col animate-in slide-in-from-bottom duration-300 shadow-2xl">
                         {/* Drag Handle & Header */}
@@ -3472,7 +3471,7 @@ function SchedulePageContent() {
                                     ].map((role, idx) => {
                                         if (!role.val) return null;
                                         const emp = initialData.employees.find(e => e.value?.toLowerCase() === role.val?.toLowerCase());
-                                        const initials = emp?.label 
+                                        const initials = emp?.label
                                             ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                                             : role.val[0]?.toUpperCase() || '?';
                                         return (
@@ -3497,7 +3496,7 @@ function SchedulePageContent() {
                                     <div className="flex flex-wrap gap-1.5">
                                         {(selectedSchedule.assignees || []).map((assignee: string, i: number) => {
                                             const emp = initialData.employees.find(e => e.value?.toLowerCase() === assignee?.toLowerCase());
-                                            const initials = emp?.label 
+                                            const initials = emp?.label
                                                 ? emp.label.split(' ').map((n: string) => n[0]).join('').toUpperCase()
                                                 : assignee[0]?.toUpperCase() || '?';
                                             return (
@@ -3532,8 +3531,8 @@ function SchedulePageContent() {
                                             const isCompleted = typeof obj === 'string' ? false : obj.completed;
                                             const text = typeof obj === 'string' ? obj : obj.text;
                                             return (
-                                                <div 
-                                                    key={i} 
+                                                <div
+                                                    key={i}
                                                     className="flex items-start gap-2 p-2 bg-slate-50 rounded-lg cursor-pointer"
                                                     onClick={() => handleToggleObjective(selectedSchedule._id, i, isCompleted)}
                                                 >
@@ -3564,8 +3563,8 @@ function SchedulePageContent() {
                                             const emp = initialData.employees.find(e => e.value === ts.employee);
                                             const { hours } = calculateTimesheetData(ts, selectedSchedule.fromDate);
                                             return (
-                                                <div 
-                                                    key={idx} 
+                                                <div
+                                                    key={idx}
                                                     className="flex items-center justify-between p-2 bg-slate-50 rounded-lg"
                                                     onClick={(e) => { e.stopPropagation(); handleViewTimesheet(selectedSchedule, ts, e); }}
                                                 >
@@ -3673,7 +3672,7 @@ function SchedulePageContent() {
                                         }
                                         setEditingItem(prev => ({ ...prev, ...updates }));
                                     }}
-                                    onNext={() => {}}
+                                    onNext={() => { }}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -3689,12 +3688,12 @@ function SchedulePageContent() {
                                         const newFrom = e.target.value; // e.g., "2026-01-26T06:00"
                                         setEditingItem(prev => {
                                             if (!prev?.toDate) return { ...prev, fromDate: newFrom, toDate: newFrom };
-                                            
+
                                             // Extract date part from new fromDate and time part from old toDate
                                             // Using string manipulation to avoid timezone conversion
                                             const newFromDatePart = newFrom.split('T')[0]; // "2026-01-26"
                                             const oldToTimePart = formatLocalDateTime(prev.toDate).split('T')[1] || '15:30'; // "HH:mm"
-                                            
+
                                             const newToDateString = `${newFromDatePart}T${oldToTimePart}`;
 
                                             return {
@@ -3744,10 +3743,10 @@ function SchedulePageContent() {
                                     .filter(emp => emp.isScheduleActive)
                                     .sort((a, b) => (a.label || '').localeCompare(b.label || ''))
                                     .map(emp => ({
-                                    label: emp.label,
-                                    value: emp.value,
-                                    image: emp.image
-                                }))}
+                                        label: emp.label,
+                                        value: emp.value,
+                                        image: emp.image
+                                    }))}
                                 value={editingItem?.assignees || []}
                                 onChange={(val) => {
                                     setEditingItem(prev => ({ ...prev, assignees: val }));
@@ -3777,7 +3776,7 @@ function SchedulePageContent() {
                                                     estimate: (prev?.customerId && prev.customerId !== val) ? '' : prev?.estimate
                                                 }));
                                             }}
-                                            onNext={() => {}}
+                                            onNext={() => { }}
                                         />
                                     </div>
                                     <div>
@@ -3793,16 +3792,16 @@ function SchedulePageContent() {
                                             onChange={(val) => {
                                                 const est = initialData.estimates.find(e => e.value === val);
                                                 const client = initialData.clients.find(c => c._id === est?.customerId);
-                                                
+
                                                 // Smart Auto-fill
-                                                setEditingItem(prev => ({ 
-                                                    ...prev, 
+                                                setEditingItem(prev => ({
+                                                    ...prev,
                                                     estimate: val,
                                                     // Auto-select client if not set or mismatch
-                                                    customerId: est?.customerId || prev?.customerId, 
+                                                    customerId: est?.customerId || prev?.customerId,
                                                     customerName: client?.name || prev?.customerName,
                                                     // Auto-fill title if empty or user wants override (we prioritize estimate data if selected explicitly)
-                                                    title: est?.projectTitle || est?.projectName || prev?.title || '', 
+                                                    title: est?.projectTitle || est?.projectName || prev?.title || '',
                                                     // Auto-fill description from Scope of Work/Proposal
                                                     description: est?.scopeOfWork || prev?.description || '',
                                                     // Auto-fill services (multi-select capable)
@@ -3816,12 +3815,12 @@ function SchedulePageContent() {
                                                     siteLayout: est?.siteLayout || (val ? '' : prev?.siteLayout)
                                                 }));
                                             }}
-                                            onNext={() => {}}
+                                            onNext={() => { }}
                                         />
                                     </div>
                                 </>
                             )}
-                            
+
                             <div className={`space-y-2 ${editingItem?.item === 'Day Off' ? 'md:col-span-2' : ''}`}>
                                 <label className="block text-sm font-bold text-slate-900">
                                     {editingItem?.item === 'Day Off' ? 'Reason' : 'Title'}
@@ -3844,11 +3843,11 @@ function SchedulePageContent() {
                                 <div className="flex items-center h-[42px] mt-7">
                                     <label className="flex items-center gap-2 cursor-pointer select-none">
                                         <div className="relative flex items-center">
-                                            <input 
-                                                type="checkbox" 
+                                            <input
+                                                type="checkbox"
                                                 className="peer h-5 w-5 cursor-pointer appearance-none rounded border border-slate-300 shadow-sm transition-all checked:border-slate-800 checked:bg-slate-800 hover:border-slate-400 focus:ring-1 focus:ring-slate-800 focus:ring-offset-1"
                                                 checked={editingItem?.isDayOffApproved === true}
-                                                onChange={(e) => setEditingItem(prev => prev ? {...prev, isDayOffApproved: e.target.checked} : null)}
+                                                onChange={(e) => setEditingItem(prev => prev ? { ...prev, isDayOffApproved: e.target.checked } : null)}
                                                 disabled={isEmployeeScope}
                                             />
                                             <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100">
@@ -3864,451 +3863,451 @@ function SchedulePageContent() {
                         </div>
 
                         {editingItem?.item !== 'Day Off' && (
-                        <>
+                            <>
 
-                        {/* Job Location - Read Only (shown when estimate is selected) */}
-                        {editingItem?.estimate && (() => {
-                            const est = initialData.estimates.find(e => e.value === editingItem?.estimate);
-                            const jobAddr = est?.jobAddress || editingItem?.jobLocation;
-                            if (!jobAddr) return null;
-                            return (
-                                <div className="space-y-2">
-                                    <label className="block text-sm font-bold text-slate-500">Job Location</label>
-                                    <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700">
-                                        {jobAddr}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-
-                        {/* Row 3: Staffing (PM, Foreman) */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
-                             <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedPM"
-                                    label="Project Manager"
-                                    placeholder="Select PM"
-                                    disableBlank={true}
-                                    options={initialData.employees
-                                        .filter(emp => emp.designation?.toLowerCase().includes('project manager'))
-                                        .map(emp => ({
-                                            label: emp.label,
-                                            value: emp.value,
-                                            image: emp.image
-                                        }))}
-                                    value={editingItem?.projectManager || ''}
-                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, projectManager: val } : null)}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedForeman"
-                                    label="Foreman"
-                                    placeholder="Select Foreman"
-                                    disableBlank={true}
-                                    options={initialData.employees
-                                        .filter(emp => emp.designation?.toLowerCase().includes('foreman'))
-                                        .map(emp => ({
-                                            label: emp.label,
-                                            value: emp.value,
-                                            image: emp.image
-                                        }))}
-                                    value={editingItem?.foremanName || ''}
-                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, foremanName: val } : null)}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                        </div>
-
-
-
-                        {/* Grid for Service, Tag, Notify, Per Diem, Fringe, CP */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedService"
-                                    label="Service"
-                                    placeholder="Select Service"
-                                    multiple={true}
-                                    disableBlank={true}
-                                    options={initialData.constants.filter(c => c.type?.toLowerCase() === 'services').map(c => ({
-                                        label: c.description,
-                                        value: c.description,
-                                        image: c.image,
-                                        color: c.color
-                                    }))}
-                                    value={editingItem?.service ? editingItem.service.split(',').map(s => s.trim()).filter(Boolean) : []}
-                                    onChange={(val) => {
-                                         // val is string[] from multiple select
-                                         const strVal = Array.isArray(val) ? val.join(', ') : val;
-                                         setEditingItem(prev => prev ? { ...prev, service: strVal } : null);
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedNotify"
-                                    label="Notify Assignees"
-                                    placeholder="Select"
-                                    disableBlank={true}
-                                    options={[
-                                        { label: 'No', value: 'No', color: '#ef4444' },
-                                        { label: 'Yes', value: 'Yes', color: '#22c55e' }
-                                    ]}
-                                    value={editingItem?.notifyAssignees === true ? 'Yes' : (editingItem?.notifyAssignees === false ? 'No' : (editingItem?.notifyAssignees || 'No'))}
-                                    onChange={(val) => {
-                                        setEditingItem({
-                                            ...editingItem,
-                                            notifyAssignees: val
-                                        });
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedPerDiem"
-                                    label="Per Diem Eligible"
-                                    placeholder="Select"
-                                    disableBlank={true}
-                                    submitOnEnter={true}
-                                    openOnFocus={true}
-                                    options={[
-                                        { label: 'No', value: 'No', color: '#ef4444' },
-                                        { label: 'Yes', value: 'Yes', color: '#22c55e' }
-                                    ]}
-                                    value={editingItem?.perDiem === true ? 'Yes' : (editingItem?.perDiem === false ? 'No' : (editingItem?.perDiem || 'No'))}
-                                    onChange={(val) => {
-                                        setEditingItem(prev => prev ? { ...prev, perDiem: val } : null);
-                                    }}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedFringe"
-                                    label="Fringe"
-                                    placeholder="Select Fringe"
-                                    disableBlank={true}
-                                    options={initialData.constants.filter(c => c.type === 'Fringe').map(c => ({
-                                        label: c.description,
-                                        value: c.description,
-                                        image: c.image,
-                                        color: c.color
-                                    }))}
-                                    value={editingItem?.fringe || ''}
-                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, fringe: val } : null)}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <SearchableSelect
-                                    id="schedCP"
-                                    label="Certified Payroll"
-                                    placeholder="Select CP"
-                                    disableBlank={true}
-                                    options={initialData.constants.filter(c => c.type === 'Certified Payroll').map(c => ({
-                                        label: c.description,
-                                        value: c.description,
-                                        image: c.image,
-                                        color: c.color
-                                    }))}
-                                    value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
-                                    onChange={(val) => setEditingItem(prev => prev ? { ...prev, certifiedPayroll: val } : null)}
-                                    onNext={() => {}}
-                                />
-                            </div>
-                        </div>
-
-                        {/* Today's Objectives */}
-                        <div className="space-y-2 mt-4">
-                            <label className="block text-sm font-bold text-slate-900">Today&apos;s objectives</label>
-                            <div className="flex gap-2">
-                                <input
-                                    id="newObjective"
-                                    type="text"
-                                    placeholder="Enter objective..."
-                                    className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            const val = e.currentTarget.value.trim();
-                                            if (val) {
-                                                e.preventDefault();
-                                                const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                                const newObjective: Objective = { text: val, completed: false };
-                                                setEditingItem(prev => prev ? { ...prev, todayObjectives: [...current, newObjective] } : null);
-                                                e.currentTarget.value = '';
-                                            }
-                                        }
-                                    }}
-                                />
-                                <button
-                                    type="button"
-                                    className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
-                                    onClick={() => {
-                                        const input = document.getElementById('newObjective') as HTMLInputElement;
-                                        if (input && input.value.trim()) {
-                                            const val = input.value.trim();
-                                            const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                            const newObjective: Objective = { text: val, completed: false };
-                                            setEditingItem(prev => prev ? { ...prev, todayObjectives: [...current, newObjective] } : null);
-                                            input.value = '';
-                                        }
-                                    }}
-                                >
-                                    Add
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                                {(Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : []).map((obj: Objective | string, idx: number) => {
-                                    const objText = typeof obj === 'string' ? obj : obj.text;
-                                    const isCompleted = typeof obj === 'string' ? false : obj.completed;
+                                {/* Job Location - Read Only (shown when estimate is selected) */}
+                                {editingItem?.estimate && (() => {
+                                    const est = initialData.estimates.find(e => e.value === editingItem?.estimate);
+                                    const jobAddr = est?.jobAddress || editingItem?.jobLocation;
+                                    if (!jobAddr) return null;
                                     return (
-                                        <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg group ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-slate-100 border-slate-200'}`}>
-                                            <span className={`text-sm font-medium ${isCompleted ? 'text-green-700 line-through' : 'text-slate-700'}`}>{objText}</span>
-                                            <button
-                                                type="button"
-                                                className="text-slate-400 hover:text-red-500 transition-colors"
-                                                onClick={() => {
-                                                    const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
-                                                    setEditingItem(prev => prev ? { ...prev, todayObjectives: current.filter((_: Objective | string, i: number) => i !== idx) } : null);
-                                                }}
-                                            >
-                                                <X size={14} />
-                                            </button>
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-bold text-slate-500">Job Location</label>
+                                            <div className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700">
+                                                {jobAddr}
+                                            </div>
                                         </div>
                                     );
-                                })}
-                            </div>
-                        </div>
-                        
-                        {/* Description - takes full width */}
-                        <div className="space-y-2 mt-2">
-                            <label className="block text-sm font-bold text-slate-900">Scope of Work</label>
-                            <textarea
-                                id="schedDesc"
-                                rows={8}
-                                className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-y placeholder:text-slate-400"
-                                placeholder="Enter scope of work..."
-                                value={editingItem?.description || ''}
-                                onChange={(e) => setEditingItem(prev => prev ? { ...prev, description: e.target.value } : null)}
-                            />
-                        </div>
+                                })()}
 
-
-
-                        {/* Row 8: Aerial Image & Site Layout */}
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                            {/* Aerial Image */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
-                                    {(() => {
-                                        if (!editingItem) return null;
-                                        const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                        if (est?.aerialImage && editingItem.aerialImage === est.aerialImage) {
-                                            return (
-                                                <Badge variant="info" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1 py-0 px-2 h-5">
-                                                    <Shield size={10} />
-                                                    From Estimate
-                                                </Badge>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
+                                {/* Row 3: Staffing (PM, Foreman) */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50/50 p-4 rounded-xl border border-slate-100">
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedPM"
+                                            label="Project Manager"
+                                            placeholder="Select PM"
+                                            disableBlank={true}
+                                            options={initialData.employees
+                                                .filter(emp => emp.designation?.toLowerCase().includes('project manager'))
+                                                .map(emp => ({
+                                                    label: emp.label,
+                                                    value: emp.value,
+                                                    image: emp.image
+                                                }))}
+                                            value={editingItem?.projectManager || ''}
+                                            onChange={(val) => setEditingItem(prev => prev ? { ...prev, projectManager: val } : null)}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedForeman"
+                                            label="Foreman"
+                                            placeholder="Select Foreman"
+                                            disableBlank={true}
+                                            options={initialData.employees
+                                                .filter(emp => emp.designation?.toLowerCase().includes('foreman'))
+                                                .map(emp => ({
+                                                    label: emp.label,
+                                                    value: emp.value,
+                                                    image: emp.image
+                                                }))}
+                                            value={editingItem?.foremanName || ''}
+                                            onChange={(val) => setEditingItem(prev => prev ? { ...prev, foremanName: val } : null)}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="flex flex-col h-[200px]">
-                                    <div className="flex-1 min-h-[140px] mb-2">
-                                        {editingItem?.aerialImage ? (
-                                            <div className="relative group h-full">
-                                                <img 
-                                                    src={editingItem?.aerialImage} 
-                                                    alt="Aerial View" 
-                                                    className="w-full h-full object-cover rounded-lg border border-slate-200"
-                                                />
+
+
+
+                                {/* Grid for Service, Tag, Notify, Per Diem, Fringe, CP */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedService"
+                                            label="Service"
+                                            placeholder="Select Service"
+                                            multiple={true}
+                                            disableBlank={true}
+                                            options={initialData.constants.filter(c => c.type?.toLowerCase() === 'services').map(c => ({
+                                                label: c.description,
+                                                value: c.description,
+                                                image: c.image,
+                                                color: c.color
+                                            }))}
+                                            value={editingItem?.service ? editingItem.service.split(',').map(s => s.trim()).filter(Boolean) : []}
+                                            onChange={(val) => {
+                                                // val is string[] from multiple select
+                                                const strVal = Array.isArray(val) ? val.join(', ') : val;
+                                                setEditingItem(prev => prev ? { ...prev, service: strVal } : null);
+                                            }}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedNotify"
+                                            label="Notify Assignees"
+                                            placeholder="Select"
+                                            disableBlank={true}
+                                            options={[
+                                                { label: 'No', value: 'No', color: '#ef4444' },
+                                                { label: 'Yes', value: 'Yes', color: '#22c55e' }
+                                            ]}
+                                            value={editingItem?.notifyAssignees === true ? 'Yes' : (editingItem?.notifyAssignees === false ? 'No' : (editingItem?.notifyAssignees || 'No'))}
+                                            onChange={(val) => {
+                                                setEditingItem({
+                                                    ...editingItem,
+                                                    notifyAssignees: val
+                                                });
+                                            }}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedPerDiem"
+                                            label="Per Diem Eligible"
+                                            placeholder="Select"
+                                            disableBlank={true}
+                                            submitOnEnter={true}
+                                            openOnFocus={true}
+                                            options={[
+                                                { label: 'No', value: 'No', color: '#ef4444' },
+                                                { label: 'Yes', value: 'Yes', color: '#22c55e' }
+                                            ]}
+                                            value={editingItem?.perDiem === true ? 'Yes' : (editingItem?.perDiem === false ? 'No' : (editingItem?.perDiem || 'No'))}
+                                            onChange={(val) => {
+                                                setEditingItem(prev => prev ? { ...prev, perDiem: val } : null);
+                                            }}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedFringe"
+                                            label="Fringe"
+                                            placeholder="Select Fringe"
+                                            disableBlank={true}
+                                            options={initialData.constants.filter(c => c.type === 'Fringe').map(c => ({
+                                                label: c.description,
+                                                value: c.description,
+                                                image: c.image,
+                                                color: c.color
+                                            }))}
+                                            value={editingItem?.fringe || ''}
+                                            onChange={(val) => setEditingItem(prev => prev ? { ...prev, fringe: val } : null)}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <SearchableSelect
+                                            id="schedCP"
+                                            label="Certified Payroll"
+                                            placeholder="Select CP"
+                                            disableBlank={true}
+                                            options={initialData.constants.filter(c => c.type === 'Certified Payroll').map(c => ({
+                                                label: c.description,
+                                                value: c.description,
+                                                image: c.image,
+                                                color: c.color
+                                            }))}
+                                            value={editingItem?.certifiedPayroll === true ? 'Yes' : (editingItem?.certifiedPayroll === false ? 'No' : (editingItem?.certifiedPayroll || ''))}
+                                            onChange={(val) => setEditingItem(prev => prev ? { ...prev, certifiedPayroll: val } : null)}
+                                            onNext={() => { }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Today's Objectives */}
+                                <div className="space-y-2 mt-4">
+                                    <label className="block text-sm font-bold text-slate-900">Today&apos;s objectives</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            id="newObjective"
+                                            type="text"
+                                            placeholder="Enter objective..."
+                                            className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all"
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    const val = e.currentTarget.value.trim();
+                                                    if (val) {
+                                                        e.preventDefault();
+                                                        const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
+                                                        const newObjective: Objective = { text: val, completed: false };
+                                                        setEditingItem(prev => prev ? { ...prev, todayObjectives: [...current, newObjective] } : null);
+                                                        e.currentTarget.value = '';
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
+                                            onClick={() => {
+                                                const input = document.getElementById('newObjective') as HTMLInputElement;
+                                                if (input && input.value.trim()) {
+                                                    const val = input.value.trim();
+                                                    const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
+                                                    const newObjective: Objective = { text: val, completed: false };
+                                                    setEditingItem(prev => prev ? { ...prev, todayObjectives: [...current, newObjective] } : null);
+                                                    input.value = '';
+                                                }
+                                            }}
+                                        >
+                                            Add
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {(Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : []).map((obj: Objective | string, idx: number) => {
+                                            const objText = typeof obj === 'string' ? obj : obj.text;
+                                            const isCompleted = typeof obj === 'string' ? false : obj.completed;
+                                            return (
+                                                <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg group ${isCompleted ? 'bg-green-50 border-green-200' : 'bg-slate-100 border-slate-200'}`}>
+                                                    <span className={`text-sm font-medium ${isCompleted ? 'text-green-700 line-through' : 'text-slate-700'}`}>{objText}</span>
+                                                    <button
+                                                        type="button"
+                                                        className="text-slate-400 hover:text-red-500 transition-colors"
+                                                        onClick={() => {
+                                                            const current = Array.isArray(editingItem?.todayObjectives) ? editingItem.todayObjectives : [];
+                                                            setEditingItem(prev => prev ? { ...prev, todayObjectives: current.filter((_: Objective | string, i: number) => i !== idx) } : null);
+                                                        }}
+                                                    >
+                                                        <X size={14} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Description - takes full width */}
+                                <div className="space-y-2 mt-2">
+                                    <label className="block text-sm font-bold text-slate-900">Scope of Work</label>
+                                    <textarea
+                                        id="schedDesc"
+                                        rows={8}
+                                        className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all resize-y placeholder:text-slate-400"
+                                        placeholder="Enter scope of work..."
+                                        value={editingItem?.description || ''}
+                                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, description: e.target.value } : null)}
+                                    />
+                                </div>
+
+
+
+                                {/* Row 8: Aerial Image & Site Layout */}
+                                <div className="grid grid-cols-2 gap-4 mt-4">
+                                    {/* Aerial Image */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="block text-sm font-bold text-slate-900">Aerial Image</label>
+                                            {(() => {
+                                                if (!editingItem) return null;
+                                                const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                if (est?.aerialImage && editingItem.aerialImage === est.aerialImage) {
+                                                    return (
+                                                        <Badge variant="info" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1 py-0 px-2 h-5">
+                                                            <Shield size={10} />
+                                                            From Estimate
+                                                        </Badge>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
+                                        <div className="flex flex-col h-[200px]">
+                                            <div className="flex-1 min-h-[140px] mb-2">
+                                                {editingItem?.aerialImage ? (
+                                                    <div className="relative group h-full">
+                                                        <img
+                                                            src={editingItem?.aerialImage}
+                                                            alt="Aerial View"
+                                                            className="w-full h-full object-cover rounded-lg border border-slate-200"
+                                                        />
+                                                        {(() => {
+                                                            if (!editingItem) return null;
+                                                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                            if (!(est?.aerialImage && editingItem.aerialImage === est.aerialImage)) {
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingItem(prev => prev ? { ...prev, aerialImage: '' } : null)}
+                                                                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                    >
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                        <div className="text-center text-slate-400">
+                                                            <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                                            <p className="text-[10px] font-medium">No image</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-2">
                                                 {(() => {
                                                     if (!editingItem) return null;
                                                     const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                                    if (!(est?.aerialImage && editingItem.aerialImage === est.aerialImage)) {
-                                                        return (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setEditingItem(prev => prev ? { ...prev, aerialImage: '' } : null)}
-                                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        );
-                                                    }
-                                                    return null;
+                                                    const isLocked = est?.aerialImage && editingItem.aerialImage === est.aerialImage;
+                                                    return (
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Paste image URL..."
+                                                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                                                                value={editingItem?.aerialImage || ''}
+                                                                onChange={(e) => setEditingItem(prev => prev ? { ...prev, aerialImage: e.target.value } : null)}
+                                                                disabled={isLocked}
+                                                            />
+                                                            {!isLocked && (
+                                                                <UploadButton
+                                                                    onUpload={(url) => setEditingItem(prev => prev ? { ...prev, aerialImage: url } : null)}
+                                                                    folder="schedules/aerial"
+                                                                />
+                                                            )}
+                                                        </>
+                                                    );
                                                 })()}
                                             </div>
-                                        ) : (
-                                            <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
-                                                <div className="text-center text-slate-400">
-                                                    <Upload className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                                                    <p className="text-[10px] font-medium">No image</p>
-                                                </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Site Layout */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="block text-sm font-bold text-slate-900">Site Layout</label>
+                                            {(() => {
+                                                if (!editingItem) return null;
+                                                const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                if (est?.siteLayout && editingItem.siteLayout === est.siteLayout) {
+                                                    return (
+                                                        <Badge variant="success" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1 py-0 px-2 h-5">
+                                                            <Shield size={10} />
+                                                            From Estimate
+                                                        </Badge>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
+                                        </div>
+                                        <div className="flex flex-col h-[200px]">
+                                            <div className="flex-1 min-h-[140px] mb-2">
+                                                {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') ? (() => {
+                                                    if (!editingItem) return null;
+                                                    const coordsMatch = editingItem.siteLayout.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                                                    const lat = coordsMatch?.[1];
+                                                    const lng = coordsMatch?.[2];
+                                                    const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
+
+                                                    return embedUrl ? (
+                                                        <div className="relative group h-full">
+                                                            <div className="w-full h-full rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                                                                <iframe
+                                                                    width="100%"
+                                                                    height="100%"
+                                                                    style={{ border: 0 }}
+                                                                    src={embedUrl}
+                                                                    className="w-full h-full"
+                                                                    loading="lazy"
+                                                                />
+                                                            </div>
+                                                            {(() => {
+                                                                if (!editingItem) return null;
+                                                                const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                                if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
+                                                                    return (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setEditingItem(prev => prev ? { ...prev, siteLayout: '' } : null)}
+                                                                            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                                                        >
+                                                                            <X className="w-3 h-3" />
+                                                                        </button>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                            <div className="text-center text-slate-400">
+                                                                <MapPin className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                                                <p className="text-[10px] font-medium">Invalid URL</p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })() : editingItem?.siteLayout ? (
+                                                    <div className="relative group h-full">
+                                                        <img
+                                                            src={editingItem?.siteLayout}
+                                                            alt="Site Layout"
+                                                            className="w-full h-full object-cover rounded-lg border border-slate-200"
+                                                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                                        />
+                                                        {(() => {
+                                                            if (!editingItem) return null;
+                                                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
+                                                            if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingItem(prev => prev ? { ...prev, siteLayout: '' } : null)}
+                                                                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                    >
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                );
+                                                            }
+                                                            return null;
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
+                                                        <div className="text-center text-slate-400">
+                                                            <MapPin className="w-6 h-6 mx-auto mb-1 opacity-50" />
+                                                            <p className="text-[10px] font-medium">No layout</p>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {(() => {
-                                            if (!editingItem) return null;
-                                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                            const isLocked = est?.aerialImage && editingItem.aerialImage === est.aerialImage;
-                                            return (
-                                                <>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Paste image URL..."
-                                                        className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
-                                                        value={editingItem?.aerialImage || ''}
-                                                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, aerialImage: e.target.value } : null)}
-                                                        disabled={isLocked}
-                                                    />
-                                                    {!isLocked && (
-                                                        <UploadButton 
-                                                            onUpload={(url) => setEditingItem(prev => prev ? { ...prev, aerialImage: url } : null)}
-                                                            folder="schedules/aerial"
-                                                        />
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Site Layout */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <label className="block text-sm font-bold text-slate-900">Site Layout</label>
-                                    {(() => {
-                                        if (!editingItem) return null;
-                                        const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                        if (est?.siteLayout && editingItem.siteLayout === est.siteLayout) {
-                                            return (
-                                                <Badge variant="success" className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1 py-0 px-2 h-5">
-                                                    <Shield size={10} />
-                                                    From Estimate
-                                                </Badge>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
-                                </div>
-                                <div className="flex flex-col h-[200px]">
-                                    <div className="flex-1 min-h-[140px] mb-2">
-                                        {editingItem?.siteLayout && editingItem.siteLayout.includes('earth.google.com') ? (() => {
-                                            if (!editingItem) return null;
-                                            const coordsMatch = editingItem.siteLayout.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-                                            const lat = coordsMatch?.[1];
-                                            const lng = coordsMatch?.[2];
-                                            const embedUrl = lat && lng ? `https://www.google.com/maps?q=${lat},${lng}&t=k&z=19&ie=UTF8&iwloc=&output=embed` : '';
-                                            
-                                            return embedUrl ? (
-                                                <div className="relative group h-full">
-                                                    <div className="w-full h-full rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                                                        <iframe
-                                                            width="100%"
-                                                            height="100%"
-                                                            style={{ border: 0 }}
-                                                            src={embedUrl}
-                                                            className="w-full h-full"
-                                                            loading="lazy"
-                                                        />
-                                                    </div>
-                                                    {(() => {
-                                                        if (!editingItem) return null;
-                                                        const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                                        if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
-                                                            return (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => setEditingItem(prev => prev ? { ...prev, siteLayout: '' } : null)}
-                                                                    className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                                                                >
-                                                                    <X className="w-3 h-3" />
-                                                                </button>
-                                                            );
-                                                        }
-                                                        return null;
-                                                    })()}
-                                                </div>
-                                            ) : (
-                                                <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
-                                                    <div className="text-center text-slate-400">
-                                                        <MapPin className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                                                        <p className="text-[10px] font-medium">Invalid URL</p>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })() : editingItem?.siteLayout ? (
-                                            <div className="relative group h-full">
-                                                <img 
-                                                    src={editingItem?.siteLayout} 
-                                                    alt="Site Layout" 
-                                                    className="w-full h-full object-cover rounded-lg border border-slate-200"
-                                                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                                                />
+                                            <div className="flex items-center gap-2">
                                                 {(() => {
                                                     if (!editingItem) return null;
                                                     const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                                    if (!(est?.siteLayout && editingItem.siteLayout === est.siteLayout)) {
-                                                        return (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setEditingItem(prev => prev ? { ...prev, siteLayout: '' } : null)}
-                                                                className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                            >
-                                                                <X className="w-3 h-3" />
-                                                            </button>
-                                                        );
-                                                    }
-                                                    return null;
+                                                    const isLocked = est?.siteLayout && editingItem.siteLayout === est.siteLayout;
+                                                    return (
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Paste Google Earth URL..."
+                                                                className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
+                                                                value={editingItem?.siteLayout || ''}
+                                                                onChange={(e) => setEditingItem(prev => prev ? { ...prev, siteLayout: e.target.value } : null)}
+                                                                disabled={isLocked}
+                                                            />
+                                                            {!isLocked && (
+                                                                <UploadButton
+                                                                    onUpload={(url) => setEditingItem(prev => prev ? { ...prev, siteLayout: url } : null)}
+                                                                    folder="schedules/layout"
+                                                                />
+                                                            )}
+                                                        </>
+                                                    );
                                                 })()}
                                             </div>
-                                        ) : (
-                                            <div className="w-full h-full rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center">
-                                                <div className="text-center text-slate-400">
-                                                    <MapPin className="w-6 h-6 mx-auto mb-1 opacity-50" />
-                                                    <p className="text-[10px] font-medium">No layout</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {(() => {
-                                            if (!editingItem) return null;
-                                            const est = initialData.estimates.find(e => e.value === editingItem.estimate);
-                                            const isLocked = est?.siteLayout && editingItem.siteLayout === est.siteLayout;
-                                            return (
-                                                <>
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Paste Google Earth URL..."
-                                                        className="flex-1 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-black/5 focus:border-black transition-all disabled:bg-slate-50 disabled:text-slate-500"
-                                                        value={editingItem?.siteLayout || ''}
-                                                        onChange={(e) => setEditingItem(prev => prev ? { ...prev, siteLayout: e.target.value } : null)}
-                                                        disabled={isLocked}
-                                                    />
-                                                    {!isLocked && (
-                                                        <UploadButton 
-                                                            onUpload={(url) => setEditingItem(prev => prev ? { ...prev, siteLayout: url } : null)}
-                                                            folder="schedules/layout"
-                                                        />
-                                                    )}
-                                                </>
-                                            );
-                                        })()}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        </>
+                            </>
                         )}
 
                         <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
@@ -4443,9 +4442,9 @@ function SchedulePageContent() {
             >
                 <div className="p-1">
                     {mediaModal.type === 'image' ? (
-                        <img 
-                            src={mediaModal.url} 
-                            alt={mediaModal.title} 
+                        <img
+                            src={mediaModal.url}
+                            alt={mediaModal.title}
                             className="w-full h-auto rounded-xl shadow-2xl border border-slate-200"
                         />
                     ) : (
@@ -4463,9 +4462,9 @@ function SchedulePageContent() {
                     )}
                     <div className="mt-6 flex justify-end gap-3">
                         {mediaModal.type === 'map' && (
-                            <a 
-                                href={mediaModal.url.replace('&output=embed', '').replace('output=embed', '')} 
-                                target="_blank" 
+                            <a
+                                href={mediaModal.url.replace('&output=embed', '').replace('output=embed', '')}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-black shadow-lg hover:shadow-blue-200/50 hover:bg-blue-700 transition-all flex items-center gap-2"
                             >
@@ -4500,10 +4499,10 @@ function SchedulePageContent() {
                             <p className="text-xs text-blue-800/70 mt-1">The JHA document will be attached as a PDF and sent to the recipient below.</p>
                         </div>
                     </div>
-                    
+
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block font-sans">Recipient Email</label>
-                        <input 
+                        <input
                             type="email"
                             required
                             className="w-full text-sm font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#0F4C75]"
@@ -4533,7 +4532,7 @@ function SchedulePageContent() {
                     </div>
                 </form>
             </Modal>
-                <Modal
+            <Modal
                 isOpen={deleteConfirmation.isOpen}
                 onClose={() => setDeleteConfirmation({ isOpen: false, tsId: null })}
                 title="Delete Timesheet Entry"
@@ -4568,13 +4567,13 @@ function SchedulePageContent() {
                 noBlur={true}
                 footer={
                     <>
-                        <button 
+                        <button
                             onClick={() => setEditingTimesheet(null)}
                             className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 font-bold text-sm"
                         >
                             Cancel
                         </button>
-                        <button 
+                        <button
                             onClick={handleSaveTimesheetEdit}
                             className="px-6 py-2 rounded-xl bg-[#0F4C75] text-white font-bold text-sm shadow-lg hover:shadow-xl hover:bg-[#0b3c5d] transition-all"
                         >
@@ -4622,12 +4621,12 @@ function SchedulePageContent() {
                             {(() => {
                                 const schedule = schedules.find(s => s._id === editTimesheetForm.scheduleId);
                                 if (schedule?.fromDate) {
-                                    return new Date(schedule.fromDate).toLocaleDateString('en-US', { 
-                                        weekday: 'short', 
-                                        month: 'short', 
-                                        day: 'numeric', 
-                                        year: 'numeric', 
-                                        timeZone: 'UTC' 
+                                    return new Date(schedule.fromDate).toLocaleDateString('en-US', {
+                                        weekday: 'short',
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                        timeZone: 'UTC'
                                     });
                                 }
                                 return '-';
@@ -4642,11 +4641,10 @@ function SchedulePageContent() {
                             {['Drive Time', 'Site Time'].map(t => (
                                 <div
                                     key={t}
-                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-center border-2 cursor-not-allowed ${
-                                        (editTimesheetForm.type || '').trim().toLowerCase() === t.trim().toLowerCase()
-                                        ? 'bg-[#0F4C75] border-[#0F4C75] text-white' 
-                                        : 'bg-slate-100 border-slate-200 text-slate-400'
-                                    }`}
+                                    className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold text-center border-2 cursor-not-allowed ${(editTimesheetForm.type || '').trim().toLowerCase() === t.trim().toLowerCase()
+                                            ? 'bg-[#0F4C75] border-[#0F4C75] text-white'
+                                            : 'bg-slate-100 border-slate-200 text-slate-400'
+                                        }`}
                                 >
                                     {t}
                                 </div>
@@ -4658,14 +4656,14 @@ function SchedulePageContent() {
                         <>
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock In</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.clockIn)}
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, clockIn: val + ':00.000Z'}));
+                                            setEditTimesheetForm((prev: any) => ({ ...prev, clockIn: val + ':00.000Z' }));
                                         }
                                     }}
                                 />
@@ -4673,14 +4671,14 @@ function SchedulePageContent() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch Start</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.lunchStart)}
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, lunchStart: val + ':00.000Z'}));
+                                            setEditTimesheetForm((prev: any) => ({ ...prev, lunchStart: val + ':00.000Z' }));
                                         }
                                     }}
                                 />
@@ -4688,14 +4686,14 @@ function SchedulePageContent() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Lunch End</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.lunchEnd)}
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, lunchEnd: val + ':00.000Z'}));
+                                            setEditTimesheetForm((prev: any) => ({ ...prev, lunchEnd: val + ':00.000Z' }));
                                         }
                                     }}
                                 />
@@ -4703,14 +4701,14 @@ function SchedulePageContent() {
 
                             <div>
                                 <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Clock Out</label>
-                                <input 
+                                <input
                                     type="datetime-local"
                                     className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700"
                                     value={toLocalISO(editTimesheetForm.clockOut)}
                                     onChange={e => {
                                         const val = e.target.value;
                                         if (val) {
-                                            setEditTimesheetForm((prev: any) => ({...prev, clockOut: val + ':00.000Z'}));
+                                            setEditTimesheetForm((prev: any) => ({ ...prev, clockOut: val + ':00.000Z' }));
                                         }
                                     }}
                                 />
@@ -4723,38 +4721,36 @@ function SchedulePageContent() {
                             <div className="col-span-2 grid grid-cols-3 gap-3">
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Distance (Mi)</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         placeholder="Manual"
                                         className="w-full px-4 py-3 rounded-xl bg-blue-50/50 border border-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
                                         value={editTimesheetForm.manualDistance || ''}
-                                        onChange={e => setEditTimesheetForm((prev: any) => ({...prev, manualDistance: e.target.value}))}
+                                        onChange={e => setEditTimesheetForm((prev: any) => ({ ...prev, manualDistance: e.target.value }))}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location In</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="Start loc"
                                         disabled={!!editTimesheetForm.manualDistance}
-                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                            editTimesheetForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                        }`}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${editTimesheetForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
                                         value={editTimesheetForm.locationIn || ''}
-                                        onChange={e => setEditTimesheetForm((prev: any) => ({...prev, locationIn: e.target.value}))}
+                                        onChange={e => setEditTimesheetForm((prev: any) => ({ ...prev, locationIn: e.target.value }))}
                                     />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Location Out</label>
-                                    <input 
+                                    <input
                                         type="text"
                                         placeholder="End loc"
                                         disabled={!!editTimesheetForm.manualDistance}
-                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${
-                                            editTimesheetForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
-                                        }`}
+                                        className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 ${editTimesheetForm.manualDistance ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-200'
+                                            }`}
                                         value={editTimesheetForm.locationOut || ''}
-                                        onChange={e => setEditTimesheetForm((prev: any) => ({...prev, locationOut: e.target.value}))}
+                                        onChange={e => setEditTimesheetForm((prev: any) => ({ ...prev, locationOut: e.target.value }))}
                                     />
                                 </div>
                             </div>
@@ -4762,7 +4758,7 @@ function SchedulePageContent() {
                             <div className="col-span-2 grid grid-cols-2 gap-3">
                                 <div className="p-3 rounded-xl bg-orange-50/50 border border-orange-100">
                                     <label className="block text-[10px] font-black text-orange-400 uppercase mb-1 tracking-widest pl-1">Washout Qty</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         className="w-full px-2 py-1.5 rounded-lg bg-white border border-orange-200 font-black text-slate-700 text-sm"
                                         placeholder="0"
@@ -4773,17 +4769,17 @@ function SchedulePageContent() {
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
                                             if (isNaN(qty) || qty <= 0) {
-                                                setEditTimesheetForm((prev: any) => ({...prev, dumpWashout: ""}));
+                                                setEditTimesheetForm((prev: any) => ({ ...prev, dumpWashout: "" }));
                                             } else {
                                                 const val = `${(qty * 0.5).toFixed(2)} hrs (${qty} qty)`;
-                                                setEditTimesheetForm((prev: any) => ({...prev, dumpWashout: val}));
+                                                setEditTimesheetForm((prev: any) => ({ ...prev, dumpWashout: val }));
                                             }
                                         }}
                                     />
                                 </div>
                                 <div className="p-3 rounded-xl bg-amber-50/50 border border-amber-100">
                                     <label className="block text-[10px] font-black text-amber-400 uppercase mb-1 tracking-widest pl-1">Shop Qty</label>
-                                    <input 
+                                    <input
                                         type="number"
                                         className="w-full px-2 py-1.5 rounded-lg bg-white border border-amber-200 font-black text-slate-700 text-sm"
                                         placeholder="0"
@@ -4794,10 +4790,10 @@ function SchedulePageContent() {
                                         onChange={e => {
                                             const qty = parseFloat(e.target.value);
                                             if (isNaN(qty) || qty <= 0) {
-                                                setEditTimesheetForm((prev: any) => ({...prev, shopTime: ""}));
+                                                setEditTimesheetForm((prev: any) => ({ ...prev, shopTime: "" }));
                                             } else {
                                                 const val = `${(qty * 0.25).toFixed(2)} hrs (${qty} qty)`;
-                                                setEditTimesheetForm((prev: any) => ({...prev, shopTime: val}));
+                                                setEditTimesheetForm((prev: any) => ({ ...prev, shopTime: val }));
                                             }
                                         }}
                                     />
@@ -4827,17 +4823,17 @@ function SchedulePageContent() {
 
                     <div className="col-span-2">
                         <label className="block text-xs font-bold text-slate-400 uppercase mb-1 px-1">Comments</label>
-                        <textarea 
+                        <textarea
                             rows={2}
                             placeholder="Add any notes here..."
                             className="w-full px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#0F4C75] font-medium text-slate-700 resize-none transition-all"
                             value={editTimesheetForm.comments || ''}
-                            onChange={e => setEditTimesheetForm((prev: any) => ({...prev, comments: e.target.value}))}
+                            onChange={e => setEditTimesheetForm((prev: any) => ({ ...prev, comments: e.target.value }))}
                         />
                     </div>
                 </div>
             </Modal>
-            
+
             <ConfirmModal
                 isOpen={actionConfirm.isOpen}
                 onClose={() => setActionConfirm(prev => ({ ...prev, isOpen: false }))}
