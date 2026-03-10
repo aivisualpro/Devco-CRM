@@ -28,11 +28,19 @@ export const robustNormalizeISO = (str?: string) => {
         return `${y}-${m}-${d}T${hStr}:${min}:${sec}.000Z`;
     }
 
-    // Handle YYYY-MM-DDTHH:mm
+    // Handle YYYY-MM-DDTHH:mm (with optional seconds, milliseconds, and timezone offset)
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(str)) {
-        // Just append :00.000Z if missing
-        // But check if it already has seconds
-        const base = str.slice(0, 16); // up to mm
+        // Check if the string has a timezone indicator (Z, +HH:MM, -HH:MM)
+        const hasTimezone = /[Zz]$/.test(str) || /[+-]\d{2}:\d{2}$/.test(str);
+        try {
+            // If it has a timezone offset, parse it properly (preserves -06:00 etc.)
+            // If NO timezone, append Z to treat as UTC (backward compatible)
+            const toParse = hasTimezone ? str : str + 'Z';
+            const date = new Date(toParse);
+            if (!isNaN(date.getTime())) return date.toISOString();
+        } catch { }
+        // Fallback: if Date parsing fails, manually truncate
+        const base = str.slice(0, 16);
         return `${base}:00.000Z`;
     }
 
